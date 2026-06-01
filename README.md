@@ -13,19 +13,31 @@ CareerMate 是一个面向职业发展的智能助手平台，提供简历优化
 
 ## 当前阶段说明
 
-**阶段一：项目基础骨架**
+**阶段二：数据库 Migration 基础 + 用户核心表**
 
-本阶段已完成：
+当前已完成：
 
-- 标准 monorepo 目录结构
-- Spring Boot 后端工程骨架
-- 统一响应体 `ApiResponse`
-- 全局异常处理 `GlobalExceptionHandler`
-- 健康检查接口 `GET /api/health`
-- Docker Compose（PostgreSQL + Backend）
-- `frontend/` 目录预留（本阶段不实现前端页面）
+- Spring Boot 后端基础骨架
+- 统一响应与异常处理
+- 健康检查接口
+- Vue 前端页面导入
+- Flyway migration 基础
+- 用户核心表 `users` / `user_profiles` / `security_audit_logs`
+- 对应实体类与 MyBatis-Plus Mapper
 
-本阶段未包含：登录认证、业务表、Agent Runtime、LLM/RAG 集成。
+本阶段未包含：登录注册接口、Spring Security、JWT、Agent、简历/岗位/面试等业务表。
+
+### 数据库初始化
+
+本地 PostgreSQL 启动后，后端启动时 Flyway 会自动执行 migration。
+
+Migration 文件位于：
+
+```
+backend/src/main/resources/db/migration/
+```
+
+首次启动将执行 `V1__init_user_core_tables.sql`，创建用户核心表及 `flyway_schema_history`。
 
 ## 本地启动后端
 
@@ -77,8 +89,8 @@ docker compose up --build
 
 | 接口 | 说明 |
 |------|------|
-| `GET http://localhost:8081/api/health` | 应用健康检查（统一响应体） |
-| `GET http://localhost:8081/actuator/health` | Spring Actuator 健康端点 |
+| `GET http://localhost:8080/api/health` | 应用健康检查（统一响应体） |
+| `GET http://localhost:8080/actuator/health` | Spring Actuator 健康端点 |
 
 示例响应（`/api/health`）：
 
@@ -111,18 +123,21 @@ careermate/
 │       │   ├── CareerMateApplication.java
 │       │   ├── common/          # 公共组件（响应体、异常）
 │       │   ├── config/          # 配置类
-│       │   └── health/          # 健康检查
+│       │   ├── health/          # 健康检查
+│       │   ├── mapper/          # MyBatis-Plus Mapper
+│       │   └── model/entity/    # 数据库实体
 │       └── resources/
 │           ├── application.yml
-│           └── application-dev.yml
-└── frontend/                    # 前端预留目录（Vue 3 + Vite 后续迁入）
-    └── .gitkeep
+│           ├── application-dev.yml
+│           └── db/migration/    # Flyway migration 脚本
+└── frontend/careermate/         # Vue 3 + Vite 前端
 ```
 
 ## 后续阶段计划
 
-1. **数据库迁移**：创建 19 张业务表，开启 Flyway migration
+1. ~~**数据库迁移**：创建用户核心表，开启 Flyway migration~~（阶段二已完成）
 2. **认证授权**：接入 Spring Security，实现登录注册
-3. **前端迁入**：将 Vue 3 前端迁移至 `frontend/` 目录
+3. ~~**前端迁入**：将 Vue 3 前端迁移至 `frontend/` 目录~~（已完成）
 4. **Agent Runtime**：实现智能体运行时与 Tool Registry
 5. **LLM / RAG 集成**：对接大语言模型与 RAGForge 知识库
+6. **业务表扩展**：简历、岗位、面试等剩余业务表
