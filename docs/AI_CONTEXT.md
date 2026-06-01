@@ -1,0 +1,146 @@
+# CareerMate AI Context
+
+## 1. Project Identity
+
+- Project name: CareerMate
+- Repository name: careermate
+- Chinese name: CareerMate 求职智能体
+- Positioning: AI Job Search Agent built with Java, Spring Boot, Vue and RAGForge
+- Goal: 一个可开源、可部署、可演示的 Java AI Agent 应用，不是 demo，不是普通聊天壳子。
+
+## 2. Current Project Path
+
+```text
+/Users/amy/CursorProject/careermate
+```
+
+## 3. Current Status
+
+记录当前状态：
+
+- 后端基础骨架已创建。
+- 后端端口使用 **8080**。
+- 统一响应体 `ApiResponse` 与全局异常处理已就绪。
+- 健康检查接口 `GET /api/health` 可用。
+- Flyway 已开启；用户核心表 migration（V1）已落地。
+- 已创建表：`users`、`user_profiles`、`security_audit_logs`。
+- 已创建对应 Entity 与 MyBatis-Plus Mapper（无业务接口）。
+- 前端 Vue 页面已导入，并且可以启动（路径：`frontend/careermate/`）。
+- 当前已有 5 个前端页面：
+  - Agent 对话台
+  - 简历工作室
+  - 岗位匹配
+  - 面试特训
+  - 求职看板
+- 当前前端仍是静态 mock 页面，后续分阶段接入后端 API。
+- 项目文档目录 `docs/` 已建立，含架构设计、原型设计与本文件。
+
+## 4. Core Architecture Decisions
+
+写清楚以下决策：
+
+- 后端使用 Java 17 + Spring Boot 3.2。
+- 前端使用 Vue 3 + Vite。
+- 数据库使用 PostgreSQL 15 + JSONB。
+- 数据库 migration 使用 Flyway。
+- 认证使用 Spring Security + JWT，后续实现 single-user / jwt 双模式。
+- LLM 不直接绑定 DeepSeek，使用 LlmClient 抽象。
+- 不使用 Spring AI / LangChain4j 作为核心 Agent Runtime。
+- 可以预留 Spring AI Adapter / LangChain4j Adapter，但不进入核心链路。
+- RAG 能力由 RAGForge 提供，CareerMate 通过 REST API 调用。
+- CareerMate 不直接操作 pgvector / Elasticsearch。
+- 用户私有简历默认不进入共享 RAGForge 知识库。
+- Agent 使用单主控 Agent + 分层工具系统 + 工具可并行执行。
+- 不展示 Chain-of-Thought，只展示 Agent Trace。
+- Redis 不是必选依赖，只作为多实例、缓存、限流、SSE 协同的可选增强。
+
+## 5. Frontend Design Memory
+
+记录当前前端风格：
+
+- 轻量 SaaS 工具风格。
+- 白色 / 浅灰背景。
+- navy 深色重点区域。
+- purple 主色。
+- green / amber / red 表示状态。
+- 信息密度偏高，适合求职 Agent 工作台。
+- 当前底部导航偏移动端风格，后续可逐步调整为 PC Web 优先的响应式布局。
+
+前端后续必须修正的口径：
+
+- “Agent 思考”需要改成“Agent Trace / 执行轨迹”。
+- 不展示 Chain-of-Thought 原文。
+- 简历页面不要展示 Chunk 数。
+- 不要写 RAGForge 解析简历。
+- Agent 跳转要表现为 UI Action 推荐跳转，不是 LLM 任意控制路由。
+
+## 6. Planned Development Phases
+
+记录后续阶段：
+
+1. 项目基础骨架 ✅
+2. 数据库 Migration + 用户核心表 ✅
+3. 认证与用户隔离
+4. LLM 抽象层
+5. SSE 基础设施
+6. Agent Session + Message + Trace 基础
+7. Tool Registry + ToolExecutor
+8. Memory 基础能力
+9. 简历上传、解析与画像
+10. RAGForge Client + Knowledge Tools
+11. 岗位匹配 + 技能差距 + 看板
+12. Agent Runtime 闭环
+13. 面试训练
+14. Prompt 模板与版本管理
+15. Agent Evaluation 评测体系
+16. Metrics / Cost / Observability
+17. MCP Adapter NoOp 实现
+18. 前端 UI 完整打磨
+19. Docker Compose 联合部署 + README + 演示数据
+
+## 7. Current Next Task
+
+当前下一步建议：
+
+**阶段三：认证与用户隔离**
+
+核心内容（概要）：
+
+- 引入 Spring Security + JWT（或 single-user 模式）。
+- 实现注册 / 登录接口（按阶段规范）。
+- 用户数据按 `user_id` 隔离。
+- 写入 `security_audit_logs` 审计事件（如 LOGIN / LOGOUT）。
+- 不提前实现 Agent、简历、RAG 等业务能力。
+
+## 8. Cursor Working Rules
+
+写入以下规则：
+
+- 每次只实现当前阶段任务，不要提前实现后续阶段。
+- 不要一次性实现完整 Agent 系统。
+- 不要随意重构前端 UI。
+- 不要引入未经确认的框架。
+- 不要引入 Spring AI 作为核心框架。
+- 不要引入 LangChain4j 作为核心框架。
+- 不要引入 WebFlux。
+- 不要引入 Redis 作为必选依赖。
+- 不要把 userId 暴露给前端或 LLM 参数。
+- 不要把简历原文写入日志。
+- 不要展示 Chain-of-Thought。
+- 所有数据库变更必须走 Flyway migration。
+- 所有用户私有数据必须带 user_id。
+- 所有接口必须使用统一响应结构。
+- 本地验证启动的后端 / 前端进程，结束后应释放端口（8080、5173 等），避免占用。
+
+## 9. Important Documents
+
+列出：
+
+- [docs/design/CareerMate-architecture-v2.1.html](design/CareerMate-architecture-v2.1.html)
+- [docs/design/CareerMate-prototype-design.html](design/CareerMate-prototype-design.html)
+- [docs/AI_CONTEXT.md](AI_CONTEXT.md)
+
+桌面原始文档（勿删，仓库内为副本）：
+
+- `/Users/amy/Desktop/rag最终版本/CareerMate-架构设计文档-V2.1.html`
+- `/Users/amy/Desktop/rag最终版本/agent-service-design.html`

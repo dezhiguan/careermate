@@ -2,6 +2,13 @@
 
 CareerMate 是一个面向职业发展的智能助手平台，提供简历优化、面试辅导、职业规划等能力。本仓库为项目 monorepo，包含后端服务与前端应用。
 
+## Documentation
+
+- [AI Context](docs/AI_CONTEXT.md)
+- [Database Design](docs/database-design.md)
+- [Architecture Design V2.1](docs/design/CareerMate-architecture-v2.1.html)
+- [Prototype Design](docs/design/CareerMate-prototype-design.html)
+
 ## 技术栈
 
 | 层级 | 技术 |
@@ -113,6 +120,12 @@ docker compose up --build
 ```
 careermate/
 ├── README.md
+├── docs/
+│   ├── AI_CONTEXT.md
+│   ├── database-design.md
+│   └── design/
+│       ├── CareerMate-architecture-v2.1.html
+│       └── CareerMate-prototype-design.html
 ├── docker-compose.yml
 ├── .env.example
 ├── backend/
