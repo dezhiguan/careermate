@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: careermate-postgres
+    environment:
+      POSTGRES_DB: careermate_db
+      POSTGRES_USER: careermate
+      POSTGRES_PASSWORD: careermate
+    ports:
+      - "5432:5432"
+    volumes:
+      - careermate_pg_data:/var/lib/postgresql/data
+
+  careermate-backend:
+    container_name: careermate-backend
+    build:
+      context: ./backend
+    ports:
+      - "8081:8081"
+    environment:
+      SERVER_PORT: 8081
+      SPRING_PROFILES_ACTIVE: dev
+      DB_URL: jdbc:postgresql://postgres:5432/careermate_db
+      DB_USERNAME: careermate
+      DB_PASSWORD: careermate
+    depends_on:
+      - postgres
+
+volumes:
+  careermate_pg_data:

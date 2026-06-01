@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/careermate_db}
+    username: ${DB_USERNAME:careermate}
+    password: ${DB_PASSWORD:careermate}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: false

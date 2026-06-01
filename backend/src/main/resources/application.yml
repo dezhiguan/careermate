@@ -1,0 +1,14 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: careermate-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
