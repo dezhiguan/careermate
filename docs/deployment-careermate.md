@@ -91,6 +91,19 @@ Keep RAGForge routes unchanged and use:
   - `deploy/nginx/careermate.locations.example`
 - do not blindly replace existing config with a full standalone server block
 - always backup current Nginx config before modification
+- if your Nginx version reports error on `proxy_set_header Connection "";`, remove that line
+- minimum required SSE proxy options for CareerMate:
+  - `proxy_http_version 1.1`
+  - `proxy_buffering off`
+  - `proxy_read_timeout 300s`
+  - `proxy_send_timeout 300s`
+- if `nginx -t` fails, rollback to backup immediately and do not run reload
+- if Nginx runs in Docker:
+  - frontend alias must point to container-visible path (for example `/usr/share/nginx/html/careermate/`)
+  - copy CareerMate dist into the host directory mounted to `/usr/share/nginx/html`, then verify:
+    - `docker exec <nginx-container> test -f /usr/share/nginx/html/careermate/index.html`
+  - `/careermate-api/` must not proxy to `127.0.0.1` (container loopback)
+  - proxy target should be host private IP (`172.19.40.32:18080`) or Docker gateway IP
 
 ### Plan B (future migration)
 
