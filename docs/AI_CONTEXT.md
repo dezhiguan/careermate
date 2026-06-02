@@ -66,6 +66,13 @@
   - `AgentChat` 已对接后端 SSE mock stream（plan/token/message/done/error/heartbeat）。
   - 页面可创建 session 并展示当前 sessionId、流式状态、trace 与 latency。
   - 其他业务页（简历/岗位/面试/看板）仍使用 mock 数据，待后端业务接口就绪后再对接。
+- Agent Session / Message / Trace 持久化（阶段八，已完成当前范围）：
+  - Flyway `V2__init_agent_runtime_tables.sql` 已落地：`agent_sessions` / `agent_messages` / `agent_tool_calls` / `agent_task_states`。
+  - `AgentSessionService` 负责创建会话、追加消息、记录 Trace、标记完成/错误；所有查询按 `user_id` 隔离。
+  - `POST /api/agent/sessions` 创建会话并落库；`POST .../messages/stream` 在 mock 流式过程中持久化 user/agent 消息与 PLAN/MESSAGE/DONE/ERROR Trace。
+  - `GET /api/agent/sessions/{sessionId}` 查询会话详情与消息列表；`GET /api/agent/sessions/{sessionId}/trace` 查询 Trace 列表。
+  - 前端 `AgentChat` 支持「刷新 Trace」从服务端拉取持久化记录；历史消息列表恢复留待下一阶段。
+  - **当前 Agent 仍是 mock stream + LLM 抽象，不是完整 Agent Runtime**；未实现 Tool Registry / RAGForge 对接。
 - 项目文档目录 `docs/` 已建立，含架构设计、原型设计与本文件。
 
 ## 4. Core Architecture Decisions

@@ -75,7 +75,16 @@
           <div class="panel-value">暂无工具调用</div>
         </div>
         <div class="panel-divider" />
-        <div class="panel-title-sm">🧠 Agent Trace / 执行轨迹</div>
+        <div class="panel-title-sm trace-header">
+          <span>🧠 Agent Trace / 执行轨迹</span>
+          <button
+            class="trace-refresh-btn"
+            :disabled="!sessionId || traceLoading"
+            @click="refreshTraceFromServer"
+          >
+            {{ traceLoading ? '刷新中...' : '刷新 Trace' }}
+          </button>
+        </div>
         <div v-if="traceEvents.length === 0" class="tool-log">暂无 trace 事件</div>
         <div v-for="trace in traceEvents" :key="trace.id" class="tool-log">
           [{{ trace.type }}] {{ trace.title }}
@@ -88,7 +97,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { authStore } from '../stores/authStore'
-import { createAgentSession, sendAgentMessageStream } from '../api/agent'
+import { createAgentSession, getAgentTrace, sendAgentMessageStream } from '../api/agent'
 
 const inputText = ref('')
 const msgContainer = ref(null)
@@ -97,6 +106,7 @@ const streamState = ref('idle')
 const eventCount = ref(0)
 const totalLatencyMs = ref(0)
 const traceEvents = ref([])
+const traceLoading = ref(false)
 const idSeed = ref(0)
 
 const suggestions = ['帮我优化简历', '匹配后端岗位', '准备 Java 面试']
@@ -138,6 +148,28 @@ function pushTrace(type, title, payload = null) {
     payload,
     timestamp: Date.now(),
   })
+}
+
+async function refreshTraceFromServer() {
+  if (!sessionId.value || traceLoading.value) return
+  traceLoading.value = true
+  try {
+    const traces = await getAgentTrace(sessionId.value)
+    traceEvents.value = traces.map((t) => ({
+      id: `db_${t.id}`,
+      type: t.toolName || t.type,
+      title: `${t.toolName || t.type} · ${t.status}${t.latencyMs ? ` · ${t.latencyMs}ms` : ''}`,
+      payload: t,
+      timestamp: t.createdAt ? new Date(t.createdAt).getTime() : Date.now(),
+    }))
+    if (traces.length === 0) {
+      pushTrace('refresh', '服务端暂无 trace 记录')
+    }
+  } catch (e) {
+    pushTrace('error', e?.message || '刷新 trace 失败')
+  } finally {
+    traceLoading.value = false
+  }
 }
 
 async function initSession() {
@@ -324,6 +356,13 @@ onMounted(async () => {
 }
 .panel-title { font-weight: 700; font-size: 11px; margin-bottom: 12px; }
 .panel-title-sm { font-weight: 600; margin-bottom: 6px; font-size: 10px; }
+.trace-header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.trace-refresh-btn {
+  border: 1px solid var(--border); background: #fff; border-radius: 4px;
+  font-size: 9px; padding: 2px 6px; cursor: pointer; color: var(--text-muted);
+}
+.trace-refresh-btn:disabled { opacity: .5; cursor: default; }
+.trace-refresh-btn:not(:disabled):hover { background: var(--light); }
 .panel-section { margin-bottom: 10px; }
 .panel-label { font-weight: 600; margin-bottom: 2px; }
 .panel-value { color: var(--slate); word-break: break-all; }

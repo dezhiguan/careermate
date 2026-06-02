@@ -49,7 +49,7 @@ CareerMate 是一个面向职业发展的智能助手平台，提供简历优化
 本阶段前端已优先对接已完成后端接口：
 
 - Auth 当前用户展示
-- Agent 对话台 SSE mock stream（`/api/agent/sessions` + `/messages/stream`）
+- Agent 对话台 SSE mock stream（会话落库 + 消息/Trace 持久化）
 
 当前仍未对接（继续保留前端 mock 数据）：
 
@@ -68,7 +68,7 @@ Migration 文件位于：
 backend/src/main/resources/db/migration/
 ```
 
-首次启动将执行 `V1__init_user_core_tables.sql`，创建用户核心表及 `flyway_schema_history`。
+首次启动将执行 `V1__init_user_core_tables.sql` 与 `V2__init_agent_runtime_tables.sql`，创建用户核心表、Agent 基础表及 `flyway_schema_history`。
 
 ## 本地启动后端
 
@@ -206,19 +206,22 @@ docker compose up --build
 - `data.content` 有文本内容
 - `data.latencyMs` 有值
 
-## SSE Mock Agent 接口（仅开发验证）
+## Agent Session API（mock stream + 基础持久化）
 
-> 当前仅为 SSE 基础设施与 mock 流式对话，不是完整 Agent Runtime。
+> 当前为 SSE 基础设施 + mock 流式对话 + 会话/消息/Trace 落库，**不是**完整 Agent Runtime。
 
 | 接口 | 说明 |
 |------|------|
-| `POST /api/agent/sessions` | 创建临时 mock session（不落库） |
-| `POST /api/agent/sessions/{sessionId}/messages/stream` | SSE 流式发送消息（PLAN/TOKEN/MESSAGE/DONE/ERROR/HEARTBEAT） |
+| `POST /api/agent/sessions` | 创建 Agent 会话（落库 `agent_sessions` + `agent_task_states`） |
+| `POST /api/agent/sessions/{sessionId}/messages/stream` | SSE 流式发送消息（持久化 user/agent 消息与 PLAN/MESSAGE/DONE/ERROR Trace） |
+| `GET /api/agent/sessions/{sessionId}` | 查询会话详情与消息列表（按 `user_id` 隔离） |
+| `GET /api/agent/sessions/{sessionId}/trace` | 查询会话 Trace 列表（按 `user_id` 隔离） |
 
-示例：创建 session
+示例：创建 session（需要认证）
 
 ```bash
-curl -X POST http://localhost:8080/api/agent/sessions
+curl -X POST http://localhost:8080/api/agent/sessions \\
+  -H "Authorization: Bearer <token>"
 ```
 
 示例：发起 SSE 流式请求（需要认证，single-user 可直接用；jwt 需带 token）
@@ -226,7 +229,18 @@ curl -X POST http://localhost:8080/api/agent/sessions
 ```bash
 curl -N -X POST "http://localhost:8080/api/agent/sessions/<sessionId>/messages/stream" \\
   -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer <token>" \\
   -d '{\"message\":\"帮我分析简历\"}'
+```
+
+示例：查询会话与 Trace
+
+```bash
+curl http://localhost:8080/api/agent/sessions/<sessionId> \\
+  -H "Authorization: Bearer <token>"
+
+curl http://localhost:8080/api/agent/sessions/<sessionId>/trace \\
+  -H "Authorization: Bearer <token>"
 ```
 
 ## 前端认证接入

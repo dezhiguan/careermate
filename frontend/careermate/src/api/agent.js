@@ -1,4 +1,4 @@
-import { API_BASE_URL, getAuthHeaders, handleUnauthorized } from './http'
+import { API_BASE_URL, getAuthHeaders, handleUnauthorized, request } from './http'
 import { createSseParser } from '../utils/sseParser'
 
 export async function createAgentSession() {
@@ -26,6 +26,14 @@ export async function createAgentSession() {
   }
 
   return payload.data?.sessionId
+}
+
+export async function getAgentSession(sessionId) {
+  return request(`/api/agent/sessions/${sessionId}`)
+}
+
+export async function getAgentTrace(sessionId) {
+  return request(`/api/agent/sessions/${sessionId}/trace`)
 }
 
 export async function sendAgentMessageStream(sessionId, message, handlers = {}) {
