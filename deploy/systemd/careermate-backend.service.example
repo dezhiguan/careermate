@@ -3,13 +3,17 @@ Description=CareerMate Backend
 After=network.target
 
 [Service]
-WorkingDirectory=/opt/careermate/backend
+WorkingDirectory=/opt/careermate/current/backend
 EnvironmentFile=/opt/careermate/backend/.env.app
-ExecStart=/usr/bin/java -jar /opt/careermate/backend/careermate-backend.jar
+ExecStart=/usr/bin/java -jar /opt/careermate/current/backend/app.jar
 Restart=always
 RestartSec=5
 StandardOutput=append:/opt/careermate/logs/backend.log
 StandardError=append:/opt/careermate/logs/backend-error.log
+
+# Prefer a dedicated service account. If the server has no `careermate` user yet,
+# create one or temporarily use the deploy user (e.g. root) until the account exists.
+User=careermate
 
 [Install]
 WantedBy=multi-user.target

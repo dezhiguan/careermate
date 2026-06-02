@@ -1,0 +1,124 @@
+name: CareerMate Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: careermate-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Build backend
+        working-directory: backend
+        run: mvn -B -DskipTests package
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/careermate/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend/careermate
+        env:
+          VITE_API_BASE_URL: /careermate-api
+          VITE_BASE_PATH: /careermate/
+        run: |
+          npm ci
+          npm run build
+
+      - name: Resolve backend JAR
+        id: jar
+        run: |
+          JAR_FILE="$(find backend/target -maxdepth 1 -name '*.jar' ! -name '*.original' | head -n 1)"
+          if [[ -z "${JAR_FILE}" ]]; then
+            echo "No backend JAR found under backend/target"
+            exit 1
+          fi
+          echo "path=${JAR_FILE}" >> "${GITHUB_OUTPUT}"
+          echo "Using JAR: ${JAR_FILE}"
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.CAREERMATE_DEPLOY_PORT }}
+        run: |
+          if [[ -z "${SSH_KEY}" || -z "${DEPLOY_HOST}" ]]; then
+            echo "CAREERMATE_DEPLOY_SSH_KEY and CAREERMATE_DEPLOY_HOST must be set"
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          PORT="${DEPLOY_PORT:-22}"
+          ssh-keyscan -p "${PORT}" "${DEPLOY_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Upload release artifacts
+        env:
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.CAREERMATE_DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.CAREERMATE_DEPLOY_PORT }}
+          JAR_FILE: ${{ steps.jar.outputs.path }}
+        run: |
+          PORT="${DEPLOY_PORT:-22}"
+          SSH_OPTS=(-i ~/.ssh/deploy_key -p "${PORT}" -o StrictHostKeyChecking=yes)
+          RELEASE_DIR="/opt/careermate/releases/${GITHUB_SHA}"
+
+          ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "mkdir -p '${RELEASE_DIR}/backend' '${RELEASE_DIR}/frontend/dist' /opt/careermate/scripts"
+
+          scp "${SSH_OPTS[@]}" "${JAR_FILE}" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:${RELEASE_DIR}/backend/app.jar"
+
+          rsync -avz -e "ssh ${SSH_OPTS[*]}" \
+            frontend/careermate/dist/ \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:${RELEASE_DIR}/frontend/dist/"
+
+          scp "${SSH_OPTS[@]}" deploy/scripts/deploy-from-github.sh deploy/scripts/rollback-careermate.sh \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/careermate/scripts/"
+
+          ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "chmod +x /opt/careermate/scripts/deploy-from-github.sh /opt/careermate/scripts/rollback-careermate.sh"
+
+      - name: Deploy on server
+        env:
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.CAREERMATE_DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.CAREERMATE_DEPLOY_PORT }}
+        run: |
+          PORT="${DEPLOY_PORT:-22}"
+          SSH_OPTS=(-i ~/.ssh/deploy_key -p "${PORT}" -o StrictHostKeyChecking=yes)
+          ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "sudo bash /opt/careermate/scripts/deploy-from-github.sh '${GITHUB_SHA}'"
+
+      - name: Verify deployment
+        env:
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.CAREERMATE_DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.CAREERMATE_DEPLOY_PORT }}
+        run: |
+          PORT="${DEPLOY_PORT:-22}"
+          SSH_OPTS=(-i ~/.ssh/deploy_key -p "${PORT}" -o StrictHostKeyChecking=yes)
+
+          ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "curl -fsS http://127.0.0.1:18080/api/health"
+
+          curl -fsS "http://${DEPLOY_HOST}/careermate-api/health"

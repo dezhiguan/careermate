@@ -51,19 +51,28 @@ VITE_API_BASE_URL=/careermate-api VITE_BASE_PATH=/careermate/ npm run build
 
 ## 4. Server Directories
 
-Recommended ingress server layout:
+Recommended ingress server layout (GitHub CI/CD):
 
 ```text
 /opt/careermate/
-  backend/
-    careermate-backend.jar
-    .env.app
-  frontend/
-    dist/
-  logs/
+  current -> releases/<git-sha>/          # atomic switch per deploy
   releases/
+    <git-sha>/
+      backend/app.jar
+      frontend/dist/
+  backend/
+    .env.app                              # persistent secrets (not in releases)
+  logs/
   scripts/
+    deploy-from-github.sh
+    rollback-careermate.sh
 ```
+
+Nginx static files (Plan A, `ragforge-nginx` container):
+
+- Container path: `/usr/share/nginx/html/careermate/`
+- Host bind-mount (sync target for deploy scripts): `/opt/rag-forge/frontend/dist/careermate/`
+- Do not change RAGForge paths outside the `careermate/` subdirectory.
 
 ## 5. Environment Variables
 
@@ -130,14 +139,28 @@ Initialization template:
 
 ## 8. Deployment Steps
 
+### 8.1 One-time server bootstrap (manual)
+
 1. On data server, initialize database and role (template SQL, manual confirm).
-2. Build backend and frontend locally.
-3. Upload JAR and `dist` to ingress server release directory.
-4. Create `/opt/careermate/backend/.env.app` on server with real secrets.
-5. Install systemd service from template and start backend on `18080`.
-6. Add Nginx config for `/careermate/` and `/careermate-api/`.
-7. Validate Nginx syntax and reload (only during execution phase).
-8. Run verification checks.
+2. On ingress server, create `/opt/careermate/backend/.env.app` with real secrets (never commit).
+3. Install systemd unit from `deploy/systemd/careermate-backend.service.example` as `/etc/systemd/system/careermate-backend.service`, then `systemctl daemon-reload && systemctl enable careermate-backend`.
+4. Add Nginx locations for `/careermate/` and `/careermate-api/` (see `deploy/nginx/careermate.locations.example`).
+5. Ensure `ragforge-nginx` can read `/usr/share/nginx/html/careermate/index.html` (host: `/opt/rag-forge/frontend/dist/careermate/`).
+6. Configure GitHub Secrets (section 13).
+
+### 8.2 Ongoing deploy via GitHub Actions (recommended)
+
+1. Push to `main` (or run workflow manually).
+2. GitHub Actions builds backend JAR and frontend `dist`.
+3. Artifacts upload to `/opt/careermate/releases/${GITHUB_SHA}/`.
+4. `deploy-from-github.sh` switches `/opt/careermate/current`, syncs frontend, restarts backend.
+5. Workflow health checks pass, or the job fails without deleting previous releases.
+
+### 8.3 Manual deploy (fallback)
+
+1. Build backend and frontend locally (section 3).
+2. Upload JAR as `app.jar` and `dist/` into a new release directory.
+3. Run `sudo bash /opt/careermate/scripts/deploy-from-github.sh <release-sha>`.
 
 ## 9. Verification
 
@@ -147,9 +170,26 @@ Initialization template:
 
 ## 10. Rollback
 
-- Keep previous backend JAR under `/opt/careermate/releases`
-- backup Nginx config before change
-- rollback by restoring old JAR/service and old Nginx config
+- Releases under `/opt/careermate/releases/` are never deleted by CI/CD.
+- If a deploy fails, GitHub Actions stops; `current` may still point at the failed release—roll back manually.
+- Backup Nginx config before any routing change.
+
+Manual rollback on ingress server:
+
+```bash
+# List releases
+ls -1 /opt/careermate/releases/
+
+# Roll back to a previous SHA directory
+sudo bash /opt/careermate/scripts/rollback-careermate.sh /opt/careermate/releases/<previous-sha>
+```
+
+Verify:
+
+```bash
+curl -fsS http://127.0.0.1:18080/api/health
+curl -fsS http://8.163.63.222/careermate-api/health
+```
 
 ## 11. Inspection-based Risk Notes
 
@@ -168,4 +208,79 @@ Initialization template:
 - Frontend env template: `deploy/env/careermate-frontend.env.example`
 - DB init SQL template: `deploy/sql/init-careermate-db.sql.example`
 - Entry deploy script template: `deploy/scripts/deploy-careermate-entry.sh.example`
+- GitHub deploy script: `deploy/scripts/deploy-from-github.sh`
+- Rollback script: `deploy/scripts/rollback-careermate.sh`
 - systemd template: `deploy/systemd/careermate-backend.service.example`
+- GitHub Actions workflow: `.github/workflows/careermate-deploy.yml`
+
+## 13. GitHub CI/CD
+
+### 13.1 Workflow
+
+File: `.github/workflows/careermate-deploy.yml`
+
+Triggers:
+
+- `push` to `main`
+- `workflow_dispatch` (manual)
+
+Steps:
+
+1. Build backend with Java 17: `mvn -B -DskipTests package` in `backend/`
+2. Build frontend with Node 20: `npm ci` + `VITE_API_BASE_URL=/careermate-api VITE_BASE_PATH=/careermate/ npm run build` in `frontend/careermate/`
+3. Upload to `/opt/careermate/releases/${GITHUB_SHA}/` via SSH
+4. Run `deploy-from-github.sh ${GITHUB_SHA}` on the server
+5. Verify `http://127.0.0.1:18080/api/health` (on server) and `http://<host>/careermate-api/health` (public)
+
+On failure: workflow fails; previous releases remain; roll back manually (section 10).
+
+### 13.2 GitHub Secrets
+
+Configure in repository **Settings → Secrets and variables → Actions**:
+
+| Secret | Description |
+|--------|-------------|
+| `CAREERMATE_DEPLOY_HOST` | Ingress server host (e.g. `8.163.63.222`) |
+| `CAREERMATE_DEPLOY_USER` | SSH user (e.g. `root` or deploy account) |
+| `CAREERMATE_DEPLOY_SSH_KEY` | Private key (PEM) for SSH |
+| `CAREERMATE_DEPLOY_PORT` | SSH port (optional; default `22`) |
+
+Do **not** put database passwords, `JWT_SECRET`, or LLM API keys in the repository or in these secrets unless strictly required for deploy (they are not—use server-local `.env.app`).
+
+### 13.3 Server prerequisites (before first CI deploy)
+
+| Item | Location / command |
+|------|-------------------|
+| Backend env | `/opt/careermate/backend/.env.app` |
+| systemd unit | `/etc/systemd/system/careermate-backend.service` from template |
+| Backend port | `18080` (do not use `8080`—RAGForge) |
+| Nginx routes | `/careermate/`, `/careermate-api/` |
+| Frontend static | Host `/opt/rag-forge/frontend/dist/careermate/` → container `/usr/share/nginx/html/careermate/` |
+| Deploy scripts dir | `/opt/careermate/scripts/` (workflow uploads scripts each run) |
+| SSH access | Deploy user can `sudo systemctl restart careermate-backend` |
+
+systemd must use release layout:
+
+- `WorkingDirectory=/opt/careermate/current/backend`
+- `ExecStart=/usr/bin/java -jar /opt/careermate/current/backend/app.jar`
+- `EnvironmentFile=/opt/careermate/backend/.env.app`
+
+### 13.4 Release layout
+
+Each deploy creates:
+
+```text
+/opt/careermate/releases/<git-sha>/
+  backend/app.jar
+  frontend/dist/
+/opt/careermate/current -> /opt/careermate/releases/<git-sha>
+```
+
+### 13.5 Prohibited
+
+- Do not commit `.env.app` or production secrets.
+- Do not store DB passwords / JWT / LLM keys in repo files.
+- Do not change RAGForge deploy paths or port `8080`.
+- Do not modify production PostgreSQL / Redis / Elasticsearch from CI.
+- Do not delete old releases automatically in this phase.
+- No Docker image registry, Kubernetes, or blue/green in this phase.
