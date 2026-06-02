@@ -228,7 +228,7 @@ Jobs (each job is a separate node; `needs` controls order):
 
 | Job | Depends on | Purpose |
 |-----|------------|---------|
-| `backend-test` | — | `mvn -B test` in `backend/` |
+| `backend-test` | — | `mvn -B test` in `backend/` (GitHub Actions 启动 PostgreSQL 16 服务容器供 Flyway + 集成测试) |
 | `backend-build` | `backend-test` | `mvn -B -DskipTests package`; artifact `careermate-backend-jar` |
 | `frontend-build` | — | `npm ci` + production build; artifact `careermate-frontend-dist` |
 | `package-release` | `backend-build`, `frontend-build` | Assemble `release/backend/app.jar` + `release/frontend/dist/`; artifact `careermate-release` |
