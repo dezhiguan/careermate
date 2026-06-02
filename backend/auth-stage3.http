@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_URL="${BASE_URL:-http://localhost:8080}"
+USERNAME="${USERNAME:-amy}"
+PASSWORD="${PASSWORD:-12345678}"
+EMAIL="${EMAIL:-amy@example.com}"
+
+print_summary() {
+  local resp="$1"
+  local body
+  local status
+  body=$(printf "%s" "$resp" | sed '/^HTTP_STATUS:/,$d')
+  status=$(printf "%s" "$resp" | sed -n 's/^HTTP_STATUS://p' | tail -1)
+  if command -v jq >/dev/null 2>&1; then
+    echo "$body" | jq '{code, message, data}'
+  else
+    echo "$body"
+  fi
+  echo "HTTP_STATUS:$status"
+}
+
+echo "== CareerMate Stage3 curl tests =="
+echo "BASE_URL=$BASE_URL"
+echo "SCRIPT_PATH=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+echo "INPUT_PARAMS: BASE_URL=$BASE_URL USERNAME=$USERNAME PASSWORD=<hidden> EMAIL=$EMAIL"
+
+echo
+echo "1) single-user 模式当前用户（先确保后端以 SECURITY_MODE=single-user 启动）"
+echo "REQUEST_PATH: GET $BASE_URL/api/auth/me"
+echo "INPUT: token=<none>"
+RESP=$(curl -s -w '\nHTTP_STATUS:%{http_code}\n' "$BASE_URL/api/auth/me")
+print_summary "$RESP"
+echo
+
+echo
+echo "2) jwt 模式注册（先重启后端为 SECURITY_MODE=jwt）"
+echo "REQUEST_PATH: POST $BASE_URL/api/auth/register"
+echo "INPUT_BODY: {\"username\":\"$USERNAME\",\"password\":\"<hidden>\",\"email\":\"$EMAIL\"}"
+REGISTER_RESPONSE=$(curl -s -w '\nHTTP_STATUS:%{http_code}\n' \
+  -X POST "$BASE_URL/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\",\"email\":\"$EMAIL\"}")
+print_summary "$REGISTER_RESPONSE"
+echo
+
+REGISTER_BODY=$(printf "%s" "$REGISTER_RESPONSE" | sed '/^HTTP_STATUS:/,$d')
+TOKEN=$(python3 - <<PY
+import json
+s = """$REGISTER_BODY"""
+try:
+    print(json.loads(s).get("data", {}).get("token", ""))
+except Exception:
+    print("")
+PY
+)
+
+echo
+echo "3) jwt 模式登录"
+echo "REQUEST_PATH: POST $BASE_URL/api/auth/login"
+echo "INPUT_BODY: {\"username\":\"$USERNAME\",\"password\":\"<hidden>\"}"
+LOGIN_RESPONSE=$(curl -s -w '\nHTTP_STATUS:%{http_code}\n' \
+  -X POST "$BASE_URL/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}")
+print_summary "$LOGIN_RESPONSE"
+echo
+
+if [ -z "$TOKEN" ]; then
+  LOGIN_BODY=$(printf "%s" "$LOGIN_RESPONSE" | sed '/^HTTP_STATUS:/,$d')
+  TOKEN=$(python3 - <<PY
+import json
+s = """$LOGIN_BODY"""
+try:
+    print(json.loads(s).get("data", {}).get("token", ""))
+except Exception:
+    print("")
+PY
+)
+fi
+
+echo
+echo "4) jwt 模式无 token 访问 me（预期 401）"
+echo "REQUEST_PATH: GET $BASE_URL/api/auth/me"
+echo "INPUT: token=<none>"
+RESP=$(curl -s -w '\nHTTP_STATUS:%{http_code}\n' "$BASE_URL/api/auth/me")
+print_summary "$RESP"
+echo
+
+echo
+echo "5) jwt 模式带 token 访问 me（预期 200）"
+echo "REQUEST_PATH: GET $BASE_URL/api/auth/me"
+echo "INPUT: Authorization=Bearer <token_from_register_or_login>"
+if [ -z "$TOKEN" ]; then
+  echo "WARN: token 为空，无法执行带 token 的 /me 测试"
+else
+  RESP=$(curl -s -w '\nHTTP_STATUS:%{http_code}\n' "$BASE_URL/api/auth/me" \
+    -H "Authorization: Bearer $TOKEN")
+  print_summary "$RESP"
+fi
+echo
+
+echo
+echo "6) 重复注册（同 username，预期 400）"
+echo "REQUEST_PATH: POST $BASE_URL/api/auth/register"
+echo "INPUT_BODY: {\"username\":\"$USERNAME\",\"password\":\"<hidden>\",\"email\":\"amy2@example.com\"}"
+RESP=$(curl -s -w '\nHTTP_STATUS:%{http_code}\n' \
+  -X POST "$BASE_URL/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\",\"email\":\"amy2@example.com\"}")
+print_summary "$RESP"
+echo
+
+echo
+echo "7) 错误密码登录（预期 401）"
+echo "REQUEST_PATH: POST $BASE_URL/api/auth/login"
+echo "INPUT_BODY: {\"username\":\"$USERNAME\",\"password\":\"<hidden:wrong-password>\"}"
+RESP=$(curl -s -w '\nHTTP_STATUS:%{http_code}\n' \
+  -X POST "$BASE_URL/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"$USERNAME\",\"password\":\"wrong-password\"}")
+print_summary "$RESP"
+echo

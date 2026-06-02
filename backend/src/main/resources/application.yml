@@ -12,3 +12,13 @@ management:
     web:
       exposure:
         include: health,info,metrics
+
+careermate:
+  security:
+    mode: ${SECURITY_MODE:single-user}
+    jwt:
+      secret: ${JWT_SECRET:change-me-in-dev-only-change-me-in-dev-only}
+      expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    single-user:
+      user-id: ${SINGLE_USER_ID:1}
+      username: ${SINGLE_USER_NAME:local-user}

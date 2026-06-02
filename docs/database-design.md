@@ -177,7 +177,7 @@ CareerMate 使用 PostgreSQL 15 作为权威持久化数据库，JSONB 用于保
 | idx_security_audit_logs_created_at | created_at | 按时间查询 |
 | idx_security_audit_logs_resource | resource_type, resource_id | 按资源查询 |
 
-**action_type 规划值（本阶段不实现写入）**
+**action_type 规划值（REGISTER / LOGIN 已进入实现阶段）**
 
 - LOGIN
 - LOGOUT

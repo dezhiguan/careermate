@@ -20,7 +20,7 @@ CareerMate 是一个面向职业发展的智能助手平台，提供简历优化
 
 ## 当前阶段说明
 
-**阶段二：数据库 Migration 基础 + 用户核心表**
+**阶段三：认证与用户隔离（基础能力）**
 
 当前已完成：
 
@@ -31,8 +31,14 @@ CareerMate 是一个面向职业发展的智能助手平台，提供简历优化
 - Flyway migration 基础
 - 用户核心表 `users` / `user_profiles` / `security_audit_logs`
 - 对应实体类与 MyBatis-Plus Mapper
+- Spring Security 接入
+- single-user / jwt 双模式
+- 认证接口：`POST /api/auth/register`、`POST /api/auth/login`、`GET /api/auth/me`
+- JWT 生成与校验
+- `CurrentUserContext` 用户上下文注入
+- 注册 / 登录审计日志写入 `security_audit_logs`
 
-本阶段未包含：登录注册接口、Spring Security、JWT、Agent、简历/岗位/面试等业务表。
+本阶段未包含：Agent、LLM、SSE、简历/岗位/面试等业务能力与相关接口。
 
 ### 数据库初始化
 
@@ -67,6 +73,16 @@ cp .env.example .env
 # 按需修改 .env 中的数据库连接信息
 ```
 
+### 认证模式配置
+
+```bash
+SECURITY_MODE=single-user|jwt
+JWT_SECRET=change-me-in-dev-only-change-me-in-dev-only
+JWT_EXPIRATION_MS=86400000
+SINGLE_USER_ID=1
+SINGLE_USER_NAME=local-user
+```
+
 ### 编译并启动
 
 ```bash
@@ -98,6 +114,14 @@ docker compose up --build
 |------|------|
 | `GET http://localhost:8080/api/health` | 应用健康检查（统一响应体） |
 | `GET http://localhost:8080/actuator/health` | Spring Actuator 健康端点 |
+
+## 认证接口
+
+| 接口 | 说明 |
+|------|------|
+| `POST /api/auth/register` | 用户注册并返回 JWT |
+| `POST /api/auth/login` | 用户登录并返回 JWT |
+| `GET /api/auth/me` | 获取当前用户信息（single-user 或 JWT） |
 
 示例响应（`/api/health`）：
 
@@ -149,7 +173,7 @@ careermate/
 ## 后续阶段计划
 
 1. ~~**数据库迁移**：创建用户核心表，开启 Flyway migration~~（阶段二已完成）
-2. **认证授权**：接入 Spring Security，实现登录注册
+2. ~~**认证授权**：接入 Spring Security，实现登录注册~~（阶段三基础能力已完成）
 3. ~~**前端迁入**：将 Vue 3 前端迁移至 `frontend/` 目录~~（已完成）
 4. **Agent Runtime**：实现智能体运行时与 Tool Registry
 5. **LLM / RAG 集成**：对接大语言模型与 RAGForge 知识库

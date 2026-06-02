@@ -25,6 +25,14 @@
 - Flyway 已开启；用户核心表 migration（V1）已落地。
 - 已创建表：`users`、`user_profiles`、`security_audit_logs`。
 - 已创建对应 Entity 与 MyBatis-Plus Mapper（无业务接口）。
+- 认证与用户隔离（阶段三）已开始并完成基础能力：
+  - Spring Security 已接入。
+  - 支持 `single-user` / `jwt` 双模式。
+  - `POST /api/auth/register`、`POST /api/auth/login`、`GET /api/auth/me` 已提供。
+  - JWT 生成与校验已接入。
+  - `CurrentUser` / `CurrentUserContext` 已接入。
+  - 注册、登录会写入 `security_audit_logs`。
+- 默认安全模式为 `single-user`（通过 `SECURITY_MODE` 可切换为 `jwt`）。
 - 前端 Vue 页面已导入，并且可以启动（路径：`frontend/careermate/`）。
 - 当前已有 5 个前端页面：
   - Agent 对话台
@@ -80,7 +88,7 @@
 
 1. 项目基础骨架 ✅
 2. 数据库 Migration + 用户核心表 ✅
-3. 认证与用户隔离
+3. 认证与用户隔离 ✅（基础能力）
 4. LLM 抽象层
 5. SSE 基础设施
 6. Agent Session + Message + Trace 基础
@@ -106,10 +114,9 @@
 
 核心内容（概要）：
 
-- 引入 Spring Security + JWT（或 single-user 模式）。
-- 实现注册 / 登录接口（按阶段规范）。
-- 用户数据按 `user_id` 隔离。
-- 写入 `security_audit_logs` 审计事件（如 LOGIN / LOGOUT）。
+- 在业务模块中统一通过 `CurrentUserContext` 获取 `userId`。
+- 持续补齐基于 `user_id` 的数据隔离边界。
+- 扩展认证异常与审计事件覆盖面。
 - 不提前实现 Agent、简历、RAG 等业务能力。
 
 ## 8. Cursor Working Rules
@@ -129,6 +136,7 @@
 - 不要展示 Chain-of-Thought。
 - 所有数据库变更必须走 Flyway migration。
 - 所有用户私有数据必须带 user_id。
+- 所有后续业务逻辑必须从 `CurrentUserContext` 获取 `userId`，禁止前端传入。
 - 所有接口必须使用统一响应结构。
 - 本地验证启动的后端 / 前端进程，结束后应释放端口（8080、5173 等），避免占用。
 
