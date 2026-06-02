@@ -6,6 +6,7 @@ import com.careermate.agent.sse.AgentTaskRegistry;
 import com.careermate.agent.sse.SseEmitterService;
 import com.careermate.agent.sse.SseEventType;
 import com.careermate.common.api.ApiResponse;
+import com.careermate.common.exception.BizException;
 import com.careermate.llm.LlmClient;
 import com.careermate.llm.StreamCallback;
 import com.careermate.llm.dto.ChatMessage;
@@ -25,8 +26,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -68,10 +69,25 @@ public class AgentStreamController {
         Long userId = CurrentUserContext.getUserId();
         log.info("Agent stream request: sessionId={}, userId={}", sessionId, userId);
 
+        if (taskRegistry.isRunning(sessionId)) {
+            throw new BizException(429, "当前会话已有任务运行中");
+        }
+
         SseEmitter emitter = sseEmitterService.createEmitter(sessionId);
 
-        CompletableFuture<Void> future = CompletableFuture.runAsync(() -> runStreamingTask(sessionId, request), command -> agentExecutor.execute(command));
-        taskRegistry.tryStart(sessionId, future);
+        FutureTask<Void> task = new FutureTask<>(() -> {
+            runStreamingTask(sessionId, request);
+            return null;
+        });
+        taskRegistry.tryStart(sessionId, task);
+
+        try {
+            agentExecutor.execute(task);
+        } catch (RuntimeException e) {
+            taskRegistry.complete(sessionId);
+            sseEmitterService.completeWithError(sessionId, e);
+            throw e;
+        }
 
         return emitter;
     }

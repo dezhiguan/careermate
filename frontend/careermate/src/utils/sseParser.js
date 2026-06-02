@@ -31,7 +31,7 @@ export function createSseParser({ onEvent, onError }) {
   return {
     push(chunkText) {
       if (!chunkText) return
-      buffer += chunkText
+      buffer += chunkText.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
 
       let boundary = buffer.indexOf('\n\n')
       while (boundary !== -1) {

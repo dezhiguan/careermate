@@ -1,6 +1,8 @@
-import{A as E,i as N,j,k as L,c as p,a,F as C,l as D,d as O,v as P,m as B,t as g,p as R,e as T,q as U,r as w,s as M,o as f,f as V}from"./index-lUrAG0hS.js";import{_ as H}from"./_plugin-vue_export-helper-DlAUqK2U.js";function J({onEvent:m,onError:n}){let s="";function r(i){if(!i||!i.trim())return;const d=i.split(`
+import{A as E,i as N,j,k as L,c as p,a,F as C,l as D,d as O,v as P,m as B,t as g,p as R,e as T,q as U,r as w,s as M,o as f,f as V}from"./index-B0QTiCvp.js";import{_ as H}from"./_plugin-vue_export-helper-DlAUqK2U.js";function J({onEvent:m,onError:n}){let s="";function r(i){if(!i||!i.trim())return;const d=i.split(`
 `);let v="message";const o=[];for(const u of d)u.startsWith("event:")?v=u.slice(6).trim()||"message":u.startsWith("data:")&&o.push(u.slice(5).trimStart());const l=o.join(`
-`);let y=l;if(l)try{y=JSON.parse(l)}catch(u){n==null||n(new Error(`SSE data parse error: ${u.message}`))}m==null||m({eventName:v,data:y})}return{push(i){if(!i)return;s+=i;let d=s.indexOf(`
+`);let y=l;if(l)try{y=JSON.parse(l)}catch(u){n==null||n(new Error(`SSE data parse error: ${u.message}`))}m==null||m({eventName:v,data:y})}return{push(i){if(!i)return;s+=i.replace(/\r\n/g,`
+`).replace(/\r/g,`
+`);let d=s.indexOf(`
 
 `);for(;d!==-1;){const v=s.slice(0,d);r(v),s=s.slice(d+2),d=s.indexOf(`
 

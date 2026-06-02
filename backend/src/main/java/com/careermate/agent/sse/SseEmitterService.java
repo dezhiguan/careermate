@@ -7,6 +7,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -15,6 +16,7 @@ public class SseEmitterService {
     private final AgentProperties agentProperties;
     private final SseConnectionRegistry connectionRegistry;
     private final AgentTaskRegistry taskRegistry;
+    private final ConcurrentHashMap.KeySetView<String, Boolean> closedSessions = ConcurrentHashMap.newKeySet();
 
     public SseEmitterService(
             AgentProperties agentProperties,
@@ -32,7 +34,6 @@ public class SseEmitterService {
 
         emitter.onCompletion(() -> {
             log.info("SSE completed: sessionId={}", sessionId);
-            taskRegistry.cancel(sessionId);
             cleanup(sessionId);
         });
 
@@ -68,10 +69,12 @@ public class SseEmitterService {
                 emitter.send(SseEmitter.event().name(name).data(event));
             } catch (IOException e) {
                 log.info("SSE send failed (client gone): sessionId={}, type={}", sessionId, type);
+                taskRegistry.cancel(sessionId);
                 safeComplete(sessionId);
                 cleanup(sessionId);
             } catch (Exception e) {
                 log.warn("SSE send failed: sessionId={}, type={}", sessionId, type, e);
+                taskRegistry.cancel(sessionId);
                 safeCompleteWithError(sessionId, e);
                 cleanup(sessionId);
             }
@@ -89,6 +92,9 @@ public class SseEmitterService {
     }
 
     private void safeComplete(String sessionId) {
+        if (!markClosed(sessionId)) {
+            return;
+        }
         connectionRegistry.get(sessionId).ifPresent(emitter -> {
             try {
                 emitter.complete();
@@ -98,6 +104,9 @@ public class SseEmitterService {
     }
 
     private void safeCompleteWithError(String sessionId, Throwable error) {
+        if (!markClosed(sessionId)) {
+            return;
+        }
         connectionRegistry.get(sessionId).ifPresent(emitter -> {
             try {
                 emitter.completeWithError(error);
@@ -109,6 +118,11 @@ public class SseEmitterService {
     private void cleanup(String sessionId) {
         connectionRegistry.remove(sessionId);
         taskRegistry.complete(sessionId);
+        closedSessions.remove(sessionId);
+    }
+
+    private boolean markClosed(String sessionId) {
+        return closedSessions.add(sessionId);
     }
 }
 
