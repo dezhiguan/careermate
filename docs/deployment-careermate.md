@@ -224,15 +224,20 @@ Triggers:
 - `push` to `main`
 - `workflow_dispatch` (manual)
 
-Steps:
+Jobs (each job is a separate node; `needs` controls order):
 
-1. Build backend with Java 17: `mvn -B -DskipTests package` in `backend/`
-2. Build frontend with Node 20: `npm ci` + `VITE_API_BASE_URL=/careermate-api VITE_BASE_PATH=/careermate/ npm run build` in `frontend/careermate/`
-3. Upload to `/opt/careermate/releases/${GITHUB_SHA}/` via SSH
-4. Run `deploy-from-github.sh ${GITHUB_SHA}` on the server
-5. Verify `http://127.0.0.1:18080/api/health` (on server) and `http://<host>/careermate-api/health` (public)
+| Job | Depends on | Purpose |
+|-----|------------|---------|
+| `backend-test` | — | `mvn -B test` in `backend/` |
+| `backend-build` | `backend-test` | `mvn -B -DskipTests package`; artifact `careermate-backend-jar` |
+| `frontend-build` | — | `npm ci` + production build; artifact `careermate-frontend-dist` |
+| `package-release` | `backend-build`, `frontend-build` | Assemble `release/backend/app.jar` + `release/frontend/dist/`; artifact `careermate-release` |
+| `deploy-production` | `package-release` | SSH upload + `deploy-from-github.sh`; **environment: `production`** (optional manual approval) |
+| `smoke-test` | `deploy-production` | `curl` API health + frontend entry |
 
-On failure: workflow fails; previous releases remain; roll back manually (section 10).
+On failure: workflow stops at the failed job; server releases are not deleted; roll back manually (section 10).
+
+**Production approval:** Repository → Settings → Environments → `production` → enable **Required reviewers**. Deploy pauses at `deploy-production` until approved.
 
 ### 13.2 GitHub Secrets
 
