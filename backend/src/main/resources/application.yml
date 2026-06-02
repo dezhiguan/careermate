@@ -22,3 +22,11 @@ careermate:
     single-user:
       user-id: ${SINGLE_USER_ID:1}
       username: ${SINGLE_USER_NAME:local-user}
+  llm:
+    provider: ${LLM_PROVIDER:mock} # mock | deepseek | qwen | openai-compatible
+    model: ${LLM_MODEL:mock-chat}
+    api-key: ${LLM_API_KEY:}
+    endpoint: ${LLM_ENDPOINT:}
+    timeout-ms: ${LLM_TIMEOUT_MS:60000}
+    max-tokens: ${LLM_MAX_TOKENS:4096}
+    temperature: ${LLM_TEMPERATURE:0.7}

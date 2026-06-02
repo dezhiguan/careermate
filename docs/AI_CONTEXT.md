@@ -48,6 +48,13 @@
   - 面试特训
   - 求职看板
 - 当前前端仍是静态 mock 页面，后续分阶段接入后端 API。
+- LLM 抽象层（阶段五）已完成基础能力：
+  - 新增 `LlmClient` 抽象接口与 `streamChat` / `toolCall` 预留方法。
+  - 当前默认 provider 为 `mock`（`careermate.llm.provider=mock`）。
+  - 已支持 `mock` / `deepseek` / `qwen` / `openai-compatible` 四种 provider 路由。
+  - `qwen` 默认 model 为 `qwen-plus`，通过 DashScope OpenAI-compatible endpoint 调用。
+  - 新增开发验证接口 `POST /api/debug/llm/chat`（需要认证）。
+  - 当前未实现 Agent Runtime、Tool Registry、SSE。
 - 项目文档目录 `docs/` 已建立，含架构设计、原型设计与本文件。
 
 ## 4. Core Architecture Decisions
@@ -60,6 +67,8 @@
 - 数据库 migration 使用 Flyway。
 - 认证使用 Spring Security + JWT，后续实现 single-user / jwt 双模式。
 - LLM 不直接绑定 DeepSeek，使用 LlmClient 抽象。
+- LLM Provider 支持 `mock / deepseek / qwen / openai-compatible`，并通过统一 `LlmClient` 屏蔽供应商差异。
+- `qwen` 使用 DashScope OpenAI-compatible 协议，默认 endpoint 为 `https://dashscope.aliyuncs.com/compatible-mode/v1`。
 - 不使用 Spring AI / LangChain4j 作为核心 Agent Runtime。
 - 可以预留 Spring AI Adapter / LangChain4j Adapter，但不进入核心链路。
 - RAG 能力由 RAGForge 提供，CareerMate 通过 REST API 调用。
@@ -97,7 +106,7 @@
 2. 数据库 Migration + 用户核心表 ✅
 3. 认证与用户隔离 ✅（基础能力）
 4. 前端 Auth 接入 ✅（基础能力）
-5. LLM 抽象层
+5. LLM 抽象层 ✅（基础能力）
 6. SSE 基础设施
 7. Agent Session + Message + Trace 基础
 8. Tool Registry + ToolExecutor

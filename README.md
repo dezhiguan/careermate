@@ -20,7 +20,7 @@ CareerMate 是一个面向职业发展的智能助手平台，提供简历优化
 
 ## 当前阶段说明
 
-**阶段四：前端 Auth 接入（基础能力）**
+**阶段五：LLM 抽象层（基础能力）**
 
 当前已完成：
 
@@ -42,8 +42,11 @@ CareerMate 是一个面向职业发展的智能助手平台，提供简历优化
 - 登录页 `#/login` 与登录/注册交互
 - 路由守卫（未认证自动跳转登录页）
 - single-user 模式可直接通过 `/api/auth/me` 进入应用
+- LLM 抽象接口 `LlmClient` 与 provider 路由配置
+- `mock` / `deepseek` / `openai-compatible` 三种 provider 选择
+- 开发验证接口：`POST /api/debug/llm/chat`（需认证）
 
-本阶段未包含：Agent、LLM、SSE、简历/岗位/面试等业务能力与相关接口。
+本阶段未包含：Agent Runtime、Tool Registry、SSE、RAGForge 接入与业务链路编排。
 
 ### 数据库初始化
 
@@ -88,6 +91,48 @@ SINGLE_USER_ID=1
 SINGLE_USER_NAME=local-user
 ```
 
+### LLM 配置
+
+```bash
+LLM_PROVIDER=mock
+LLM_MODEL=mock-chat
+LLM_API_KEY=
+LLM_ENDPOINT=
+LLM_TIMEOUT_MS=60000
+LLM_MAX_TOKENS=4096
+LLM_TEMPERATURE=0.7
+```
+
+- `mock`：本地开发默认，无需外部模型服务。
+- `deepseek`：走 OpenAI-compatible 协议，默认 endpoint 为 `https://api.deepseek.com/v1`，默认 model 为 `deepseek-chat`。
+- `qwen`：走 DashScope OpenAI-compatible 协议，默认 endpoint 为 `https://dashscope.aliyuncs.com/compatible-mode/v1`，默认 model 为 `qwen-plus`。
+- `openai-compatible`：可对接兼容 `/chat/completions` 的模型网关，需显式配置 `LLM_MODEL` 与 `LLM_ENDPOINT`。
+
+Qwen Plus:
+
+```bash
+LLM_PROVIDER=qwen
+LLM_MODEL=qwen-plus
+LLM_API_KEY=your-dashscope-api-key
+LLM_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+DeepSeek:
+
+```bash
+LLM_PROVIDER=deepseek
+LLM_MODEL=deepseek-chat
+LLM_API_KEY=your-deepseek-api-key
+LLM_ENDPOINT=https://api.deepseek.com/v1
+```
+
+Mock:
+
+```bash
+LLM_PROVIDER=mock
+LLM_MODEL=mock-chat
+```
+
 ### 编译并启动
 
 ```bash
@@ -127,6 +172,29 @@ docker compose up --build
 | `POST /api/auth/register` | 用户注册并返回 JWT |
 | `POST /api/auth/login` | 用户登录并返回 JWT |
 | `GET /api/auth/me` | 获取当前用户信息（single-user 或 JWT） |
+
+## LLM Debug 接口（仅开发验证）
+
+> Debug API 仅用于本地验证，生产环境建议关闭。
+
+| 接口 | 说明 |
+|------|------|
+| `POST /api/debug/llm/chat` | 调用当前 `LlmClient` 做一次非流式 chat |
+
+请求示例：
+
+```json
+{
+  "message": "帮我分析简历"
+}
+```
+
+预期（`mock` provider）：
+
+- `code = 0`
+- `data.provider = mock`
+- `data.content` 有文本内容
+- `data.latencyMs` 有值
 
 ## 前端认证接入
 
@@ -190,6 +258,7 @@ careermate/
 2. ~~**认证授权**：接入 Spring Security，实现登录注册~~（阶段三基础能力已完成）
 3. ~~**前端迁入**：将 Vue 3 前端迁移至 `frontend/` 目录~~（已完成）
 4. ~~**前端 Auth 接入**：登录页、Auth Store、路由守卫~~（阶段四基础能力已完成）
-5. **Agent Runtime**：实现智能体运行时与 Tool Registry
-6. **LLM / RAG 集成**：对接大语言模型与 RAGForge 知识库
+5. ~~**LLM 抽象层**：实现 provider 抽象与 debug 验证接口~~（阶段五基础能力已完成）
+6. **Agent Runtime**：实现智能体运行时与 Tool Registry
+7. **LLM / RAG 集成**：对接大语言模型与 RAGForge 知识库
 7. **业务表扩展**：简历、岗位、面试等剩余业务表
