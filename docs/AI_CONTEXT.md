@@ -62,6 +62,10 @@
   - 支持同一 session 同时仅一个流式任务运行（冲突返回 429）。
   - 支持基础取消：连接关闭/超时/错误会取消运行中任务并清理资源。
   - 提供 mock 流式对话接口 `POST /api/agent/sessions/{sessionId}/messages/stream`，通过 `LlmClient.streamChat` 输出 token。
+- 前端阶段七（已完成当前范围）：
+  - `AgentChat` 已对接后端 SSE mock stream（plan/token/message/done/error/heartbeat）。
+  - 页面可创建 session 并展示当前 sessionId、流式状态、trace 与 latency。
+  - 其他业务页（简历/岗位/面试/看板）仍使用 mock 数据，待后端业务接口就绪后再对接。
 - 项目文档目录 `docs/` 已建立，含架构设计、原型设计与本文件。
 
 ## 4. Core Architecture Decisions

@@ -46,7 +46,17 @@ CareerMate 是一个面向职业发展的智能助手平台，提供简历优化
 - `mock` / `deepseek` / `openai-compatible` 三种 provider 选择
 - 开发验证接口：`POST /api/debug/llm/chat`（需认证）
 
-本阶段未包含：Agent Runtime、Tool Registry、RAGForge 接入与业务链路编排。（已提供 SSE 基础设施与 mock 流式接口）
+本阶段前端已优先对接已完成后端接口：
+
+- Auth 当前用户展示
+- Agent 对话台 SSE mock stream（`/api/agent/sessions` + `/messages/stream`）
+
+当前仍未对接（继续保留前端 mock 数据）：
+
+- 简历上传/解析页面
+- 岗位匹配页面
+- 面试训练页面
+- 求职看板页面
 
 ### 数据库初始化
 

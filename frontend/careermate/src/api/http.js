@@ -13,14 +13,24 @@ function redirectToLogin() {
   }
 }
 
-export async function request(path, options = {}) {
+function getAuthHeaders(extraHeaders = {}) {
   const token = localStorage.getItem(TOKEN_KEY)
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extraHeaders,
+  }
+}
+
+function handleUnauthorized(payload) {
+  clearAuthState()
+  redirectToLogin()
+  throw new Error(payload?.message || '未认证')
+}
+
+export async function request(path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
-    ...(options.headers || {}),
-  }
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
+    ...getAuthHeaders(options.headers || {}),
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -36,9 +46,7 @@ export async function request(path, options = {}) {
   }
 
   if (response.status === 401 || payload?.code === 401) {
-    clearAuthState()
-    redirectToLogin()
-    throw new Error(payload?.message || '未认证')
+    handleUnauthorized(payload)
   }
 
   if (!response.ok) {
@@ -56,4 +64,4 @@ export async function request(path, options = {}) {
   return payload.data
 }
 
-export { API_BASE_URL, TOKEN_KEY, USER_KEY }
+export { API_BASE_URL, TOKEN_KEY, USER_KEY, getAuthHeaders, handleUnauthorized }
