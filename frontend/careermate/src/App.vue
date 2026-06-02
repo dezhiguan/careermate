@@ -1,5 +1,11 @@
 <template>
   <div class="app-shell">
+    <header class="top-status" v-if="authStore.state.currentUser">
+      <span class="user-badge">
+        {{ authStore.state.currentUser.username }} / {{ authStore.state.currentUser.role }}
+      </span>
+      <button class="logout-btn" @click="authStore.logout">退出</button>
+    </header>
     <main class="main-content">
       <router-view />
     </main>
@@ -29,6 +35,7 @@
 </template>
 
 <script setup>
+import { authStore } from './stores/authStore'
 </script>
 
 <style>
@@ -50,6 +57,36 @@
 .main-content {
   flex: 1;
   padding-bottom: 72px;
+  padding-top: 44px;
+}
+
+.top-status {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-badge {
+  font-size: 12px;
+  color: var(--navy);
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.logout-btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .bottom-nav {

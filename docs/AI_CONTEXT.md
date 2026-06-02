@@ -34,6 +34,13 @@
   - 注册、登录会写入 `security_audit_logs`。
 - 默认安全模式为 `single-user`（通过 `SECURITY_MODE` 可切换为 `jwt`）。
 - 前端 Vue 页面已导入，并且可以启动（路径：`frontend/careermate/`）。
+- 前端 Auth 接入（阶段四）已完成基础能力：
+  - 新增统一请求层 `src/api/http.js`（fetch + 自动 Authorization）。
+  - 新增认证 API `src/api/auth.js`。
+  - 新增轻量认证状态 `src/stores/authStore.js`（localStorage 持久化）。
+  - 新增登录页 `src/views/LoginView.vue`（含登录/注册与单用户入口）。
+  - 新增路由守卫，未认证访问受保护路由会跳转 `/login`。
+  - 401 会自动清理登录态并跳转登录页。
 - 当前已有 5 个前端页面：
   - Agent 对话台
   - 简历工作室
@@ -89,35 +96,35 @@
 1. 项目基础骨架 ✅
 2. 数据库 Migration + 用户核心表 ✅
 3. 认证与用户隔离 ✅（基础能力）
-4. LLM 抽象层
-5. SSE 基础设施
-6. Agent Session + Message + Trace 基础
-7. Tool Registry + ToolExecutor
-8. Memory 基础能力
-9. 简历上传、解析与画像
-10. RAGForge Client + Knowledge Tools
-11. 岗位匹配 + 技能差距 + 看板
-12. Agent Runtime 闭环
-13. 面试训练
-14. Prompt 模板与版本管理
-15. Agent Evaluation 评测体系
-16. Metrics / Cost / Observability
-17. MCP Adapter NoOp 实现
-18. 前端 UI 完整打磨
-19. Docker Compose 联合部署 + README + 演示数据
+4. 前端 Auth 接入 ✅（基础能力）
+5. LLM 抽象层
+6. SSE 基础设施
+7. Agent Session + Message + Trace 基础
+8. Tool Registry + ToolExecutor
+9. Memory 基础能力
+10. 简历上传、解析与画像
+11. RAGForge Client + Knowledge Tools
+12. 岗位匹配 + 技能差距 + 看板
+13. Agent Runtime 闭环
+14. 面试训练
+15. Prompt 模板与版本管理
+16. Agent Evaluation 评测体系
+17. Metrics / Cost / Observability
+18. MCP Adapter NoOp 实现
+19. 前端 UI 完整打磨
+20. Docker Compose 联合部署 + README + 演示数据
 
 ## 7. Current Next Task
 
 当前下一步建议：
 
-**阶段三：认证与用户隔离**
+**阶段五：LLM 抽象层**
 
 核心内容（概要）：
 
-- 在业务模块中统一通过 `CurrentUserContext` 获取 `userId`。
-- 持续补齐基于 `user_id` 的数据隔离边界。
-- 扩展认证异常与审计事件覆盖面。
-- 不提前实现 Agent、简历、RAG 等业务能力。
+- 设计 `LlmClient` 抽象与多供应商适配接口。
+- 不在核心链路绑定具体模型供应商。
+- 不提前实现 Agent Runtime、RAG 编排与业务工具。
 
 ## 8. Cursor Working Rules
 
@@ -138,6 +145,7 @@
 - 所有用户私有数据必须带 user_id。
 - 所有后续业务逻辑必须从 `CurrentUserContext` 获取 `userId`，禁止前端传入。
 - 所有接口必须使用统一响应结构。
+- 前端后续业务 API 统一通过 `src/api/http.js` 调用。
 - 本地验证启动的后端 / 前端进程，结束后应释放端口（8080、5173 等），避免占用。
 
 ## 9. Important Documents

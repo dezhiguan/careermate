@@ -20,7 +20,7 @@ CareerMate 是一个面向职业发展的智能助手平台，提供简历优化
 
 ## 当前阶段说明
 
-**阶段三：认证与用户隔离（基础能力）**
+**阶段四：前端 Auth 接入（基础能力）**
 
 当前已完成：
 
@@ -37,6 +37,11 @@ CareerMate 是一个面向职业发展的智能助手平台，提供简历优化
 - JWT 生成与校验
 - `CurrentUserContext` 用户上下文注入
 - 注册 / 登录审计日志写入 `security_audit_logs`
+- 前端统一请求层 `src/api/http.js`（fetch）
+- 前端认证状态管理 `src/stores/authStore.js`
+- 登录页 `#/login` 与登录/注册交互
+- 路由守卫（未认证自动跳转登录页）
+- single-user 模式可直接通过 `/api/auth/me` 进入应用
 
 本阶段未包含：Agent、LLM、SSE、简历/岗位/面试等业务能力与相关接口。
 
@@ -123,6 +128,15 @@ docker compose up --build
 | `POST /api/auth/login` | 用户登录并返回 JWT |
 | `GET /api/auth/me` | 获取当前用户信息（single-user 或 JWT） |
 
+## 前端认证接入
+
+- 前端目录：`frontend/careermate`
+- API 基础地址环境变量：`VITE_API_BASE_URL`（默认 `http://localhost:8080`）
+- 登录页面路由：`#/login`
+- `single-user` 模式：前端可通过 `/api/auth/me` 自动恢复 `local-user`
+- `jwt` 模式：需登录/注册获取 token，后续请求自动携带 `Authorization: Bearer <token>`
+- 遇到 401：前端自动清理本地登录态并跳转 `#/login`
+
 示例响应（`/api/health`）：
 
 ```json
@@ -175,6 +189,7 @@ careermate/
 1. ~~**数据库迁移**：创建用户核心表，开启 Flyway migration~~（阶段二已完成）
 2. ~~**认证授权**：接入 Spring Security，实现登录注册~~（阶段三基础能力已完成）
 3. ~~**前端迁入**：将 Vue 3 前端迁移至 `frontend/` 目录~~（已完成）
-4. **Agent Runtime**：实现智能体运行时与 Tool Registry
-5. **LLM / RAG 集成**：对接大语言模型与 RAGForge 知识库
-6. **业务表扩展**：简历、岗位、面试等剩余业务表
+4. ~~**前端 Auth 接入**：登录页、Auth Store、路由守卫~~（阶段四基础能力已完成）
+5. **Agent Runtime**：实现智能体运行时与 Tool Registry
+6. **LLM / RAG 集成**：对接大语言模型与 RAGForge 知识库
+7. **业务表扩展**：简历、岗位、面试等剩余业务表
