@@ -220,4 +220,68 @@ function selectResume(i) {
 }
 .empty-icon { font-size: 36px; margin-bottom: 8px; }
 .empty-text { font-size: 12px; }
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 16px 12px calc(16px + env(safe-area-inset-bottom));
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .page-title {
+    font-size: 20px;
+    word-break: break-word;
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .left-panel,
+  .right-panel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .upload-zone {
+    width: 100%;
+    padding: 24px 16px;
+  }
+
+  .resume-card,
+  .thinking-box,
+  .suggestions-box {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .resume-name,
+  .suggestion-item,
+  .thinking-step {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .nav-link-btn {
+    width: 100%;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.4;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-container {
+    padding: 12px 10px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .page-title {
+    font-size: 18px;
+  }
+}
 </style>

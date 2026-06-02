@@ -49,15 +49,22 @@ import { authStore } from './stores/authStore'
 
 .app-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: #f8fafc;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .main-content {
   flex: 1;
-  padding-bottom: 72px;
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
   padding-top: 44px;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .top-status {
@@ -96,9 +103,12 @@ import { authStore } from './stores/authStore'
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: space-around;
-  padding: 8px 0 12px;
+  align-items: flex-end;
+  padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
   z-index: 100;
   box-shadow: 0 -2px 12px rgba(0,0,0,.04);
+  width: 100%;
+  max-width: 100%;
 }
 
 .nav-item {
@@ -134,5 +144,66 @@ import { authStore } from './stores/authStore'
 .nav-item:hover {
   color: var(--purple);
   background: #f5f3ff;
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    padding-top: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .top-status {
+    top: 4px;
+    left: 8px;
+    right: auto;
+    max-width: calc(100vw - 16px);
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .user-badge {
+    max-width: min(52vw, 200px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
+  .logout-btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .main-content {
+    padding-top: 52px;
+  }
+
+  .bottom-nav {
+    padding-left: 0;
+    padding-right: 0;
+    gap: 0;
+  }
+
+  .nav-item {
+    padding: 4px 2px;
+    min-height: 44px;
+    min-width: 0;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .nav-icon {
+    font-size: 18px;
+  }
+
+  .nav-label {
+    font-size: 10px;
+    white-space: nowrap;
+    line-height: 1.2;
+  }
 }
 </style>

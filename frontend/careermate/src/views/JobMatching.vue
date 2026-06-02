@@ -249,4 +249,97 @@ function selectJob(job) {
 
 /* Agent Stats */
 .agent-stats { text-align: center; font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 16px 12px calc(16px + env(safe-area-inset-bottom));
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .job-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 4px;
+    max-width: 100%;
+  }
+
+  .filter-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-chip {
+    flex-shrink: 0;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .job-card {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .job-header {
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: flex-start;
+  }
+
+  .job-company {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .job-point {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .modal-overlay {
+    padding: 12px;
+    align-items: flex-end;
+  }
+
+  .modal-card {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 40px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-body {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .modal-action {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 18px;
+  }
+
+  .modal-header {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+}
 </style>

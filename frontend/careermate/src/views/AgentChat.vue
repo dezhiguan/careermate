@@ -401,4 +401,141 @@ onMounted(async () => {
 .panel-value { color: var(--slate); word-break: break-all; }
 .panel-divider { border-top: 1px solid var(--border); margin: 10px 0; }
 .tool-log { color: var(--text-muted); padding: 2px 0; line-height: 1.4; }
+
+@media (max-width: 768px) {
+  .chat-page {
+    max-width: 100%;
+    margin: 0;
+    height: calc(100dvh - 128px - env(safe-area-inset-bottom));
+    min-height: 360px;
+  }
+
+  .chat-layout {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: none;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .chat-main {
+    flex: 1;
+    min-height: 0;
+    order: 1;
+  }
+
+  .session-panel {
+    order: 2;
+    flex-shrink: 0;
+    max-height: min(36dvh, 240px);
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+
+  .messages-area {
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .msg-bubble {
+    max-width: 88%;
+  }
+
+  .suggestions {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .suggestions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chat-input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .send-btn {
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mic-btn {
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .input-row {
+    min-height: 44px;
+  }
+
+  .header-action {
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+
+  .header-left {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .header-title {
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-page {
+    height: calc(100dvh - 136px - env(safe-area-inset-bottom));
+  }
+
+  .chat-header {
+    padding: 10px 12px;
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .header-sub {
+    display: none;
+  }
+
+  .header-title {
+    font-size: 14px;
+  }
+
+  .header-action {
+    font-size: 10px;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+
+  .msg-bubble {
+    max-width: 90%;
+    font-size: 13px;
+  }
+
+  .session-panel {
+    max-height: min(32dvh, 200px);
+    padding: 12px 10px;
+  }
+
+  .panel-value {
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  .trace-header {
+    flex-wrap: wrap;
+  }
+
+  .trace-refresh-btn {
+    min-height: 32px;
+  }
+}
 </style>

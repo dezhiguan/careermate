@@ -1,4 +1,8 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+// Production build: VITE_API_BASE_URL=/careermate-api (paths omit /api; Nginx adds it)
+// Local dev: base must include /api, e.g. http://localhost:8080/api or /api via Vite proxy
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? '/api' : 'http://localhost:8080/api')
 const TOKEN_KEY = 'careermate_token'
 const USER_KEY = 'careermate_user'
 
