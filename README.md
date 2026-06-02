@@ -46,7 +46,7 @@ CareerMate 是一个面向职业发展的智能助手平台，提供简历优化
 - `mock` / `deepseek` / `openai-compatible` 三种 provider 选择
 - 开发验证接口：`POST /api/debug/llm/chat`（需认证）
 
-本阶段未包含：Agent Runtime、Tool Registry、SSE、RAGForge 接入与业务链路编排。
+本阶段未包含：Agent Runtime、Tool Registry、RAGForge 接入与业务链路编排。（已提供 SSE 基础设施与 mock 流式接口）
 
 ### 数据库初始化
 
@@ -195,6 +195,29 @@ docker compose up --build
 - `data.provider = mock`
 - `data.content` 有文本内容
 - `data.latencyMs` 有值
+
+## SSE Mock Agent 接口（仅开发验证）
+
+> 当前仅为 SSE 基础设施与 mock 流式对话，不是完整 Agent Runtime。
+
+| 接口 | 说明 |
+|------|------|
+| `POST /api/agent/sessions` | 创建临时 mock session（不落库） |
+| `POST /api/agent/sessions/{sessionId}/messages/stream` | SSE 流式发送消息（PLAN/TOKEN/MESSAGE/DONE/ERROR/HEARTBEAT） |
+
+示例：创建 session
+
+```bash
+curl -X POST http://localhost:8080/api/agent/sessions
+```
+
+示例：发起 SSE 流式请求（需要认证，single-user 可直接用；jwt 需带 token）
+
+```bash
+curl -N -X POST "http://localhost:8080/api/agent/sessions/<sessionId>/messages/stream" \\
+  -H "Content-Type: application/json" \\
+  -d '{\"message\":\"帮我分析简历\"}'
+```
 
 ## 前端认证接入
 

@@ -30,3 +30,9 @@ careermate:
     timeout-ms: ${LLM_TIMEOUT_MS:60000}
     max-tokens: ${LLM_MAX_TOKENS:4096}
     temperature: ${LLM_TEMPERATURE:0.7}
+  agent:
+    sse-timeout-ms: ${AGENT_SSE_TIMEOUT_MS:300000}
+    executor-core-pool-size: ${AGENT_EXECUTOR_CORE_POOL_SIZE:4}
+    executor-max-pool-size: ${AGENT_EXECUTOR_MAX_POOL_SIZE:20}
+    executor-queue-capacity: ${AGENT_EXECUTOR_QUEUE_CAPACITY:200}
+    max-concurrent-sessions: ${AGENT_MAX_CONCURRENT_SESSIONS:100}

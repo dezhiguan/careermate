@@ -54,7 +54,14 @@
   - 已支持 `mock` / `deepseek` / `qwen` / `openai-compatible` 四种 provider 路由。
   - `qwen` 默认 model 为 `qwen-plus`，通过 DashScope OpenAI-compatible endpoint 调用。
   - 新增开发验证接口 `POST /api/debug/llm/chat`（需要认证）。
-  - 当前未实现 Agent Runtime、Tool Registry、SSE。
+  - 当前未实现 Agent Runtime、Tool Registry。
+- SSE 基础设施（阶段六）已完成基础能力：
+  - 基于 Spring MVC `SseEmitter` 的 SSE 连接与事件发送基础设施。
+  - 独立 `agent-executor` 线程池，避免阻塞 Tomcat 请求线程执行长任务。
+  - SSE 事件统一结构 `SseEvent` + `SseEventType`（本阶段使用 plan/token/message/done/error/heartbeat）。
+  - 支持同一 session 同时仅一个流式任务运行（冲突返回 429）。
+  - 支持基础取消：连接关闭/超时/错误会取消运行中任务并清理资源。
+  - 提供 mock 流式对话接口 `POST /api/agent/sessions/{sessionId}/messages/stream`，通过 `LlmClient.streamChat` 输出 token。
 - 项目文档目录 `docs/` 已建立，含架构设计、原型设计与本文件。
 
 ## 4. Core Architecture Decisions
@@ -107,7 +114,7 @@
 3. 认证与用户隔离 ✅（基础能力）
 4. 前端 Auth 接入 ✅（基础能力）
 5. LLM 抽象层 ✅（基础能力）
-6. SSE 基础设施
+6. SSE 基础设施 ✅（基础能力）
 7. Agent Session + Message + Trace 基础
 8. Tool Registry + ToolExecutor
 9. Memory 基础能力
