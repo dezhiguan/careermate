@@ -233,5 +233,79 @@ function voiceAnswer() {
 .tool-log {
   background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px;
   padding: 8px 10px; font-size: 10px; margin-top: 8px; color: var(--amber); line-height: 1.6;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 16px 12px calc(16px + env(safe-area-inset-bottom));
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .interview-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .main-area,
+  .eval-panel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .question-card,
+  .answer-area,
+  .feedback-card {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .question-text {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .answer-input {
+    min-height: 120px;
+    width: 100%;
+    max-width: 100%;
+    font-size: 16px;
+  }
+
+  .action-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btn {
+    min-height: 44px;
+    flex: 1 1 auto;
+    min-width: min(100%, 120px);
+  }
+
+  .eval-panel {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .eval-question,
+  .eval-detail,
+  .strategy-item {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 18px;
+  }
+
+  .action-row .btn {
+    flex: 1 1 100%;
+    width: 100%;
+  }
 }
 </style>

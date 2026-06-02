@@ -140,4 +140,52 @@ const activities = ref([
 .timeline-time { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
 
 .footer-note { text-align: center; font-size: 10px; color: var(--text-muted); padding: 10px 0; }
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 16px 12px calc(16px + env(safe-area-inset-bottom));
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .suggestions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-card,
+  .suggestion-card {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .card-text,
+  .timeline-text,
+  .footer-note {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 18px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-value {
+    font-size: 24px;
+  }
+
+  .timeline-item {
+    gap: 10px;
+  }
+}
 </style>

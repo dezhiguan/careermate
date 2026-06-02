@@ -175,5 +175,58 @@ input {
 .single-user-tip p {
   margin: 0 0 8px;
   color: #92400e;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .login-page {
+    min-height: calc(100dvh - env(safe-area-inset-bottom));
+    padding: 20px 16px calc(96px + env(safe-area-inset-bottom));
+    align-content: center;
+  }
+
+  .login-card {
+    width: calc(100vw - 32px);
+    max-width: 420px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-page {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .login-card {
+    width: calc(100vw - 32px);
+    padding: 20px 16px;
+  }
+
+  .mode-toggle button {
+    min-height: 44px;
+    padding: 10px 8px;
+    font-size: 13px;
+  }
+
+  input {
+    min-height: 44px;
+    font-size: 16px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .primary,
+  .secondary {
+    min-height: 44px;
+    width: 100%;
+    font-size: 14px;
+  }
+
+  .error,
+  .success {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
 }
 </style>
