@@ -28,6 +28,8 @@
 
 - Backend JAR: `backend/target/careermate-backend-0.1.0.jar`
 - Frontend dist: `frontend/careermate/dist`
+- `frontend/careermate/dist/` is a build artifact and should not be committed
+- `backend/target/` is a build artifact and should not be committed
 
 Build commands:
 
@@ -38,6 +40,14 @@ mvn -DskipTests package
 cd ../frontend/careermate
 VITE_API_BASE_URL=/careermate-api VITE_BASE_PATH=/careermate/ npm run build
 ```
+
+## 3.1 Production Profile
+
+- Production uses `SPRING_PROFILES_ACTIVE=prod`.
+- `prod` profile loads `backend/src/main/resources/application-prod.yml`.
+- `application-prod.yml` contains no real secrets.
+- `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` must be injected from server-local:
+  - `/opt/careermate/backend/.env.app`
 
 ## 4. Server Directories
 
@@ -76,6 +86,11 @@ Keep RAGForge routes unchanged and use:
 
 - CareerMate frontend: `/careermate/`
 - CareerMate API: `/careermate-api/`
+- ingress server already has RAGForge Nginx/server blocks
+- for real rollout, prefer merging location snippet:
+  - `deploy/nginx/careermate.locations.example`
+- do not blindly replace existing config with a full standalone server block
+- always backup current Nginx config before modification
 
 ### Plan B (future migration)
 
@@ -135,6 +150,7 @@ Initialization template:
 ## 12. Template Files
 
 - Nginx template: `deploy/nginx/careermate.conf.example`
+- Nginx location snippet template (preferred for existing ingress): `deploy/nginx/careermate.locations.example`
 - Backend env template: `deploy/env/careermate-backend.env.example`
 - Frontend env template: `deploy/env/careermate-frontend.env.example`
 - DB init SQL template: `deploy/sql/init-careermate-db.sql.example`
