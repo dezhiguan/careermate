@@ -10,8 +10,11 @@
               <div class="header-sub">CareerMate · 一切交互的起点和终点</div>
             </div>
           </div>
-          <button class="header-action" @click="resetChat">🔄 新会话</button>
+          <button class="header-action" :disabled="sessionCreating || streamState === 'streaming'" @click="resetChat">
+            {{ sessionCreating ? '创建中...' : '🔄 新会话' }}
+          </button>
         </div>
+        <div v-if="globalError" class="global-error">{{ globalError }}</div>
 
         <div class="messages-area" ref="msgContainer">
           <div v-for="msg in messages" :key="msg.id" class="msg-wrapper">
@@ -60,7 +63,7 @@
         </div>
         <div class="panel-section">
           <div class="panel-label">当前状态：</div>
-          <div class="panel-value">{{ streamState }}</div>
+          <div class="panel-value">{{ streamStateLabel }}</div>
         </div>
         <div class="panel-section">
           <div class="panel-label">已接收事件数：</div>
@@ -103,6 +106,8 @@ const inputText = ref('')
 const msgContainer = ref(null)
 const sessionId = ref('')
 const streamState = ref('idle')
+const sessionCreating = ref(false)
+const globalError = ref('')
 const eventCount = ref(0)
 const totalLatencyMs = ref(0)
 const traceEvents = ref([])
@@ -120,6 +125,13 @@ const messages = ref([{
 }])
 
 const canSend = computed(() => !!inputText.value.trim() && streamState.value !== 'streaming')
+const streamStateLabel = computed(() => {
+  if (streamState.value === 'session_creating') return '会话创建中'
+  if (streamState.value === 'streaming') return '流式生成中'
+  if (streamState.value === 'done') return '已完成'
+  if (streamState.value === 'error') return '错误'
+  return '空闲'
+})
 const userLabel = computed(() => {
   const user = authStore.state.currentUser
   if (!user) return '未登录'
@@ -173,12 +185,16 @@ async function refreshTraceFromServer() {
 }
 
 async function initSession() {
+  sessionCreating.value = true
+  globalError.value = ''
+  streamState.value = 'session_creating'
   try {
     sessionId.value = await createAgentSession()
     streamState.value = 'idle'
     pushTrace('session', `会话创建成功: ${sessionId.value}`)
   } catch (e) {
     streamState.value = 'error'
+    globalError.value = e?.message || '会话创建失败'
     pushTrace('error', '会话创建失败')
     messages.value.push({
       id: `m_${Date.now()}`,
@@ -187,16 +203,19 @@ async function initSession() {
       streaming: false,
       error: e?.message || '',
     })
+  } finally {
+    sessionCreating.value = false
   }
 }
 
 async function sendMessage() {
   const text = inputText.value.trim()
-  if (!text || streamState.value === 'streaming') return
+  if (!text || streamState.value === 'streaming' || sessionCreating.value) return
   if (!sessionId.value) {
     await initSession()
     if (!sessionId.value) return
   }
+  globalError.value = ''
 
   messages.value.push({ id: `m_${Date.now()}_u`, role: 'user', text, streaming: false, error: '' })
   inputText.value = ''
@@ -241,11 +260,13 @@ async function sendMessage() {
         totalLatencyMs.value = Number(data?.totalLatencyMs || 0)
         agentMessage.streaming = false
         pushTrace('done', `流式完成，耗时 ${totalLatencyMs.value}ms`, data)
+        refreshTraceFromServer()
       },
       onError(error) {
         streamState.value = 'error'
         agentMessage.streaming = false
         agentMessage.error = error?.message || '流式调用失败'
+        globalError.value = agentMessage.error
         pushTrace('error', agentMessage.error)
       },
     })
@@ -257,6 +278,7 @@ async function sendMessage() {
     streamState.value = 'error'
     agentMessage.streaming = false
     agentMessage.error = e?.message || '流式请求失败'
+    globalError.value = agentMessage.error
     pushTrace('error', agentMessage.error)
   } finally {
     if (!agentMessage.text) {
@@ -267,6 +289,7 @@ async function sendMessage() {
 }
 
 function resetChat() {
+  globalError.value = ''
   messages.value = [{
     id: `m_${Date.now()}_reset`,
     role: 'agent',
@@ -312,6 +335,16 @@ onMounted(async () => {
   border-radius: 6px; font-size: 11px; cursor: pointer; color: var(--text-muted);
 }
 .header-action:hover { background: var(--light); }
+.header-action:disabled { opacity: .5; cursor: default; }
+.global-error {
+  margin: 10px 16px 0;
+  padding: 8px 10px;
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #b91c1c;
+  font-size: 12px;
+  border-radius: 8px;
+}
 
 .chat-main { display: flex; flex-direction: column; height: 100%; }
 .messages-area {

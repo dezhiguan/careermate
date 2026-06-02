@@ -1,0 +1,9 @@
+-- Run on data server PostgreSQL as an admin user.
+-- Replace placeholders before execution.
+-- If role/database already exists, skip manually after verification.
+
+CREATE ROLE careermate LOGIN PASSWORD '<CHANGE_ME_DB_PASSWORD>';
+
+CREATE DATABASE careermate_db OWNER careermate;
+
+GRANT ALL PRIVILEGES ON DATABASE careermate_db TO careermate;

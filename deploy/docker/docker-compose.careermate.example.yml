@@ -1,0 +1,14 @@
+services:
+  careermate-backend:
+    image: careermate/backend:latest
+    # or build from source:
+    # build:
+    #   context: ../../backend
+    container_name: careermate-backend
+    ports:
+      - "127.0.0.1:18080:18080"
+    env_file:
+      - /opt/careermate/backend/.env.app
+    volumes:
+      - /opt/careermate/logs:/app/logs
+    restart: unless-stopped

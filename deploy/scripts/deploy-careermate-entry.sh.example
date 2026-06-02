@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Template only. Do not run blindly on production.
+# This script does NOT modify Nginx/RAGForge. It prepares CareerMate directories and backend service artifacts.
+
+BASE_DIR="/opt/careermate"
+BACKEND_DIR="${BASE_DIR}/backend"
+FRONTEND_DIR="${BASE_DIR}/frontend"
+LOG_DIR="${BASE_DIR}/logs"
+RELEASES_DIR="${BASE_DIR}/releases"
+SCRIPTS_DIR="${BASE_DIR}/scripts"
+
+echo "[1/4] Prepare directory layout..."
+mkdir -p "${BACKEND_DIR}" "${FRONTEND_DIR}" "${LOG_DIR}" "${RELEASES_DIR}" "${SCRIPTS_DIR}"
+
+echo "[2/4] Validate required files..."
+if [[ ! -f "${BACKEND_DIR}/.env.app" ]]; then
+  echo "ERROR: ${BACKEND_DIR}/.env.app not found"
+  exit 1
+fi
+if [[ ! -f "${BACKEND_DIR}/careermate-backend.jar" ]]; then
+  echo "ERROR: ${BACKEND_DIR}/careermate-backend.jar not found"
+  exit 1
+fi
+if [[ ! -f "${FRONTEND_DIR}/dist/index.html" ]]; then
+  echo "ERROR: ${FRONTEND_DIR}/dist/index.html not found"
+  exit 1
+fi
+
+echo "[3/4] Validate systemd template availability..."
+if [[ ! -f "/etc/systemd/system/careermate-backend.service" ]]; then
+  echo "WARN: /etc/systemd/system/careermate-backend.service not found."
+  echo "      Install it from deploy/systemd/careermate-backend.service.example before start."
+fi
+
+echo "[4/4] Recommended startup flow (manual):"
+echo "  systemctl daemon-reload"
+echo "  systemctl enable careermate-backend"
+echo "  systemctl start careermate-backend"
+echo "  systemctl status careermate-backend --no-pager"
+
+echo "Done. Template completed checks only."

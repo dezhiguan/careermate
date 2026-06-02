@@ -1,0 +1,15 @@
+[Unit]
+Description=CareerMate Backend
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/careermate/backend
+EnvironmentFile=/opt/careermate/backend/.env.app
+ExecStart=/usr/bin/java -jar /opt/careermate/backend/careermate-backend.jar
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/careermate/logs/backend.log
+StandardError=append:/opt/careermate/logs/backend-error.log
+
+[Install]
+WantedBy=multi-user.target

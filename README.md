@@ -6,8 +6,14 @@ CareerMate 是一个面向职业发展的智能助手平台，提供简历优化
 
 - [AI Context](docs/AI_CONTEXT.md)
 - [Database Design](docs/database-design.md)
+- [CareerMate Deployment Guide](docs/deployment-careermate.md)
 - [Architecture Design V2.1](docs/design/CareerMate-architecture-v2.1.html)
 - [Prototype Design](docs/design/CareerMate-prototype-design.html)
+
+部署端口说明：
+
+- 本地开发默认使用 `8080`
+- 生产部署建议使用 `18080`（避免与现有 RAGForge `8080` 冲突）
 
 ## 技术栈
 
@@ -299,13 +305,29 @@ careermate/
 └── frontend/careermate/         # Vue 3 + Vite 前端
 ```
 
-## 后续阶段计划
+## 当前可体验流程（阶段 A）
 
-1. ~~**数据库迁移**：创建用户核心表，开启 Flyway migration~~（阶段二已完成）
-2. ~~**认证授权**：接入 Spring Security，实现登录注册~~（阶段三基础能力已完成）
-3. ~~**前端迁入**：将 Vue 3 前端迁移至 `frontend/` 目录~~（已完成）
-4. ~~**前端 Auth 接入**：登录页、Auth Store、路由守卫~~（阶段四基础能力已完成）
-5. ~~**LLM 抽象层**：实现 provider 抽象与 debug 验证接口~~（阶段五基础能力已完成）
-6. **Agent Runtime**：实现智能体运行时与 Tool Registry
-7. **LLM / RAG 集成**：对接大语言模型与 RAGForge 知识库
-7. **业务表扩展**：简历、岗位、面试等剩余业务表
+在当前版本中，建议按下面流程体验：
+
+1. 打开 `#/login`，使用 single-user 直接进入，或在 jwt 模式登录/注册。
+2. 进入 `#/`（Agent 对话台）后，页面会自动创建会话（`POST /api/agent/sessions`）。
+3. 输入消息并发送，页面通过 SSE 接收 `plan/token/message/done` 事件。
+4. 右侧面板会展示：
+   - 当前用户（`GET /api/auth/me` 认证上下文）
+   - sessionId
+   - stream 状态
+   - event count
+   - totalLatencyMs
+5. 点击「刷新 Trace」可拉取后端持久化 trace（`GET /api/agent/sessions/{sessionId}/trace`）。
+
+> 说明：当前是 mock stream + 基础持久化体验，不是完整 Agent Runtime。
+
+## 新阶段节奏（可体验优先）
+
+1. **阶段 A（进行中）**：补齐已完成接口的页面对接与交互完善。
+2. **阶段 B**：最小可用简历模块（`resumes` + 上传/列表/详情/删除 + ResumeStudio 对接）。
+3. **阶段 C**：最小可用岗位匹配模块（`job_posts` / `job_matches` + 关键词匹配）。
+4. **阶段 D**：最小可用看板模块（`/api/dashboard` 汇总）。
+5. **阶段 E**：GitHub CI/CD + 部署文档。
+6. **阶段 F**：移动端 Web 响应式适配。
+7. **阶段 G**：再深化 Agent Runtime / Memory / Prompt / Eval。
