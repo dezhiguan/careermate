@@ -2,86 +2,143 @@
   <div class="page-container">
     <div class="page-header">
       <h2 class="page-title">🎤 面试特训</h2>
-      <p class="page-sub">字节跳动 后端开发 · 个性化出题</p>
+      <p class="page-sub">基于默认简历与最近岗位匹配生成面试题（V1）</p>
     </div>
 
-    <div class="interview-layout">
-      <!-- Main Interview Area -->
-      <div class="main-area">
-        <!-- Question Card -->
-        <div class="question-card">
-          <div class="question-meta">第 {{ currentIndex + 1 }} 题 / 共 {{ questions.length }} 题 · 技术面试</div>
-          <div class="question-text">"{{ currentQuestion.text }}"</div>
-          <div class="question-source">Agent 出题依据: {{ currentQuestion.source }}</div>
-        </div>
+    <div v-if="noDefaultResumeHint" class="banner warn">
+      请先到简历页创建并设置默认简历。
+      <router-link to="/resume" class="banner-link">前往简历工作室 →</router-link>
+    </div>
+    <div v-if="pageError" class="banner error">{{ pageError }}</div>
 
-        <!-- Answer Area -->
-        <div class="answer-area">
-          <textarea
-            v-model="answer"
-            placeholder="输入你的回答..."
-            class="answer-input"
-            :disabled="answered"
-          ></textarea>
-        </div>
+    <div class="toolbar">
+      <button class="btn primary" type="button" :disabled="creating" @click="startNewSession">
+        {{ creating ? '创建中...' : '开始新的面试训练' }}
+      </button>
+    </div>
 
-        <!-- Action Buttons -->
-        <div class="action-row">
-          <button class="btn primary" @click="submitAnswer" :disabled="!answer.trim() || answered">
-            {{ answered ? '已提交' : '提交回答' }}
-          </button>
-          <button class="btn outline" @click="voiceAnswer">
-            🎤 语音回答
-          </button>
-          <button class="btn outline" @click="skipQuestion">
-            ⏭ 跳过
-          </button>
-        </div>
+    <div v-if="listLoading" class="list-hint">加载训练记录...</div>
 
-        <!-- Feedback (after submit) -->
-        <div v-if="feedback" class="feedback-card">
-          <div class="feedback-header">🤖 Agent 即时反馈</div>
-          <div class="feedback-content">{{ feedback }}</div>
-          <button class="btn primary" @click="nextQuestion" style="margin-top:10px;">
-            {{ currentIndex + 1 < questions.length ? '下一题 →' : '完成特训' }}
+    <div v-else-if="!activeSession" class="interview-layout list-only">
+      <div v-if="sessions.length === 0" class="empty-state">
+        <div class="empty-icon">🎯</div>
+        <div>暂无训练记录，点击「开始新的面试训练」</div>
+      </div>
+      <div v-else class="session-list">
+        <div
+          v-for="item in sessions"
+          :key="item.id"
+          class="session-card"
+          @click="openSession(item.id)"
+        >
+          <div class="session-title">{{ item.title }}</div>
+          <div class="session-meta">
+            {{ statusLabel(item.status) }} · 已答 {{ item.answeredQuestions }}/{{ item.totalQuestions }}
+            <span v-if="item.averageScore != null"> · 均分 {{ item.averageScore }}</span>
+          </div>
+          <p v-if="item.summary" class="session-summary">{{ item.summary }}</p>
+          <button class="card-delete" type="button" @click.stop="confirmDeleteSession(item)">
+            删除
           </button>
-        </div>
-
-        <!-- Progress Bar -->
-        <div class="progress-bar">
-          <div
-            v-for="(q, i) in questions"
-            :key="i"
-            class="progress-seg"
-            :class="{ done: q.done, current: i === currentIndex && !q.done }"
-            :style="{ flex: 1 }"
-          ></div>
         </div>
       </div>
+    </div>
 
-      <!-- Right: Evaluation Panel -->
-      <div class="eval-panel">
-        <div class="panel-title">📊 已完成的评估</div>
+    <div v-else class="interview-layout">
+      <aside class="question-nav">
+        <div class="nav-title">题目列表</div>
+        <button
+          v-for="q in activeSession.questions"
+          :key="q.id"
+          type="button"
+          class="nav-item"
+          :class="{ active: q.id === currentQuestion?.id, answered: q.status === 'ANSWERED' }"
+          @click="selectQuestion(q)"
+        >
+          Q{{ q.questionNo }} · {{ typeLabel(q.questionType) }}
+        </button>
+        <button
+          class="btn outline complete-btn"
+          type="button"
+          :disabled="completing || activeSession.status === 'COMPLETED'"
+          @click="completeSession"
+        >
+          {{ activeSession.status === 'COMPLETED' ? '已完成' : '完成训练' }}
+        </button>
+        <button class="btn outline back-btn" type="button" @click="backToList">← 返回列表</button>
+      </aside>
 
-        <div v-for="(ev, i) in evaluations" :key="i" class="eval-item">
-          <div class="eval-question" :class="ev.qualityClass">Q{{ ev.num }}: {{ ev.topic }}</div>
-          <div class="eval-detail">回答质量: {{ ev.quality }} · {{ ev.tip }}</div>
+      <div class="main-area" v-if="currentQuestion">
+        <div class="session-bar">
+          <span class="session-bar-title">{{ activeSession.title }}</span>
+          <span class="session-bar-meta">
+            {{ statusLabel(activeSession.status) }} · {{ activeSession.answeredQuestions }}/{{ activeSession.totalQuestions }}
+          </span>
         </div>
 
-        <div v-if="evaluations.length === 0" class="eval-empty">
-          <div class="empty-icon">🎯</div>
-          <div class="empty-text">开始答题后，Agent 会实时评估你的回答质量</div>
+        <div class="question-card">
+          <div class="question-meta">
+            第 {{ currentQuestion.questionNo }} 题 / 共 {{ activeSession.questions.length }} 题 ·
+            {{ typeLabel(currentQuestion.questionType) }}
+          </div>
+          <div class="question-text">{{ currentQuestion.questionText }}</div>
+          <div v-if="currentQuestion.referencePoints?.length" class="reference-box">
+            <div class="reference-label">参考要点</div>
+            <div class="reference-tags">
+              <span
+                v-for="(p, i) in currentQuestion.referencePoints"
+                :key="'rp-' + i"
+                class="reference-tag"
+              >{{ p }}</span>
+            </div>
+          </div>
         </div>
 
-        <div class="panel-divider"></div>
+        <div class="answer-area">
+          <textarea
+            v-model="answerText"
+            class="answer-input"
+            placeholder="输入你的回答..."
+            :disabled="currentQuestion.status === 'ANSWERED' && !editingAnswer"
+            maxlength="10000"
+          />
+        </div>
 
-        <div class="panel-title-sm">🤖 Agent 出题策略</div>
-        <div class="strategy-item">· 基于你的简历弱点出题</div>
-        <div class="strategy-item">· 参考字节面试风格</div>
-        <div class="strategy-item">· 覆盖技术+行为+系统设计</div>
-        <div class="tool-log">
-          🔧 RAGForge.search("字节 后端 面试题")<br>
-          🔧 RAGForge.search("系统设计 微服务拆分")
+        <div class="action-row">
+          <button
+            class="btn primary"
+            type="button"
+            :disabled="!answerText.trim() || submitting || (currentQuestion.status === 'ANSWERED' && !editingAnswer)"
+            @click="submitAnswer"
+          >
+            {{ submitting ? '提交中...' : currentQuestion.status === 'ANSWERED' ? '已提交' : '提交回答' }}
+          </button>
+        </div>
+
+        <div v-if="currentQuestion.status === 'ANSWERED'" class="feedback-card">
+          <div class="feedback-header">📊 评分反馈 · {{ currentQuestion.score }} 分</div>
+          <p class="feedback-content">{{ currentQuestion.feedback }}</p>
+          <div v-if="currentQuestion.strengths?.length" class="fb-section">
+            <div class="fb-label">优势</div>
+            <ul class="bullet-list">
+              <li v-for="(t, i) in currentQuestion.strengths" :key="'s-' + i">{{ t }}</li>
+            </ul>
+          </div>
+          <div v-if="currentQuestion.improvements?.length" class="fb-section">
+            <div class="fb-label">改进建议</div>
+            <ul class="bullet-list">
+              <li v-for="(t, i) in currentQuestion.improvements" :key="'i-' + i">{{ t }}</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="progress-bar">
+          <div
+            v-for="q in activeSession.questions"
+            :key="'p-' + q.id"
+            class="progress-seg"
+            :class="{ done: q.status === 'ANSWERED', current: q.id === currentQuestion.id }"
+          />
         </div>
       </div>
     </div>
@@ -89,223 +146,312 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import {
+  completeInterviewSession,
+  createInterviewSession,
+  deleteInterviewSession,
+  getInterviewSession,
+  listInterviewSessions,
+  submitInterviewAnswer,
+} from '../api/interview'
 
-const router = useRouter()
-const answer = ref('')
-const answered = ref(false)
-const feedback = ref('')
-const currentIndex = ref(0)
+const sessions = ref([])
+const activeSession = ref(null)
+const currentQuestionId = ref(null)
+const answerText = ref('')
+const editingAnswer = ref(false)
+const listLoading = ref(false)
+const creating = ref(false)
+const submitting = ref(false)
+const completing = ref(false)
+const pageError = ref('')
+const noDefaultResumeHint = ref(false)
 
-const questions = ref([
-  { text: '请简述 Spring Boot 自动配置的核心原理，以及如何自定义一个 Starter？', source: '你的简历「Spring Boot」+ 字节JD「框架深度」', done: false },
-  { text: '你在简历中提到使用 Redis 做缓存，请谈谈缓存穿透、缓存击穿、缓存雪崩的区别和解决方案？', source: '你的简历「Redis」+ 字节JD「高并发处理」', done: false },
-  { text: '你在简历中提到微服务项目，请问你们的服务拆分粒度是怎么确定的？如果让你重新设计，会怎么改进？', source: '你的简历「微服务项目」+ 字节JD「系统设计能力」', done: false },
-  { text: '谈谈你对 CAP 理论的理解，以及在分布式系统中如何权衡？', source: '字节JD「分布式系统」- 你的技能差距', done: false },
-  { text: '你做过的最有挑战性的技术项目是什么？请画一下架构图并说明关键决策。', source: '字节面试风格「项目深挖」', done: false },
-  { text: '如果线上服务突然出现大量超时，你会怎么排查和解决？', source: '字节JD「问题排查能力」', done: false },
-  { text: '谈谈你对消息队列的理解，Kafka 和 RocketMQ 各有什么适用场景？', source: '你的技能差距「消息队列」', done: false },
-  { text: '请设计一个支持百万并发的短链接系统。', source: '字节JD「系统设计」+ 面试高频题', done: false },
-])
+const currentQuestion = computed(() => {
+  if (!activeSession.value?.questions?.length) return null
+  return (
+    activeSession.value.questions.find((q) => q.id === currentQuestionId.value) ||
+    activeSession.value.questions[0]
+  )
+})
 
-const evaluations = ref([])
+onMounted(() => {
+  loadSessions()
+})
 
-const currentQuestion = computed(() => questions.value[currentIndex.value])
-
-function submitAnswer() {
-  if (!answer.value.trim() || answered.value) return
-  answered.value = true
-  const quality = Math.random() > 0.3 ? '良好' : '优秀'
-  const tips = [
-    'Agent 提示: 可以补充实际案例来增强说服力',
-    'Agent 提示: 结构清晰，如果加上性能数据会更好',
-    'Agent 提示: 回答全面，建议强调一下你自己的思考',
-  ]
-  feedback.value = `回答评估: ${quality}。${tips[Math.floor(Math.random() * tips.length)]}`
-
-  questions.value[currentIndex.value].done = true
-  evaluations.value.push({
-    num: currentIndex.value + 1,
-    topic: currentQuestion.value.text.slice(0, 18) + '...',
-    quality,
-    qualityClass: quality === '优秀' ? 'excellent' : 'good',
-    tip: tips[Math.floor(Math.random() * tips.length)],
-  })
+function formatDefaultTitle() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `面试训练 ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function nextQuestion() {
-  if (currentIndex.value + 1 < questions.value.length) {
-    currentIndex.value++
-    answer.value = ''
-    answered.value = false
-    feedback.value = ''
-  } else {
-    router.push('/')
+async function loadSessions() {
+  listLoading.value = true
+  pageError.value = ''
+  try {
+    sessions.value = await listInterviewSessions()
+  } catch (e) {
+    pageError.value = e?.message || '加载训练记录失败'
+  } finally {
+    listLoading.value = false
   }
 }
 
-function skipQuestion() {
-  questions.value[currentIndex.value].done = true
-  evaluations.value.push({
-    num: currentIndex.value + 1,
-    topic: currentQuestion.value.text.slice(0, 18) + '...',
-    quality: '跳过',
-    qualityClass: 'skip',
-    tip: '建议之后回来完成',
-  })
-  nextQuestion()
+async function startNewSession() {
+  creating.value = true
+  pageError.value = ''
+  noDefaultResumeHint.value = false
+  try {
+    const detail = await createInterviewSession({ title: formatDefaultTitle() })
+    await loadSessions()
+    activeSession.value = detail
+    currentQuestionId.value = detail.questions?.[0]?.id ?? null
+    answerText.value = ''
+    editingAnswer.value = false
+  } catch (e) {
+    const msg = e?.message || '创建训练失败'
+    if (msg.includes('默认简历')) {
+      noDefaultResumeHint.value = true
+    }
+    pageError.value = msg
+  } finally {
+    creating.value = false
+  }
 }
 
-function voiceAnswer() {
-  answer.value = '（模拟语音输入）Spring Boot 的自动配置原理基于 @EnableAutoConfiguration 注解...'
+async function openSession(id) {
+  pageError.value = ''
+  try {
+    const detail = await getInterviewSession(id)
+    activeSession.value = detail
+    const firstPending = detail.questions?.find((q) => q.status === 'PENDING')
+    currentQuestionId.value = (firstPending || detail.questions?.[0])?.id ?? null
+    syncAnswerFromQuestion()
+  } catch (e) {
+    pageError.value = e?.message || '加载训练详情失败'
+  }
+}
+
+function backToList() {
+  activeSession.value = null
+  currentQuestionId.value = null
+  answerText.value = ''
+  loadSessions()
+}
+
+function selectQuestion(q) {
+  currentQuestionId.value = q.id
+  syncAnswerFromQuestion()
+}
+
+function syncAnswerFromQuestion() {
+  const q = currentQuestion.value
+  if (!q) {
+    answerText.value = ''
+    return
+  }
+  answerText.value = q.answerText || ''
+  editingAnswer.value = false
+}
+
+async function submitAnswer() {
+  if (!activeSession.value || !currentQuestion.value || !answerText.value.trim()) return
+  submitting.value = true
+  pageError.value = ''
+  try {
+    const updated = await submitInterviewAnswer(
+      activeSession.value.id,
+      currentQuestion.value.id,
+      { answerText: answerText.value.trim() }
+    )
+    const idx = activeSession.value.questions.findIndex((q) => q.id === updated.id)
+    if (idx >= 0) {
+      activeSession.value.questions[idx] = updated
+    }
+    const refreshed = await getInterviewSession(activeSession.value.id)
+    activeSession.value = refreshed
+    currentQuestionId.value = updated.id
+    syncAnswerFromQuestion()
+    await loadSessions()
+  } catch (e) {
+    pageError.value = e?.message || '提交回答失败'
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function completeSession() {
+  if (!activeSession.value) return
+  completing.value = true
+  pageError.value = ''
+  try {
+    activeSession.value = await completeInterviewSession(activeSession.value.id)
+    await loadSessions()
+  } catch (e) {
+    pageError.value = e?.message || '完成训练失败'
+  } finally {
+    completing.value = false
+  }
+}
+
+async function confirmDeleteSession(item) {
+  if (!window.confirm(`确定删除训练「${item.title}」吗？`)) return
+  try {
+    await deleteInterviewSession(item.id)
+    if (activeSession.value?.id === item.id) {
+      activeSession.value = null
+    }
+    await loadSessions()
+  } catch (e) {
+    pageError.value = e?.message || '删除失败'
+  }
+}
+
+function statusLabel(status) {
+  if (status === 'COMPLETED') return '已完成'
+  if (status === 'ACTIVE') return '进行中'
+  return status || '未知'
+}
+
+function typeLabel(type) {
+  const map = {
+    PROJECT: '项目经历',
+    SKILL: '技能落地',
+    GAP: '技能差距',
+    SYSTEM_DESIGN: '系统设计',
+    BEHAVIOR: '行为面试',
+  }
+  return map[type] || type
 }
 </script>
 
 <style scoped>
 .page-container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
-.page-header { margin-bottom: 18px; }
+.page-header { margin-bottom: 16px; }
 .page-title { font-size: 22px; font-weight: 700; color: var(--navy); }
 .page-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 
-.interview-layout { display: grid; grid-template-columns: 1fr 280px; gap: 20px; }
+.banner {
+  padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 12px;
+}
+.banner.error { background: #fef2f2; color: #991b1b; }
+.banner.warn { background: #fffbeb; color: #92400e; }
+.banner-link { margin-left: 8px; color: var(--purple); font-weight: 600; }
 
-/* Main */
-.main-area { display: flex; flex-direction: column; gap: 16px; }
+.toolbar { margin-bottom: 16px; }
+.btn {
+  padding: 8px 18px; border-radius: 8px; font-size: 12px; cursor: pointer;
+  border: none; font-family: inherit; transition: all .2s;
+}
+.btn.primary { background: var(--purple); color: #fff; font-weight: 600; }
+.btn.primary:disabled { opacity: .5; cursor: default; }
+.btn.outline {
+  background: #fff; border: 1px solid var(--border); color: var(--slate);
+  width: 100%; margin-top: 8px;
+}
+
+.list-hint, .empty-state {
+  text-align: center; color: var(--text-muted); padding: 32px 16px; font-size: 14px;
+}
+.empty-icon { font-size: 32px; margin-bottom: 8px; }
+
+.session-list { display: flex; flex-direction: column; gap: 10px; }
+.session-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px; cursor: pointer; position: relative;
+}
+.session-card:hover { border-color: var(--purple); }
+.session-title { font-weight: 600; font-size: 14px; color: var(--navy); }
+.session-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.session-summary {
+  font-size: 11px; color: var(--text-muted); margin-top: 8px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-delete {
+  margin-top: 8px; font-size: 11px; color: #991b1b; background: transparent;
+  border: 1px solid #fecaca; border-radius: 6px; padding: 4px 8px; cursor: pointer;
+}
+
+.interview-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 20px;
+  min-width: 0;
+}
+.interview-layout.list-only { grid-template-columns: 1fr; }
+
+.question-nav {
+  background: #f8fafc; border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px; min-width: 0;
+}
+.nav-title { font-weight: 600; font-size: 12px; margin-bottom: 8px; color: var(--navy); }
+.nav-item {
+  display: block; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 4px;
+  border: 1px solid transparent; border-radius: 8px; background: #fff; font-size: 11px;
+  cursor: pointer; color: var(--slate); word-break: break-word;
+}
+.nav-item.active { border-color: var(--purple); color: var(--purple); font-weight: 600; }
+.nav-item.answered { border-left: 3px solid var(--green); }
+
+.main-area { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.session-bar {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;
+  font-size: 12px; color: var(--text-muted);
+}
+.session-bar-title { font-weight: 600; color: var(--navy); }
 
 .question-card {
   background: var(--navy); border-radius: 12px; padding: 18px 20px; color: #fff;
 }
-.question-meta { font-size: 10px; opacity: .5; margin-bottom: 8px; }
-.question-text { font-size: 14px; line-height: 1.7; }
-.question-source { font-size: 10px; opacity: .4; margin-top: 10px; }
+.question-meta { font-size: 10px; opacity: .55; margin-bottom: 8px; }
+.question-text { font-size: 14px; line-height: 1.7; word-break: break-word; overflow-wrap: anywhere; }
+.reference-box { margin-top: 12px; opacity: .9; }
+.reference-label { font-size: 10px; margin-bottom: 6px; }
+.reference-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.reference-tag {
+  font-size: 10px; background: rgba(255,255,255,.15); padding: 3px 8px; border-radius: 6px;
+}
 
 .answer-input {
-  width: 100%; height: 110px; border: 1px solid var(--border); border-radius: 10px;
-  padding: 12px; font-size: 12px; resize: none; font-family: inherit; outline: none;
-  transition: border-color .2s;
+  width: 100%; box-sizing: border-box; min-height: 120px; border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px; font-size: 14px; resize: vertical; font-family: inherit;
 }
-.answer-input:focus { border-color: var(--purple); }
+.answer-input:focus { border-color: var(--purple); outline: none; }
 .answer-input:disabled { background: #f8f8f8; color: var(--text-muted); }
 
-.action-row { display: flex; gap: 10px; }
-.btn {
-  padding: 8px 18px; border-radius: 8px; font-size: 12px; cursor: pointer; border: none; transition: all .2s; font-family: inherit;
-}
-.btn.primary { background: var(--purple); color: #fff; }
-.btn.primary:hover { background: #7c3aed; }
-.btn.primary:disabled { opacity: .4; cursor: default; }
-.btn.outline { background: #fff; border: 1px solid var(--border); color: var(--slate); }
-.btn.outline:hover { border-color: var(--purple); color: var(--purple); }
+.action-row { display: flex; gap: 10px; flex-wrap: wrap; }
 
 .feedback-card {
   background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 14px;
 }
-.feedback-header { font-weight: 600; font-size: 12px; color: var(--green); margin-bottom: 4px; }
-.feedback-content { font-size: 12px; color: var(--slate); }
+.feedback-header { font-weight: 600; font-size: 13px; color: var(--green); margin-bottom: 6px; }
+.feedback-content { font-size: 12px; color: var(--slate); line-height: 1.6; margin: 0 0 10px; }
+.fb-section { margin-top: 8px; }
+.fb-label { font-size: 11px; font-weight: 600; color: var(--navy); margin-bottom: 4px; }
+.bullet-list { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-muted); }
 
-/* Progress */
-.progress-bar { display: flex; gap: 4px; margin-top: 4px; }
-.progress-seg { height: 4px; border-radius: 2px; background: var(--light); transition: background .3s; }
+.progress-bar { display: flex; gap: 4px; }
+.progress-seg {
+  flex: 1; height: 4px; border-radius: 2px; background: var(--light); transition: background .3s;
+}
 .progress-seg.done { background: var(--green); }
 .progress-seg.current { background: var(--purple); }
-
-/* Eval Panel */
-.eval-panel {
-  background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 14px; font-size: 11px;
-}
-.panel-title { font-weight: 600; font-size: 12px; margin-bottom: 10px; }
-.panel-title-sm { font-weight: 600; margin-bottom: 4px; font-size: 11px; }
-.panel-divider { border-top: 1px solid var(--border); margin: 10px 0; }
-
-.eval-item { margin-bottom: 10px; }
-.eval-question { font-weight: 600; margin-bottom: 2px; }
-.eval-question.excellent { color: var(--green); }
-.eval-question.good { color: var(--green); }
-.eval-question.skip { color: var(--text-muted); }
-.eval-detail { color: var(--text-muted); font-size: 10px; }
-
-.eval-empty { text-align: center; padding: 20px 0; color: var(--text-muted); }
-.empty-icon { font-size: 28px; margin-bottom: 6px; }
-.empty-text { font-size: 11px; }
-
-.strategy-item { color: var(--text-muted); font-size: 10px; padding: 1px 0; }
-.tool-log {
-  background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px;
-  padding: 8px 10px; font-size: 10px; margin-top: 8px; color: var(--amber); line-height: 1.6;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
 
 @media (max-width: 768px) {
   .page-container {
     padding: 16px 12px calc(16px + env(safe-area-inset-bottom));
-    max-width: 100%;
-    overflow-x: hidden;
+    max-width: 100%; overflow-x: hidden;
   }
-
-  .interview-layout {
-    grid-template-columns: 1fr;
-    gap: 16px;
+  .interview-layout { grid-template-columns: 1fr; }
+  .question-nav {
+    display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 8px; padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
   }
-
-  .main-area,
-  .eval-panel {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .question-card,
-  .answer-area,
-  .feedback-card {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .question-text {
-    word-break: break-word;
-    overflow-wrap: anywhere;
-  }
-
-  .answer-input {
-    min-height: 120px;
-    width: 100%;
-    max-width: 100%;
-    font-size: 16px;
-  }
-
-  .action-row {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .btn {
-    min-height: 44px;
-    flex: 1 1 auto;
-    min-width: min(100%, 120px);
-  }
-
-  .eval-panel {
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-
-  .eval-question,
-  .eval-detail,
-  .strategy-item {
-    word-break: break-word;
-    overflow-wrap: anywhere;
-  }
-}
-
-@media (max-width: 480px) {
-  .page-title {
-    font-size: 18px;
-  }
-
-  .action-row .btn {
-    flex: 1 1 100%;
-    width: 100%;
-  }
+  .nav-title { width: 100%; flex: 0 0 100%; }
+  .nav-item { flex: 0 0 auto; min-width: 120px; margin-bottom: 0; }
+  .complete-btn, .back-btn { flex: 0 0 100%; }
+  .answer-input { font-size: 16px; min-height: 140px; }
+  .btn { min-height: 44px; }
 }
 </style>

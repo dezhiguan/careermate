@@ -61,15 +61,7 @@ async function assertNoFatalErrors(page) {
   await expect(page.locator('body')).not.toContainText(FATAL_APP_ERROR);
 }
 
-/**
- * @param {import('@playwright/test').Page} page
- */
-async function assertNoHorizontalScroll(page) {
-  const hasHorizontalOverflow = await page.evaluate(
-    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
-  );
-  expect(hasHorizontalOverflow).toBeFalsy();
-}
+const { assertNoHorizontalScroll } = require('./e2e-env');
 
 test.beforeAll(async ({ request }) => {
   logEnv();

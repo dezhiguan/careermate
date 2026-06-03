@@ -1,10 +1,14 @@
 package com.careermate.testsupport;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.careermate.mapper.InterviewQuestionMapper;
+import com.careermate.mapper.InterviewSessionMapper;
 import com.careermate.mapper.JobMatchMapper;
 import com.careermate.mapper.ResumeMapper;
 import com.careermate.mapper.UserMapper;
 import com.careermate.mapper.UserProfileMapper;
+import com.careermate.model.entity.InterviewQuestionEntity;
+import com.careermate.model.entity.InterviewSessionEntity;
 import com.careermate.model.entity.JobMatchEntity;
 import com.careermate.model.entity.ResumeEntity;
 import com.careermate.model.entity.UserEntity;
@@ -24,8 +28,28 @@ public final class TestUserSupport {
         ensureUser(userMapper, userProfileMapper, passwordEncoder, TestUsers.USER_B, TestUsers.USER_B_NAME);
     }
 
-    public static void cleanupUserBusinessData(ResumeMapper resumeMapper, JobMatchMapper jobMatchMapper) {
+    public static void cleanupUserBusinessData(
+            ResumeMapper resumeMapper,
+            JobMatchMapper jobMatchMapper
+    ) {
+        cleanupUserBusinessData(resumeMapper, jobMatchMapper, null, null);
+    }
+
+    public static void cleanupUserBusinessData(
+            ResumeMapper resumeMapper,
+            JobMatchMapper jobMatchMapper,
+            InterviewSessionMapper interviewSessionMapper,
+            InterviewQuestionMapper interviewQuestionMapper
+    ) {
         List<Long> testUserIds = List.of(TestUsers.USER_A, TestUsers.USER_B);
+        if (interviewQuestionMapper != null) {
+            interviewQuestionMapper.delete(new LambdaQueryWrapper<InterviewQuestionEntity>()
+                    .in(InterviewQuestionEntity::getUserId, testUserIds));
+        }
+        if (interviewSessionMapper != null) {
+            interviewSessionMapper.delete(new LambdaQueryWrapper<InterviewSessionEntity>()
+                    .in(InterviewSessionEntity::getUserId, testUserIds));
+        }
         jobMatchMapper.delete(new LambdaQueryWrapper<JobMatchEntity>()
                 .in(JobMatchEntity::getUserId, testUserIds));
         resumeMapper.delete(new LambdaQueryWrapper<ResumeEntity>()
