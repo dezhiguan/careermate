@@ -154,6 +154,57 @@ test.describe('桌面端 · 本机 Chrome 功能展示', () => {
     await expect(card).not.toBeVisible({ timeout: 15_000 });
   });
 
+  test('3c. Agent 读取默认简历上下文', async ({ page }) => {
+    await ensureInApp(page);
+    const title = `e2e_resume_agent_context_${Date.now()}`;
+    const keyword = `e2e_agent_keyword_${Date.now()}`;
+
+    await page.getByRole('link', { name: /简历/ }).click();
+    await expect(page).toHaveURL(/#\/resume/);
+
+    const createPanel = page.locator('.create-panel');
+    await page.getByRole('button', { name: /创建简历|新建/ }).first().click();
+    await createPanel.getByPlaceholder('例如：Java 后端简历').fill(title);
+    await createPanel.locator('.field-textarea').fill(keyword);
+    await createPanel.getByRole('button', { name: '保存', exact: true }).click();
+
+    const card = page.locator('.resume-card', { hasText: title });
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await card.click();
+    await page.locator('.detail-panel').getByRole('button', { name: '设为默认' }).click();
+    await expect(card.locator('.default-badge')).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole('link', { name: /对话台/ }).click();
+    await expect(page.getByText('Agent 对话台')).toBeVisible({ timeout: 15_000 });
+
+    const input = page.locator('input[placeholder="说说你想做什么..."]');
+    const sendBtn = page.getByRole('button', { name: '↑' });
+    await input.fill('帮我分析简历');
+    await expect(sendBtn).toBeEnabled({ timeout: 15_000 });
+    await sendBtn.click();
+    await expect(page.locator('.user-bubble', { hasText: '帮我分析简历' })).toBeVisible({
+      timeout: 20_000,
+    });
+
+    const agentBubble = page.locator('.agent-bubble').last();
+    await expect(agentBubble).toContainText(title, { timeout: 45_000 });
+    await expect(agentBubble).toContainText(/我已读取你的默认简历|Mock 简历分析结果/, {
+      timeout: 45_000,
+    });
+
+    await page.getByRole('button', { name: /刷新 Trace/ }).click();
+    await expect(page.locator('.tool-log', { hasText: /resume_context/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator('.tool-log', { hasText: title })).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole('link', { name: /简历/ }).click();
+    await card.click();
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.locator('.detail-panel').getByRole('button', { name: '删除' }).click();
+    await expect(card).not.toBeVisible({ timeout: 15_000 });
+  });
+
   test('4. 岗位匹配与弹窗', async ({ page }) => {
     await ensureInApp(page);
     await page.getByRole('link', { name: /岗位匹配/ }).click();

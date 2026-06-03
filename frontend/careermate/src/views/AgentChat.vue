@@ -152,6 +152,22 @@ function sendSuggestion(text) {
   sendMessage()
 }
 
+function formatTraceTitle(t) {
+  const type = t.toolName || t.type || 'trace'
+  if (t.responseSummary) {
+    try {
+      const summary = JSON.parse(t.responseSummary)
+      if (summary?.message) {
+        return summary.message
+      }
+    } catch {
+      // 非 JSON 时沿用默认格式
+    }
+  }
+  const latency = t.latencyMs ? ` · ${t.latencyMs}ms` : ''
+  return `${type} · ${t.status || ''}${latency}`.trim()
+}
+
 function pushTrace(type, title, payload = null) {
   traceEvents.value.push({
     id: `t_${Date.now()}_${idSeed.value++}`,
@@ -170,7 +186,7 @@ async function refreshTraceFromServer() {
     traceEvents.value = traces.map((t) => ({
       id: `db_${t.id}`,
       type: t.toolName || t.type,
-      title: `${t.toolName || t.type} · ${t.status}${t.latencyMs ? ` · ${t.latencyMs}ms` : ''}`,
+      title: formatTraceTitle(t),
       payload: t,
       timestamp: t.createdAt ? new Date(t.createdAt).getTime() : Date.now(),
     }))
