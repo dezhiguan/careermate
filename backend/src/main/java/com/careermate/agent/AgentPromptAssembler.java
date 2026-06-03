@@ -1,5 +1,6 @@
 package com.careermate.agent;
 
+import com.careermate.agent.context.CareerProfileContextResult;
 import com.careermate.agent.context.ConversationContextResult;
 import com.careermate.agent.tool.AgentToolResult;
 import com.careermate.jobmatch.JobMatchContext;
@@ -20,14 +21,43 @@ public final class AgentPromptAssembler {
     private AgentPromptAssembler() {
     }
 
+    public static String buildBaseSystemPrompt() {
+        return BASE_SYSTEM_PROMPT.trim();
+    }
+
     public static String buildSystemPrompt(ResumeContext resumeContext, JobMatchContext jobMatchContext) {
-        StringBuilder sb = new StringBuilder(BASE_SYSTEM_PROMPT.trim());
-        if (resumeContext != null && resumeContext.getContextText() != null && !resumeContext.getContextText().isBlank()) {
-            sb.append("\n\n").append(resumeContext.getContextText().trim());
+        String prompt = buildBaseSystemPrompt();
+        prompt = appendResumeContext(prompt, resumeContext);
+        return appendJobMatchContext(prompt, jobMatchContext);
+    }
+
+    public static String appendCareerProfileContext(String systemPrompt, CareerProfileContextResult careerProfileContext) {
+        if (careerProfileContext == null
+                || !careerProfileContext.isAvailable()
+                || careerProfileContext.getContextText() == null
+                || careerProfileContext.getContextText().isBlank()) {
+            return systemPrompt;
         }
-        if (jobMatchContext != null && jobMatchContext.getContextText() != null && !jobMatchContext.getContextText().isBlank()) {
-            sb.append("\n\n").append(jobMatchContext.getContextText().trim());
+        StringBuilder sb = new StringBuilder(systemPrompt == null ? "" : systemPrompt);
+        sb.append("\n\n").append(careerProfileContext.getContextText().trim());
+        return sb.toString();
+    }
+
+    public static String appendResumeContext(String systemPrompt, ResumeContext resumeContext) {
+        if (resumeContext == null || resumeContext.getContextText() == null || resumeContext.getContextText().isBlank()) {
+            return systemPrompt;
         }
+        StringBuilder sb = new StringBuilder(systemPrompt == null ? "" : systemPrompt);
+        sb.append("\n\n").append(resumeContext.getContextText().trim());
+        return sb.toString();
+    }
+
+    public static String appendJobMatchContext(String systemPrompt, JobMatchContext jobMatchContext) {
+        if (jobMatchContext == null || jobMatchContext.getContextText() == null || jobMatchContext.getContextText().isBlank()) {
+            return systemPrompt;
+        }
+        StringBuilder sb = new StringBuilder(systemPrompt == null ? "" : systemPrompt);
+        sb.append("\n\n").append(jobMatchContext.getContextText().trim());
         return sb.toString();
     }
 

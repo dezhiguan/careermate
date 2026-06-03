@@ -3,7 +3,11 @@ package com.careermate.agent.controller;
 import com.careermate.agent.AgentPromptAssembler;
 import com.careermate.agent.config.AgentProperties;
 import com.careermate.agent.context.AgentConversationContextProvider;
+import com.careermate.agent.context.CareerProfileContextProvider;
+import com.careermate.agent.context.CareerProfileContextResult;
 import com.careermate.agent.context.ConversationContextResult;
+import com.careermate.profile.CareerProfileAutoUpdateService;
+import com.careermate.profile.CareerProfileUpdateResult;
 import com.careermate.agent.tool.AgentToolContext;
 import com.careermate.agent.tool.AgentToolExecutionService;
 import com.careermate.agent.tool.AgentToolResult;
@@ -69,10 +73,14 @@ public class AgentStreamController {
     private final AgentToolRouter agentToolRouter;
     private final AgentToolExecutionService agentToolExecutionService;
     private final AgentConversationContextProvider conversationContextProvider;
+    private final CareerProfileContextProvider careerProfileContextProvider;
+    private final CareerProfileAutoUpdateService careerProfileAutoUpdateService;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
     private static final String TRACE_CONVERSATION_CONTEXT = "conversation_context";
+    private static final String TRACE_CAREER_PROFILE_CONTEXT = "career_profile_context";
+    private static final String TRACE_CAREER_PROFILE_UPDATE = "career_profile_update";
 
     public AgentStreamController(
             LlmClient llmClient,
@@ -86,7 +94,9 @@ public class AgentStreamController {
             AgentProperties agentProperties,
             AgentToolRouter agentToolRouter,
             AgentToolExecutionService agentToolExecutionService,
-            AgentConversationContextProvider conversationContextProvider
+            AgentConversationContextProvider conversationContextProvider,
+            CareerProfileContextProvider careerProfileContextProvider,
+            CareerProfileAutoUpdateService careerProfileAutoUpdateService
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -100,6 +110,8 @@ public class AgentStreamController {
         this.agentToolRouter = agentToolRouter;
         this.agentToolExecutionService = agentToolExecutionService;
         this.conversationContextProvider = conversationContextProvider;
+        this.careerProfileContextProvider = careerProfileContextProvider;
+        this.careerProfileAutoUpdateService = careerProfileAutoUpdateService;
     }
 
     @PostMapping("/sessions")
@@ -205,6 +217,15 @@ public class AgentStreamController {
                     null
             );
 
+            CareerProfileUpdateResult profileUpdate = careerProfileAutoUpdateService.tryAutoUpdateTargetRole(
+                    userId,
+                    request.getMessage()
+            );
+            recordCareerProfileUpdateTrace(userId, sessionId, profileUpdate);
+
+            CareerProfileContextResult careerProfileContext = careerProfileContextProvider.load(userId);
+            recordCareerProfileContextTrace(userId, sessionId, careerProfileContext);
+
             ResumeContext resumeContext = resumeContextProvider.getResumeContext(userId);
             recordResumeContextTrace(userId, sessionId, resumeContext);
 
@@ -218,7 +239,10 @@ public class AgentStreamController {
             );
             recordConversationContextTrace(userId, sessionId, conversationContext);
 
-            String systemPrompt = AgentPromptAssembler.buildSystemPrompt(resumeContext, jobMatchContext);
+            String systemPrompt = AgentPromptAssembler.buildBaseSystemPrompt();
+            systemPrompt = AgentPromptAssembler.appendCareerProfileContext(systemPrompt, careerProfileContext);
+            systemPrompt = AgentPromptAssembler.appendResumeContext(systemPrompt, resumeContext);
+            systemPrompt = AgentPromptAssembler.appendJobMatchContext(systemPrompt, jobMatchContext);
             systemPrompt = AgentPromptAssembler.appendConversationContext(systemPrompt, conversationContext);
             AgentToolResult toolResult = executeRoutedToolIfAny(
                     userId,
@@ -425,6 +449,53 @@ public class AgentStreamController {
 
     private int sizeOf(List<String> items) {
         return items == null ? 0 : items.size();
+    }
+
+    private void recordCareerProfileContextTrace(
+            Long userId,
+            String sessionId,
+            CareerProfileContextResult result
+    ) {
+        String status = result != null && result.isAvailable() ? "SUCCESS" : "EMPTY";
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("available", result != null && result.isAvailable());
+        if (result != null && result.isAvailable()) {
+            payload.put("targetRole", result.getTargetRole());
+            payload.put("skillCount", result.getSkillCount());
+        }
+        agentSessionService.recordTrace(
+                userId,
+                sessionId,
+                TRACE_CAREER_PROFILE_CONTEXT,
+                "{}",
+                writeJson(payload),
+                status,
+                null,
+                null
+        );
+    }
+
+    private void recordCareerProfileUpdateTrace(
+            Long userId,
+            String sessionId,
+            CareerProfileUpdateResult result
+    ) {
+        if (result == null || !result.isUpdated()) {
+            return;
+        }
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("updatedFields", result.getUpdatedFields());
+        payload.put("targetRole", result.getTargetRole());
+        agentSessionService.recordTrace(
+                userId,
+                sessionId,
+                TRACE_CAREER_PROFILE_UPDATE,
+                "{}",
+                writeJson(payload),
+                "SUCCESS",
+                null,
+                null
+        );
     }
 
     private ConversationContextResult loadConversationContextSafely(

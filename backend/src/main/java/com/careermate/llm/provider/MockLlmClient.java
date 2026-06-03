@@ -88,6 +88,11 @@ public class MockLlmClient implements LlmClient {
             return toolReply;
         }
 
+        String careerProfileReply = buildCareerProfileReply(system, latest);
+        if (careerProfileReply != null) {
+            return careerProfileReply;
+        }
+
         String conversationReply = buildConversationMemoryReply(system, latest);
         if (conversationReply != null) {
             return conversationReply;
@@ -124,6 +129,48 @@ public class MockLlmClient implements LlmClient {
             return "这是 Mock 面试准备建议：先梳理项目亮点，再按八股题、系统设计、行为面三个维度准备高频问答。";
         }
         return "这是 Mock CareerMate 回复：我可以帮助你做简历优化、岗位匹配和面试准备。";
+    }
+
+    private String buildCareerProfileReply(String systemContent, String latestUser) {
+        if (systemContent == null || !systemContent.contains("【用户求职画像】")) {
+            return null;
+        }
+        String targetRole = extractFieldValue(systemContent, "目标岗位：");
+        if (targetRole == null || !targetRole.contains("Java") || !targetRole.contains("后端")) {
+            return null;
+        }
+        String roleHint = extractJavaBackendRoleHint(targetRole);
+        if (latestUser.contains("还记得") && latestUser.contains("目标")) {
+            return "我记得，你的求职目标是 " + roleHint + "。我们可以继续围绕该目标推进。";
+        }
+        if (latestUser.contains("优先准备") || latestUser.contains("应该准备什么") || latestUser.contains("应该做什么")) {
+            return String.format(
+                    "结合你的求职画像（%s），建议优先准备：梳理 Java 基础与 Spring Boot 项目、补充分布式与 Redis 实战案例，并针对目标岗位做一次 JD 匹配分析。",
+                    roleHint
+            );
+        }
+        if (mentionsConversationGoal(latestUser)) {
+            return String.format(
+                    "基于你的求职画像目标（%s），建议下一步：完善与目标岗位匹配的项目经历，并针对 JD 做一次岗位匹配分析。",
+                    roleHint
+            );
+        }
+        return null;
+    }
+
+    private String extractJavaBackendRoleHint(String targetRole) {
+        if (targetRole.contains("Java") && targetRole.contains("后端")) {
+            int javaIdx = targetRole.indexOf("Java");
+            int end = targetRole.length();
+            for (char stop : new char[] { '。', '，', '；' }) {
+                int idx = targetRole.indexOf(stop, javaIdx);
+                if (idx > javaIdx && idx < end) {
+                    end = idx;
+                }
+            }
+            return targetRole.substring(javaIdx, end).trim();
+        }
+        return targetRole;
     }
 
     private String buildConversationMemoryReply(String systemContent, String latestUser) {
