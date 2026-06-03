@@ -109,6 +109,33 @@ class AgentSessionApiTest {
     }
 
     @Test
+    void listRecentSessionsForCurrentUserOnly() throws Exception {
+        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
+        String sessionA = agentSessionService.createSession(TestUsers.USER_A).getSessionId();
+        agentSessionService.appendMessage(TestUsers.USER_A, sessionA, "user", "帮我分析默认简历", "text");
+        agentSessionService.markCompleted(TestUsers.USER_A, sessionA, 50L);
+
+        String sessionB = agentSessionService.createSession(TestUsers.USER_A).getSessionId();
+        agentSessionService.appendMessage(TestUsers.USER_A, sessionB, "user", "看一下我的求职进展", "text");
+
+        loginAs(TestUsers.USER_B, TestUsers.USER_B_NAME);
+        String sessionOtherUser = agentSessionService.createSession(TestUsers.USER_B).getSessionId();
+
+        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
+        mockMvc.perform(get("/api/agent/sessions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data[?(@.sessionId == '" + sessionB + "')].title")
+                        .value("看一下我的求职进展"))
+                .andExpect(jsonPath("$.data[?(@.sessionId == '" + sessionB + "')].status")
+                        .value("CREATED"))
+                .andExpect(jsonPath("$.data[?(@.sessionId == '" + sessionA + "')].status")
+                        .value("COMPLETED"))
+                .andExpect(jsonPath("$.data[?(@.sessionId == '" + sessionOtherUser + "')]")
+                        .isEmpty());
+    }
+
+    @Test
     void otherUserGetsNotFound() throws Exception {
         loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
         String sessionId = agentSessionService.createSession(TestUsers.USER_A).getSessionId();

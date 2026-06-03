@@ -12,12 +12,34 @@ const {
   detectAuthMode,
   attachDiagnostics,
   registerViaUi,
-  createTestCredentials,
+  gotoApp,
+  waitStable,
+  enterFromLoginIfNeeded,
   printCreatedAccountsReport,
 } = require('./e2e-env');
 
 const MAX_ROUNDS = Number(process.env.AGENT_STRESS_MAX_ROUNDS || 30);
 const ROUND_TIMEOUT_MS = Number(process.env.AGENT_STRESS_ROUND_TIMEOUT_MS || 90_000);
+/** 并行双开浏览器；设为 0 则两个用户串行跑 */
+const PARALLEL_USERS = process.env.AGENT_STRESS_PARALLEL !== '0';
+/** 1=只跑用户A（单会话压力）；2=双用户（默认） */
+const USER_COUNT = Number(process.env.AGENT_STRESS_USER_COUNT || 2);
+
+/** @type {'single-user' | 'jwt'} */
+let authMode = 'jwt';
+
+function createStressAccount(userLabel) {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  const prefix = e2ePrefix();
+  const account = {
+    username: `${prefix}_stress_${userLabel}_${ts}_${rand}`,
+    email: `${prefix}_stress_${userLabel}_${ts}_${rand}@careermate.test`,
+    password: 'Test123456!',
+  };
+  console.log('[stress-account]', userLabel, account.username);
+  return account;
+}
 
 const ROUND_MESSAGES = [
   '帮我看一下我的默认简历',
@@ -34,6 +56,22 @@ const ROUND_MESSAGES = [
  * @param {import('@playwright/test').Page} page
  * @param {string} text
  */
+async function waitAgentSessionReady(page) {
+  const sections = page.locator('.panel-section');
+  const n = await sections.count();
+  for (let i = 0; i < n; i++) {
+    const label = await sections.nth(i).locator('.panel-label').innerText().catch(() => '');
+    if (label.includes('sessionId')) {
+      const value = sections.nth(i).locator('.panel-value');
+      await expect(value).not.toHaveText(/创建中/, { timeout: 25_000 });
+      const sid = (await value.innerText()).trim();
+      expect(sid.length).toBeGreaterThan(3);
+      return sid;
+    }
+  }
+  throw new Error('侧栏未找到 sessionId');
+}
+
 async function sendAgentMessage(page, text) {
   const input = page.locator('input[placeholder="说说你想做什么..."]');
   const sendBtn = page.getByRole('button', { name: '↑' });
@@ -74,6 +112,7 @@ async function readStreamStatus(page) {
  * @param {number} round
  */
 async function waitAgentRoundComplete(page, round) {
+  const agentBubble = page.locator('.agent-bubble').last();
   const deadline = Date.now() + ROUND_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const s = await readStreamStatus(page);
@@ -81,14 +120,22 @@ async function waitAgentRoundComplete(page, round) {
       s.streamFlagCount > 0 ||
       s.panelStatus.includes('流式生成中') ||
       s.panelStatus.includes('会话创建中');
-    if (!streaming && s.sendEnabled && s.inputEnabled) {
-      return s;
+    const globalErr = await page.locator('.global-error').textContent().catch(() => '');
+    if (globalErr && globalErr.trim()) {
+      throw new Error(`第 ${round} 轮全局错误: ${globalErr.trim()}`);
+    }
+    if (!streaming && s.inputEnabled) {
+      await expect(agentBubble).not.toContainText('流式输出中', { timeout: 2_000 }).catch(() => {});
+      const bubbleText = (await agentBubble.innerText().catch(() => '')).trim();
+      if (bubbleText.length > 0) {
+        return s;
+      }
     }
     await page.waitForTimeout(400);
   }
   const s = await readStreamStatus(page);
   throw new Error(
-    `第 ${round} 轮超时（${ROUND_TIMEOUT_MS}ms）：streamFlag=${s.streamFlagCount} send=${s.sendEnabled} input=${s.inputEnabled} status=${s.panelStatus}`
+    `第 ${round} 轮超时（${ROUND_TIMEOUT_MS}ms）：streamFlag=${s.streamFlagCount} input=${s.inputEnabled} status=${s.panelStatus}`
   );
 }
 
@@ -98,7 +145,10 @@ async function waitAgentRoundComplete(page, round) {
  * @param {string} userLabel
  */
 async function runUserStress(browser, request, userLabel) {
-  const account = createTestCredentials();
+  const account =
+    authMode === 'single-user'
+      ? { username: 'local-user', email: '', password: '' }
+      : createStressAccount(userLabel);
   const context = await browser.newContext();
   const page = await context.newPage();
   attachDiagnostics(page);
@@ -114,11 +164,20 @@ async function runUserStress(browser, request, userLabel) {
   };
 
   try {
-    await registerViaUi(page, account, request);
+    if (authMode === 'single-user') {
+      await gotoApp(page, '/');
+      await waitStable(page);
+      await enterFromLoginIfNeeded(page);
+    } else {
+      await registerViaUi(page, account, request);
+    }
     await page.getByRole('link', { name: '💬 对话台', exact: true }).click();
     await expect(page.getByText('Agent 对话台')).toBeVisible({ timeout: 20_000 });
+    await waitAgentSessionReady(page);
 
-    console.log(`[stress:${userLabel}] 开始多轮对话，上限 ${MAX_ROUNDS} 轮，账号 ${account.username}`);
+    console.log(
+      `[stress:${userLabel}] 开始多轮对话，上限 ${MAX_ROUNDS} 轮，账号 ${account.username}，模式 ${authMode}`
+    );
 
     for (let round = 1; round <= MAX_ROUNDS; round++) {
       const msg = `${ROUND_MESSAGES[(round - 1) % ROUND_MESSAGES.length]}（${userLabel}-R${round}）`;
@@ -173,6 +232,8 @@ test.describe('Agent 对话台多轮压力（双用户）', () => {
     logEnv();
     await assertBackendReady(request);
     await assertUserFlowEnvironment(request);
+    authMode = await detectAuthMode(request);
+    console.log(`[stress] 认证模式: ${authMode}，双用户并行: ${PARALLEL_USERS}`);
   });
 
   test.afterAll(() => {
@@ -182,14 +243,22 @@ test.describe('Agent 对话台多轮压力（双用户）', () => {
   test('双用户并行多轮会话直至上限或卡死', async ({ browser, request }) => {
     test.setTimeout(Math.max(600_000, MAX_ROUNDS * ROUND_TIMEOUT_MS * 2));
 
-    const [userA, userB] = await Promise.all([
-      runUserStress(browser, request, '用户A'),
-      runUserStress(browser, request, '用户B'),
-    ]);
+    const runA = () => runUserStress(browser, request, '用户A');
+    const runB = () => runUserStress(browser, request, '用户B');
 
-    printStressReport([userA, userB]);
+    /** @type {Awaited<ReturnType<typeof runUserStress>>[]} */
+    let results;
+    if (USER_COUNT < 2) {
+      results = [await runA()];
+    } else if (PARALLEL_USERS) {
+      results = await Promise.all([runA(), runB()]);
+    } else {
+      results = [await runA(), await runB()];
+    }
 
-    const failures = [userA, userB].filter((r) => r.stuck);
+    printStressReport(results);
+
+    const failures = results.filter((r) => r.stuck);
     if (failures.length > 0) {
       const detail = failures
         .map((r) => `${r.userLabel}@${r.username} 第${r.stuckRound}轮: ${r.error}`)
@@ -197,7 +266,8 @@ test.describe('Agent 对话台多轮压力（双用户）', () => {
       expect(failures, `检测到卡死: ${detail}`).toHaveLength(0);
     }
 
-    expect(userA.completedRounds).toBe(MAX_ROUNDS);
-    expect(userB.completedRounds).toBe(MAX_ROUNDS);
+    for (const r of results) {
+      expect(r.completedRounds, `${r.userLabel} 未完成 ${MAX_ROUNDS} 轮`).toBe(MAX_ROUNDS);
+    }
   });
 });

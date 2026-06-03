@@ -28,6 +28,10 @@ export async function createAgentSession() {
   return payload.data?.sessionId
 }
 
+export async function listAgentSessions() {
+  return request('/agent/sessions')
+}
+
 export async function getAgentSession(sessionId) {
   return request(`/agent/sessions/${sessionId}`)
 }

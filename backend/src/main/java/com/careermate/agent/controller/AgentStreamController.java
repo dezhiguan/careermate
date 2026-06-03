@@ -9,6 +9,7 @@ import com.careermate.agent.tool.AgentToolRouter;
 import com.careermate.agent.tool.AgentToolTraceSupport;
 import com.careermate.agent.dto.AgentMessageRequest;
 import com.careermate.agent.dto.AgentSessionCreateResponse;
+import com.careermate.agent.dto.AgentSessionListItemResponse;
 import com.careermate.agent.dto.AgentSessionResponse;
 import com.careermate.agent.dto.AgentTraceResponse;
 import com.careermate.agent.session.AgentSessionService;
@@ -99,6 +100,12 @@ public class AgentStreamController {
     public ApiResponse<AgentSessionCreateResponse> createSession() {
         Long userId = CurrentUserContext.getUserId();
         return ApiResponse.success(agentSessionService.createSession(userId));
+    }
+
+    @GetMapping("/sessions")
+    public ApiResponse<List<AgentSessionListItemResponse>> listSessions() {
+        Long userId = CurrentUserContext.getUserId();
+        return ApiResponse.success(agentSessionService.listRecentSessions(userId, 20));
     }
 
     @GetMapping("/sessions/{sessionId}")

@@ -85,6 +85,25 @@
           <div class="panel-value">{{ toolCallPanelSummary }}</div>
         </div>
         <div class="panel-divider" />
+        <div class="panel-title-sm">最近会话</div>
+        <div v-if="sessionsLoading" class="tool-log">加载中...</div>
+        <div v-else-if="recentSessions.length === 0" class="tool-log">暂无历史会话</div>
+        <button
+          v-for="item in recentSessions"
+          :key="item.sessionId"
+          type="button"
+          class="session-history-item"
+          :class="{ active: item.sessionId === sessionId }"
+          :data-session-id="item.sessionId"
+          @click="switchToSession(item.sessionId)"
+        >
+          <div class="session-history-title">{{ item.title }}</div>
+          <div class="session-history-meta">
+            <span class="session-history-status">{{ formatSessionStatus(item.status) }}</span>
+            <span class="session-history-time">{{ formatSessionTime(item.updatedAt) }}</span>
+          </div>
+        </button>
+        <div class="panel-divider" />
         <div class="panel-title-sm trace-header">
           <span>🧠 Agent Trace / 执行轨迹</span>
           <button
@@ -107,7 +126,13 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { authStore } from '../stores/authStore'
-import { createAgentSession, getAgentTrace, sendAgentMessageStream } from '../api/agent'
+import {
+  createAgentSession,
+  getAgentSession,
+  getAgentTrace,
+  listAgentSessions,
+  sendAgentMessageStream,
+} from '../api/agent'
 import ToolCallCard from '../components/agent/ToolCallCard.vue'
 import { getToolLabel, isBusinessToolName, sanitizeToolSummary } from '../utils/agentToolDisplay'
 
@@ -125,6 +150,9 @@ const idSeed = ref(0)
 const activeStreamController = ref(null)
 const activeStreamTimer = ref(null)
 const activeAgentMessage = ref(null)
+const recentSessions = ref([])
+const sessionsLoading = ref(false)
+const sessionSwitching = ref(false)
 
 const STREAM_UI_TIMEOUT_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_TIMEOUT_MS || 45000)
 
@@ -139,7 +167,12 @@ const messages = ref([{
   toolCalls: [],
 }])
 
-const canSend = computed(() => !!inputText.value.trim() && streamState.value !== 'streaming')
+const canSend = computed(() => (
+  !!inputText.value.trim()
+  && streamState.value !== 'streaming'
+  && !sessionCreating.value
+  && !sessionSwitching.value
+))
 const streamStateLabel = computed(() => {
   if (streamState.value === 'session_creating') return '会话创建中'
   if (streamState.value === 'streaming') return '流式生成中'
@@ -339,6 +372,123 @@ function formatTraceTitle(t) {
   return `${type} · ${t.status || ''}${latency}`.trim()
 }
 
+function formatSessionStatus(status) {
+  const map = {
+    CREATED: '已创建',
+    RUNNING: '进行中',
+    COMPLETED: '已完成',
+    ERROR: '错误',
+    ACTIVE: '进行中',
+  }
+  return map[status] || status || '-'
+}
+
+function formatSessionTime(value) {
+  if (!value) return '-'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '-'
+  return d.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function defaultWelcomeMessage() {
+  return {
+    id: `m_welcome_${idSeed.value++}`,
+    role: 'agent',
+    text: '你好！我是 CareerMate 求职助手。你可以直接提问，比如“帮我分析简历”。',
+    streaming: false,
+    error: '',
+    toolCalls: [],
+  }
+}
+
+function mapServerMessages(serverMessages) {
+  if (!Array.isArray(serverMessages) || serverMessages.length === 0) {
+    return []
+  }
+  return serverMessages.map((m) => ({
+    id: `m_${m.id ?? idSeed.value++}`,
+    role: m.role === 'user' ? 'user' : 'agent',
+    text: m.content || '',
+    streaming: false,
+    error: '',
+    toolCalls: [],
+  }))
+}
+
+function lastAgentMessage(msgs) {
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].role === 'agent') return msgs[i]
+  }
+  return null
+}
+
+async function loadRecentSessionsList() {
+  sessionsLoading.value = true
+  try {
+    recentSessions.value = await listAgentSessions() || []
+  } catch (e) {
+    recentSessions.value = []
+    const msg = e?.message || '加载会话列表失败'
+    pushTrace('error', msg.includes('系统异常') ? '加载会话列表失败' : msg)
+  } finally {
+    sessionsLoading.value = false
+  }
+}
+
+async function restoreSession(sessionIdToLoad, { refreshList = true } = {}) {
+  if (!sessionIdToLoad || sessionSwitching.value) return false
+  sessionSwitching.value = true
+  abortActiveStream('切换会话，已取消当前流式请求')
+  if (activeAgentMessage.value?.streaming) {
+    finishStreaming(activeAgentMessage.value)
+    activeAgentMessage.value = null
+  }
+  globalError.value = ''
+  streamState.value = 'idle'
+  eventCount.value = 0
+  totalLatencyMs.value = 0
+  traceEvents.value = []
+
+  try {
+    const detail = await getAgentSession(sessionIdToLoad)
+    const restored = mapServerMessages(detail?.messages)
+    messages.value = restored.length > 0 ? restored : [defaultWelcomeMessage()]
+    sessionId.value = detail?.sessionId || sessionIdToLoad
+    streamState.value = 'idle'
+    const agentMsg = lastAgentMessage(messages.value)
+    await refreshTraceFromServer(agentMsg)
+    if (refreshList) {
+      await loadRecentSessionsList()
+    }
+    scrollBottom()
+    return true
+  } catch (e) {
+    globalError.value = e?.message || '加载会话失败'
+    pushTrace('error', globalError.value)
+    return false
+  } finally {
+    sessionSwitching.value = false
+  }
+}
+
+async function switchToSession(targetSessionId) {
+  if (!targetSessionId || targetSessionId === sessionId.value) return
+  if (streamState.value === 'streaming') {
+    abortActiveStream('切换会话，已取消当前流式请求')
+    if (activeAgentMessage.value?.streaming) {
+      finishStreaming(activeAgentMessage.value)
+      activeAgentMessage.value = null
+    }
+    streamState.value = 'idle'
+  }
+  await restoreSession(targetSessionId)
+}
+
 function pushTrace(type, title, payload = null) {
   traceEvents.value.push({
     id: `t_${Date.now()}_${idSeed.value++}`,
@@ -374,14 +524,21 @@ async function refreshTraceFromServer(agentMessage = null) {
   }
 }
 
-async function initSession() {
+async function createNewSession({ withWelcome = true } = {}) {
   sessionCreating.value = true
   globalError.value = ''
   streamState.value = 'session_creating'
   try {
     sessionId.value = await createAgentSession()
     streamState.value = 'idle'
+    if (withWelcome) {
+      messages.value = [defaultWelcomeMessage()]
+    }
+    traceEvents.value = []
+    eventCount.value = 0
+    totalLatencyMs.value = 0
     pushTrace('session', `会话创建成功: ${sessionId.value}`)
+    await loadRecentSessionsList()
   } catch (e) {
     streamState.value = 'error'
     globalError.value = e?.message || '会话创建失败'
@@ -399,11 +556,31 @@ async function initSession() {
   }
 }
 
+async function bootstrapChat() {
+  sessionCreating.value = true
+  globalError.value = ''
+  streamState.value = 'session_creating'
+  try {
+    await loadRecentSessionsList()
+    const latest = recentSessions.value[0]
+    if (latest?.sessionId) {
+      const ok = await restoreSession(latest.sessionId, { refreshList: false })
+      if (ok) return
+    }
+    await createNewSession({ withWelcome: true })
+  } finally {
+    if (streamState.value === 'session_creating') {
+      streamState.value = 'idle'
+    }
+    sessionCreating.value = false
+  }
+}
+
 async function sendMessage() {
   const text = inputText.value.trim()
   if (!text || streamState.value === 'streaming' || sessionCreating.value) return
   if (!sessionId.value) {
-    await initSession()
+    await createNewSession({ withWelcome: false })
     if (!sessionId.value) return
   }
   globalError.value = ''
@@ -484,6 +661,7 @@ async function sendMessage() {
         finishStreaming(agentMessage)
         pushTrace('done', `流式完成，耗时 ${totalLatencyMs.value}ms`, data)
         refreshTraceFromServer(agentMessage)
+        loadRecentSessionsList()
       },
       onError(error) {
         clearStreamWatchdog()
@@ -536,13 +714,17 @@ async function sendMessage() {
   }
 }
 
-function resetChat() {
+async function resetChat() {
   abortActiveStream('用户已停止当前 Agent 流式请求')
   if (activeAgentMessage.value?.streaming) {
     markStreamInterrupted(activeAgentMessage.value, '当前流式请求已停止，已切换到新会话。')
   }
   activeAgentMessage.value = null
   globalError.value = ''
+  streamState.value = 'idle'
+  eventCount.value = 0
+  totalLatencyMs.value = 0
+  sessionId.value = ''
   messages.value = [{
     id: `m_${Date.now()}_reset`,
     role: 'agent',
@@ -552,17 +734,12 @@ function resetChat() {
     toolCalls: [],
   }]
   traceEvents.value = []
-  streamState.value = 'idle'
-  eventCount.value = 0
-  totalLatencyMs.value = 0
-  sessionId.value = ''
-  initSession().then(() => {
-    scrollBottom()
-  })
+  await createNewSession({ withWelcome: false })
+  scrollBottom()
 }
 
 onMounted(async () => {
-  await initSession()
+  await bootstrapChat()
   scrollBottom()
 })
 
@@ -700,6 +877,38 @@ onBeforeUnmount(() => {
 .panel-label { font-weight: 600; margin-bottom: 2px; }
 .panel-value { color: var(--slate); word-break: break-all; }
 .panel-divider { border-top: 1px solid var(--border); margin: 10px 0; }
+.session-history-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.session-history-item:hover { background: var(--light); }
+.session-history-item.active {
+  border-color: var(--purple);
+  background: #f5f3ff;
+}
+.session-history-title {
+  font-weight: 600;
+  font-size: 10px;
+  color: var(--slate);
+  line-height: 1.4;
+  word-break: break-word;
+}
+.session-history-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--text-muted);
+}
 .tool-log { color: var(--text-muted); padding: 2px 0; line-height: 1.4; }
 
 @media (max-width: 768px) {
