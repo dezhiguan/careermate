@@ -2,6 +2,8 @@ package com.careermate.agent.controller;
 
 import com.careermate.agent.AgentPromptAssembler;
 import com.careermate.agent.config.AgentProperties;
+import com.careermate.agent.context.AgentConversationContextProvider;
+import com.careermate.agent.context.ConversationContextResult;
 import com.careermate.agent.tool.AgentToolContext;
 import com.careermate.agent.tool.AgentToolExecutionService;
 import com.careermate.agent.tool.AgentToolResult;
@@ -66,9 +68,11 @@ public class AgentStreamController {
     private final AgentProperties agentProperties;
     private final AgentToolRouter agentToolRouter;
     private final AgentToolExecutionService agentToolExecutionService;
+    private final AgentConversationContextProvider conversationContextProvider;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
+    private static final String TRACE_CONVERSATION_CONTEXT = "conversation_context";
 
     public AgentStreamController(
             LlmClient llmClient,
@@ -81,7 +85,8 @@ public class AgentStreamController {
             ObjectMapper objectMapper,
             AgentProperties agentProperties,
             AgentToolRouter agentToolRouter,
-            AgentToolExecutionService agentToolExecutionService
+            AgentToolExecutionService agentToolExecutionService,
+            AgentConversationContextProvider conversationContextProvider
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -94,6 +99,7 @@ public class AgentStreamController {
         this.agentProperties = agentProperties;
         this.agentToolRouter = agentToolRouter;
         this.agentToolExecutionService = agentToolExecutionService;
+        this.conversationContextProvider = conversationContextProvider;
     }
 
     @PostMapping("/sessions")
@@ -205,7 +211,15 @@ public class AgentStreamController {
             JobMatchContext jobMatchContext = jobMatchContextProvider.getLatestJobMatchContext(userId);
             recordJobMatchContextTrace(userId, sessionId, jobMatchContext);
 
+            ConversationContextResult conversationContext = loadConversationContextSafely(
+                    userId,
+                    sessionId,
+                    request.getMessage()
+            );
+            recordConversationContextTrace(userId, sessionId, conversationContext);
+
             String systemPrompt = AgentPromptAssembler.buildSystemPrompt(resumeContext, jobMatchContext);
+            systemPrompt = AgentPromptAssembler.appendConversationContext(systemPrompt, conversationContext);
             AgentToolResult toolResult = executeRoutedToolIfAny(
                     userId,
                     sessionId,
@@ -411,6 +425,65 @@ public class AgentStreamController {
 
     private int sizeOf(List<String> items) {
         return items == null ? 0 : items.size();
+    }
+
+    private ConversationContextResult loadConversationContextSafely(
+            Long userId,
+            String sessionId,
+            String currentUserMessage
+    ) {
+        try {
+            ConversationContextResult result = conversationContextProvider.load(
+                    userId,
+                    sessionId,
+                    currentUserMessage
+            );
+            if (result.isLoadFailed()) {
+                recordConversationContextFailedTrace(userId, sessionId);
+                return ConversationContextResult.empty();
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("conversation_context failed: userId={}, sessionId={}", userId, sessionId, e);
+            recordConversationContextFailedTrace(userId, sessionId);
+            return ConversationContextResult.empty();
+        }
+    }
+
+    private void recordConversationContextTrace(Long userId, String sessionId, ConversationContextResult result) {
+        if (result == null || result.isLoadFailed()) {
+            return;
+        }
+        String status = result.isAvailable() ? "SUCCESS" : "EMPTY";
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("messageCount", result.getMessageCount());
+        payload.put("charCount", result.getCharCount());
+        agentSessionService.recordTrace(
+                userId,
+                sessionId,
+                TRACE_CONVERSATION_CONTEXT,
+                "{}",
+                writeJson(payload),
+                status,
+                null,
+                null
+        );
+    }
+
+    private void recordConversationContextFailedTrace(Long userId, String sessionId) {
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("messageCount", 0);
+        payload.put("charCount", 0);
+        agentSessionService.recordTrace(
+                userId,
+                sessionId,
+                TRACE_CONVERSATION_CONTEXT,
+                "{}",
+                writeJson(payload),
+                "FAILED",
+                null,
+                "CONVERSATION_CONTEXT_FAILED"
+        );
     }
 
     private void recordResumeContextTrace(Long userId, String sessionId, ResumeContext resumeContext) {
