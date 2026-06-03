@@ -1,6 +1,7 @@
 package com.careermate.agent.controller;
 
 import com.careermate.agent.AgentPromptAssembler;
+import com.careermate.agent.config.AgentProperties;
 import com.careermate.agent.dto.AgentMessageRequest;
 import com.careermate.agent.dto.AgentSessionCreateResponse;
 import com.careermate.agent.dto.AgentSessionResponse;
@@ -41,6 +42,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @RestController
@@ -55,6 +57,7 @@ public class AgentStreamController {
     private final ResumeContextProvider resumeContextProvider;
     private final JobMatchContextProvider jobMatchContextProvider;
     private final ObjectMapper objectMapper;
+    private final AgentProperties agentProperties;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -67,7 +70,8 @@ public class AgentStreamController {
             AgentSessionService agentSessionService,
             ResumeContextProvider resumeContextProvider,
             JobMatchContextProvider jobMatchContextProvider,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            AgentProperties agentProperties
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -77,6 +81,7 @@ public class AgentStreamController {
         this.resumeContextProvider = resumeContextProvider;
         this.jobMatchContextProvider = jobMatchContextProvider;
         this.objectMapper = objectMapper;
+        this.agentProperties = agentProperties;
     }
 
     @PostMapping("/sessions")
@@ -143,6 +148,19 @@ public class AgentStreamController {
         }, 15, 15, TimeUnit.SECONDS);
 
         StringBuilder full = new StringBuilder();
+        AtomicBoolean terminalHandled = new AtomicBoolean(false);
+        Thread workerThread = Thread.currentThread();
+        ScheduledFuture<?> taskTimeoutFuture = heartbeatExecutor.schedule(() -> {
+            if (terminalHandled.compareAndSet(false, true)) {
+                workerThread.interrupt();
+                handleStreamError(
+                        userId,
+                        sessionId,
+                        new BizException(504, "Agent 流式任务超时"),
+                        "AGENT_STREAM_TIMEOUT"
+                );
+            }
+        }, agentProperties.getStreamTaskTimeoutMs(), TimeUnit.MILLISECONDS);
 
         try {
             agentSessionService.appendMessage(userId, sessionId, "user", request.getMessage(), "text");
@@ -180,6 +198,9 @@ public class AgentStreamController {
             llmClient.streamChat(chatRequest, new StreamCallback() {
                 @Override
                 public void onToken(String token) {
+                    if (terminalHandled.get()) {
+                        return;
+                    }
                     if (Thread.currentThread().isInterrupted()) {
                         throw new RuntimeException("cancelled");
                     }
@@ -192,53 +213,77 @@ public class AgentStreamController {
 
                 @Override
                 public void onComplete(ChatResponse response) {
-                    String content = full.toString();
-                    sseEmitterService.send(sessionId, SseEventType.MESSAGE, Map.of("content", content));
-                    agentSessionService.appendMessage(userId, sessionId, "agent", content, "text");
-                    agentSessionService.recordTrace(
-                            userId,
-                            sessionId,
-                            "MESSAGE",
-                            "{}",
-                            toJson(Map.of("contentLength", content.length())),
-                            "SUCCESS",
-                            null,
-                            null
-                    );
+                    if (!terminalHandled.compareAndSet(false, true)) {
+                        return;
+                    }
+                    try {
+                        String content = full.toString();
+                        sseEmitterService.send(sessionId, SseEventType.MESSAGE, Map.of("content", content));
+                        agentSessionService.appendMessage(userId, sessionId, "agent", content, "text");
+                        agentSessionService.recordTrace(
+                                userId,
+                                sessionId,
+                                "MESSAGE",
+                                "{}",
+                                toJson(Map.of("contentLength", content.length())),
+                                "SUCCESS",
+                                null,
+                                null
+                        );
 
-                    long totalLatencyMs = System.currentTimeMillis() - start;
-                    Map<String, Object> doneData = Map.of(
-                            "sessionId", sessionId,
-                            "totalLatencyMs", totalLatencyMs
-                    );
-                    sseEmitterService.send(sessionId, SseEventType.DONE, doneData);
-                    agentSessionService.recordTrace(
-                            userId,
-                            sessionId,
-                            "DONE",
-                            "{}",
-                            toJson(doneData),
-                            "SUCCESS",
-                            totalLatencyMs,
-                            null
-                    );
-                    agentSessionService.markCompleted(userId, sessionId, totalLatencyMs);
-                    sseEmitterService.complete(sessionId);
+                        long totalLatencyMs = System.currentTimeMillis() - start;
+                        Map<String, Object> doneData = Map.of(
+                                "sessionId", sessionId,
+                                "totalLatencyMs", totalLatencyMs
+                        );
+                        sseEmitterService.send(sessionId, SseEventType.DONE, doneData);
+                        agentSessionService.recordTrace(
+                                userId,
+                                sessionId,
+                                "DONE",
+                                "{}",
+                                toJson(doneData),
+                                "SUCCESS",
+                                totalLatencyMs,
+                                null
+                        );
+                        agentSessionService.markCompleted(userId, sessionId, totalLatencyMs);
+                        sseEmitterService.complete(sessionId);
+                    } catch (Throwable t) {
+                        handleStreamError(userId, sessionId, t, "SSE_COMPLETE_ERROR");
+                    }
                 }
 
                 @Override
                 public void onError(Throwable error) {
-                    handleStreamError(userId, sessionId, error, "LLM_ERROR");
+                    if (terminalHandled.compareAndSet(false, true)) {
+                        handleStreamError(userId, sessionId, error, "LLM_ERROR");
+                    }
                 }
             });
+            if (terminalHandled.compareAndSet(false, true)) {
+                handleStreamError(
+                        userId,
+                        sessionId,
+                        new IllegalStateException("LLM stream returned without terminal callback"),
+                        "LLM_NO_TERMINAL_EVENT"
+                );
+            }
         } catch (Throwable t) {
-            handleStreamError(userId, sessionId, t, "SSE_ERROR");
+            if (terminalHandled.compareAndSet(false, true)) {
+                handleStreamError(userId, sessionId, t, "SSE_ERROR");
+            }
         } finally {
             try {
                 heartbeatFuture.cancel(true);
             } catch (Exception ignored) {
             }
+            try {
+                taskTimeoutFuture.cancel(true);
+            } catch (Exception ignored) {
+            }
             heartbeatExecutor.shutdownNow();
+            taskRegistry.complete(sessionId);
         }
     }
 
