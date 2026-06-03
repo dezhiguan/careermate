@@ -25,7 +25,14 @@
             <div v-else class="msg-row agent-row">
               <div class="ai-avatar">AI</div>
               <div class="msg-bubble agent-bubble">
-                <div>{{ msg.text }}</div>
+                <div v-if="msg.toolCalls?.length" class="tool-call-list">
+                  <ToolCallCard
+                    v-for="tc in msg.toolCalls"
+                    :key="tc.id"
+                    :tool="tc"
+                  />
+                </div>
+                <div v-if="msg.text">{{ msg.text }}</div>
                 <div v-if="msg.streaming" class="stream-flag">流式输出中...</div>
                 <div v-if="msg.error" class="stream-error">{{ msg.error }}</div>
               </div>
@@ -75,7 +82,7 @@
         </div>
         <div class="panel-section">
           <div class="panel-label">工具调用：</div>
-          <div class="panel-value">暂无工具调用</div>
+          <div class="panel-value">{{ toolCallPanelSummary }}</div>
         </div>
         <div class="panel-divider" />
         <div class="panel-title-sm trace-header">
@@ -101,6 +108,8 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { authStore } from '../stores/authStore'
 import { createAgentSession, getAgentTrace, sendAgentMessageStream } from '../api/agent'
+import ToolCallCard from '../components/agent/ToolCallCard.vue'
+import { getToolLabel, isBusinessToolName, sanitizeToolSummary } from '../utils/agentToolDisplay'
 
 const inputText = ref('')
 const msgContainer = ref(null)
@@ -122,6 +131,7 @@ const messages = ref([{
   text: '你好！我是 CareerMate 求职助手。你可以直接提问，比如“帮我分析简历”。',
   streaming: false,
   error: '',
+  toolCalls: [],
 }])
 
 const canSend = computed(() => !!inputText.value.trim() && streamState.value !== 'streaming')
@@ -137,6 +147,126 @@ const userLabel = computed(() => {
   if (!user) return '未登录'
   return `${user.username} / ${user.role}`
 })
+
+const toolCallPanelSummary = computed(() => {
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    const msg = messages.value[i]
+    if (msg.role !== 'agent' || !msg.toolCalls?.length) continue
+    const names = msg.toolCalls.map((t) => getToolLabel(t.toolName)).join('、')
+    return `${msg.toolCalls.length} 次：${names}`
+  }
+  return '暂无工具调用'
+})
+
+function ensureAgentMessageShape(msg) {
+  if (!msg.toolCalls) {
+    msg.toolCalls = []
+  }
+}
+
+function summaryFromTraceRow(row) {
+  if (!row?.responseSummary) return ''
+  try {
+    const parsed = JSON.parse(row.responseSummary)
+    return sanitizeToolSummary(parsed?.summary || parsed?.message || '')
+  } catch {
+    return ''
+  }
+}
+
+/** 用 splice 替换条目，确保 Vue 能检测到 toolCalls 变更 */
+function upsertToolCall(agentMessage, toolName, patch) {
+  ensureAgentMessageShape(agentMessage)
+  const idx = agentMessage.toolCalls.findIndex((t) => t.toolName === toolName)
+  const base =
+    idx >= 0
+      ? { ...agentMessage.toolCalls[idx] }
+      : {
+          id: `tool_${toolName}_${idSeed.value++}`,
+          toolName,
+          status: 'running',
+          summary: '',
+          success: null,
+          errorHint: '',
+        }
+  const next = { ...base, ...patch }
+  if (idx >= 0) {
+    agentMessage.toolCalls.splice(idx, 1, next)
+  } else {
+    agentMessage.toolCalls.push(next)
+  }
+  return next
+}
+
+function syncToolCallsFromServerTraces(agentMessage, traces) {
+  if (!agentMessage?.toolCalls?.length || !Array.isArray(traces)) return
+  for (const tc of agentMessage.toolCalls) {
+    if (tc.status !== 'running') continue
+    const row = traces.find((t) => (t.toolName || t.type) === tc.toolName)
+    if (!row || !isBusinessToolName(tc.toolName)) continue
+    const success = row.status === 'SUCCESS'
+    const traceSummary = summaryFromTraceRow(row)
+    upsertToolCall(agentMessage, tc.toolName, {
+      status: success ? 'success' : 'failed',
+      success,
+      summary: sanitizeToolSummary(
+        traceSummary || tc.summary || (success ? '工具执行完成' : '工具执行失败')
+      ),
+      errorHint: success
+        ? ''
+        : sanitizeToolSummary(traceSummary || '工具执行失败，请稍后重试或前往对应页面手动操作。'),
+    })
+  }
+}
+
+function handleToolStart(agentMessage, data) {
+  const toolName = data?.toolName || 'unknown'
+  upsertToolCall(agentMessage, toolName, {
+    status: 'running',
+    summary: sanitizeToolSummary(data?.summary || '正在调用工具…'),
+    success: null,
+    errorHint: '',
+  })
+  scrollBottom()
+}
+
+function handleToolResult(agentMessage, data) {
+  const toolName = data?.toolName || 'unknown'
+  const success = !!data?.success
+  upsertToolCall(agentMessage, toolName, {
+    status: success ? 'success' : 'failed',
+    success,
+    summary: sanitizeToolSummary(data?.summary || (success ? '执行成功' : '执行失败')),
+    errorHint: success
+      ? ''
+      : sanitizeToolSummary(data?.summary || '工具执行失败，请稍后重试或前往对应页面手动操作。'),
+  })
+  scrollBottom()
+}
+
+function finishStreaming(agentMessage) {
+  agentMessage.streaming = false
+}
+
+/** tool_result 偶发丢失时，避免卡片一直停在「执行中」 */
+function finalizeRunningToolCalls(agentMessage, success = true) {
+  if (!agentMessage?.toolCalls?.length) return
+  for (const tc of [...agentMessage.toolCalls]) {
+    if (tc.status !== 'running') continue
+    upsertToolCall(agentMessage, tc.toolName, {
+      status: success ? 'success' : 'failed',
+      success,
+      summary: sanitizeToolSummary(
+        !tc.summary || /^正在/.test(tc.summary)
+          ? success
+            ? '工具执行完成'
+            : '未收到工具结果'
+          : tc.summary
+      ),
+      errorHint: success ? tc.errorHint || '' : tc.errorHint || '工具结果未返回，请重试。',
+    })
+  }
+}
 
 function scrollBottom() {
   nextTick(() => {
@@ -178,11 +308,14 @@ function pushTrace(type, title, payload = null) {
   })
 }
 
-async function refreshTraceFromServer() {
+async function refreshTraceFromServer(agentMessage = null) {
   if (!sessionId.value || traceLoading.value) return
   traceLoading.value = true
   try {
     const traces = await getAgentTrace(sessionId.value)
+    if (agentMessage) {
+      syncToolCallsFromServerTraces(agentMessage, traces)
+    }
     traceEvents.value = traces.map((t) => ({
       id: `db_${t.id}`,
       type: t.toolName || t.type,
@@ -218,6 +351,7 @@ async function initSession() {
       text: '会话创建失败，请刷新后重试。',
       streaming: false,
       error: e?.message || '',
+      toolCalls: [],
     })
   } finally {
     sessionCreating.value = false
@@ -233,7 +367,14 @@ async function sendMessage() {
   }
   globalError.value = ''
 
-  messages.value.push({ id: `m_${Date.now()}_u`, role: 'user', text, streaming: false, error: '' })
+  messages.value.push({
+    id: `m_${Date.now()}_u`,
+    role: 'user',
+    text,
+    streaming: false,
+    error: '',
+    toolCalls: [],
+  })
   inputText.value = ''
   scrollBottom()
 
@@ -243,6 +384,7 @@ async function sendMessage() {
     text: '',
     streaming: true,
     error: '',
+    toolCalls: [],
   }
   messages.value.push(agentMessage)
   streamState.value = 'streaming'
@@ -260,15 +402,20 @@ async function sendMessage() {
         pushTrace('plan', steps, data)
       },
       onToolStart(data) {
+        handleToolStart(agentMessage, data)
         const name = data?.toolName || 'unknown'
         const summary = data?.summary || '正在执行工具'
-        pushTrace('tool_start', `正在执行 ${name}：${summary}`, data)
+        pushTrace('tool_start', `${getToolLabel(name)}：${summary}`, data)
       },
       onToolResult(data) {
+        handleToolResult(agentMessage, data)
         const name = data?.toolName || 'unknown'
         const status = data?.success ? '执行成功' : '执行失败'
         const summary = data?.summary || ''
-        pushTrace('tool_result', `${name} ${status}${summary ? `：${summary}` : ''}`, data)
+        pushTrace('tool_result', `${getToolLabel(name)} ${status}${summary ? `：${summary}` : ''}`, data)
+      },
+      onTrace(data) {
+        pushTrace('trace', data?.message || data?.summary || 'trace 事件', data)
       },
       onToken(data) {
         const token = data?.content || ''
@@ -279,19 +426,22 @@ async function sendMessage() {
         if (data?.content) {
           agentMessage.text = data.content
         }
-        agentMessage.streaming = false
+        finalizeRunningToolCalls(agentMessage, true)
+        finishStreaming(agentMessage)
         pushTrace('message', '收到完整回复', data)
       },
       onDone(data) {
         streamState.value = 'done'
         totalLatencyMs.value = Number(data?.totalLatencyMs || 0)
-        agentMessage.streaming = false
+        finalizeRunningToolCalls(agentMessage, true)
+        finishStreaming(agentMessage)
         pushTrace('done', `流式完成，耗时 ${totalLatencyMs.value}ms`, data)
-        refreshTraceFromServer()
+        refreshTraceFromServer(agentMessage)
       },
       onError(error) {
         streamState.value = 'error'
-        agentMessage.streaming = false
+        finalizeRunningToolCalls(agentMessage, false)
+        finishStreaming(agentMessage)
         agentMessage.error = error?.message || '流式调用失败'
         globalError.value = agentMessage.error
         pushTrace('error', agentMessage.error)
@@ -299,18 +449,24 @@ async function sendMessage() {
     })
     if (streamState.value === 'streaming') {
       streamState.value = 'done'
-      agentMessage.streaming = false
+      finishStreaming(agentMessage)
     }
   } catch (e) {
     streamState.value = 'error'
-    agentMessage.streaming = false
+    finishStreaming(agentMessage)
     agentMessage.error = e?.message || '流式请求失败'
     globalError.value = agentMessage.error
     pushTrace('error', agentMessage.error)
   } finally {
+    if (streamState.value === 'done') {
+      finalizeRunningToolCalls(agentMessage, true)
+    } else if (streamState.value === 'error') {
+      finalizeRunningToolCalls(agentMessage, false)
+    }
     if (streamState.value === 'streaming') {
       streamState.value = 'error'
-      agentMessage.streaming = false
+      finalizeRunningToolCalls(agentMessage, false)
+      finishStreaming(agentMessage)
       agentMessage.error = '流式响应未正常结束，请重试。'
       globalError.value = agentMessage.error
       pushTrace('error', agentMessage.error)
@@ -330,6 +486,7 @@ function resetChat() {
     text: '新会话已重置。你可以继续提问。',
     streaming: false,
     error: '',
+    toolCalls: [],
   }]
   traceEvents.value = []
   streamState.value = 'idle'
@@ -426,6 +583,12 @@ onMounted(async () => {
 .agent-bubble { background: #fff; border: 1px solid var(--border); border-radius: 10px 10px 10px 0; }
 .stream-flag { margin-top: 4px; color: var(--purple); font-size: 11px; }
 .stream-error { margin-top: 4px; color: var(--red); font-size: 11px; }
+.tool-call-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 4px;
+}
 
 .input-area {
   flex-shrink: 0;

@@ -38,6 +38,20 @@ export async function getAgentTrace(sessionId) {
 
 const DEFAULT_STREAM_TIMEOUT_MS = Number(import.meta.env.VITE_AGENT_STREAM_TIMEOUT_MS || 120000)
 
+/** 从 SSE data 块解析业务 payload（兼容 SseEvent 包装与扁平结构） */
+function resolveSsePayload(event) {
+  const raw = event?.data
+  if (raw == null) return {}
+  if (typeof raw !== 'object') return raw
+  if (raw.toolName != null || raw.success != null || raw.content != null || raw.message != null) {
+    return raw
+  }
+  if (raw.data != null && typeof raw.data === 'object') {
+    return raw.data
+  }
+  return raw
+}
+
 export async function sendAgentMessageStream(sessionId, message, handlers = {}, options = {}) {
   const timeoutMs = Number(options.timeoutMs || DEFAULT_STREAM_TIMEOUT_MS)
   const controller = new AbortController()
@@ -92,8 +106,9 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
     const parser = createSseParser({
       onEvent: (event) => {
         handlers.onRawEvent?.(event)
-        const payload = event?.data?.data ?? event?.data ?? {}
-        switch (event.eventName) {
+        const payload = resolveSsePayload(event)
+        const eventName = event.eventName || payload?.type || 'message'
+        switch (eventName) {
           case 'plan':
             handlers.onPlan?.(payload)
             break
@@ -119,6 +134,9 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
             break
           case 'tool_result':
             handlers.onToolResult?.(payload)
+            break
+          case 'trace':
+            handlers.onTrace?.(payload)
             break
           default:
             break
