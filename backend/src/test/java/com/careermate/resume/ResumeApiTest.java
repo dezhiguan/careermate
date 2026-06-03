@@ -1,11 +1,13 @@
 package com.careermate.resume;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.careermate.mapper.ResumeMapper;
 import com.careermate.model.entity.ResumeEntity;
 import com.careermate.security.CurrentUser;
 import com.careermate.security.CurrentUserContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -13,6 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,6 +40,12 @@ class ResumeApiTest {
 
     @Autowired
     private ResumeMapper resumeMapper;
+
+    @BeforeEach
+    void cleanResumeFixtures() {
+        resumeMapper.delete(new LambdaQueryWrapper<ResumeEntity>()
+                .in(ResumeEntity::getUserId, List.of(1L, 2L)));
+    }
 
     @AfterEach
     void tearDown() {
