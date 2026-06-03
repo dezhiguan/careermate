@@ -10,8 +10,8 @@
               <div class="header-sub">CareerMate · 一切交互的起点和终点</div>
             </div>
           </div>
-          <button class="header-action" :disabled="sessionCreating || streamState === 'streaming'" @click="resetChat">
-            {{ sessionCreating ? '创建中...' : '🔄 新会话' }}
+          <button class="header-action" :disabled="sessionCreating" @click="resetChat">
+            {{ sessionCreating ? '创建中...' : streamState === 'streaming' ? '停止并新会话' : '🔄 新会话' }}
           </button>
         </div>
         <div v-if="globalError" class="global-error">{{ globalError }}</div>
@@ -105,7 +105,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { authStore } from '../stores/authStore'
 import { createAgentSession, getAgentTrace, sendAgentMessageStream } from '../api/agent'
 import ToolCallCard from '../components/agent/ToolCallCard.vue'
@@ -122,6 +122,11 @@ const totalLatencyMs = ref(0)
 const traceEvents = ref([])
 const traceLoading = ref(false)
 const idSeed = ref(0)
+const activeStreamController = ref(null)
+const activeStreamTimer = ref(null)
+const activeAgentMessage = ref(null)
+
+const STREAM_UI_TIMEOUT_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_TIMEOUT_MS || 45000)
 
 const suggestions = ['帮我优化简历', '匹配后端岗位', '准备 Java 面试']
 
@@ -246,6 +251,42 @@ function handleToolResult(agentMessage, data) {
 
 function finishStreaming(agentMessage) {
   agentMessage.streaming = false
+}
+
+function clearStreamWatchdog() {
+  if (activeStreamTimer.value) {
+    window.clearTimeout(activeStreamTimer.value)
+    activeStreamTimer.value = null
+  }
+}
+
+function markStreamInterrupted(agentMessage, message) {
+  if (!agentMessage) return
+  streamState.value = 'error'
+  finishStreaming(agentMessage)
+  finalizeRunningToolCalls(agentMessage, false)
+  agentMessage.error = message
+  globalError.value = message
+  pushTrace('error', message)
+}
+
+function abortActiveStream(reason = '当前流式请求已取消') {
+  clearStreamWatchdog()
+  const controller = activeStreamController.value
+  if (controller && !controller.signal.aborted) {
+    controller.abort(new Error(reason))
+  }
+  activeStreamController.value = null
+}
+
+function startStreamWatchdog(agentMessage) {
+  clearStreamWatchdog()
+  if (!Number.isFinite(STREAM_UI_TIMEOUT_MS) || STREAM_UI_TIMEOUT_MS <= 0) return
+  activeStreamTimer.value = window.setTimeout(() => {
+    const message = `Agent 流式响应超过 ${Math.round(STREAM_UI_TIMEOUT_MS / 1000)} 秒未结束，已自动释放输入框。`
+    markStreamInterrupted(agentMessage, message)
+    abortActiveStream(message)
+  }, STREAM_UI_TIMEOUT_MS)
 }
 
 /** tool_result 偶发丢失时，避免卡片一直停在「执行中」 */
@@ -388,9 +429,14 @@ async function sendMessage() {
   }
   messages.value.push(agentMessage)
   streamState.value = 'streaming'
+  activeAgentMessage.value = agentMessage
   eventCount.value = 0
   totalLatencyMs.value = 0
   scrollBottom()
+
+  const streamController = new AbortController()
+  activeStreamController.value = streamController
+  startStreamWatchdog(agentMessage)
 
   try {
     await sendAgentMessageStream(sessionId.value, text, {
@@ -431,6 +477,7 @@ async function sendMessage() {
         pushTrace('message', '收到完整回复', data)
       },
       onDone(data) {
+        clearStreamWatchdog()
         streamState.value = 'done'
         totalLatencyMs.value = Number(data?.totalLatencyMs || 0)
         finalizeRunningToolCalls(agentMessage, true)
@@ -439,6 +486,7 @@ async function sendMessage() {
         refreshTraceFromServer(agentMessage)
       },
       onError(error) {
+        clearStreamWatchdog()
         streamState.value = 'error'
         finalizeRunningToolCalls(agentMessage, false)
         finishStreaming(agentMessage)
@@ -446,6 +494,9 @@ async function sendMessage() {
         globalError.value = agentMessage.error
         pushTrace('error', agentMessage.error)
       },
+    }, {
+      signal: streamController.signal,
+      timeoutMs: STREAM_UI_TIMEOUT_MS,
     })
     if (streamState.value === 'streaming') {
       streamState.value = 'done'
@@ -458,6 +509,13 @@ async function sendMessage() {
     globalError.value = agentMessage.error
     pushTrace('error', agentMessage.error)
   } finally {
+    clearStreamWatchdog()
+    if (activeStreamController.value === streamController) {
+      activeStreamController.value = null
+    }
+    if (activeAgentMessage.value === agentMessage) {
+      activeAgentMessage.value = null
+    }
     if (streamState.value === 'done') {
       finalizeRunningToolCalls(agentMessage, true)
     } else if (streamState.value === 'error') {
@@ -479,6 +537,11 @@ async function sendMessage() {
 }
 
 function resetChat() {
+  abortActiveStream('用户已停止当前 Agent 流式请求')
+  if (activeAgentMessage.value?.streaming) {
+    markStreamInterrupted(activeAgentMessage.value, '当前流式请求已停止，已切换到新会话。')
+  }
+  activeAgentMessage.value = null
   globalError.value = ''
   messages.value = [{
     id: `m_${Date.now()}_reset`,
@@ -501,6 +564,10 @@ function resetChat() {
 onMounted(async () => {
   await initSession()
   scrollBottom()
+})
+
+onBeforeUnmount(() => {
+  abortActiveStream('页面已离开，流式请求已取消')
 })
 </script>
 

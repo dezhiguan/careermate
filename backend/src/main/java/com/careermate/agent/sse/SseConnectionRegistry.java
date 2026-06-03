@@ -43,6 +43,10 @@ public class SseConnectionRegistry {
         emitters.remove(sessionId);
     }
 
+    public void remove(String sessionId, SseEmitter emitter) {
+        emitters.remove(sessionId, emitter);
+    }
+
     public boolean exists(String sessionId) {
         return emitters.containsKey(sessionId);
     }
@@ -51,4 +55,3 @@ public class SseConnectionRegistry {
         return emitters.size();
     }
 }
-

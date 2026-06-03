@@ -184,7 +184,7 @@ test.describe('Agent 工具卡片 UI', () => {
     await gotoAgent(page);
   });
 
-  test('6. 连续 6 轮对话不卡死', async ({ page }) => {
+  test('6. 连续 8 轮对话不卡死', async ({ page }) => {
     await gotoAgent(page);
     const rounds = [
       { msg: '帮我看一下我的默认简历', label: '默认简历' },
@@ -193,6 +193,8 @@ test.describe('Agent 工具卡片 UI', () => {
       { msg: '看一下我的求职进展', label: '求职概览' },
       { msg: '帮我创建一次面试训练', label: '面试训练' },
       { msg: '今天天气怎么样', label: null },
+      { msg: '第七轮，帮我再次看一下默认简历', label: '默认简历' },
+      { msg: '第八轮，继续确认求职进展', label: '求职概览' },
     ];
     for (const round of rounds) {
       await sendAgentMessage(page, round.msg);

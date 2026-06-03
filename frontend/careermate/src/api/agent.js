@@ -57,18 +57,24 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
   const controller = new AbortController()
   let timeoutId = null
   let terminalEvent = ''
+  let abortMessage = ''
 
   if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
     timeoutId = window.setTimeout(() => {
-      controller.abort(new Error(`Agent 流式响应超过 ${Math.round(timeoutMs / 1000)} 秒未结束`))
+      abortMessage = `Agent 流式响应超过 ${Math.round(timeoutMs / 1000)} 秒未结束`
+      controller.abort(new Error(abortMessage))
     }, timeoutMs)
   }
 
   if (options.signal) {
     if (options.signal.aborted) {
+      abortMessage = options.signal.reason?.message || 'Agent 流式请求已取消'
       controller.abort(options.signal.reason)
     } else {
-      options.signal.addEventListener('abort', () => controller.abort(options.signal.reason), { once: true })
+      options.signal.addEventListener('abort', () => {
+        abortMessage = options.signal.reason?.message || 'Agent 流式请求已取消'
+        controller.abort(options.signal.reason)
+      }, { once: true })
     }
   }
 
@@ -159,13 +165,23 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
       return
     }
     if (e?.name === 'AbortError' || controller.signal.aborted) {
-      throw new Error(e?.message || 'Agent 流式响应超时')
+      throw new Error(abortMessage || e?.message || 'Agent 流式响应超时')
     }
     throw e
   } finally {
     if (timeoutId) {
       window.clearTimeout(timeoutId)
     }
-    reader?.releaseLock()
+    if (reader) {
+      try {
+        if (controller.signal.aborted) {
+          await reader.cancel()
+        }
+      } catch (e) {
+        // 请求已经结束或被浏览器关闭时，无需继续处理。
+      } finally {
+        reader.releaseLock()
+      }
+    }
   }
 }
