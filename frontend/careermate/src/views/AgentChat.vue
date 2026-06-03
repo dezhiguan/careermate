@@ -297,6 +297,13 @@ async function sendMessage() {
     globalError.value = agentMessage.error
     pushTrace('error', agentMessage.error)
   } finally {
+    if (streamState.value === 'streaming') {
+      streamState.value = 'error'
+      agentMessage.streaming = false
+      agentMessage.error = '流式响应未正常结束，请重试。'
+      globalError.value = agentMessage.error
+      pushTrace('error', agentMessage.error)
+    }
     if (!agentMessage.text) {
       agentMessage.text = '暂未收到回复，请稍后重试。'
     }

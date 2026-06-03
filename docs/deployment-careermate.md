@@ -153,7 +153,7 @@ Initialization template:
 1. Push to `main` (or run workflow manually).
 2. GitHub Actions builds backend JAR and frontend `dist`.
 3. Artifacts upload to `/opt/careermate/releases/${GITHUB_SHA}/`.
-4. `deploy-from-github.sh` switches `/opt/careermate/current`, syncs frontend, restarts backend.
+4. `deploy-from-github.sh` switches `/opt/careermate/current`, syncs frontend, verifies systemd `ExecStart` points to `/opt/careermate/current/backend/app.jar` (auto-fixes legacy `careermate-backend.jar` paths), then restarts backend.
 5. Workflow health checks pass, or the job fails without deleting previous releases.
 
 ### 8.3 Manual deploy (fallback)
