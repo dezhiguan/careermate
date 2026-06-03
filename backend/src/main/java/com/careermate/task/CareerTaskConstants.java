@@ -18,6 +18,9 @@ public final class CareerTaskConstants {
     public static final String CATEGORY_GENERAL = "GENERAL";
 
     public static final String SOURCE_MANUAL = "manual";
+    public static final String SOURCE_AGENT = "agent";
+
+    public static final int AGENT_TODO_LIMIT = 5;
 
     public static final Set<String> CATEGORIES = Set.of(
             CATEGORY_RESUME,

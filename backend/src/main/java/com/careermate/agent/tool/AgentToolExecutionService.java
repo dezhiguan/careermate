@@ -34,6 +34,9 @@ public class AgentToolExecutionService {
             case "create_job_match" -> "正在创建岗位匹配";
             case "create_interview_session" -> "正在创建面试训练";
             case "get_dashboard_overview" -> "正在读取求职看板概览";
+            case "get_career_tasks" -> "正在读取求职任务";
+            case "create_career_task" -> "正在创建求职任务";
+            case "mark_career_task_done" -> "正在完成任务";
             default -> "正在执行 " + toolName;
         };
     }

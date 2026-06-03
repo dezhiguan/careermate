@@ -123,9 +123,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getDashboardOverview } from '../api/dashboard'
 import { markTaskDone } from '../api/tasks'
+import { CAREER_TASKS_UPDATED_EVENT } from '../utils/agentToolDisplay'
 
 const overview = ref(null)
 const loading = ref(false)
@@ -140,8 +141,17 @@ const interviewStatusLabel = computed(() => {
   return '进行中'
 })
 
+function onTasksUpdated() {
+  loadOverview()
+}
+
 onMounted(() => {
   loadOverview()
+  window.addEventListener(CAREER_TASKS_UPDATED_EVENT, onTasksUpdated)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener(CAREER_TASKS_UPDATED_EVENT, onTasksUpdated)
 })
 
 async function loadOverview() {

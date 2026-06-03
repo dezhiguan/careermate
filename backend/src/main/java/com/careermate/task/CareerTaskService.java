@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class CareerTaskService {
@@ -118,6 +119,110 @@ public class CareerTaskService {
         entity.setDeletedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
         careerTaskMapper.updateById(entity);
+    }
+
+    public List<Map<String, Object>> listAgentTodoTasksForUser(Long userId) {
+        return careerTaskMapper.selectList(
+                        new LambdaQueryWrapper<CareerTaskEntity>()
+                                .eq(CareerTaskEntity::getUserId, userId)
+                                .isNull(CareerTaskEntity::getDeletedAt)
+                                .eq(CareerTaskEntity::getStatus, CareerTaskConstants.STATUS_TODO)
+                ).stream()
+                .sorted(taskListComparator())
+                .limit(CareerTaskConstants.AGENT_TODO_LIMIT)
+                .map(this::toAgentTaskItem)
+                .toList();
+    }
+
+    @Transactional
+    public CareerTaskResponse createTaskForAgent(Long userId, CareerTaskCreateRequest request) {
+        String category = request.getCategory();
+        if (category == null || category.isBlank()) {
+            category = CareerTaskConstants.CATEGORY_GENERAL;
+        }
+        validateCategory(category);
+        String priority = normalizePriority(request.getPriority());
+
+        LocalDateTime now = LocalDateTime.now();
+        CareerTaskEntity entity = new CareerTaskEntity();
+        entity.setUserId(userId);
+        entity.setTitle(trimRequired(request.getTitle(), 200, "任务标题不能为空"));
+        entity.setDescription(trimOptional(request.getDescription(), 1000));
+        entity.setCategory(category.trim().toUpperCase());
+        entity.setPriority(priority);
+        entity.setStatus(CareerTaskConstants.STATUS_TODO);
+        entity.setDueDate(request.getDueDate());
+        entity.setSource(CareerTaskConstants.SOURCE_AGENT);
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        careerTaskMapper.insert(entity);
+        return toResponse(entity);
+    }
+
+    @Transactional
+    public CareerTaskResponse markDoneForUser(Long userId, Long taskId) {
+        return updateStatusForUser(userId, taskId, CareerTaskConstants.STATUS_DONE);
+    }
+
+    public CareerTaskEntity findTodoTaskForUser(Long userId, Long taskId) {
+        if (taskId == null) {
+            return null;
+        }
+        return careerTaskMapper.selectOne(
+                new LambdaQueryWrapper<CareerTaskEntity>()
+                        .eq(CareerTaskEntity::getId, taskId)
+                        .eq(CareerTaskEntity::getUserId, userId)
+                        .isNull(CareerTaskEntity::getDeletedAt)
+                        .eq(CareerTaskEntity::getStatus, CareerTaskConstants.STATUS_TODO)
+                        .last("LIMIT 1")
+        );
+    }
+
+    public CareerTaskEntity findTodoTaskByTitleKeyword(Long userId, String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        String normalized = keyword.trim();
+        return careerTaskMapper.selectList(
+                        new LambdaQueryWrapper<CareerTaskEntity>()
+                                .eq(CareerTaskEntity::getUserId, userId)
+                                .isNull(CareerTaskEntity::getDeletedAt)
+                                .eq(CareerTaskEntity::getStatus, CareerTaskConstants.STATUS_TODO)
+                ).stream()
+                .filter(t -> t.getTitle() != null && t.getTitle().contains(normalized))
+                .sorted(taskListComparator())
+                .findFirst()
+                .orElse(null);
+    }
+
+    private CareerTaskResponse updateStatusForUser(Long userId, Long taskId, String status) {
+        if (!CareerTaskConstants.STATUSES.contains(status)) {
+            throw new BizException(400, "无效的任务状态");
+        }
+        CareerTaskEntity entity = requireOwnedTask(taskId, userId);
+        entity.setStatus(status);
+        LocalDateTime now = LocalDateTime.now();
+        entity.setUpdatedAt(now);
+        if (CareerTaskConstants.STATUS_DONE.equals(status)) {
+            entity.setCompletedAt(now);
+        } else {
+            entity.setCompletedAt(null);
+        }
+        careerTaskMapper.updateById(entity);
+        return toResponse(entity);
+    }
+
+    private Map<String, Object> toAgentTaskItem(CareerTaskEntity entity) {
+        Map<String, Object> item = new java.util.LinkedHashMap<>();
+        item.put("taskId", entity.getId());
+        item.put("title", entity.getTitle());
+        item.put("category", entity.getCategory());
+        item.put("priority", entity.getPriority());
+        item.put("status", entity.getStatus());
+        if (entity.getDueDate() != null) {
+            item.put("dueDate", entity.getDueDate().toString());
+        }
+        return item;
     }
 
     private CareerTaskResponse updateStatus(Long taskId, String status) {
