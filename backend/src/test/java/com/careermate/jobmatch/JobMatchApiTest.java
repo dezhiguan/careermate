@@ -1,0 +1,148 @@
+package com.careermate.jobmatch;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.careermate.mapper.JobMatchMapper;
+import com.careermate.mapper.ResumeMapper;
+import com.careermate.model.entity.JobMatchEntity;
+import com.careermate.model.entity.ResumeEntity;
+import com.careermate.resume.ResumeService;
+import com.careermate.security.CurrentUser;
+import com.careermate.security.CurrentUserContext;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc(addFilters = false)
+class JobMatchApiTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private ResumeMapper resumeMapper;
+
+    @Autowired
+    private JobMatchMapper jobMatchMapper;
+
+    @BeforeEach
+    void cleanFixtures() {
+        jobMatchMapper.delete(new LambdaQueryWrapper<JobMatchEntity>()
+                .in(JobMatchEntity::getUserId, List.of(1L, 2L)));
+        resumeMapper.delete(new LambdaQueryWrapper<ResumeEntity>()
+                .in(ResumeEntity::getUserId, List.of(1L, 2L)));
+    }
+
+    @AfterEach
+    void tearDown() {
+        CurrentUserContext.clear();
+    }
+
+    @Test
+    void analyzeFailsWithoutDefaultResume() throws Exception {
+        loginAs(1L, "local-user");
+        String body = objectMapper.writeValueAsString(Map.of(
+                "jobTitle", "Java 后端",
+                "companyName", "测试公司",
+                "jdContent", "Java, Redis"
+        ));
+
+        mockMvc.perform(post("/api/job-matches/analyze")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value("请先创建并设置默认简历后再进行岗位匹配"));
+    }
+
+    @Test
+    void analyzeSaveListGetDeleteAndIsolation() throws Exception {
+        loginAs(1L, "local-user");
+        insertDefaultResume(1L, "匹配测试简历", "Java, Spring Boot, PostgreSQL, Redis");
+
+        String analyzeBody = objectMapper.writeValueAsString(Map.of(
+                "jobTitle", "Java 后端工程师",
+                "companyName", "某互联网公司",
+                "jdContent", "Java, Spring Boot, Redis, Elasticsearch, Docker"
+        ));
+
+        String analyzeJson = mockMvc.perform(post("/api/job-matches/analyze")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(analyzeBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.matchScore").isNumber())
+                .andExpect(jsonPath("$.data.matchedSkills").isArray())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        long matchId = objectMapper.readTree(analyzeJson).path("data").path("id").asLong();
+
+        mockMvc.perform(get("/api/job-matches"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].jobTitle").value("Java 后端工程师"));
+
+        mockMvc.perform(get("/api/job-matches/" + matchId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.jdContent").exists())
+                .andExpect(jsonPath("$.data.strengths").isArray());
+
+        loginAs(2L, "other-user");
+        mockMvc.perform(get("/api/job-matches/" + matchId))
+                .andExpect(status().isNotFound());
+
+        loginAs(1L, "local-user");
+        mockMvc.perform(delete("/api/job-matches/" + matchId))
+                .andExpect(status().isOk());
+
+        JobMatchEntity deleted = jobMatchMapper.selectById(matchId);
+        assertEquals(JobMatchService.STATUS_DELETED, deleted.getStatus());
+
+        mockMvc.perform(get("/api/job-matches"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+    }
+
+    private void insertDefaultResume(Long userId, String title, String content) {
+        ResumeEntity entity = new ResumeEntity();
+        entity.setUserId(userId);
+        entity.setTitle(title);
+        entity.setContent(content);
+        entity.setSourceType(ResumeService.SOURCE_TYPE_TEXT);
+        entity.setIsDefault(true);
+        entity.setStatus(ResumeService.STATUS_ACTIVE);
+        entity.setCreatedAt(java.time.OffsetDateTime.now());
+        entity.setUpdatedAt(java.time.OffsetDateTime.now());
+        resumeMapper.insert(entity);
+    }
+
+    private void loginAs(long userId, String username) {
+        CurrentUserContext.set(CurrentUser.builder()
+                .userId(userId)
+                .username(username)
+                .role("USER")
+                .authenticated(true)
+                .build());
+    }
+}

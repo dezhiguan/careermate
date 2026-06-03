@@ -270,6 +270,22 @@ const AGENT_NETWORK_ERROR = /network error|暂未收到回复/i;
  * @param {import('@playwright/test').Page} page
  * @param {string} [message]
  */
+/**
+ * 若简历尚未是默认，则点击「设为默认」并等待角标出现。
+ * @param {import('@playwright/test').Page} page
+ * @param {import('@playwright/test').Locator} card
+ */
+async function ensureResumeIsDefault(page, card) {
+  if (await card.locator('.default-badge').isVisible().catch(() => false)) {
+    return;
+  }
+  const detailPanel = page.locator('.detail-panel');
+  const setDefaultBtn = detailPanel.getByRole('button', { name: '设为默认' });
+  await expect(setDefaultBtn).toBeEnabled({ timeout: 10_000 });
+  await setDefaultBtn.click();
+  await expect(card.locator('.default-badge')).toBeVisible({ timeout: 10_000 });
+}
+
 async function sendAgentMessageAndExpectMockReply(page, message = '帮我分析简历') {
   const input = page.locator('input[placeholder="说说你想做什么..."]');
   const sendBtn = page.getByRole('button', { name: '↑' });
@@ -561,4 +577,5 @@ module.exports = {
   enterApplication,
   printCreatedAccountsReport,
   sendAgentMessageAndExpectMockReply,
+  ensureResumeIsDefault,
 };

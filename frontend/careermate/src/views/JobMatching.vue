@@ -2,176 +2,225 @@
   <div class="page-container">
     <div class="page-header">
       <h2 class="page-title">🎯 岗位匹配</h2>
-      <p class="page-sub">Agent 已为你匹配 {{ filteredJobs.length }} 个岗位</p>
+      <p class="page-sub">录入岗位 JD，基于默认简历生成匹配分析（V1）</p>
     </div>
 
-    <!-- Filter Chips -->
-    <div class="filter-row">
-      <span
-        v-for="f in filters"
-        :key="f.key"
-        class="filter-chip"
-        :class="{ active: activeFilter === f.key }"
-        @click="activeFilter = f.key"
-      >{{ f.label }}</span>
+    <div v-if="noDefaultResumeHint" class="banner warn">
+      请先到简历页创建并设置默认简历。
+      <router-link to="/resume" class="banner-link">前往简历工作室 →</router-link>
+    </div>
+    <div v-if="pageError" class="banner error">{{ pageError }}</div>
+
+    <section class="analyze-panel">
+      <div class="section-title">JD 分析</div>
+      <label class="field-label">岗位名称</label>
+      <input v-model="form.jobTitle" class="field-input" maxlength="128" placeholder="例如：Java 后端工程师">
+      <label class="field-label">公司名称（可选）</label>
+      <input v-model="form.companyName" class="field-input" maxlength="128" placeholder="例如：某互联网公司">
+      <label class="field-label">岗位 JD 正文</label>
+      <textarea
+        v-model="form.jdContent"
+        class="field-textarea"
+        rows="6"
+        maxlength="50000"
+        placeholder="粘贴岗位描述、技能要求等..."
+      />
+      <button class="btn primary" type="button" :disabled="analyzing" @click="submitAnalyze">
+        {{ analyzing ? '分析中...' : '开始匹配' }}
+      </button>
+    </section>
+
+    <div v-if="listLoading" class="list-hint">加载匹配记录...</div>
+    <div v-else-if="matches.length === 0" class="empty-state">
+      <div class="empty-icon">📭</div>
+      <div>暂无匹配记录，填写 JD 后点击「开始匹配」</div>
     </div>
 
-    <!-- Match Cards -->
-    <div class="job-grid">
+    <div v-else class="job-grid">
       <div
-        v-for="job in filteredJobs"
-        :key="job.id"
+        v-for="item in matches"
+        :key="item.id"
         class="job-card"
-        :class="{ featured: job.match >= 75 }"
-        @click="selectJob(job)"
+        :class="{ featured: item.matchScore >= 75 }"
+        @click="openDetail(item.id)"
       >
         <div class="job-header">
-          <span class="job-company">{{ job.company }}</span>
-          <span class="job-badge" :class="matchClass(job.match)">匹配 {{ job.match }}%</span>
+          <span class="job-company">{{ item.companyName || '未填写公司' }}</span>
+          <span class="job-badge" :class="matchClass(item.matchScore)">匹配 {{ item.matchScore }}%</span>
         </div>
-        <div class="job-info">{{ job.title }} · {{ job.city }} · {{ job.salary }}</div>
-        <div v-for="(pt, idx) in job.points" :key="idx" class="job-point" :class="pt.type">
-          <span class="pt-icon">{{ pt.type === 'match' ? '✅' : pt.type === 'gap' ? '⚠️' : '💡' }}</span>
-          {{ pt.text }}
+        <div class="job-info">{{ item.jobTitle }} · {{ levelLabel(item.matchLevel) }}</div>
+        <div v-if="item.matchedSkills?.length" class="job-point match">
+          <span class="pt-icon">✅</span> 命中：{{ item.matchedSkills.slice(0, 4).join('、') }}
         </div>
+        <div v-if="item.missingSkills?.length" class="job-point gap">
+          <span class="pt-icon">⚠️</span> 缺失：{{ item.missingSkills.slice(0, 4).join('、') }}
+        </div>
+        <p v-if="item.analysisSummary" class="job-summary">{{ item.analysisSummary }}</p>
+        <button
+          class="card-delete"
+          type="button"
+          @click.stop="confirmDelete(item)"
+        >
+          删除
+        </button>
       </div>
     </div>
 
-    <!-- Job Detail Modal -->
-    <div v-if="selectedJob" class="modal-overlay" @click.self="selectedJob = null">
+    <div v-if="selectedDetail" class="modal-overlay" @click.self="closeDetail">
       <div class="modal-card">
         <div class="modal-header">
           <div>
-            <div class="modal-company">{{ selectedJob.company }}</div>
-            <div class="modal-title">{{ selectedJob.title }}</div>
+            <div class="modal-company">{{ selectedDetail.companyName || '未填写公司' }}</div>
+            <div class="modal-title">{{ selectedDetail.jobTitle }}</div>
           </div>
-          <span class="job-badge large" :class="matchClass(selectedJob.match)">匹配 {{ selectedJob.match }}%</span>
+          <span class="job-badge large" :class="matchClass(selectedDetail.matchScore)">
+            匹配 {{ selectedDetail.matchScore }}%
+          </span>
         </div>
         <div class="modal-body">
           <div class="modal-section">
-            <div class="modal-label">📍 地点 & 薪资</div>
-            <div>{{ selectedJob.city }} · {{ selectedJob.salary }}</div>
+            <div class="modal-label">匹配等级</div>
+            <div>{{ levelLabel(selectedDetail.matchLevel) }}</div>
           </div>
           <div class="modal-section">
-            <div class="modal-label">✅ 匹配技能</div>
+            <div class="modal-label">✅ 命中技能</div>
             <div class="skill-tags">
-              <span v-for="s in selectedJob.matchedSkills" :key="s" class="skill-tag match">{{ s }}</span>
+              <span v-for="s in selectedDetail.matchedSkills" :key="'m-' + s" class="skill-tag match">{{ s }}</span>
+              <span v-if="!selectedDetail.matchedSkills?.length" class="muted">无</span>
             </div>
           </div>
           <div class="modal-section">
-            <div class="modal-label">⚠️ 技能差距</div>
+            <div class="modal-label">⚠️ 缺失技能</div>
             <div class="skill-tags">
-              <span v-for="s in selectedJob.gapSkills" :key="s" class="skill-tag gap">{{ s }}</span>
+              <span v-for="s in selectedDetail.missingSkills" :key="'g-' + s" class="skill-tag gap">{{ s }}</span>
+              <span v-if="!selectedDetail.missingSkills?.length" class="muted">无</span>
             </div>
           </div>
-          <router-link to="/" class="modal-action">💬 回对话台查看深度分析 →</router-link>
+          <div v-if="selectedDetail.strengths?.length" class="modal-section">
+            <div class="modal-label">优势</div>
+            <ul class="bullet-list">
+              <li v-for="(t, i) in selectedDetail.strengths" :key="'s-' + i">{{ t }}</li>
+            </ul>
+          </div>
+          <div v-if="selectedDetail.risks?.length" class="modal-section">
+            <div class="modal-label">风险</div>
+            <ul class="bullet-list">
+              <li v-for="(t, i) in selectedDetail.risks" :key="'r-' + i">{{ t }}</li>
+            </ul>
+          </div>
+          <div v-if="selectedDetail.suggestions?.length" class="modal-section">
+            <div class="modal-label">建议</div>
+            <ul class="bullet-list">
+              <li v-for="(t, i) in selectedDetail.suggestions" :key="'u-' + i">{{ t }}</li>
+            </ul>
+          </div>
+          <div v-if="selectedDetail.analysisSummary" class="modal-section">
+            <div class="modal-label">分析总结</div>
+            <p class="summary-text">{{ selectedDetail.analysisSummary }}</p>
+          </div>
         </div>
-        <button class="modal-close" @click="selectedJob = null">✕</button>
+        <button class="modal-close" type="button" @click="closeDetail">✕</button>
       </div>
-    </div>
-
-    <!-- Agent Stats -->
-    <div class="agent-stats">
-      🤖 Agent 已调用 RAGForge.search × 1 · 匹配计算 × {{ jobs.length }} · 耗时 {{ (jobs.length * 0.38).toFixed(1) }}s
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
+import { analyzeJobMatch, deleteJobMatch, getJobMatch, listJobMatches } from '../api/jobMatch'
 
-const activeFilter = ref('all')
-const selectedJob = ref(null)
+const matches = ref([])
+const listLoading = ref(false)
+const analyzing = ref(false)
+const pageError = ref('')
+const noDefaultResumeHint = ref(false)
+const selectedDetail = ref(null)
 
-const filters = [
-  { key: 'all', label: '全部(6)' },
-  { key: 'high', label: '匹配度 80%+' },
-  { key: 'backend', label: '后端开发' },
-  { key: 'big', label: '大厂' },
-  { key: 'ai', label: 'AI 相关' },
-]
-
-const jobs = ref([
-  {
-    id: 1, company: '字节跳动', title: '后端开发工程师', city: '北京', salary: '25-50K',
-    match: 78,
-    matchedSkills: ['Java', 'Spring Boot', 'MySQL', 'Redis', '微服务'],
-    gapSkills: ['分布式系统', '消息队列'],
-    points: [
-      { text: 'Java/Spring Boot 完全匹配', type: 'match' },
-      { text: '缺分布式系统经验', type: 'gap' },
-      { text: '大模型开发经验（你有基础）', type: 'tip' },
-    ],
-  },
-  {
-    id: 2, company: '美团', title: '后端工程师', city: '上海', salary: '25-40K',
-    match: 74,
-    matchedSkills: ['Java', 'MySQL', 'Spring'],
-    gapSkills: ['消息队列', '高并发'],
-    points: [
-      { text: 'Java/MySQL 匹配', type: 'match' },
-      { text: '缺消息队列经验', type: 'gap' },
-    ],
-  },
-  {
-    id: 3, company: '腾讯', title: '后台开发', city: '深圳', salary: '25-45K',
-    match: 68,
-    matchedSkills: ['微服务', 'Java'],
-    gapSkills: ['C++', 'Go', '分布式'],
-    points: [
-      { text: '微服务经验匹配', type: 'match' },
-      { text: '缺C++/Go经验', type: 'gap' },
-    ],
-  },
-  {
-    id: 4, company: '小红书', title: '基础架构开发', city: '上海', salary: '30-50K',
-    match: 65,
-    matchedSkills: ['Java', '基础组件'],
-    gapSkills: ['中间件开发', '容器化'],
-    points: [
-      { text: '基础组件经验匹配', type: 'match' },
-      { text: '缺中间件开发经验', type: 'gap' },
-    ],
-  },
-  {
-    id: 5, company: '百度', title: '后端研发工程师', city: '北京', salary: '25-45K',
-    match: 82,
-    matchedSkills: ['Java', 'Spring Boot', 'MySQL', 'Redis'],
-    gapSkills: ['AI平台经验'],
-    points: [
-      { text: '技术栈高度匹配', type: 'match' },
-      { text: 'AI平台经验可快速补齐', type: 'tip' },
-    ],
-  },
-  {
-    id: 6, company: '阿里巴巴', title: 'Java开发工程师', city: '杭州', salary: '28-50K',
-    match: 71,
-    matchedSkills: ['Java', 'Spring', '微服务'],
-    gapSkills: ['中间件', '高可用架构'],
-    points: [
-      { text: 'Java生态完全匹配', type: 'match' },
-      { text: '缺高可用架构经验', type: 'gap' },
-    ],
-  },
-])
-
-const filteredJobs = computed(() => {
-  if (activeFilter.value === 'all') return jobs.value
-  if (activeFilter.value === 'high') return jobs.value.filter(j => j.match >= 80)
-  if (activeFilter.value === 'backend') return jobs.value.filter(j => j.title.includes('后端') || j.title.includes('后台') || j.title.includes('Java'))
-  if (activeFilter.value === 'big') return jobs.value
-  if (activeFilter.value === 'ai') return jobs.value.filter(j => j.gapSkills.some(s => s.includes('AI')))
-  return jobs.value
+const form = reactive({
+  jobTitle: '',
+  companyName: '',
+  jdContent: '',
 })
 
-function matchClass(match) {
-  if (match >= 75) return 'high'
-  if (match >= 65) return 'mid'
+onMounted(() => {
+  loadMatches()
+})
+
+async function loadMatches() {
+  listLoading.value = true
+  pageError.value = ''
+  try {
+    matches.value = await listJobMatches()
+  } catch (e) {
+    pageError.value = e?.message || '加载匹配记录失败'
+  } finally {
+    listLoading.value = false
+  }
+}
+
+async function submitAnalyze() {
+  if (!form.jobTitle.trim() || !form.jdContent.trim()) {
+    pageError.value = '请填写岗位名称和 JD 正文'
+    return
+  }
+  analyzing.value = true
+  pageError.value = ''
+  noDefaultResumeHint.value = false
+  try {
+    const detail = await analyzeJobMatch({
+      jobTitle: form.jobTitle.trim(),
+      companyName: form.companyName.trim() || undefined,
+      jdContent: form.jdContent.trim(),
+    })
+    await loadMatches()
+    selectedDetail.value = detail
+  } catch (e) {
+    const msg = e?.message || '匹配分析失败'
+    if (msg.includes('默认简历')) {
+      noDefaultResumeHint.value = true
+    }
+    pageError.value = msg
+  } finally {
+    analyzing.value = false
+  }
+}
+
+async function openDetail(id) {
+  try {
+    selectedDetail.value = await getJobMatch(id)
+  } catch (e) {
+    pageError.value = e?.message || '加载详情失败'
+  }
+}
+
+function closeDetail() {
+  selectedDetail.value = null
+}
+
+async function confirmDelete(item) {
+  if (!window.confirm(`确定删除「${item.jobTitle}」的匹配记录吗？`)) return
+  try {
+    await deleteJobMatch(item.id)
+    if (selectedDetail.value?.id === item.id) {
+      selectedDetail.value = null
+    }
+    await loadMatches()
+  } catch (e) {
+    pageError.value = e?.message || '删除失败'
+  }
+}
+
+function matchClass(score) {
+  if (score >= 75) return 'high'
+  if (score >= 60) return 'mid'
   return 'low'
 }
 
-function selectJob(job) {
-  selectedJob.value = job
+function levelLabel(level) {
+  if (level === 'HIGH') return '高度匹配'
+  if (level === 'MEDIUM') return '中等匹配'
+  if (level === 'LOW') return '偏低'
+  return '未知'
 }
 </script>
 
@@ -181,20 +230,39 @@ function selectJob(job) {
 .page-title { font-size: 22px; font-weight: 700; color: var(--navy); }
 .page-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 
-/* Filters */
-.filter-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-.filter-chip {
-  font-size: 11px; padding: 5px 12px; border-radius: 14px; cursor: pointer;
-  background: var(--light); border: 1px solid var(--border); transition: all .2s; user-select: none;
+.banner {
+  padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 12px;
 }
-.filter-chip.active { background: var(--purple); color: #fff; border-color: var(--purple); }
-.filter-chip:hover:not(.active) { border-color: var(--purple); color: var(--purple); }
+.banner.error { background: #fef2f2; color: #991b1b; }
+.banner.warn { background: #fffbeb; color: #92400e; }
+.banner-link { margin-left: 8px; color: var(--purple); font-weight: 600; }
 
-/* Job Grid */
-.job-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+.analyze-panel {
+  background: #fff; border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px; margin-bottom: 20px;
+}
+.section-title { font-weight: 600; font-size: 14px; margin-bottom: 12px; color: var(--navy); }
+.field-label { display: block; font-size: 12px; color: var(--text-muted); margin: 8px 0 4px; }
+.field-input, .field-textarea {
+  width: 100%; box-sizing: border-box; border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 14px;
+}
+.field-textarea { resize: vertical; min-height: 120px; }
+.btn.primary {
+  margin-top: 12px; padding: 10px 18px; border: none; border-radius: 8px;
+  background: var(--purple); color: #fff; font-weight: 600; cursor: pointer;
+}
+.btn.primary:disabled { opacity: .6; cursor: default; }
+
+.empty-state, .list-hint {
+  text-align: center; color: var(--text-muted); padding: 32px 16px; font-size: 14px;
+}
+.empty-icon { font-size: 32px; margin-bottom: 8px; }
+
+.job-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .job-card {
   background: #fff; border: 2px solid var(--border); border-radius: 12px;
-  padding: 14px; cursor: pointer; transition: all .2s;
+  padding: 14px; cursor: pointer; transition: all .2s; position: relative;
 }
 .job-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,.06); }
 .job-card.featured { border-color: var(--green); }
@@ -210,136 +278,54 @@ function selectJob(job) {
 .job-badge.large { font-size: 12px; padding: 4px 12px; }
 
 .job-info { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
-
-.job-point { font-size: 10px; padding: 2px 0; }
+.job-point { font-size: 11px; padding: 2px 0; }
 .job-point.match { color: var(--green); }
 .job-point.gap { color: var(--amber); }
-.job-point.tip { color: var(--green); }
 .pt-icon { margin-right: 2px; }
+.job-summary {
+  font-size: 11px; color: var(--text-muted); margin: 8px 0 0;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-delete {
+  margin-top: 8px; font-size: 11px; color: #991b1b; background: transparent;
+  border: 1px solid #fecaca; border-radius: 6px; padding: 4px 8px; cursor: pointer;
+}
 
-/* Modal */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(15,23,42,.6); z-index: 200;
   display: flex; align-items: center; justify-content: center; padding: 20px;
 }
 .modal-card {
-  background: #fff; border-radius: 14px; max-width: 480px; width: 100%; position: relative; overflow: hidden;
+  background: #fff; border-radius: 14px; max-width: 520px; width: 100%;
+  position: relative; overflow: hidden; max-height: calc(100dvh - 40px);
+  display: flex; flex-direction: column;
 }
-.modal-header { padding: 18px; background: var(--navy); color: #fff; display: flex; justify-content: space-between; align-items: flex-start; }
+.modal-header {
+  padding: 18px; background: var(--navy); color: #fff;
+  display: flex; justify-content: space-between; align-items: flex-start; flex-shrink: 0;
+}
 .modal-company { font-weight: 700; font-size: 16px; }
 .modal-title { font-size: 12px; opacity: .7; }
-.modal-body { padding: 18px; }
+.modal-body { padding: 18px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .modal-section { margin-bottom: 14px; }
 .modal-label { font-weight: 600; font-size: 11px; margin-bottom: 4px; }
 .skill-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .skill-tag { padding: 3px 8px; border-radius: 6px; font-size: 10px; }
 .skill-tag.match { background: #d1fae5; color: #065f46; }
 .skill-tag.gap { background: #fef3c7; color: #92400e; }
-.modal-action {
-  display: block; text-align: center; padding: 8px; margin-top: 8px;
-  border: 1px solid var(--purple); border-radius: 8px; color: var(--purple);
-  font-size: 11px; text-decoration: none;
-}
-.modal-action:hover { background: #f5f3ff; }
+.bullet-list { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-muted); }
+.summary-text { font-size: 12px; line-height: 1.5; color: var(--text-muted); margin: 0; }
+.muted { font-size: 11px; color: var(--text-muted); }
 .modal-close {
   position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,.2);
-  border: none; color: #fff; width: 24px; height: 24px; border-radius: 50%;
-  font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  border: none; color: #fff; width: 28px; height: 28px; border-radius: 50%;
+  font-size: 12px; cursor: pointer;
 }
-
-/* Agent Stats */
-.agent-stats { text-align: center; font-size: 11px; color: var(--text-muted); margin-top: 8px; }
 
 @media (max-width: 768px) {
-  .page-container {
-    padding: 16px 12px calc(16px + env(safe-area-inset-bottom));
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-
-  .job-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .filter-row {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    padding-bottom: 4px;
-    max-width: 100%;
-  }
-
-  .filter-row::-webkit-scrollbar {
-    display: none;
-  }
-
-  .filter-chip {
-    flex-shrink: 0;
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-  }
-
-  .job-card {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .job-header {
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: flex-start;
-  }
-
-  .job-company {
-    word-break: break-word;
-    overflow-wrap: anywhere;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .job-point {
-    word-break: break-word;
-    overflow-wrap: anywhere;
-  }
-
-  .modal-overlay {
-    padding: 12px;
-    align-items: flex-end;
-  }
-
-  .modal-card {
-    width: calc(100vw - 24px);
-    max-width: calc(100vw - 24px);
-    max-height: calc(100dvh - 40px);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .modal-body {
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
-  .modal-action {
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-}
-
-@media (max-width: 480px) {
-  .page-title {
-    font-size: 18px;
-  }
-
-  .modal-header {
-    flex-direction: column;
-    gap: 8px;
-    align-items: flex-start;
-  }
+  .page-container { padding: 16px 12px; max-width: 100%; }
+  .job-grid { grid-template-columns: 1fr; }
+  .modal-overlay { align-items: flex-end; padding: 12px; }
+  .modal-card { width: calc(100vw - 24px); max-width: calc(100vw - 24px); }
 }
 </style>
