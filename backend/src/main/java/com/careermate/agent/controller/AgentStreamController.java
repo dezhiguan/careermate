@@ -2,6 +2,11 @@ package com.careermate.agent.controller;
 
 import com.careermate.agent.AgentPromptAssembler;
 import com.careermate.agent.config.AgentProperties;
+import com.careermate.agent.tool.AgentToolContext;
+import com.careermate.agent.tool.AgentToolExecutionService;
+import com.careermate.agent.tool.AgentToolResult;
+import com.careermate.agent.tool.AgentToolRouter;
+import com.careermate.agent.tool.AgentToolTraceSupport;
 import com.careermate.agent.dto.AgentMessageRequest;
 import com.careermate.agent.dto.AgentSessionCreateResponse;
 import com.careermate.agent.dto.AgentSessionResponse;
@@ -58,6 +63,8 @@ public class AgentStreamController {
     private final JobMatchContextProvider jobMatchContextProvider;
     private final ObjectMapper objectMapper;
     private final AgentProperties agentProperties;
+    private final AgentToolRouter agentToolRouter;
+    private final AgentToolExecutionService agentToolExecutionService;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -71,7 +78,9 @@ public class AgentStreamController {
             ResumeContextProvider resumeContextProvider,
             JobMatchContextProvider jobMatchContextProvider,
             ObjectMapper objectMapper,
-            AgentProperties agentProperties
+            AgentProperties agentProperties,
+            AgentToolRouter agentToolRouter,
+            AgentToolExecutionService agentToolExecutionService
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -82,6 +91,8 @@ public class AgentStreamController {
         this.jobMatchContextProvider = jobMatchContextProvider;
         this.objectMapper = objectMapper;
         this.agentProperties = agentProperties;
+        this.agentToolRouter = agentToolRouter;
+        this.agentToolExecutionService = agentToolExecutionService;
     }
 
     @PostMapping("/sessions")
@@ -188,6 +199,14 @@ public class AgentStreamController {
             recordJobMatchContextTrace(userId, sessionId, jobMatchContext);
 
             String systemPrompt = AgentPromptAssembler.buildSystemPrompt(resumeContext, jobMatchContext);
+            AgentToolResult toolResult = executeRoutedToolIfAny(
+                    userId,
+                    sessionId,
+                    request.getMessage()
+            );
+            if (toolResult != null) {
+                systemPrompt = AgentPromptAssembler.appendToolResult(systemPrompt, toolResult);
+            }
             ChatRequest chatRequest = ChatRequest.builder()
                     .messages(List.of(
                             ChatMessage.builder().role("system").content(systemPrompt).build(),
@@ -302,6 +321,54 @@ public class AgentStreamController {
         );
         agentSessionService.markError(userId, sessionId, errorCode);
         sseEmitterService.completeWithError(sessionId, error == null ? new RuntimeException("unknown") : error);
+    }
+
+    private AgentToolResult executeRoutedToolIfAny(Long userId, String sessionId, String userMessage) {
+        return agentToolRouter.route(userMessage)
+                .map(routed -> {
+                    String toolName = routed.toolName();
+                    Map<String, Object> startData = Map.of(
+                            "toolName", toolName,
+                            "summary", agentToolExecutionService.startSummary(toolName)
+                    );
+                    sseEmitterService.send(sessionId, SseEventType.TOOL_START, startData);
+
+                    long toolStart = System.currentTimeMillis();
+                    AgentToolContext context = AgentToolContext.builder()
+                            .userId(userId)
+                            .sessionId(sessionId)
+                            .userMessage(userMessage)
+                            .args(routed.args())
+                            .build();
+                    AgentToolResult result = agentToolExecutionService.execute(context, toolName);
+                    long latencyMs = System.currentTimeMillis() - toolStart;
+
+                    Map<String, Object> resultData = Map.of(
+                            "toolName", toolName,
+                            "success", result.isSuccess(),
+                            "summary", result.getSummary()
+                    );
+                    sseEmitterService.send(sessionId, SseEventType.TOOL_RESULT, resultData);
+
+                    String requestSummary = AgentToolTraceSupport.buildRequestSummary(
+                            toolName,
+                            routed.args(),
+                            userMessage
+                    );
+                    String responseSummary = AgentToolTraceSupport.buildResponseSummary(result, objectMapper);
+                    agentSessionService.recordTrace(
+                            userId,
+                            sessionId,
+                            toolName,
+                            requestSummary,
+                            responseSummary,
+                            result.isSuccess() ? "SUCCESS" : "FAILED",
+                            latencyMs,
+                            result.isSuccess() ? null : "TOOL_EXEC_FAILED"
+                    );
+                    return result;
+                })
+                .orElse(null);
     }
 
     private void recordJobMatchContextTrace(Long userId, String sessionId, JobMatchContext jobMatchContext) {

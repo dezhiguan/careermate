@@ -46,7 +46,13 @@ public class DashboardService {
     }
 
     public DashboardOverviewResponse getOverview() {
-        Long userId = requireUserId();
+        return getOverviewForUser(requireUserId());
+    }
+
+    public DashboardOverviewResponse getOverviewForUser(Long userId) {
+        if (userId == null) {
+            throw new BizException(401, "未登录");
+        }
 
         List<ResumeEntity> resumes = resumeMapper.selectList(
                 new LambdaQueryWrapper<ResumeEntity>()

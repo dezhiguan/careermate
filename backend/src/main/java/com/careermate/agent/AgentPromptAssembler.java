@@ -1,7 +1,10 @@
 package com.careermate.agent;
 
+import com.careermate.agent.tool.AgentToolResult;
 import com.careermate.jobmatch.JobMatchContext;
 import com.careermate.resume.ResumeContext;
+
+import java.util.Map;
 
 public final class AgentPromptAssembler {
 
@@ -23,6 +26,26 @@ public final class AgentPromptAssembler {
         }
         if (jobMatchContext != null && jobMatchContext.getContextText() != null && !jobMatchContext.getContextText().isBlank()) {
             sb.append("\n\n").append(jobMatchContext.getContextText().trim());
+        }
+        return sb.toString();
+    }
+
+    public static String appendToolResult(String systemPrompt, AgentToolResult toolResult) {
+        if (toolResult == null) {
+            return systemPrompt;
+        }
+        StringBuilder sb = new StringBuilder(systemPrompt == null ? "" : systemPrompt);
+        sb.append("\n\n工具调用结果：\n");
+        sb.append("工具：").append(toolResult.getToolName()).append('\n');
+        sb.append("结果摘要：").append(toolResult.getSummary()).append('\n');
+        if (toolResult.getData() != null && !toolResult.getData().isEmpty()) {
+            sb.append("结构化数据：\n");
+            for (Map.Entry<String, Object> entry : toolResult.getData().entrySet()) {
+                sb.append("- ").append(entry.getKey()).append("：").append(entry.getValue()).append('\n');
+            }
+        }
+        if (!toolResult.isSuccess() && toolResult.getErrorMessage() != null) {
+            sb.append("错误：").append(toolResult.getErrorMessage()).append('\n');
         }
         return sb.toString();
     }

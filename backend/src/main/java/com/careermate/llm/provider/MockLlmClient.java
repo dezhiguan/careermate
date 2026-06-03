@@ -83,6 +83,11 @@ public class MockLlmClient implements LlmClient {
         String latest = extractLatestUserContent(request == null ? null : request.getMessages()).toLowerCase(Locale.ROOT);
         String system = extractSystemContent(request == null ? null : request.getMessages());
 
+        String toolReply = buildToolInvocationReply(system);
+        if (toolReply != null) {
+            return toolReply;
+        }
+
         if (isResumeOnlyIntent(latest)) {
             String resumeTitle = extractResumeTitleFromSystem(system);
             if (resumeTitle != null && !resumeTitle.isBlank()) {
@@ -114,6 +119,92 @@ public class MockLlmClient implements LlmClient {
             return "这是 Mock 面试准备建议：先梳理项目亮点，再按八股题、系统设计、行为面三个维度准备高频问答。";
         }
         return "这是 Mock CareerMate 回复：我可以帮助你做简历优化、岗位匹配和面试准备。";
+    }
+
+    private String buildToolInvocationReply(String systemContent) {
+        if (systemContent == null || !systemContent.contains("工具调用结果：")) {
+            return null;
+        }
+        if (systemContent.contains("工具：get_default_resume")) {
+            String title = extractToolDataField(systemContent, "title");
+            if (title != null && !title.isBlank()) {
+                return String.format(
+                        "我已通过工具读取你的默认简历《%s》，建议你重点优化项目描述中的量化指标，并突出与目标岗位匹配的技能关键词。",
+                        title
+                );
+            }
+            return "我已通过工具读取你的默认简历，但当前还没有可用的默认简历，请先在简历页创建并设为默认。";
+        }
+        if (systemContent.contains("工具：get_latest_job_match")) {
+            String jobTitle = extractToolDataField(systemContent, "jobTitle");
+            String scoreText = extractToolDataField(systemContent, "matchScore");
+            String missing = extractToolDataField(systemContent, "missingSkills");
+            int score = 0;
+            if (scoreText != null) {
+                try {
+                    score = Integer.parseInt(scoreText.trim());
+                } catch (NumberFormatException ignored) {
+                    score = 0;
+                }
+            }
+            if (jobTitle != null && !jobTitle.isBlank()) {
+                return String.format(
+                        "我已通过工具读取你最近的岗位匹配《%s》，匹配分数为 %d 分，主要缺失技能包括 %s。",
+                        jobTitle,
+                        score,
+                        missing == null || missing.isBlank() ? "暂无" : missing
+                );
+            }
+            return "我已通过工具查询岗位匹配，但当前还没有匹配记录，请先录入 JD 生成匹配结果。";
+        }
+        if (systemContent.contains("工具：create_job_match")) {
+            String jobTitle = extractToolDataField(systemContent, "jobTitle");
+            String scoreText = extractToolDataField(systemContent, "matchScore");
+            String matched = extractToolDataField(systemContent, "matchedSkills");
+            String missing = extractToolDataField(systemContent, "missingSkills");
+            return String.format(
+                    "我已为你生成岗位匹配结果，匹配分数为 %s 分，岗位《%s》。主要命中 %s，缺失 %s。",
+                    scoreText == null ? "0" : scoreText,
+                    jobTitle == null ? "目标岗位" : jobTitle,
+                    matched == null || matched.isBlank() ? "暂无" : matched,
+                    missing == null || missing.isBlank() ? "暂无" : missing
+            );
+        }
+        if (systemContent.contains("工具：create_interview_session")) {
+            String title = extractToolDataField(systemContent, "title");
+            String total = extractToolDataField(systemContent, "totalQuestions");
+            return String.format(
+                    "我已为你创建面试训练《%s》，可到面试特训页查看 %s 个问题。",
+                    title == null ? "面试训练" : title,
+                    total == null ? "5" : total
+            );
+        }
+        if (systemContent.contains("工具：get_dashboard_overview")) {
+            String resumeCount = extractToolDataField(systemContent, "resumeCount");
+            String jobMatchCount = extractToolDataField(systemContent, "jobMatchCount");
+            String interviewCount = extractToolDataField(systemContent, "interviewSessionCount");
+            return String.format(
+                    "我已读取你的求职看板：简历 %s 份，岗位匹配 %s 条，面试训练 %s 次。建议按看板提示继续完善简历、匹配和面试准备。",
+                    resumeCount == null ? "0" : resumeCount,
+                    jobMatchCount == null ? "0" : jobMatchCount,
+                    interviewCount == null ? "0" : interviewCount
+            );
+        }
+        return null;
+    }
+
+    private String extractToolDataField(String systemContent, String fieldName) {
+        String marker = "- " + fieldName + "：";
+        int idx = systemContent.indexOf(marker);
+        if (idx < 0) {
+            return null;
+        }
+        int start = idx + marker.length();
+        int end = systemContent.indexOf('\n', start);
+        if (end < 0) {
+            end = systemContent.length();
+        }
+        return systemContent.substring(start, end).trim();
     }
 
     private boolean isResumeOnlyIntent(String latest) {
