@@ -153,6 +153,33 @@ class AgentToolExecutionTest {
     }
 
     @Test
+    void getDashboardOverviewReturnsStats() {
+        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
+        createDefaultResume("dash_resume", "content");
+        AgentToolResult result = executeForUser(
+                TestUsers.USER_A,
+                "求职进展",
+                "get_dashboard_overview",
+                Map.of()
+        );
+        assertTrue(result.isSuccess());
+        assertTrue(((Number) result.getData().get("resumeCount")).intValue() >= 1);
+        assertTrue(result.getData().containsKey("suggestions"));
+    }
+
+    @Test
+    void createInterviewSessionFailsWithoutDefaultResume() {
+        AgentToolResult result = executeForUser(
+                TestUsers.USER_B,
+                "面试训练",
+                "create_interview_session",
+                Map.of()
+        );
+        assertFalse(result.isSuccess());
+        assertTrue(result.getErrorMessage().contains("简历"));
+    }
+
+    @Test
     void recordsToolTraceWithoutFullJdBody() throws Exception {
         loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
         createDefaultResume("trace_resume", "content");

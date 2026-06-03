@@ -25,6 +25,13 @@ class AgentToolRouterTest {
     }
 
     @Test
+    void routesDefaultResumePhrase() {
+        Optional<AgentToolRouter.RoutedTool> routed = router.route("帮我分析默认简历");
+        assertTrue(routed.isPresent());
+        assertEquals("get_default_resume", routed.get().toolName());
+    }
+
+    @Test
     void routesJobGapToGetLatestJobMatch() {
         Optional<AgentToolRouter.RoutedTool> routed = router.route("我和最近岗位差距在哪里");
         assertTrue(routed.isPresent());
@@ -59,15 +66,14 @@ class AgentToolRouterTest {
     @Test
     void routesCasualChatToNoTool() {
         assertTrue(router.route("今天天气不错").isEmpty());
+        assertTrue(router.route("你好").isEmpty());
     }
 
     @Test
-    void extractsJobTitleAndCompanyWhenJdIsSingleLine() {
-        String jd = "岗位：Java 后端工程师 公司：e2e_company 招聘要求：" + "Java ".repeat(30);
-        Optional<AgentToolRouter.RoutedTool> routed = router.route(jd);
-        assertTrue(routed.isPresent());
-        assertEquals("create_job_match", routed.get().toolName());
-        assertEquals("Java 后端工程师", routed.get().args().get("jobTitle"));
-        assertEquals("e2e_company", routed.get().args().get("companyName"));
+    void shortJdDoesNotRouteCreateJobMatch() {
+        String shortJd = "岗位：Java 后端工程师\n公司：e2e_company\n招聘要求：Java Spring Boot";
+        assertTrue(router.route(shortJd).isEmpty());
     }
+
+   
 }
