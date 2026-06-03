@@ -6,6 +6,7 @@ public enum SseEventType {
     TOKEN,
     MESSAGE,
     TOOL_CALL,
+    TOOL_START,
     TOOL_RESULT,
     TRACE,
     UI_ACTION,

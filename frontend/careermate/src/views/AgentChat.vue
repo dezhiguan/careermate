@@ -259,6 +259,17 @@ async function sendMessage() {
         const steps = Array.isArray(data?.steps) ? data.steps.join(' -> ') : '执行计划已生成'
         pushTrace('plan', steps, data)
       },
+      onToolStart(data) {
+        const name = data?.toolName || 'unknown'
+        const summary = data?.summary || '正在执行工具'
+        pushTrace('tool_start', `正在执行 ${name}：${summary}`, data)
+      },
+      onToolResult(data) {
+        const name = data?.toolName || 'unknown'
+        const status = data?.success ? '执行成功' : '执行失败'
+        const summary = data?.summary || ''
+        pushTrace('tool_result', `${name} ${status}${summary ? `：${summary}` : ''}`, data)
+      },
       onToken(data) {
         const token = data?.content || ''
         agentMessage.text += token

@@ -114,6 +114,12 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
           case 'heartbeat':
             handlers.onHeartbeat?.(payload)
             break
+          case 'tool_start':
+            handlers.onToolStart?.(payload)
+            break
+          case 'tool_result':
+            handlers.onToolResult?.(payload)
+            break
           default:
             break
         }

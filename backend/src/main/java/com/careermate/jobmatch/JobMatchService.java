@@ -68,7 +68,14 @@ public class JobMatchService {
 
     @Transactional
     public JobMatchDetailResponse analyzeCurrentUserDefaultResume(JobMatchAnalyzeRequest request) {
-        Long userId = requireUserId();
+        return analyzeForUser(requireUserId(), request);
+    }
+
+    @Transactional
+    public JobMatchDetailResponse analyzeForUser(Long userId, JobMatchAnalyzeRequest request) {
+        if (userId == null) {
+            throw new BizException(401, "未认证");
+        }
         ResumeEntity resume = resumeService.getDefaultActiveResume(userId)
                 .orElseThrow(() -> new BizException(400, "请先创建并设置默认简历后再进行岗位匹配"));
 

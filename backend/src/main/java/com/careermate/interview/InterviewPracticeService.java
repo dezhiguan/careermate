@@ -76,7 +76,14 @@ public class InterviewPracticeService {
 
     @Transactional
     public InterviewSessionDetailResponse createSession(InterviewSessionCreateRequest request) {
-        Long userId = requireUserId();
+        return createSessionForUser(requireUserId(), request);
+    }
+
+    @Transactional
+    public InterviewSessionDetailResponse createSessionForUser(Long userId, InterviewSessionCreateRequest request) {
+        if (userId == null) {
+            throw new BizException(401, "未认证");
+        }
         ResumeEntity resume = resumeService.getDefaultActiveResume(userId)
                 .orElseThrow(() -> new BizException(400, NO_DEFAULT_RESUME_MSG));
 
@@ -116,11 +123,14 @@ public class InterviewPracticeService {
             questionMapper.insert(q);
         }
 
-        return getSession(session.getId());
+        return getSessionForUser(session.getId(), userId);
     }
 
     public InterviewSessionDetailResponse getSession(Long sessionId) {
-        Long userId = requireUserId();
+        return getSessionForUser(sessionId, requireUserId());
+    }
+
+    public InterviewSessionDetailResponse getSessionForUser(Long sessionId, Long userId) {
         InterviewSessionEntity session = requireOwnedSession(sessionId, userId);
         List<InterviewQuestionEntity> questions = questionMapper.selectList(
                 new LambdaQueryWrapper<InterviewQuestionEntity>()
