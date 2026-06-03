@@ -61,6 +61,33 @@
         </div>
       </section>
 
+      <div class="section-title">✅ 下一步任务</div>
+      <div v-if="!overview.tasks?.length" class="empty-state tasks-empty">
+        <div>暂无任务</div>
+      </div>
+      <div v-else class="task-list">
+        <div v-for="task in overview.tasks" :key="task.id" class="task-card">
+          <div class="task-main">
+            <div class="task-title">{{ task.title }}</div>
+            <div class="task-meta">
+              <span class="task-tag">{{ categoryLabel(task.category) }}</span>
+              <span class="task-tag" :class="priorityClass(task.priority)">
+                {{ priorityLabel(task.priority) }}
+              </span>
+              <span v-if="task.dueDate" class="task-due">截止 {{ task.dueDate }}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="task-done-btn"
+            :disabled="completingTaskId === task.id"
+            @click="completeTask(task.id)"
+          >
+            {{ completingTaskId === task.id ? '处理中...' : '完成' }}
+          </button>
+        </div>
+      </div>
+
       <div class="section-title">📋 下一步建议</div>
       <div class="suggestions-grid">
         <div
@@ -98,10 +125,12 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { getDashboardOverview } from '../api/dashboard'
+import { markTaskDone } from '../api/tasks'
 
 const overview = ref(null)
 const loading = ref(false)
 const error = ref('')
+const completingTaskId = ref(null)
 
 const interviewStatusLabel = computed(() => {
   const stats = overview.value?.interviewStats
@@ -125,6 +154,36 @@ async function loadOverview() {
   } finally {
     loading.value = false
   }
+}
+
+async function completeTask(taskId) {
+  if (!taskId || completingTaskId.value) return
+  completingTaskId.value = taskId
+  try {
+    await markTaskDone(taskId)
+    await loadOverview()
+  } catch (e) {
+    error.value = e?.message || '标记完成失败'
+  } finally {
+    completingTaskId.value = null
+  }
+}
+
+function categoryLabel(category) {
+  const map = {
+    RESUME: '简历',
+    JOB_MATCH: '岗位匹配',
+    INTERVIEW: '面试',
+    PROFILE: '画像',
+    GENERAL: '通用',
+  }
+  return map[category] || category || '任务'
+}
+
+function priorityLabel(priority) {
+  if (priority === 'HIGH') return '高优先级'
+  if (priority === 'MEDIUM') return '中优先级'
+  return '低优先级'
 }
 
 function priorityClass(priority) {
@@ -232,6 +291,28 @@ function formatTime(iso) {
   text-align: center; color: var(--text-muted); padding: 24px 16px; font-size: 13px;
   background: #f8fafc; border-radius: 10px; margin-bottom: 22px;
 }
+.tasks-empty { padding: 16px; margin-bottom: 22px; }
+
+.task-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+.task-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; background: #fff; border: 1px solid var(--border); border-radius: 10px;
+}
+.task-title { font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 6px; }
+.task-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 10px; }
+.task-tag {
+  padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: var(--slate);
+}
+.task-tag.high { background: #fef2f2; color: #991b1b; }
+.task-tag.mid { background: #fffbeb; color: #92400e; }
+.task-tag.low { background: #f0fdf4; color: #166534; }
+.task-due { color: var(--text-muted); }
+.task-done-btn {
+  flex-shrink: 0; border: 1px solid var(--green); background: #fff; color: var(--green);
+  border-radius: 6px; padding: 6px 12px; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.task-done-btn:hover:not(:disabled) { background: #f0fdf4; }
+.task-done-btn:disabled { opacity: .6; cursor: default; }
 .empty-icon { font-size: 28px; margin-bottom: 8px; }
 
 .timeline { margin-bottom: 22px; }

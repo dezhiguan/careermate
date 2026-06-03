@@ -18,6 +18,8 @@ import com.careermate.model.entity.JobMatchEntity;
 import com.careermate.model.entity.ResumeEntity;
 import com.careermate.resume.ResumeService;
 import com.careermate.security.CurrentUserContext;
+import com.careermate.task.CareerTaskService;
+import com.careermate.task.dto.DashboardTaskItemResponse;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -34,15 +36,18 @@ public class DashboardService {
     private final ResumeMapper resumeMapper;
     private final JobMatchMapper jobMatchMapper;
     private final InterviewSessionMapper interviewSessionMapper;
+    private final CareerTaskService careerTaskService;
 
     public DashboardService(
             ResumeMapper resumeMapper,
             JobMatchMapper jobMatchMapper,
-            InterviewSessionMapper interviewSessionMapper
+            InterviewSessionMapper interviewSessionMapper,
+            CareerTaskService careerTaskService
     ) {
         this.resumeMapper = resumeMapper;
         this.jobMatchMapper = jobMatchMapper;
         this.interviewSessionMapper = interviewSessionMapper;
+        this.careerTaskService = careerTaskService;
     }
 
     public DashboardOverviewResponse getOverview() {
@@ -81,6 +86,7 @@ public class DashboardService {
         List<DashboardActivityResponse> recentActivities = buildRecentActivities(
                 resumes, jobMatches, interviewSessions
         );
+        List<DashboardTaskItemResponse> tasks = careerTaskService.listDashboardTodoTasks(userId);
 
         return DashboardOverviewResponse.builder()
                 .resumeStats(resumeStats)
@@ -88,6 +94,7 @@ public class DashboardService {
                 .interviewStats(interviewStats)
                 .suggestions(suggestions)
                 .recentActivities(recentActivities)
+                .tasks(tasks)
                 .build();
     }
 
