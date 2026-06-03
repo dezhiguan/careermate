@@ -1,18 +1,18 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const {
+  mustUseUserFlow,
   logEnv,
   assertBackendReady,
+  assertUserFlowEnvironment,
   detectAuthMode,
   attachDiagnostics,
   waitStable,
   clearAuthStorage,
   enterFromLoginIfNeeded,
+  enterApplicationAsUser,
   assertAgentDashboard,
   assertAgentDashboardWithUser,
-  registerViaUi,
-  loginViaUi,
-  createTestCredentials,
   printCreatedAccountsReport,
   gotoApp,
   MOCK_REPLY,
@@ -28,6 +28,11 @@ let jwtTestAccount = null;
  * @param {import('@playwright/test').Page} page
  */
 async function ensureInApp(page) {
+  if (mustUseUserFlow) {
+    jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
+    return;
+  }
+
   await gotoApp(page, '/');
   await waitStable(page);
 
@@ -37,25 +42,7 @@ async function ensureInApp(page) {
     return;
   }
 
-  const onAgent = await page
-    .getByText('Agent 对话台')
-    .isVisible({ timeout: 4_000 })
-    .catch(() => false);
-
-  if (!onAgent) {
-    if (!jwtTestAccount) {
-      jwtTestAccount = createTestCredentials();
-      await registerViaUi(page, jwtTestAccount);
-    } else {
-      await clearAuthStorage(page);
-      await loginViaUi(page, jwtTestAccount);
-    }
-    await assertAgentDashboardWithUser(page, jwtTestAccount.username);
-  } else if (jwtTestAccount) {
-    await expect(page.locator('.user-badge')).toContainText(jwtTestAccount.username);
-  } else {
-    await assertAgentDashboard(page);
-  }
+  jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
 }
 
 /**
@@ -86,6 +73,7 @@ async function assertNoHorizontalScroll(page) {
 test.beforeAll(async ({ request }) => {
   logEnv();
   await assertBackendReady(request);
+  await assertUserFlowEnvironment(request);
   detectedAuthMode = await detectAuthMode(request);
   console.log(`[careermate] 认证模式: ${detectedAuthMode}`);
 });

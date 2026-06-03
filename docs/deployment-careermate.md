@@ -292,4 +292,4 @@ Each deploy creates:
 
 ## 14. 本地 E2E 验收（Playwright）
 
-在 `frontend/careermate` 目录执行 E2E（本机 Google Chrome headed）：`E2E_TARGET=local` 时 `npm run test:e2e:show:local` / `test:e2e:auth:local`（需本地 backend）；`E2E_TARGET=cloud` 时 `test:e2e:show:cloud` / `test:e2e:auth:cloud`（目标 `http://8.163.63.222/careermate/`）。jwt 测试账号前缀 `e2e_local_` / `e2e_cloud_`。
+在 `frontend/careermate` 目录执行 E2E（本机 Google Chrome headed）。云端完整用户场景（注册→功能→退出登录，不 skip）：`npm run test:e2e:cloud:full`（要求 `SECURITY_MODE=jwt` 且 `JWT_SECRET`≥32 字节）。云端须为 jwt 模式，账号前缀 `e2e_cloud_`。
