@@ -275,6 +275,16 @@ const AGENT_NETWORK_ERROR = /network error|暂未收到回复/i;
  * @param {import('@playwright/test').Page} page
  * @param {import('@playwright/test').Locator} card
  */
+/**
+ * @param {import('@playwright/test').Page} page
+ */
+async function assertNoHorizontalScroll(page) {
+  const hasHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+  );
+  expect(hasHorizontalOverflow).toBeFalsy();
+}
+
 async function ensureResumeIsDefault(page, card) {
   if (await card.locator('.default-badge').isVisible().catch(() => false)) {
     return;
@@ -578,4 +588,5 @@ module.exports = {
   printCreatedAccountsReport,
   sendAgentMessageAndExpectMockReply,
   ensureResumeIsDefault,
+  assertNoHorizontalScroll,
 };
