@@ -1,14 +1,21 @@
 package com.careermate.agent.session;
 
+import com.careermate.mapper.UserMapper;
+import com.careermate.mapper.UserProfileMapper;
 import com.careermate.security.CurrentUser;
 import com.careermate.security.CurrentUserContext;
+import com.careermate.testsupport.TestUserSupport;
+import com.careermate.testsupport.TestUsers;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -17,6 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @AutoConfigureMockMvc(addFilters = false)
 class AgentSessionApiTest {
 
@@ -25,6 +33,20 @@ class AgentSessionApiTest {
 
     @Autowired
     private AgentSessionService agentSessionService;
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private UserProfileMapper userProfileMapper;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @BeforeEach
+    void setUp() {
+        TestUserSupport.ensureTestUsers(userMapper, userProfileMapper, passwordEncoder);
+    }
 
     @AfterEach
     void tearDown() {
@@ -42,7 +64,7 @@ class AgentSessionApiTest {
 
     @Test
     void createAndGetSession() throws Exception {
-        loginAs(1L, "local-user");
+        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
 
         String sessionId = mockMvc.perform(post("/api/agent/sessions"))
                 .andExpect(status().isOk())
@@ -68,30 +90,30 @@ class AgentSessionApiTest {
 
     @Test
     void persistMessagesAndTraceViaService() {
-        loginAs(1L, "local-user");
-        String sessionId = agentSessionService.createSession(1L).getSessionId();
+        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
+        String sessionId = agentSessionService.createSession(TestUsers.USER_A).getSessionId();
 
-        agentSessionService.appendMessage(1L, sessionId, "user", "帮我分析简历", "text");
-        agentSessionService.appendMessage(1L, sessionId, "agent", "mock reply", "text");
-        agentSessionService.recordTrace(1L, sessionId, "PLAN", "{}", "{}", "SUCCESS", null, null);
-        agentSessionService.recordTrace(1L, sessionId, "MESSAGE", "{}", "{}", "SUCCESS", null, null);
-        agentSessionService.recordTrace(1L, sessionId, "DONE", "{}", "{}", "SUCCESS", 100L, null);
-        agentSessionService.markCompleted(1L, sessionId, 100L);
+        agentSessionService.appendMessage(TestUsers.USER_A, sessionId, "user", "帮我分析简历", "text");
+        agentSessionService.appendMessage(TestUsers.USER_A, sessionId, "agent", "mock reply", "text");
+        agentSessionService.recordTrace(TestUsers.USER_A, sessionId, "PLAN", "{}", "{}", "SUCCESS", null, null);
+        agentSessionService.recordTrace(TestUsers.USER_A, sessionId, "MESSAGE", "{}", "{}", "SUCCESS", null, null);
+        agentSessionService.recordTrace(TestUsers.USER_A, sessionId, "DONE", "{}", "{}", "SUCCESS", 100L, null);
+        agentSessionService.markCompleted(TestUsers.USER_A, sessionId, 100L);
 
-        var session = agentSessionService.getSession(1L, sessionId);
+        var session = agentSessionService.getSession(TestUsers.USER_A, sessionId);
         assertEquals(2, session.getMessages().size());
         assertEquals("COMPLETED", session.getStatus());
 
-        var traces = agentSessionService.getTrace(1L, sessionId);
+        var traces = agentSessionService.getTrace(TestUsers.USER_A, sessionId);
         assertEquals(3, traces.size());
     }
 
     @Test
     void otherUserGetsNotFound() throws Exception {
-        loginAs(1L, "local-user");
-        String sessionId = agentSessionService.createSession(1L).getSessionId();
+        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
+        String sessionId = agentSessionService.createSession(TestUsers.USER_A).getSessionId();
 
-        loginAs(999999L, "other");
+        loginAs(TestUsers.USER_B, TestUsers.USER_B_NAME);
         mockMvc.perform(get("/api/agent/sessions/" + sessionId))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404));

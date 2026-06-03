@@ -10,6 +10,7 @@ import com.careermate.resume.dto.ResumeDetailResponse;
 import com.careermate.resume.dto.ResumeListItemResponse;
 import com.careermate.resume.dto.ResumeUpdateRequest;
 import com.careermate.security.CurrentUserContext;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -77,7 +78,7 @@ public class ResumeService {
         entity.setStatus(STATUS_ACTIVE);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
-        resumeMapper.insert(entity);
+        insertResumeEntity(entity);
 
         return toDetail(entity);
     }
@@ -136,17 +137,33 @@ public class ResumeService {
                         .set(ResumeEntity::getUpdatedAt, now)
         );
 
-        resumeMapper.update(
-                null,
-                new LambdaUpdateWrapper<ResumeEntity>()
-                        .eq(ResumeEntity::getId, id)
-                        .eq(ResumeEntity::getUserId, userId)
-                        .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
-                        .set(ResumeEntity::getIsDefault, true)
-                        .set(ResumeEntity::getUpdatedAt, now)
-        );
+        try {
+            resumeMapper.update(
+                    null,
+                    new LambdaUpdateWrapper<ResumeEntity>()
+                            .eq(ResumeEntity::getId, id)
+                            .eq(ResumeEntity::getUserId, userId)
+                            .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
+                            .set(ResumeEntity::getIsDefault, true)
+                            .set(ResumeEntity::getUpdatedAt, now)
+            );
+        } catch (DuplicateKeyException ex) {
+            throw new BizException(409, "设置默认简历冲突，请稍后重试");
+        }
 
         return getResume(id);
+    }
+
+    private void insertResumeEntity(ResumeEntity entity) {
+        try {
+            resumeMapper.insert(entity);
+        } catch (DuplicateKeyException ex) {
+            if (!Boolean.TRUE.equals(entity.getIsDefault())) {
+                throw ex;
+            }
+            entity.setIsDefault(false);
+            resumeMapper.insert(entity);
+        }
     }
 
     private void promoteLatestActiveAsDefault(Long userId) {

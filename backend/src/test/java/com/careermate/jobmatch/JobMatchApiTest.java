@@ -1,13 +1,16 @@
 package com.careermate.jobmatch;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.careermate.mapper.JobMatchMapper;
 import com.careermate.mapper.ResumeMapper;
+import com.careermate.mapper.UserMapper;
+import com.careermate.mapper.UserProfileMapper;
 import com.careermate.model.entity.JobMatchEntity;
 import com.careermate.model.entity.ResumeEntity;
 import com.careermate.resume.ResumeService;
 import com.careermate.security.CurrentUser;
 import com.careermate.security.CurrentUserContext;
+import com.careermate.testsupport.TestUserSupport;
+import com.careermate.testsupport.TestUsers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,9 +19,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @AutoConfigureMockMvc(addFilters = false)
 class JobMatchApiTest {
 
@@ -44,12 +49,19 @@ class JobMatchApiTest {
     @Autowired
     private JobMatchMapper jobMatchMapper;
 
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private UserProfileMapper userProfileMapper;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @BeforeEach
-    void cleanFixtures() {
-        jobMatchMapper.delete(new LambdaQueryWrapper<JobMatchEntity>()
-                .in(JobMatchEntity::getUserId, List.of(1L, 2L)));
-        resumeMapper.delete(new LambdaQueryWrapper<ResumeEntity>()
-                .in(ResumeEntity::getUserId, List.of(1L, 2L)));
+    void setUp() {
+        TestUserSupport.ensureTestUsers(userMapper, userProfileMapper, passwordEncoder);
+        TestUserSupport.cleanupUserBusinessData(resumeMapper, jobMatchMapper);
     }
 
     @AfterEach
@@ -59,10 +71,10 @@ class JobMatchApiTest {
 
     @Test
     void analyzeFailsWithoutDefaultResume() throws Exception {
-        loginAs(1L, "local-user");
+        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
         String body = objectMapper.writeValueAsString(Map.of(
-                "jobTitle", "Java 后端",
-                "companyName", "测试公司",
+                "jobTitle", "test_java_backend",
+                "companyName", "test_company",
                 "jdContent", "Java, Redis"
         ));
 
@@ -76,12 +88,12 @@ class JobMatchApiTest {
 
     @Test
     void analyzeSaveListGetDeleteAndIsolation() throws Exception {
-        loginAs(1L, "local-user");
-        insertDefaultResume(1L, "匹配测试简历", "Java, Spring Boot, PostgreSQL, Redis");
+        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
+        insertDefaultResume(TestUsers.USER_A, "test_match_resume", "Java, Spring Boot, PostgreSQL, Redis");
 
         String analyzeBody = objectMapper.writeValueAsString(Map.of(
-                "jobTitle", "Java 后端工程师",
-                "companyName", "某互联网公司",
+                "jobTitle", "test_java_backend_engineer",
+                "companyName", "test_company",
                 "jdContent", "Java, Spring Boot, Redis, Elasticsearch, Docker"
         ));
 
@@ -101,18 +113,18 @@ class JobMatchApiTest {
         mockMvc.perform(get("/api/job-matches"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].jobTitle").value("Java 后端工程师"));
+                .andExpect(jsonPath("$.data[0].jobTitle").value("test_java_backend_engineer"));
 
         mockMvc.perform(get("/api/job-matches/" + matchId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.jdContent").exists())
                 .andExpect(jsonPath("$.data.strengths").isArray());
 
-        loginAs(2L, "other-user");
+        loginAs(TestUsers.USER_B, TestUsers.USER_B_NAME);
         mockMvc.perform(get("/api/job-matches/" + matchId))
                 .andExpect(status().isNotFound());
 
-        loginAs(1L, "local-user");
+        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
         mockMvc.perform(delete("/api/job-matches/" + matchId))
                 .andExpect(status().isOk());
 

@@ -13,20 +13,18 @@ public class AgentTaskRegistry {
 
     private final ConcurrentHashMap<String, Future<?>> runningTasks = new ConcurrentHashMap<>();
 
-    public boolean tryStart(String sessionId, Future<?> future) {
+    /**
+     * 原子占用 session 任务槽；未完成任务的 session 再次请求将直接 429。
+     */
+    public void startOrThrow(String sessionId, Future<?> future) {
         Future<?> existing = runningTasks.putIfAbsent(sessionId, future);
-        if (existing != null && !existing.isDone() && !existing.isCancelled()) {
+        if (existing == null) {
+            return;
+        }
+        if (!existing.isDone() && !existing.isCancelled()) {
             throw new BizException(429, "当前会话已有任务运行中");
         }
-        if (existing != null) {
-            runningTasks.replace(sessionId, future);
-        }
-        return true;
-    }
-
-    public boolean isRunning(String sessionId) {
-        Future<?> future = runningTasks.get(sessionId);
-        return future != null && !future.isDone() && !future.isCancelled();
+        runningTasks.put(sessionId, future);
     }
 
     public void cancel(String sessionId) {
@@ -45,4 +43,3 @@ public class AgentTaskRegistry {
         runningTasks.remove(sessionId);
     }
 }
-
