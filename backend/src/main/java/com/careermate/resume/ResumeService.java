@@ -1,0 +1,210 @@
+package com.careermate.resume;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.careermate.common.exception.BizException;
+import com.careermate.mapper.ResumeMapper;
+import com.careermate.model.entity.ResumeEntity;
+import com.careermate.resume.dto.ResumeCreateRequest;
+import com.careermate.resume.dto.ResumeDetailResponse;
+import com.careermate.resume.dto.ResumeListItemResponse;
+import com.careermate.resume.dto.ResumeUpdateRequest;
+import com.careermate.security.CurrentUserContext;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+
+@Service
+public class ResumeService {
+
+    public static final String STATUS_ACTIVE = "ACTIVE";
+    public static final String STATUS_DELETED = "DELETED";
+    public static final String SOURCE_TYPE_TEXT = "TEXT";
+    private static final int PREVIEW_MAX_LEN = 120;
+
+    private final ResumeMapper resumeMapper;
+
+    public ResumeService(ResumeMapper resumeMapper) {
+        this.resumeMapper = resumeMapper;
+    }
+
+    public List<ResumeListItemResponse> listActiveResumes() {
+        Long userId = requireUserId();
+        List<ResumeEntity> rows = resumeMapper.selectList(
+                new LambdaQueryWrapper<ResumeEntity>()
+                        .eq(ResumeEntity::getUserId, userId)
+                        .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
+                        .orderByDesc(ResumeEntity::getCreatedAt)
+        );
+        return rows.stream().map(this::toListItem).toList();
+    }
+
+    @Transactional
+    public ResumeDetailResponse createResume(ResumeCreateRequest request) {
+        Long userId = requireUserId();
+        OffsetDateTime now = OffsetDateTime.now();
+
+        boolean hasDefault = resumeMapper.selectCount(
+                new LambdaQueryWrapper<ResumeEntity>()
+                        .eq(ResumeEntity::getUserId, userId)
+                        .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
+                        .eq(ResumeEntity::getIsDefault, true)
+        ) > 0;
+
+        ResumeEntity entity = new ResumeEntity();
+        entity.setUserId(userId);
+        entity.setTitle(request.getTitle().trim());
+        entity.setContent(request.getContent().trim());
+        entity.setSourceType(SOURCE_TYPE_TEXT);
+        entity.setIsDefault(!hasDefault);
+        entity.setStatus(STATUS_ACTIVE);
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        resumeMapper.insert(entity);
+
+        return toDetail(entity);
+    }
+
+    public ResumeDetailResponse getResume(Long id) {
+        Long userId = requireUserId();
+        ResumeEntity entity = getActiveResumeOrThrow(userId, id);
+        return toDetail(entity);
+    }
+
+    @Transactional
+    public ResumeDetailResponse updateResume(Long id, ResumeUpdateRequest request) {
+        Long userId = requireUserId();
+        ResumeEntity entity = getActiveResumeOrThrow(userId, id);
+        entity.setTitle(request.getTitle().trim());
+        entity.setContent(request.getContent().trim());
+        entity.setUpdatedAt(OffsetDateTime.now());
+        resumeMapper.updateById(entity);
+        return toDetail(entity);
+    }
+
+    @Transactional
+    public void deleteResume(Long id) {
+        Long userId = requireUserId();
+        ResumeEntity entity = getActiveResumeOrThrow(userId, id);
+        boolean wasDefault = Boolean.TRUE.equals(entity.getIsDefault());
+        OffsetDateTime now = OffsetDateTime.now();
+
+        resumeMapper.update(
+                null,
+                new LambdaUpdateWrapper<ResumeEntity>()
+                        .eq(ResumeEntity::getId, id)
+                        .eq(ResumeEntity::getUserId, userId)
+                        .set(ResumeEntity::getStatus, STATUS_DELETED)
+                        .set(ResumeEntity::getIsDefault, false)
+                        .set(ResumeEntity::getUpdatedAt, now)
+        );
+
+        if (wasDefault) {
+            promoteLatestActiveAsDefault(userId);
+        }
+    }
+
+    @Transactional
+    public ResumeDetailResponse setDefaultResume(Long id) {
+        Long userId = requireUserId();
+        getActiveResumeOrThrow(userId, id);
+        OffsetDateTime now = OffsetDateTime.now();
+
+        resumeMapper.update(
+                null,
+                new LambdaUpdateWrapper<ResumeEntity>()
+                        .eq(ResumeEntity::getUserId, userId)
+                        .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
+                        .set(ResumeEntity::getIsDefault, false)
+                        .set(ResumeEntity::getUpdatedAt, now)
+        );
+
+        resumeMapper.update(
+                null,
+                new LambdaUpdateWrapper<ResumeEntity>()
+                        .eq(ResumeEntity::getId, id)
+                        .eq(ResumeEntity::getUserId, userId)
+                        .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
+                        .set(ResumeEntity::getIsDefault, true)
+                        .set(ResumeEntity::getUpdatedAt, now)
+        );
+
+        return getResume(id);
+    }
+
+    private void promoteLatestActiveAsDefault(Long userId) {
+        ResumeEntity latest = resumeMapper.selectOne(
+                new LambdaQueryWrapper<ResumeEntity>()
+                        .eq(ResumeEntity::getUserId, userId)
+                        .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
+                        .orderByDesc(ResumeEntity::getCreatedAt)
+                        .last("LIMIT 1")
+        );
+        if (latest == null) {
+            return;
+        }
+        latest.setIsDefault(true);
+        latest.setUpdatedAt(OffsetDateTime.now());
+        resumeMapper.updateById(latest);
+    }
+
+    private ResumeEntity getActiveResumeOrThrow(Long userId, Long id) {
+        ResumeEntity entity = resumeMapper.selectOne(
+                new LambdaQueryWrapper<ResumeEntity>()
+                        .eq(ResumeEntity::getId, id)
+                        .eq(ResumeEntity::getUserId, userId)
+                        .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
+        );
+        if (entity == null) {
+            throw new BizException(404, "简历不存在");
+        }
+        return entity;
+    }
+
+    private Long requireUserId() {
+        Long userId = CurrentUserContext.getUserId();
+        if (userId == null) {
+            throw new BizException(401, "未认证");
+        }
+        return userId;
+    }
+
+    private ResumeListItemResponse toListItem(ResumeEntity entity) {
+        return ResumeListItemResponse.builder()
+                .id(entity.getId())
+                .title(entity.getTitle())
+                .sourceType(entity.getSourceType())
+                .isDefault(entity.getIsDefault())
+                .status(entity.getStatus())
+                .contentPreview(buildPreview(entity.getContent()))
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
+    }
+
+    private ResumeDetailResponse toDetail(ResumeEntity entity) {
+        return ResumeDetailResponse.builder()
+                .id(entity.getId())
+                .title(entity.getTitle())
+                .content(entity.getContent())
+                .sourceType(entity.getSourceType())
+                .isDefault(entity.getIsDefault())
+                .status(entity.getStatus())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
+    }
+
+    private String buildPreview(String content) {
+        if (content == null) {
+            return "";
+        }
+        String normalized = content.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= PREVIEW_MAX_LEN) {
+            return normalized;
+        }
+        return normalized.substring(0, PREVIEW_MAX_LEN) + "...";
+    }
+}

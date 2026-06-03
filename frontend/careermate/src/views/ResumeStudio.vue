@@ -2,73 +2,93 @@
   <div class="page-container">
     <div class="page-header">
       <h2 class="page-title">📝 简历工作室</h2>
-      <p class="page-sub">Agent 触发：用户说"帮我看看/优化简历"</p>
+      <p class="page-sub">文本简历：创建、编辑、设为默认（V1）</p>
     </div>
 
+    <div v-if="pageError" class="banner error">{{ pageError }}</div>
+    <div v-if="pageLoading" class="banner loading">加载中...</div>
+
     <div class="content-grid">
-      <!-- Left: Upload & List -->
       <div class="left-panel">
-        <!-- Upload -->
-        <div
-          class="upload-zone"
-          :class="{ dragging: isDragging }"
-          @dragover.prevent="isDragging = true"
-          @dragleave="isDragging = false"
-          @drop.prevent="handleDrop"
-          @click="triggerUpload"
-        >
-          <div class="upload-icon">{{ uploading ? '⏳' : '📤' }}</div>
-          <div class="upload-title">{{ uploading ? '解析中...' : '上传简历' }}</div>
-          <div class="upload-hint">PDF / Word / Markdown</div>
-          <input ref="fileInput" type="file" accept=".pdf,.doc,.docx,.md" style="display:none" @change="handleFileSelect">
+        <div v-if="resumes.length === 0 && !showCreateForm" class="empty-state">
+          <div class="empty-icon">📋</div>
+          <div class="empty-text">还没有简历，先创建一份文本简历</div>
+          <button class="btn primary" type="button" @click="openCreateForm">创建简历</button>
         </div>
 
-        <div v-if="uploadStatus" class="upload-status" :class="uploadStatus">
-          {{ uploadStatusText }}
-        </div>
+        <div v-else class="list-section">
+          <div class="list-toolbar">
+            <div class="section-title">我的简历 ({{ resumes.length }})</div>
+            <button class="btn ghost" type="button" @click="openCreateForm">+ 新建</button>
+          </div>
 
-        <!-- Resume List -->
-        <div class="resume-list">
-          <div class="section-title">已有简历 ({{ resumes.length }})</div>
           <div
-            v-for="(r, i) in resumes"
-            :key="i"
+            v-for="item in resumes"
+            :key="item.id"
             class="resume-card"
-            :class="{ active: r.active }"
-            @click="selectResume(i)"
+            :class="{ active: selectedId === item.id }"
+            @click="selectResume(item.id)"
           >
-            <div class="resume-name">📄 {{ r.name }}</div>
-            <div class="resume-meta">{{ r.status }} · {{ r.chunks }} Chunk · {{ r.date }}</div>
-            <div v-if="r.analyzed" class="resume-tag">🔍 Agent 已分析 →</div>
+            <div class="resume-name">
+              📄 {{ item.title }}
+              <span v-if="item.isDefault" class="default-badge">默认</span>
+            </div>
+            <div class="resume-meta">{{ item.contentPreview || '（无预览）' }}</div>
+            <div class="resume-date">{{ formatDate(item.updatedAt || item.createdAt) }}</div>
+          </div>
+        </div>
+
+        <div v-if="showCreateForm" class="create-panel">
+          <div class="section-title">{{ editingId ? '' : '新建简历' }}</div>
+          <label class="field-label">标题</label>
+          <input v-model="formTitle" class="field-input" maxlength="128" placeholder="例如：Java 后端简历">
+          <label class="field-label">正文</label>
+          <textarea
+            v-model="formContent"
+            class="field-textarea"
+            rows="8"
+            maxlength="50000"
+            placeholder="在此填写简历正文..."
+          />
+          <div class="form-actions">
+            <button class="btn primary" type="button" :disabled="saving" @click="saveCreate">
+              {{ saving ? '保存中...' : '保存' }}
+            </button>
+            <button class="btn ghost" type="button" :disabled="saving" @click="cancelCreate">取消</button>
           </div>
         </div>
       </div>
 
-      <!-- Right: Analysis -->
       <div class="right-panel">
-        <div class="section-title">🤖 Agent 简历分析摘要</div>
-
-        <div v-if="selectedResume && selectedResume.analyzed" class="analysis-content">
-          <!-- Thinking -->
-          <div class="thinking-box">
-            <div class="thinking-box-title">🧠 Agent 思考</div>
-            <div v-for="(step, i) in analysisSteps" :key="i" class="thinking-step">{{ step }}</div>
-          </div>
-
-          <div class="suggestions-box">
-            <div class="suggestions-title">优化建议 ({{ suggestions.length }}条)</div>
-            <div v-for="(s, i) in suggestions" :key="i" class="suggestion-item" :class="s.type">
-              <span class="sug-icon">{{ s.type === 'warn' ? '⚠️' : '💡' }}</span>
-              {{ s.text }}
-            </div>
-          </div>
-
-          <router-link to="/" class="nav-link-btn">💬 回对话台讨论优化方案 →</router-link>
+        <div v-if="!selectedId && resumes.length > 0" class="empty-detail">
+          <div class="empty-text">点击左侧简历查看与编辑</div>
         </div>
 
-        <div v-else class="empty-analysis">
-          <div class="empty-icon">📋</div>
-          <div class="empty-text">选择一个简历查看 Agent 分析结果</div>
+        <div v-else-if="selectedId && detailLoading" class="empty-detail">
+          <div class="empty-text">加载简历详情...</div>
+        </div>
+
+        <div v-else-if="selectedId" class="detail-panel">
+          <div class="section-title">编辑简历</div>
+          <label class="field-label">标题</label>
+          <input v-model="formTitle" class="field-input" maxlength="128">
+          <label class="field-label">正文</label>
+          <textarea v-model="formContent" class="field-textarea detail-textarea" rows="14" maxlength="50000" />
+          <div v-if="detailError" class="inline-error">{{ detailError }}</div>
+          <div class="form-actions">
+            <button class="btn primary" type="button" :disabled="saving" @click="saveEdit">
+              {{ saving ? '保存中...' : '保存修改' }}
+            </button>
+            <button
+              class="btn ghost"
+              type="button"
+              :disabled="saving || detail?.isDefault"
+              @click="makeDefault"
+            >
+              设为默认
+            </button>
+            <button class="btn danger" type="button" :disabled="saving" @click="removeResume">删除</button>
+          </div>
         </div>
       </div>
     </div>
@@ -76,212 +96,314 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { onMounted, ref } from 'vue'
+import {
+  listResumes,
+  createResume,
+  getResume,
+  updateResume,
+  deleteResume,
+  setDefaultResume,
+} from '../api/resume'
 
-const fileInput = ref(null)
-const isDragging = ref(false)
-const uploading = ref(false)
-const uploadStatus = ref('')
-const selectedIndex = ref(0)
+const resumes = ref([])
+const selectedId = ref(null)
+const detail = ref(null)
+const formTitle = ref('')
+const formContent = ref('')
 
-const resumes = ref([
-  { name: '后端开发_3年经验.pdf', status: '解析完成', chunks: 420, date: '5月20日上传', analyzed: true, active: true },
-])
+const pageLoading = ref(false)
+const pageError = ref('')
+const detailLoading = ref(false)
+const detailError = ref('')
+const saving = ref(false)
+const showCreateForm = ref(false)
+const editingId = ref(null)
 
-const analysisSteps = [
-  '提取技能: Java, Spring Boot, MySQL, Redis',
-  '识别经验: 3年后端开发, 1个微服务项目',
-  '检测缺失: 分布式系统、消息队列、大模型应用',
-  '建议: 补充量化成果、增加项目技术细节',
-]
+function formatDate(value) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
 
-const suggestions = ref([
-  { text: '缺少分布式系统经验描述', type: 'warn' },
-  { text: '性能优化成果未量化', type: 'warn' },
-  { text: '建议增加大模型相关项目', type: 'tip' },
-])
+async function loadList(selectAfterId = null) {
+  pageLoading.value = true
+  pageError.value = ''
+  try {
+    resumes.value = await listResumes()
+    if (selectAfterId && resumes.value.some((r) => r.id === selectAfterId)) {
+      await selectResume(selectAfterId)
+    } else if (selectedId.value && !resumes.value.some((r) => r.id === selectedId.value)) {
+      selectedId.value = null
+      detail.value = null
+      if (resumes.value.length > 0) {
+        await selectResume(resumes.value[0].id)
+      }
+    } else if (!selectedId.value && resumes.value.length > 0) {
+      await selectResume(resumes.value[0].id)
+    }
+  } catch (e) {
+    pageError.value = e?.message || '加载简历列表失败'
+  } finally {
+    pageLoading.value = false
+  }
+}
 
-const selectedResume = computed(() => resumes.value[selectedIndex.value] || null)
+async function selectResume(id) {
+  selectedId.value = id
+  showCreateForm.value = false
+  editingId.value = null
+  detailLoading.value = true
+  detailError.value = ''
+  try {
+    detail.value = await getResume(id)
+    formTitle.value = detail.value.title
+    formContent.value = detail.value.content
+  } catch (e) {
+    detailError.value = e?.message || '加载简历失败'
+  } finally {
+    detailLoading.value = false
+  }
+}
 
-const uploadStatusText = computed(() => {
-  if (uploadStatus.value === 'success') return '✅ 上传成功，Agent 正在解析...'
-  if (uploadStatus.value === 'error') return '❌ 上传失败，请重试'
-  return ''
+function openCreateForm() {
+  showCreateForm.value = true
+  editingId.value = null
+  selectedId.value = null
+  detail.value = null
+  formTitle.value = ''
+  formContent.value = ''
+  detailError.value = ''
+}
+
+function cancelCreate() {
+  showCreateForm.value = false
+  if (resumes.value.length > 0 && !selectedId.value) {
+    selectResume(resumes.value[0].id)
+  }
+}
+
+function validateForm() {
+  const title = formTitle.value.trim()
+  const content = formContent.value.trim()
+  if (!title) {
+    detailError.value = '请填写标题'
+    return null
+  }
+  if (!content) {
+    detailError.value = '请填写正文'
+    return null
+  }
+  detailError.value = ''
+  return { title, content }
+}
+
+async function saveCreate() {
+  const payload = validateForm()
+  if (!payload) return
+  saving.value = true
+  try {
+    const created = await createResume(payload)
+    showCreateForm.value = false
+    await loadList(created.id)
+  } catch (e) {
+    pageError.value = e?.message || '创建失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function saveEdit() {
+  if (!selectedId.value) return
+  const payload = validateForm()
+  if (!payload) return
+  saving.value = true
+  try {
+    detail.value = await updateResume(selectedId.value, payload)
+    await loadList(selectedId.value)
+  } catch (e) {
+    detailError.value = e?.message || '保存失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function makeDefault() {
+  if (!selectedId.value) return
+  saving.value = true
+  try {
+    detail.value = await setDefaultResume(selectedId.value)
+    await loadList(selectedId.value)
+  } catch (e) {
+    detailError.value = e?.message || '设置默认失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function removeResume() {
+  if (!selectedId.value) return
+  if (!window.confirm('确定删除这份简历吗？删除后不可恢复。')) return
+  saving.value = true
+  try {
+    await deleteResume(selectedId.value)
+    selectedId.value = null
+    detail.value = null
+    await loadList()
+  } catch (e) {
+    detailError.value = e?.message || '删除失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(() => {
+  loadList()
 })
-
-function triggerUpload() {
-  fileInput.value?.click()
-}
-
-function handleFileSelect(e) {
-  const file = e.target.files?.[0]
-  if (file) simulateUpload(file.name)
-}
-
-function handleDrop(e) {
-  isDragging.value = false
-  const file = e.dataTransfer?.files?.[0]
-  if (file) simulateUpload(file.name)
-}
-
-function simulateUpload(name) {
-  uploading.value = true
-  uploadStatus.value = ''
-  setTimeout(() => {
-    uploading.value = false
-    uploadStatus.value = 'success'
-    resumes.value.push({
-      name,
-      status: '解析中...',
-      chunks: '--',
-      date: new Date().toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) + '日上传',
-      analyzed: false,
-      active: false,
-    })
-    setTimeout(() => {
-      const r = resumes.value[resumes.value.length - 1]
-      r.status = '解析完成'
-      r.chunks = Math.floor(Math.random() * 300 + 200)
-      r.analyzed = true
-      uploadStatus.value = ''
-      selectedIndex.value = resumes.value.length - 1
-    }, 2000)
-  }, 1500)
-}
-
-function selectResume(i) {
-  selectedIndex.value = i
-  resumes.value.forEach((r, idx) => r.active = idx === i)
-}
 </script>
 
 <style scoped>
-.page-container { max-width: 960px; margin: 0 auto; padding: 24px 20px; }
-.page-header { margin-bottom: 20px; }
+.page-container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px;
+  overflow-x: hidden;
+}
+.page-header { margin-bottom: 16px; }
 .page-title { font-size: 22px; font-weight: 700; color: var(--navy); }
 .page-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 
-.content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-
-/* Left */
-.left-panel { display: flex; flex-direction: column; gap: 16px; }
-
-.upload-zone {
-  border: 2px dashed var(--border); border-radius: 12px; padding: 28px 20px;
-  text-align: center; cursor: pointer; transition: all .2s;
+.banner {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 12px;
 }
-.upload-zone:hover, .upload-zone.dragging { border-color: var(--purple); background: #faf5ff; }
-.upload-icon { font-size: 32px; margin-bottom: 6px; }
-.upload-title { font-weight: 600; font-size: 13px; }
-.upload-hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.banner.loading { background: #eef2ff; color: #3730a3; }
+.banner.error { background: #fef2f2; color: #991b1b; }
 
-.upload-status { padding: 8px 12px; border-radius: 6px; font-size: 11px; text-align: center; }
-.upload-status.success { background: #d1fae5; color: #065f46; }
-.upload-status.error { background: #fef2f2; color: #991b1b; }
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.left-panel,
+.right-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 
 .section-title { font-weight: 600; font-size: 12px; margin-bottom: 8px; }
-
-.resume-list { }
-.resume-card {
-  background: #fff; border: 1px solid var(--border); border-radius: 8px;
-  padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: all .2s;
+.list-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
-.resume-card:hover, .resume-card.active { border-color: var(--purple); box-shadow: 0 2px 8px rgba(139,92,246,.1); }
-.resume-name { font-weight: 600; font-size: 12px; }
-.resume-meta { color: var(--text-muted); font-size: 10px; margin-top: 2px; }
-.resume-tag { color: var(--purple); font-size: 10px; margin-top: 4px; }
 
-/* Right */
-.right-panel { }
-.thinking-box {
-  background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px;
-  padding: 12px 14px; margin-bottom: 12px; font-size: 11px;
-}
-.thinking-box-title { font-weight: 600; margin-bottom: 6px; color: var(--purple); }
-.thinking-step { padding: 2px 0 2px 14px; position: relative; color: var(--gray); }
-.thinking-step::before { content: "▸"; position: absolute; left: 0; color: var(--purple); }
-
-.suggestions-box { margin-bottom: 14px; }
-.suggestions-title { font-weight: 600; font-size: 12px; margin-bottom: 6px; }
-.suggestion-item { padding: 6px 10px; border-radius: 6px; font-size: 11px; margin-bottom: 4px; }
-.suggestion-item.warn { background: #fef2f2; color: #991b1b; }
-.suggestion-item.tip { background: #f0fdf4; color: #065f46; }
-.sug-icon { margin-right: 4px; }
-
-.nav-link-btn {
-  display: block; text-align: center; padding: 8px;
-  border: 1px solid var(--purple); border-radius: 8px; color: var(--purple);
-  font-size: 11px; text-decoration: none; transition: all .2s;
-}
-.nav-link-btn:hover { background: #f5f3ff; }
-
-.empty-analysis {
-  text-align: center; padding: 40px 20px; color: var(--text-muted);
+.empty-state,
+.empty-detail {
+  text-align: center;
+  padding: 32px 16px;
+  background: #fff;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--text-muted);
 }
 .empty-icon { font-size: 36px; margin-bottom: 8px; }
-.empty-text { font-size: 12px; }
+.empty-text { font-size: 13px; margin-bottom: 12px; }
+
+.resume-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.resume-card:hover,
+.resume-card.active {
+  border-color: var(--purple);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.1);
+}
+.resume-name { font-weight: 600; font-size: 12px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.default-badge {
+  font-size: 10px;
+  color: var(--purple);
+  background: #f5f3ff;
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+.resume-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-top: 4px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.resume-date { color: var(--text-muted); font-size: 10px; margin-top: 4px; }
+
+.create-panel,
+.detail-panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.field-label { display: block; font-size: 11px; color: var(--text-muted); margin: 8px 0 4px; }
+.field-input,
+.field-textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.field-textarea { resize: vertical; min-height: 120px; }
+.detail-textarea { min-height: 220px; }
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.btn {
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn.primary { background: var(--purple); color: #fff; }
+.btn.ghost { background: #fff; border-color: var(--border); color: var(--text); }
+.btn.danger { background: #fff; border-color: #fecaca; color: #b91c1c; }
+
+.inline-error {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #b91c1c;
+}
 
 @media (max-width: 768px) {
   .page-container {
     padding: 16px 12px calc(16px + env(safe-area-inset-bottom));
     max-width: 100%;
-    overflow-x: hidden;
   }
-
-  .page-title {
-    font-size: 20px;
-    word-break: break-word;
-  }
-
-  .content-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  .left-panel,
-  .right-panel {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .upload-zone {
-    width: 100%;
-    padding: 24px 16px;
-  }
-
-  .resume-card,
-  .thinking-box,
-  .suggestions-box {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .resume-name,
-  .suggestion-item,
-  .thinking-step {
-    word-break: break-word;
-    overflow-wrap: anywhere;
-  }
-
-  .nav-link-btn {
-    width: 100%;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    white-space: normal;
-    text-align: center;
-    line-height: 1.4;
-  }
-}
-
-@media (max-width: 480px) {
-  .page-container {
-    padding: 12px 10px calc(12px + env(safe-area-inset-bottom));
-  }
-
-  .page-title {
-    font-size: 18px;
-  }
+  .content-grid { grid-template-columns: 1fr; gap: 16px; }
+  .form-actions .btn { flex: 1 1 auto; min-height: 44px; }
+  .field-input,
+  .field-textarea { font-size: 16px; }
 }
 </style>

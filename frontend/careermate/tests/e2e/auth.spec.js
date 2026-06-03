@@ -1,8 +1,11 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const {
+  isCloud,
+  mustUseUserFlow,
   logEnv,
   assertBackendReady,
+  assertUserFlowEnvironment,
   detectAuthMode,
   attachDiagnostics,
   waitStable,
@@ -27,6 +30,7 @@ let detectedAuthMode = 'jwt';
 test.beforeAll(async ({ request }) => {
   logEnv();
   await assertBackendReady(request);
+  await assertUserFlowEnvironment(request);
   detectedAuthMode = await detectAuthMode(request);
   console.log(`[auth-mode] 当前认证模式: ${detectedAuthMode}`);
 });
@@ -39,6 +43,7 @@ test.describe('single-user 模式', () => {
   test.describe.configure({ mode: 'serial' });
 
   test.beforeEach(() => {
+    test.skip(mustUseUserFlow, '云端/用户流程模式不跑 single-user 用例');
     test.skip(detectedAuthMode !== 'single-user', '当前后端不是 single-user 模式');
   });
 
@@ -85,10 +90,7 @@ test.describe('jwt 模式', () => {
   let registeredAccount = null;
 
   test.beforeEach(() => {
-    if (detectedAuthMode !== 'jwt') {
-      console.log('当前后端不是 jwt 模式，跳过 jwt 登录注册测试。');
-      test.skip(true, '当前后端不是 jwt 模式，跳过 jwt 登录注册测试');
-    }
+    test.skip(!mustUseUserFlow && detectedAuthMode !== 'jwt', '当前后端不是 jwt 模式，跳过 jwt 登录注册测试');
   });
 
   test('用例1：未登录访问首页跳转 /login', async ({ page }) => {

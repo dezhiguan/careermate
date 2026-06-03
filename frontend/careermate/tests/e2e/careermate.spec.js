@@ -1,18 +1,18 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const {
+  mustUseUserFlow,
   logEnv,
   assertBackendReady,
+  assertUserFlowEnvironment,
   detectAuthMode,
   attachDiagnostics,
   waitStable,
   clearAuthStorage,
   enterFromLoginIfNeeded,
+  enterApplicationAsUser,
   assertAgentDashboard,
   assertAgentDashboardWithUser,
-  registerViaUi,
-  loginViaUi,
-  createTestCredentials,
   printCreatedAccountsReport,
   gotoApp,
   MOCK_REPLY,
@@ -28,6 +28,11 @@ let jwtTestAccount = null;
  * @param {import('@playwright/test').Page} page
  */
 async function ensureInApp(page) {
+  if (mustUseUserFlow) {
+    jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
+    return;
+  }
+
   await gotoApp(page, '/');
   await waitStable(page);
 
@@ -37,25 +42,7 @@ async function ensureInApp(page) {
     return;
   }
 
-  const onAgent = await page
-    .getByText('Agent 对话台')
-    .isVisible({ timeout: 4_000 })
-    .catch(() => false);
-
-  if (!onAgent) {
-    if (!jwtTestAccount) {
-      jwtTestAccount = createTestCredentials();
-      await registerViaUi(page, jwtTestAccount);
-    } else {
-      await clearAuthStorage(page);
-      await loginViaUi(page, jwtTestAccount);
-    }
-    await assertAgentDashboardWithUser(page, jwtTestAccount.username);
-  } else if (jwtTestAccount) {
-    await expect(page.locator('.user-badge')).toContainText(jwtTestAccount.username);
-  } else {
-    await assertAgentDashboard(page);
-  }
+  jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
 }
 
 /**
@@ -86,6 +73,7 @@ async function assertNoHorizontalScroll(page) {
 test.beforeAll(async ({ request }) => {
   logEnv();
   await assertBackendReady(request);
+  await assertUserFlowEnvironment(request);
   detectedAuthMode = await detectAuthMode(request);
   console.log(`[careermate] 认证模式: ${detectedAuthMode}`);
 });
@@ -127,9 +115,43 @@ test.describe('桌面端 · 本机 Chrome 功能展示', () => {
     await page.getByRole('link', { name: /简历/ }).click();
     await expect(page).toHaveURL(/#\/resume/);
     await expect(page.getByRole('heading', { name: /简历工作室/ })).toBeVisible();
-    await expect(page.getByText('上传简历')).toBeVisible();
+    await expect(page.getByText(/还没有简历|我的简历/)).toBeVisible();
     await assertNotBlank(page);
     await assertNoFatalErrors(page);
+  });
+
+  test('3b. 简历 CRUD', async ({ page }) => {
+    await ensureInApp(page);
+    const title = `e2e_resume_${Date.now()}`;
+    const updatedContent = `e2e 更新正文 ${Date.now()}`;
+
+    await page.getByRole('link', { name: /简历/ }).click();
+    await expect(page).toHaveURL(/#\/resume/);
+    await expect(page.getByRole('heading', { name: /简历工作室/ })).toBeVisible();
+
+    const createPanel = page.locator('.create-panel');
+    await page.getByRole('button', { name: /创建简历|新建/ }).first().click();
+    await createPanel.getByPlaceholder('例如：Java 后端简历').fill(title);
+    await createPanel.locator('.field-textarea').fill('e2e 初始正文');
+    await createPanel.getByRole('button', { name: '保存', exact: true }).click();
+
+    const card = page.locator('.resume-card', { hasText: title });
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await card.click();
+
+    const detailPanel = page.locator('.detail-panel');
+    await detailPanel.locator('.detail-textarea').fill(updatedContent);
+    await detailPanel.getByRole('button', { name: '保存修改' }).click();
+    await expect(page.locator('.resume-meta', { hasText: updatedContent.slice(0, 16) })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    await detailPanel.getByRole('button', { name: '设为默认' }).click();
+    await expect(card.locator('.default-badge')).toBeVisible({ timeout: 10_000 });
+
+    page.once('dialog', (dialog) => dialog.accept());
+    await detailPanel.getByRole('button', { name: '删除' }).click();
+    await expect(card).not.toBeVisible({ timeout: 15_000 });
   });
 
   test('4. 岗位匹配与弹窗', async ({ page }) => {

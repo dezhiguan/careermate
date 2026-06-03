@@ -24,12 +24,18 @@ const currentTarget = targets[target];
 const baseURL = currentTarget.baseURL.replace(/\/$/, '');
 
 /** @type {import('@playwright/test').PlaywrightTestConfig['webServer']} */
+const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || 'http://localhost:8080';
+
 const webServer = currentTarget.startWebServer
   ? {
       command: 'npm run dev -- --host 127.0.0.1 --port 5173',
       url: 'http://127.0.0.1:5173',
       reuseExistingServer: true,
       timeout: 120_000,
+      env: {
+        ...process.env,
+        VITE_API_PROXY_TARGET: apiProxyTarget,
+      },
     }
   : undefined;
 
