@@ -88,6 +88,11 @@ public class MockLlmClient implements LlmClient {
             return toolReply;
         }
 
+        String conversationReply = buildConversationMemoryReply(system, latest);
+        if (conversationReply != null) {
+            return conversationReply;
+        }
+
         if (isResumeOnlyIntent(latest)) {
             String resumeTitle = extractResumeTitleFromSystem(system);
             if (resumeTitle != null && !resumeTitle.isBlank()) {
@@ -119,6 +124,61 @@ public class MockLlmClient implements LlmClient {
             return "这是 Mock 面试准备建议：先梳理项目亮点，再按八股题、系统设计、行为面三个维度准备高频问答。";
         }
         return "这是 Mock CareerMate 回复：我可以帮助你做简历优化、岗位匹配和面试准备。";
+    }
+
+    private String buildConversationMemoryReply(String systemContent, String latestUser) {
+        if (systemContent == null || !systemContent.contains("【当前会话历史】")) {
+            return null;
+        }
+        String goal = extractGoalFromConversationHistory(systemContent);
+        if (latestUser.contains("还记得") && latestUser.contains("目标")) {
+            if (goal != null && !goal.isBlank()) {
+                return "我记得，你的目标是 " + goal + "。我们可以围绕这个目标继续优化求职方案。";
+            }
+            return "这是 Mock CareerMate 回复：当前会话历史里没有找到明确的求职目标。";
+        }
+        if (mentionsConversationGoal(latestUser) && goal != null && !goal.isBlank()) {
+            return String.format(
+                    "基于你之前提到的目标（%s），建议下一步：完善与目标岗位匹配的项目经历，并针对 JD 做一次岗位匹配分析。",
+                    goal
+            );
+        }
+        return null;
+    }
+
+    private boolean mentionsConversationGoal(String latestUser) {
+        return latestUser.contains("基于这个目标")
+                || latestUser.contains("围绕这个目标")
+                || latestUser.contains("这个目标")
+                || latestUser.contains("当前目标")
+                || (latestUser.contains("目标") && latestUser.contains("建议"));
+    }
+
+    private String extractGoalFromConversationHistory(String systemContent) {
+        int headerIdx = systemContent.indexOf("【当前会话历史】");
+        if (headerIdx < 0) {
+            return null;
+        }
+        String history = systemContent.substring(headerIdx);
+        String[] lines = history.split("\n");
+        for (String line : lines) {
+            if (!line.startsWith("user:")) {
+                continue;
+            }
+            String text = line.substring("user:".length()).trim();
+            if (text.contains("Java") && text.contains("后端")) {
+                int javaIdx = text.indexOf("Java");
+                int end = text.length();
+                for (char stop : new char[] { '。', '，', '；', '\n' }) {
+                    int idx = text.indexOf(stop, javaIdx);
+                    if (idx > javaIdx && idx < end) {
+                        end = idx;
+                    }
+                }
+                return text.substring(javaIdx, end).trim();
+            }
+        }
+        return null;
     }
 
     private String buildToolInvocationReply(String systemContent) {

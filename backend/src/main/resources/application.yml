@@ -40,3 +40,5 @@ careermate:
     executor-queue-capacity: ${AGENT_EXECUTOR_QUEUE_CAPACITY:200}
     max-concurrent-sessions: ${AGENT_MAX_CONCURRENT_SESSIONS:100}
     stream-task-timeout-ms: ${AGENT_STREAM_TASK_TIMEOUT_MS:120000}
+    conversation-context-max-messages: ${AGENT_CONVERSATION_CONTEXT_MAX_MESSAGES:10}
+    conversation-context-max-chars: ${AGENT_CONVERSATION_CONTEXT_MAX_CHARS:6000}

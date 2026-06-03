@@ -1,5 +1,6 @@
 package com.careermate.agent;
 
+import com.careermate.agent.context.ConversationContextResult;
 import com.careermate.agent.tool.AgentToolResult;
 import com.careermate.jobmatch.JobMatchContext;
 import com.careermate.resume.ResumeContext;
@@ -27,6 +28,18 @@ public final class AgentPromptAssembler {
         if (jobMatchContext != null && jobMatchContext.getContextText() != null && !jobMatchContext.getContextText().isBlank()) {
             sb.append("\n\n").append(jobMatchContext.getContextText().trim());
         }
+        return sb.toString();
+    }
+
+    public static String appendConversationContext(String systemPrompt, ConversationContextResult conversationContext) {
+        if (conversationContext == null
+                || !conversationContext.isAvailable()
+                || conversationContext.getContextText() == null
+                || conversationContext.getContextText().isBlank()) {
+            return systemPrompt;
+        }
+        StringBuilder sb = new StringBuilder(systemPrompt == null ? "" : systemPrompt);
+        sb.append("\n\n").append(conversationContext.getContextText().trim());
         return sb.toString();
     }
 
