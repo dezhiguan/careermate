@@ -5,13 +5,24 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:auth:local": "E2E_TARGET=local playwright test tests/e2e/auth.spec.js --project=local-chrome-desktop --headed --workers=1",
+    "test:e2e:auth:cloud": "E2E_TARGET=cloud playwright test tests/e2e/auth.spec.js --project=local-chrome-desktop --headed --workers=1",
+    "test:e2e:show:local": "E2E_TARGET=local playwright test tests/e2e/careermate.spec.js --project=local-chrome-desktop --headed --workers=1",
+    "test:e2e:show:cloud": "E2E_TARGET=cloud playwright test tests/e2e/careermate.spec.js --project=local-chrome-desktop --headed --workers=1",
+    "test:e2e:show:cloud:mobile": "E2E_TARGET=cloud playwright test tests/e2e/careermate.spec.js --project=local-chrome-mobile --headed --workers=1",
+    "test:e2e:show": "npm run test:e2e:show:local",
+    "test:e2e:show:mobile": "E2E_TARGET=local playwright test tests/e2e/careermate.spec.js --project=local-chrome-mobile --headed --workers=1",
+    "test:e2e:auth": "npm run test:e2e:auth:local"
   },
   "dependencies": {
     "vue": "^3.4.0",
     "vue-router": "^4.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@vitejs/plugin-vue": "^5.0.0",
     "vite": "^5.4.0"
   }

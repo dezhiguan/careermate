@@ -289,3 +289,7 @@ Each deploy creates:
 - Do not modify production PostgreSQL / Redis / Elasticsearch from CI.
 - Do not delete old releases automatically in this phase.
 - No Docker image registry, Kubernetes, or blue/green in this phase.
+
+## 14. 本地 E2E 验收（Playwright）
+
+在 `frontend/careermate` 目录执行 E2E（本机 Google Chrome headed）：`E2E_TARGET=local` 时 `npm run test:e2e:show:local` / `test:e2e:auth:local`（需本地 backend）；`E2E_TARGET=cloud` 时 `test:e2e:show:cloud` / `test:e2e:auth:cloud`（目标 `http://8.163.63.222/careermate/`）。jwt 测试账号前缀 `e2e_local_` / `e2e_cloud_`。
