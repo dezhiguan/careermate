@@ -33,7 +33,7 @@ const SINGLE_USER_TIP = '当前为本地单用户模式，可直接进入';
 const FATAL_AUTH_ERROR = /系统异常|登录失败|会话创建失败/;
 const FATAL_APP_ERROR = /系统异常|会话创建失败|流式请求失败/;
 const MOCK_REPLY =
-  /Mock 简历分析结果|我已读取你的默认简历|还没有读取到默认简历|建议你突出项目中的业务指标|建议你重点优化|Agent Trace|流式完成|DONE|MESSAGE/i;
+  /Mock 简历分析结果|我已读取你的默认简历|我已读取你最近的岗位匹配结果|还没有读取到默认简历|还没有读取到岗位匹配记录|建议你突出项目中的业务指标|建议你重点优化|Agent Trace|流式完成|DONE|MESSAGE/i;
 
 /** @type {Array<{ username: string; email: string }>} */
 const createdTestAccounts = [];

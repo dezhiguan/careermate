@@ -204,6 +204,78 @@ test.describe('桌面端 · 本机 Chrome 功能展示', () => {
     await expect(card).not.toBeVisible({ timeout: 15_000 });
   });
 
+  test('3d. Agent 读取最近岗位匹配', async ({ page }) => {
+    await ensureInApp(page);
+    const resumeTitle = 'e2e_resume_agent_jobmatch';
+    const jobTitle = 'e2e_job_agent_context';
+
+    await page.getByRole('link', { name: /简历/ }).click();
+    const createPanel = page.locator('.create-panel');
+    let resumeCard = page.locator('.resume-card', { hasText: resumeTitle });
+    if ((await resumeCard.count()) === 0) {
+      await page.getByRole('button', { name: /创建简历|新建/ }).first().click();
+      await createPanel.getByPlaceholder('例如：Java 后端简历').fill(resumeTitle);
+      await createPanel.locator('.field-textarea').fill('Java, Spring Boot, Redis');
+      await createPanel.getByRole('button', { name: '保存', exact: true }).click();
+      await expect(page.locator('.resume-card', { hasText: resumeTitle })).toBeVisible({
+        timeout: 20_000,
+      });
+    }
+    resumeCard = page.locator('.resume-card', { hasText: resumeTitle });
+    await resumeCard.click();
+    await ensureResumeIsDefault(page, resumeCard);
+
+    await page.getByRole('link', { name: /岗位匹配/ }).click();
+    const analyzePanel = page.locator('.analyze-panel');
+    const existingMatch = page.locator('.job-card', { hasText: jobTitle });
+    if ((await existingMatch.count()) === 0) {
+      await analyzePanel.getByPlaceholder('例如：Java 后端工程师').fill(jobTitle);
+      await analyzePanel.getByPlaceholder('例如：某互联网公司').fill('e2e_company');
+      await analyzePanel.getByPlaceholder(/粘贴岗位描述/).fill(
+        'Java, Spring Boot, Redis, Elasticsearch, Docker'
+      );
+      await page.getByRole('button', { name: '开始匹配' }).click();
+      await expect(page.locator('.modal-card')).toBeVisible({ timeout: 25_000 });
+      await page.locator('.modal-card .modal-close').click();
+    }
+
+    await page.getByRole('link', { name: /对话台/ }).click();
+    await expect(page.getByText('Agent 对话台')).toBeVisible({ timeout: 15_000 });
+
+    const input = page.locator('input[placeholder="说说你想做什么..."]');
+    const sendBtn = page.getByRole('button', { name: '↑' });
+    await input.fill('根据刚才那个岗位帮我优化简历');
+    await expect(sendBtn).toBeEnabled({ timeout: 15_000 });
+    await sendBtn.click();
+
+    const agentBubble = page.locator('.agent-bubble').last();
+    await expect(agentBubble).toContainText(/e2e_job_agent_context|岗位匹配结果/, {
+      timeout: 45_000,
+    });
+    await expect(agentBubble).toContainText(/Elasticsearch|Docker|补齐/, {
+      timeout: 45_000,
+    });
+
+    await page.getByRole('button', { name: /刷新 Trace/ }).click();
+    await expect(page.locator('.tool-log', { hasText: /job_match_context/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator('.tool-log', { hasText: jobTitle })).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole('link', { name: /岗位匹配/ }).click();
+    const matchCard = page.locator('.job-card', { hasText: jobTitle });
+    if (await matchCard.isVisible().catch(() => false)) {
+      page.once('dialog', (dialog) => dialog.accept());
+      await matchCard.getByRole('button', { name: '删除' }).click();
+      await expect(matchCard).not.toBeVisible({ timeout: 15_000 });
+    }
+    await page.getByRole('link', { name: /简历/ }).click();
+    await resumeCard.click();
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.locator('.detail-panel').getByRole('button', { name: '删除' }).click();
+    await expect(resumeCard).not.toBeVisible({ timeout: 15_000 });
+  });
+
   test('4. 岗位匹配页', async ({ page }) => {
     await ensureInApp(page);
     await page.getByRole('link', { name: /岗位匹配/ }).click();
