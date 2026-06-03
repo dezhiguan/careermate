@@ -297,7 +297,76 @@ public class MockLlmClient implements LlmClient {
                     interviewCount == null ? "0" : interviewCount
             );
         }
+        if (systemContent.contains("工具：get_career_tasks")) {
+            String summaryLine = extractToolSummaryLine(systemContent);
+            if (summaryLine != null && summaryLine.contains("0 条")) {
+                return "我已查询你的求职任务清单，当前没有未完成任务。";
+            }
+            String titles = extractTaskTitlesFromToolContent(systemContent);
+            if (titles != null && !titles.isBlank()) {
+                return "我已查询你的求职任务清单，当前未完成任务包括：" + titles + "。";
+            }
+            return "我已查询你的求职任务清单，请按优先级推进未完成任务。";
+        }
+        if (systemContent.contains("工具：create_career_task")) {
+            String title = extractToolSummaryTaskTitle(systemContent, "已创建任务：");
+            if (title != null && !title.isBlank()) {
+                return "任务已创建：" + title + "。你可以在求职看板的「下一步任务」中查看并跟进。";
+            }
+            if (systemContent.contains("创建任务失败")) {
+                return "创建任务未成功，请补充更明确的任务标题后重试。";
+            }
+            return "任务已创建，可在求职看板查看详情。";
+        }
+        if (systemContent.contains("工具：mark_career_task_done")) {
+            String title = extractToolSummaryTaskTitle(systemContent, "已完成任务：");
+            if (title != null && !title.isBlank()) {
+                return "任务已完成：" + title + "。";
+            }
+            if (systemContent.contains("未找到可完成")) {
+                return "未能找到要完成的任务，请提供更准确的任务标题。";
+            }
+            return "任务已完成。";
+        }
         return null;
+    }
+
+    private String extractToolSummaryLine(String systemContent) {
+        int idx = systemContent.indexOf("结果摘要：");
+        if (idx < 0) {
+            return null;
+        }
+        int start = idx + "结果摘要：".length();
+        int end = systemContent.indexOf('\n', start);
+        if (end < 0) {
+            end = systemContent.length();
+        }
+        return systemContent.substring(start, end).trim();
+    }
+
+    private String extractToolSummaryTaskTitle(String systemContent, String prefix) {
+        String summary = extractToolSummaryLine(systemContent);
+        if (summary == null || !summary.startsWith(prefix)) {
+            return null;
+        }
+        return summary.substring(prefix.length()).trim();
+    }
+
+    private String extractTaskTitlesFromToolContent(String systemContent) {
+        java.util.List<String> titles = new java.util.ArrayList<>();
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("title=([^,}\\]]+)")
+                .matcher(systemContent);
+        while (matcher.find()) {
+            String title = matcher.group(1).trim();
+            if (!title.isEmpty() && !titles.contains(title)) {
+                titles.add(title);
+            }
+        }
+        if (titles.isEmpty()) {
+            return null;
+        }
+        return String.join("、", titles);
     }
 
     private String extractToolDataField(String systemContent, String fieldName) {

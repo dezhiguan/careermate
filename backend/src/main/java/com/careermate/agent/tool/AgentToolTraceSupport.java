@@ -51,6 +51,11 @@ public final class AgentToolTraceSupport {
                     safeData.put("contentPreviewLength", text.length());
                 } else if ("jdContent".equals(key) && value != null) {
                     safeData.put("jdContentLength", String.valueOf(value).length());
+                } else if ("tasks".equals(key) && value instanceof java.util.List<?> list) {
+                    safeData.put("tasks", sanitizeTaskList(list));
+                } else if ("description".equals(key) && value != null) {
+                    String text = String.valueOf(value);
+                    safeData.put("descriptionLength", text.length());
                 } else {
                     safeData.put(key, value);
                 }
@@ -58,6 +63,32 @@ public final class AgentToolTraceSupport {
             summary.put("data", safeData);
         }
         return toJson(summary, objectMapper);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static java.util.List<Map<String, Object>> sanitizeTaskList(java.util.List<?> list) {
+        java.util.List<Map<String, Object>> safe = new java.util.ArrayList<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> raw)) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            Object taskId = raw.get("taskId");
+            if (taskId == null) {
+                taskId = raw.get("id");
+            }
+            if (taskId != null) {
+                row.put("taskId", taskId);
+            }
+            Object title = raw.get("title");
+            if (title != null) {
+                row.put("title", title);
+            }
+            if (!row.isEmpty()) {
+                safe.add(row);
+            }
+        }
+        return safe;
     }
 
     private static String toJson(Map<String, Object> data) {

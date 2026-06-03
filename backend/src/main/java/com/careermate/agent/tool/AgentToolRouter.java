@@ -17,9 +17,18 @@ public class AgentToolRouter {
     private static final String TOOL_CREATE_JOB_MATCH = "create_job_match";
     private static final String TOOL_CREATE_INTERVIEW_SESSION = "create_interview_session";
     private static final String TOOL_GET_DASHBOARD_OVERVIEW = "get_dashboard_overview";
+    private static final String TOOL_GET_CAREER_TASKS = "get_career_tasks";
+    private static final String TOOL_CREATE_CAREER_TASK = "create_career_task";
+    private static final String TOOL_MARK_CAREER_TASK_DONE = "mark_career_task_done";
 
     private static final Pattern JOB_TITLE_PATTERN = Pattern.compile("(?:岗位|职位)[：:]\\s*([^\\n]+)");
     private static final Pattern COMPANY_PATTERN = Pattern.compile("公司[：:]\\s*([^\\n]+)");
+    private static final Pattern CREATE_TASK_COLON = Pattern.compile("(?:帮我)?创建一个任务[：:]\\s*(.+)");
+    private static final Pattern ADD_TO_TASK = Pattern.compile("把(.+?)加入任务");
+    private static final Pattern REMIND_ME = Pattern.compile("提醒我(.+)");
+    private static final Pattern NEXT_STEP_DO = Pattern.compile("下一步我要做(.+)");
+    private static final Pattern DONE_BY_KEYWORD = Pattern.compile("(.+?)已经做完了");
+    private static final Pattern MARK_DONE = Pattern.compile("把(.+?)标记完成");
 
     public Optional<RoutedTool> route(String userMessage) {
         if (userMessage == null || userMessage.isBlank()) {
@@ -40,10 +49,103 @@ public class AgentToolRouter {
         if (containsAny(lower, "生成面试", "创建面试", "面试训练", "准备面试")) {
             return Optional.of(new RoutedTool(TOOL_CREATE_INTERVIEW_SESSION, Map.of()));
         }
-        if (containsAny(lower, "求职进展", "看板", "下一步", "当前状态")) {
+        if (shouldMarkCareerTaskDone(lower, text)) {
+            return Optional.of(new RoutedTool(TOOL_MARK_CAREER_TASK_DONE, buildMarkDoneArgs(text)));
+        }
+        if (shouldCreateCareerTask(lower, text)) {
+            return Optional.of(new RoutedTool(TOOL_CREATE_CAREER_TASK, buildCreateCareerTaskArgs(text)));
+        }
+        if (shouldGetCareerTasks(lower, text)) {
+            return Optional.of(new RoutedTool(TOOL_GET_CAREER_TASKS, Map.of()));
+        }
+        if (containsAny(lower, "求职进展", "看板", "当前状态", "看一下求职")) {
             return Optional.of(new RoutedTool(TOOL_GET_DASHBOARD_OVERVIEW, Map.of()));
         }
         return Optional.empty();
+    }
+
+    private boolean shouldGetCareerTasks(String lower, String text) {
+        return containsAny(lower, "我的任务", "下一步任务", "我还有哪些任务", "求职任务清单");
+    }
+
+    private boolean shouldCreateCareerTask(String lower, String text) {
+        if (containsAny(lower, "帮我创建一个任务", "加入任务", "提醒我", "下一步我要做")) {
+            return true;
+        }
+        return CREATE_TASK_COLON.matcher(text).find()
+                || ADD_TO_TASK.matcher(text).find()
+                || REMIND_ME.matcher(text).find()
+                || NEXT_STEP_DO.matcher(text).find();
+    }
+
+    private boolean shouldMarkCareerTaskDone(String lower, String text) {
+        if (containsAny(lower, "完成这个任务", "标记完成", "已经做完了")) {
+            return true;
+        }
+        return DONE_BY_KEYWORD.matcher(text).find() || MARK_DONE.matcher(text).find();
+    }
+
+    private Map<String, Object> buildCreateCareerTaskArgs(String text) {
+        Map<String, Object> args = new LinkedHashMap<>();
+        String title = extractCreateTaskTitle(text);
+        if (title != null && !title.isBlank()) {
+            args.put("title", title.trim());
+        }
+        return args;
+    }
+
+    private String extractCreateTaskTitle(String text) {
+        Matcher colon = CREATE_TASK_COLON.matcher(text);
+        if (colon.find()) {
+            return colon.group(1).trim();
+        }
+        Matcher add = ADD_TO_TASK.matcher(text);
+        if (add.find()) {
+            return add.group(1).trim();
+        }
+        Matcher remind = REMIND_ME.matcher(text);
+        if (remind.find()) {
+            return remind.group(1).trim();
+        }
+        Matcher next = NEXT_STEP_DO.matcher(text);
+        if (next.find()) {
+            return next.group(1).trim();
+        }
+        int idx = text.indexOf("创建一个任务");
+        if (idx >= 0) {
+            String tail = text.substring(idx + "创建一个任务".length()).trim();
+            if (tail.startsWith("：") || tail.startsWith(":")) {
+                return tail.substring(1).trim();
+            }
+        }
+        return null;
+    }
+
+    private Map<String, Object> buildMarkDoneArgs(String text) {
+        Map<String, Object> args = new LinkedHashMap<>();
+        String keyword = extractMarkDoneKeyword(text);
+        if (keyword != null && !keyword.isBlank()) {
+            args.put("titleKeyword", keyword.trim());
+        }
+        return args;
+    }
+
+    private String extractMarkDoneKeyword(String text) {
+        Matcher done = DONE_BY_KEYWORD.matcher(text);
+        if (done.find()) {
+            return done.group(1).trim();
+        }
+        Matcher mark = MARK_DONE.matcher(text);
+        if (mark.find()) {
+            return mark.group(1).trim();
+        }
+        if (text.contains("已经做完了")) {
+            int idx = text.indexOf("已经做完了");
+            if (idx > 0) {
+                return text.substring(0, idx).trim();
+            }
+        }
+        return null;
     }
 
     private boolean shouldCreateJobMatch(String lower, String text) {

@@ -25,6 +25,39 @@ export const AGENT_TOOL_META = {
     route: '/dashboard',
     actionLabel: '查看概览',
   },
+  get_career_tasks: {
+    label: '求职任务',
+    route: '/dashboard',
+    actionLabel: '查看任务',
+  },
+  create_career_task: {
+    label: '创建任务',
+    route: '/dashboard',
+    actionLabel: '查看任务',
+  },
+  mark_career_task_done: {
+    label: '完成任务',
+    route: '/dashboard',
+    actionLabel: '查看任务',
+  },
+}
+
+const TASK_TOOL_NAMES = new Set([
+  'get_career_tasks',
+  'create_career_task',
+  'mark_career_task_done',
+])
+
+export const CAREER_TASKS_UPDATED_EVENT = 'careermate:tasks-updated'
+
+export function notifyCareerTasksUpdated() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(CAREER_TASKS_UPDATED_EVENT))
+  }
+}
+
+export function isCareerTaskToolName(toolName) {
+  return TASK_TOOL_NAMES.has(toolName)
 }
 
 const BUSINESS_TOOL_NAMES = new Set(Object.keys(AGENT_TOOL_META))

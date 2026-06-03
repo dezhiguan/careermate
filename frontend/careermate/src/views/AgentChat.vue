@@ -152,6 +152,7 @@ import {
   sendAgentMessageStream,
 } from '../api/agent'
 import { getCareerProfile } from '../api/profile'
+import { isCareerTaskToolName, notifyCareerTasksUpdated } from '../utils/agentToolDisplay'
 import ToolCallCard from '../components/agent/ToolCallCard.vue'
 import { getToolLabel, isBusinessToolName, sanitizeToolSummary } from '../utils/agentToolDisplay'
 
@@ -488,6 +489,11 @@ function shouldRefreshCareerProfile(traces) {
   return traces.some((t) => (t.toolName || t.type) === 'career_profile_update')
 }
 
+function shouldRefreshCareerTasks(traces) {
+  if (!Array.isArray(traces)) return false
+  return traces.some((t) => isCareerTaskToolName(t.toolName || t.type))
+}
+
 async function loadRecentSessionsList() {
   sessionsLoading.value = true
   try {
@@ -577,6 +583,9 @@ async function refreshTraceFromServer(agentMessage = null) {
     }))
     if (shouldRefreshCareerProfile(traces)) {
       await loadCareerProfile()
+    }
+    if (shouldRefreshCareerTasks(traces)) {
+      notifyCareerTasksUpdated()
     }
     if (traces.length === 0) {
       pushTrace('refresh', '服务端暂无 trace 记录')
@@ -701,6 +710,9 @@ async function sendMessage() {
         const status = data?.success ? '执行成功' : '执行失败'
         const summary = data?.summary || ''
         pushTrace('tool_result', `${getToolLabel(name)} ${status}${summary ? `：${summary}` : ''}`, data)
+        if (isCareerTaskToolName(name) && data?.success) {
+          notifyCareerTasksUpdated()
+        }
       },
       onTrace(data) {
         pushTrace('trace', data?.message || data?.summary || 'trace 事件', data)
