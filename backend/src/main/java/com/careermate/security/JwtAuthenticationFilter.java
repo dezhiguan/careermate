@@ -50,7 +50,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String mode = securityProperties.getMode();
             if (MODE_SINGLE_USER.equals(mode)) {
-                applySingleUserAuth(request);
+                if (!applySingleUserAuth(request, response)) {
+                    return;
+                }
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -68,25 +70,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
-    private void applySingleUserAuth(HttpServletRequest request) {
+    /**
+     * single-user 模式：无 Token 时回落为 local-user；携带有效 JWT 时以 Token 对应用户为准（保证登录态刷新）。
+     */
+    private boolean applySingleUserAuth(HttpServletRequest request, HttpServletResponse response) throws IOException {
         if (isAnonymousPath(request.getRequestURI())) {
-            return;
+            return true;
         }
-        Long userId = securityProperties.getSingleUser().getUserId();
-        String username = securityProperties.getSingleUser().getUsername();
-        CurrentUser currentUser = CurrentUser.builder()
-                .userId(userId)
-                .username(username)
-                .role("USER")
-                .authenticated(true)
-                .build();
-        CurrentUserContext.set(currentUser);
-        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                username,
-                null,
-                List.of(new SimpleGrantedAuthority("ROLE_USER"))
-        );
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+        String bearerToken = extractBearerToken(request);
+        if (StringUtils.hasText(bearerToken)) {
+            if (!jwtTokenProvider.validateToken(bearerToken)) {
+                writeUnauthorized(response, ErrorCode.UNAUTHORIZED.getMessage());
+                return false;
+            }
+            return authenticateUserFromToken(bearerToken, response);
+        }
+        applyConfiguredSingleUser();
+        return true;
     }
 
     private boolean applyJwtAuth(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -97,15 +97,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (!path.startsWith("/api/")) {
             return true;
         }
-        String authHeader = request.getHeader("Authorization");
-        if (!StringUtils.hasText(authHeader) || !authHeader.startsWith("Bearer ")) {
+        String bearerToken = extractBearerToken(request);
+        if (!StringUtils.hasText(bearerToken)) {
             return true;
         }
-        String token = authHeader.substring(7);
-        if (!jwtTokenProvider.validateToken(token)) {
+        if (!jwtTokenProvider.validateToken(bearerToken)) {
             writeUnauthorized(response, ErrorCode.UNAUTHORIZED.getMessage());
             return false;
         }
+        return authenticateUserFromToken(bearerToken, response);
+    }
+
+    private void applyConfiguredSingleUser() {
+        Long userId = securityProperties.getSingleUser().getUserId();
+        String username = securityProperties.getSingleUser().getUsername();
+        setSecurityContext(
+                CurrentUser.builder()
+                        .userId(userId)
+                        .username(username)
+                        .role("USER")
+                        .authenticated(true)
+                        .build()
+        );
+    }
+
+    private boolean authenticateUserFromToken(String token, HttpServletResponse response) throws IOException {
         Long userId = jwtTokenProvider.getUserId(token);
         UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
                 .eq(UserEntity::getId, userId)
@@ -118,20 +134,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             writeUnauthorized(response, "用户已被禁用");
             return false;
         }
-        CurrentUser currentUser = CurrentUser.builder()
-                .userId(user.getId())
-                .username(user.getUsername())
-                .role(user.getRole())
-                .authenticated(true)
-                .build();
+        setSecurityContext(
+                CurrentUser.builder()
+                        .userId(user.getId())
+                        .username(user.getUsername())
+                        .role(user.getRole())
+                        .authenticated(true)
+                        .build()
+        );
+        return true;
+    }
+
+    private void setSecurityContext(CurrentUser currentUser) {
         CurrentUserContext.set(currentUser);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                user.getUsername(),
+                currentUser.getUsername(),
                 null,
-                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole()))
+                List.of(new SimpleGrantedAuthority("ROLE_" + currentUser.getRole()))
         );
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        return true;
+    }
+
+    private String extractBearerToken(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (!StringUtils.hasText(authHeader) || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        return authHeader.substring(7);
     }
 
     private boolean isAnonymousPath(String path) {

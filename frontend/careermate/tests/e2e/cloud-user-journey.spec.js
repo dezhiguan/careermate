@@ -98,7 +98,7 @@ test.describe('云端 · 桌面端完整用户旅程', () => {
     await page.getByRole('link', { name: /简历/ }).click();
     await expect(page).toHaveURL(/#\/resume/);
     await expect(page.getByRole('heading', { name: /简历工作室/ })).toBeVisible();
-    await expect(page.getByText('上传简历')).toBeVisible();
+    await expect(page.getByText(/还没有简历|我的简历/)).toBeVisible();
     expect((await page.locator('main').innerText()).trim().length).toBeGreaterThan(20);
   });
 
