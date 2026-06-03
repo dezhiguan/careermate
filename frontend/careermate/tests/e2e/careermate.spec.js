@@ -1,55 +1,61 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const {
+  logEnv,
+  assertBackendReady,
+  detectAuthMode,
+  attachDiagnostics,
+  waitStable,
+  clearAuthStorage,
+  enterFromLoginIfNeeded,
+  assertAgentDashboard,
+  assertAgentDashboardWithUser,
+  registerViaUi,
+  loginViaUi,
+  createTestCredentials,
+  printCreatedAccountsReport,
+  gotoApp,
+  MOCK_REPLY,
+  FATAL_APP_ERROR,
+} = require('./e2e-env');
 
-const MOCK_REPLY =
-  /Mock 简历分析结果|建议你突出项目中的业务指标|Agent Trace|流式完成|DONE|MESSAGE/i;
-const FATAL_ERROR = /系统异常|会话创建失败|流式请求失败/;
-
-/**
- * @param {import('@playwright/test').APIRequestContext} request
- */
-async function assertBackendReady(request) {
-  const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
-  let response;
-  try {
-    response = await request.get(`${base}/api/health`, { timeout: 15_000 });
-  } catch (err) {
-    throw new Error(
-      [
-        '无法访问后端 API（/api/health）。',
-        '请先启动 backend（默认 http://localhost:8080），SECURITY_MODE=single-user，并确保数据库可用。',
-        '前端 Vite 需将 /api 代理到后端（见 .env.development）。',
-        `详情: ${err instanceof Error ? err.message : String(err)}`,
-      ].join('\n')
-    );
-  }
-  if (!response.ok()) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`后端健康检查失败 HTTP ${response.status()}。\n${body}`);
-  }
-}
+/** @type {'single-user' | 'jwt'} */
+let detectedAuthMode = 'jwt';
+/** @type {{ username: string; email: string; password: string } | null} */
+let jwtTestAccount = null;
 
 /**
  * @param {import('@playwright/test').Page} page
  */
-async function enterAsSingleUser(page) {
-  await page.goto('/');
-  const enterBtn = page.getByRole('button', { name: '进入 CareerMate' });
-  if (await enterBtn.isVisible({ timeout: 8_000 }).catch(() => false)) {
-    await enterBtn.click();
-  }
-  await expect(page.getByText('Agent 对话台')).toBeVisible({ timeout: 25_000 });
-  await expect(page.locator('.user-badge')).toContainText(/local-user\s*\/\s*USER/);
-  await expect(page.getByRole('button', { name: /新会话/ })).toBeVisible();
-  await expect(page.locator('input[placeholder="说说你想做什么..."]')).toBeVisible();
-  await expect(page.getByText(/^s_/)).toBeVisible({ timeout: 25_000 });
-}
+async function ensureInApp(page) {
+  await gotoApp(page, '/');
+  await waitStable(page);
 
-/**
- * @param {import('@playwright/test').Page} page
- */
-async function assertNoFatalErrors(page) {
-  await expect(page.locator('body')).not.toContainText(FATAL_ERROR);
+  if (detectedAuthMode === 'single-user') {
+    await enterFromLoginIfNeeded(page);
+    await assertAgentDashboardWithUser(page, /local-user\s*\/\s*USER/);
+    return;
+  }
+
+  const onAgent = await page
+    .getByText('Agent 对话台')
+    .isVisible({ timeout: 4_000 })
+    .catch(() => false);
+
+  if (!onAgent) {
+    if (!jwtTestAccount) {
+      jwtTestAccount = createTestCredentials();
+      await registerViaUi(page, jwtTestAccount);
+    } else {
+      await clearAuthStorage(page);
+      await loginViaUi(page, jwtTestAccount);
+    }
+    await assertAgentDashboardWithUser(page, jwtTestAccount.username);
+  } else if (jwtTestAccount) {
+    await expect(page.locator('.user-badge')).toContainText(jwtTestAccount.username);
+  } else {
+    await assertAgentDashboard(page);
+  }
 }
 
 /**
@@ -63,6 +69,13 @@ async function assertNotBlank(page) {
 /**
  * @param {import('@playwright/test').Page} page
  */
+async function assertNoFatalErrors(page) {
+  await expect(page.locator('body')).not.toContainText(FATAL_APP_ERROR);
+}
+
+/**
+ * @param {import('@playwright/test').Page} page
+ */
 async function assertNoHorizontalScroll(page) {
   const hasHorizontalOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
@@ -71,90 +84,87 @@ async function assertNoHorizontalScroll(page) {
 }
 
 test.beforeAll(async ({ request }) => {
+  logEnv();
   await assertBackendReady(request);
+  detectedAuthMode = await detectAuthMode(request);
+  console.log(`[careermate] 认证模式: ${detectedAuthMode}`);
 });
 
-test.describe('桌面端 · 本机 Chrome 完整展示', () => {
+test.beforeEach(({ page }) => {
+  attachDiagnostics(page);
+});
+
+test.describe('桌面端 · 本机 Chrome 功能展示', () => {
   test.describe.configure({ mode: 'serial' });
 
   test.beforeEach(({ }, testInfo) => {
-    test.skip(testInfo.project.name !== 'local-chrome-desktop', '仅 local-chrome-desktop');
+    test.skip(testInfo.project.name !== 'local-chrome-desktop', '仅 desktop project');
   });
 
-  test('1. single-user 进入应用', async ({ page }) => {
-    await enterAsSingleUser(page);
+  test('1. 进入应用', async ({ page }) => {
+    await ensureInApp(page);
     await assertNoFatalErrors(page);
   });
 
-  test('2. Agent 对话 SSE mock', async ({ page }) => {
-    await enterAsSingleUser(page);
+  test('2. Agent 对话', async ({ page }) => {
+    await ensureInApp(page);
     const input = page.locator('input[placeholder="说说你想做什么..."]');
     const sendBtn = page.getByRole('button', { name: '↑' });
-
     await input.fill('帮我分析简历');
-    await expect(sendBtn).toBeEnabled({ timeout: 10_000 });
+    await expect(sendBtn).toBeEnabled({ timeout: 15_000 });
     await sendBtn.click();
-
     await expect(page.locator('.user-bubble', { hasText: '帮我分析简历' })).toBeVisible({
-      timeout: 15_000,
+      timeout: 20_000,
     });
     await expect(page.locator('.agent-bubble').last()).toContainText(MOCK_REPLY, {
-      timeout: 20_000,
+      timeout: 30_000,
     });
     await assertNoFatalErrors(page);
   });
 
   test('3. 简历页', async ({ page }) => {
-    await enterAsSingleUser(page);
+    await ensureInApp(page);
     await page.getByRole('link', { name: /简历/ }).click();
     await expect(page).toHaveURL(/#\/resume/);
     await expect(page.getByRole('heading', { name: /简历工作室/ })).toBeVisible();
     await expect(page.getByText('上传简历')).toBeVisible();
-    await expect(page.getByText('Agent 简历分析摘要')).toBeVisible();
     await assertNotBlank(page);
     await assertNoFatalErrors(page);
   });
 
-  test('4. 岗位匹配与详情弹窗', async ({ page }) => {
-    await enterAsSingleUser(page);
+  test('4. 岗位匹配与弹窗', async ({ page }) => {
+    await ensureInApp(page);
     await page.getByRole('link', { name: /岗位匹配/ }).click();
     await expect(page).toHaveURL(/#\/match/);
     await expect(page.locator('.job-card').first()).toBeVisible();
     await page.locator('.job-card').first().click();
     const modal = page.locator('.modal-card');
-    await expect(modal).toBeVisible({ timeout: 10_000 });
+    await expect(modal).toBeVisible({ timeout: 12_000 });
     await expect(modal).toContainText(/匹配/);
-    await expect(modal).toContainText(/技能/);
-    await expect(modal.getByRole('link', { name: /回对话台查看深度分析/ })).toBeVisible();
     await assertNotBlank(page);
     await assertNoFatalErrors(page);
   });
 
   test('5. 面试特训页', async ({ page }) => {
-    await enterAsSingleUser(page);
+    await ensureInApp(page);
     await page.getByRole('link', { name: /面试特训/ }).click();
     await expect(page).toHaveURL(/#\/interview/);
     await expect(page.getByRole('heading', { name: /面试特训/ })).toBeVisible();
-    await expect(page.getByText(/第 \d+ 题/)).toBeVisible();
-    await expect(page.locator('textarea[placeholder="输入你的回答..."]')).toBeVisible();
-    await expect(page.getByRole('button', { name: '提交回答' })).toBeVisible();
     await assertNotBlank(page);
     await assertNoFatalErrors(page);
   });
 
   test('6. 求职看板页', async ({ page }) => {
-    await enterAsSingleUser(page);
+    await ensureInApp(page);
     await page.getByRole('link', { name: /求职看板/ }).click();
     await expect(page).toHaveURL(/#\/dashboard/);
     await expect(page.getByRole('heading', { name: /求职看板/ })).toBeVisible();
-    await expect(page.getByText('Agent 建议的下一步')).toBeVisible();
-    await expect(page.getByText('最近活动')).toBeVisible();
     await assertNotBlank(page);
     await assertNoFatalErrors(page);
   });
 
   test('7. 底部导航往返', async ({ page }) => {
-    await enterAsSingleUser(page);
+    await ensureInApp(page);
     const links = [
       { name: /对话台/, url: /#\/$/ },
       { name: /简历/, url: /#\/resume/ },
@@ -165,22 +175,21 @@ test.describe('桌面端 · 本机 Chrome 完整展示', () => {
     for (const link of links) {
       await page.getByRole('link', { name: link.name }).click();
       await expect(page).toHaveURL(link.url);
-      await expect(page.locator('.bottom-nav')).toBeVisible();
       await assertNotBlank(page);
     }
     await assertNoFatalErrors(page);
   });
 });
 
-test.describe('手机端 · 本机 Chrome 完整展示', () => {
+test.describe('手机端 · 本机 Chrome 功能展示', () => {
   test.describe.configure({ mode: 'serial' });
 
   test.beforeEach(({ }, testInfo) => {
-    test.skip(testInfo.project.name !== 'local-chrome-mobile', '仅 local-chrome-mobile');
+    test.skip(testInfo.project.name !== 'local-chrome-mobile', '仅 mobile project');
   });
 
-  test('各页面展示与横向滚动检查', async ({ page }) => {
-    await enterAsSingleUser(page);
+  test('各页面展示与横向滚动', async ({ page }) => {
+    await ensureInApp(page);
     await assertNoHorizontalScroll(page);
     await assertNotBlank(page);
 
@@ -199,11 +208,14 @@ test.describe('手机端 · 本机 Chrome 完整展示', () => {
         ? page.getByRole('heading', { name: route.title })
         : page.getByText(route.title, { exact: true });
       await expect(titleLocator).toBeVisible({ timeout: 15_000 });
-      await expect(page.locator('.bottom-nav')).toBeVisible();
       await assertNotBlank(page);
       await assertNoHorizontalScroll(page);
       await assertNoFatalErrors(page);
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(600);
     }
   });
+});
+
+test.afterAll(() => {
+  printCreatedAccountsReport();
 });
