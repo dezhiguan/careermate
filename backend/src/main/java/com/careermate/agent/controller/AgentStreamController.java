@@ -1,10 +1,15 @@
 package com.careermate.agent.controller;
 
+import com.careermate.agent.AgentPromptAssembler;
 import com.careermate.agent.dto.AgentMessageRequest;
 import com.careermate.agent.dto.AgentSessionCreateResponse;
 import com.careermate.agent.dto.AgentSessionResponse;
 import com.careermate.agent.dto.AgentTraceResponse;
 import com.careermate.agent.session.AgentSessionService;
+import com.careermate.resume.ResumeContext;
+import com.careermate.resume.ResumeContextProvider;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.careermate.agent.sse.AgentTaskRegistry;
 import com.careermate.agent.sse.SseEmitterService;
 import com.careermate.agent.sse.SseEventType;
@@ -45,19 +50,27 @@ public class AgentStreamController {
     private final SseEmitterService sseEmitterService;
     private final AgentTaskRegistry taskRegistry;
     private final AgentSessionService agentSessionService;
+    private final ResumeContextProvider resumeContextProvider;
+    private final ObjectMapper objectMapper;
+
+    private static final String TRACE_RESUME_CONTEXT = "resume_context";
 
     public AgentStreamController(
             LlmClient llmClient,
             TaskExecutor agentExecutor,
             SseEmitterService sseEmitterService,
             AgentTaskRegistry taskRegistry,
-            AgentSessionService agentSessionService
+            AgentSessionService agentSessionService,
+            ResumeContextProvider resumeContextProvider,
+            ObjectMapper objectMapper
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
         this.sseEmitterService = sseEmitterService;
         this.taskRegistry = taskRegistry;
         this.agentSessionService = agentSessionService;
+        this.resumeContextProvider = resumeContextProvider;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping("/sessions")
@@ -148,9 +161,13 @@ public class AgentStreamController {
                     null
             );
 
+            ResumeContext resumeContext = resumeContextProvider.getResumeContext(userId);
+            recordResumeContextTrace(userId, sessionId, resumeContext);
+
+            String systemPrompt = AgentPromptAssembler.buildSystemPrompt(resumeContext);
             ChatRequest chatRequest = ChatRequest.builder()
                     .messages(List.of(
-                            ChatMessage.builder().role("system").content("你是 CareerMate 求职智能体。").build(),
+                            ChatMessage.builder().role("system").content(systemPrompt).build(),
                             ChatMessage.builder().role("user").content(request.getMessage()).build()
                     ))
                     .build();
@@ -235,6 +252,44 @@ public class AgentStreamController {
         );
         agentSessionService.markError(userId, sessionId, errorCode);
         sseEmitterService.completeWithError(sessionId, error == null ? new RuntimeException("unknown") : error);
+    }
+
+    private void recordResumeContextTrace(Long userId, String sessionId, ResumeContext resumeContext) {
+        boolean available = resumeContext != null && resumeContext.isAvailable();
+        String status = available ? "SUCCESS" : "EMPTY";
+        String message = available
+                ? "已加载默认简历：" + resumeContext.getTitle()
+                : "当前用户暂无默认简历";
+        int contentLength = 0;
+        if (available && resumeContext.getContent() != null) {
+            contentLength = resumeContext.getContent().length();
+        }
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        if (available) {
+            payload.put("resumeId", resumeContext.getResumeId());
+            payload.put("title", resumeContext.getTitle());
+        }
+        payload.put("contentLength", contentLength);
+        payload.put("message", message);
+
+        agentSessionService.recordTrace(
+                userId,
+                sessionId,
+                TRACE_RESUME_CONTEXT,
+                "{}",
+                writeJson(payload),
+                status,
+                null,
+                null
+        );
+    }
+
+    private String writeJson(Map<String, Object> data) {
+        try {
+            return objectMapper.writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+            return toJson(data);
+        }
     }
 
     private String toJson(Map<String, Object> data) {

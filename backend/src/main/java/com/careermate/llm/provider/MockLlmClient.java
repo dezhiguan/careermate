@@ -82,7 +82,15 @@ public class MockLlmClient implements LlmClient {
     private String buildMockContent(ChatRequest request) {
         String latest = extractLatestUserContent(request == null ? null : request.getMessages()).toLowerCase(Locale.ROOT);
         if (latest.contains("简历")) {
-            return "这是 Mock 简历分析结果：建议你突出项目中的业务指标、技术难点与个人贡献，并将关键词对齐目标岗位 JD。";
+            String system = extractSystemContent(request == null ? null : request.getMessages());
+            String resumeTitle = extractResumeTitleFromSystem(system);
+            if (resumeTitle != null && !resumeTitle.isBlank()) {
+                return String.format(
+                        "我已读取你的默认简历《%s》，建议你重点优化项目描述中的量化指标，并突出与目标岗位匹配的技能关键词。",
+                        resumeTitle
+                );
+            }
+            return "我还没有读取到默认简历，请先在简历页创建并设为默认。";
         }
         if (latest.contains("岗位") || latest.contains("匹配")) {
             return "这是 Mock 岗位匹配结果：你当前更匹配后端工程师与数据平台工程师方向，建议优先投递技术栈重合度高的岗位。";
@@ -91,6 +99,39 @@ public class MockLlmClient implements LlmClient {
             return "这是 Mock 面试准备建议：先梳理项目亮点，再按八股题、系统设计、行为面三个维度准备高频问答。";
         }
         return "这是 Mock CareerMate 回复：我可以帮助你做简历优化、岗位匹配和面试准备。";
+    }
+
+    private String extractSystemContent(List<ChatMessage> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return "";
+        }
+        for (ChatMessage msg : messages) {
+            if (msg != null && "system".equalsIgnoreCase(msg.getRole())) {
+                return msg.getContent() == null ? "" : msg.getContent();
+            }
+        }
+        return "";
+    }
+
+    private String extractResumeTitleFromSystem(String systemContent) {
+        if (systemContent == null || systemContent.isBlank()) {
+            return null;
+        }
+        if (!systemContent.contains("用户默认简历：")) {
+            return null;
+        }
+        String marker = "标题：";
+        int idx = systemContent.indexOf(marker);
+        if (idx < 0) {
+            return null;
+        }
+        int start = idx + marker.length();
+        int end = systemContent.indexOf('\n', start);
+        if (end < 0) {
+            end = systemContent.length();
+        }
+        String title = systemContent.substring(start, end).trim();
+        return title.isEmpty() ? null : title;
     }
 
     private String extractLatestUserContent(List<ChatMessage> messages) {

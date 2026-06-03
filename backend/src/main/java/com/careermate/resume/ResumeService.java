@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class ResumeService {
@@ -28,6 +29,20 @@ public class ResumeService {
 
     public ResumeService(ResumeMapper resumeMapper) {
         this.resumeMapper = resumeMapper;
+    }
+
+    public Optional<ResumeEntity> getDefaultActiveResume(Long userId) {
+        if (userId == null) {
+            return Optional.empty();
+        }
+        ResumeEntity entity = resumeMapper.selectOne(
+                new LambdaQueryWrapper<ResumeEntity>()
+                        .eq(ResumeEntity::getUserId, userId)
+                        .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
+                        .eq(ResumeEntity::getIsDefault, true)
+                        .last("LIMIT 1")
+        );
+        return Optional.ofNullable(entity);
     }
 
     public List<ResumeListItemResponse> listActiveResumes() {
