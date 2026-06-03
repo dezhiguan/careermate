@@ -16,7 +16,7 @@ public class SseEmitterService {
     private final AgentProperties agentProperties;
     private final SseConnectionRegistry connectionRegistry;
     private final AgentTaskRegistry taskRegistry;
-    private final ConcurrentHashMap.KeySetView<String, Boolean> closedSessions = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap.KeySetView<SseEmitter, Boolean> closedEmitters = ConcurrentHashMap.newKeySet();
 
     public SseEmitterService(
             AgentProperties agentProperties,
@@ -34,24 +34,24 @@ public class SseEmitterService {
 
         emitter.onCompletion(() -> {
             log.info("SSE completed: sessionId={}", sessionId);
-            cleanup(sessionId);
+            cleanup(sessionId, emitter);
         });
 
         emitter.onTimeout(() -> {
             log.warn("SSE timeout: sessionId={}", sessionId);
             try {
-                send(sessionId, SseEventType.ERROR, java.util.Map.of("message", "SSE 连接超时"));
+                sendToEmitter(sessionId, emitter, SseEventType.ERROR, java.util.Map.of("message", "SSE 连接超时"));
             } catch (Exception ignored) {
             }
             taskRegistry.cancel(sessionId);
-            safeComplete(sessionId);
-            cleanup(sessionId);
+            safeComplete(sessionId, emitter);
+            cleanup(sessionId, emitter);
         });
 
         emitter.onError((Throwable error) -> {
             log.warn("SSE error: sessionId={}", sessionId, error);
             taskRegistry.cancel(sessionId);
-            cleanup(sessionId);
+            cleanup(sessionId, emitter);
         });
 
         return emitter;
@@ -59,70 +59,72 @@ public class SseEmitterService {
 
     public void send(String sessionId, SseEventType type, Object data) {
         connectionRegistry.get(sessionId).ifPresent(emitter -> {
-            String name = type.name().toLowerCase(Locale.ROOT);
-            SseEvent event = SseEvent.builder()
-                    .type(name)
-                    .data(data)
-                    .timestamp(System.currentTimeMillis())
-                    .build();
             try {
-                emitter.send(SseEmitter.event().name(name).data(event));
+                sendToEmitter(sessionId, emitter, type, data);
             } catch (IOException e) {
                 log.info("SSE send failed (client gone): sessionId={}, type={}", sessionId, type);
                 taskRegistry.cancel(sessionId);
-                safeComplete(sessionId);
-                cleanup(sessionId);
+                safeComplete(sessionId, emitter);
+                cleanup(sessionId, emitter);
             } catch (Exception e) {
                 log.warn("SSE send failed: sessionId={}, type={}", sessionId, type, e);
                 taskRegistry.cancel(sessionId);
-                safeCompleteWithError(sessionId, e);
-                cleanup(sessionId);
+                safeCompleteWithError(sessionId, emitter, e);
+                cleanup(sessionId, emitter);
             }
         });
     }
 
     public void complete(String sessionId) {
-        safeComplete(sessionId);
-        cleanup(sessionId);
+        connectionRegistry.get(sessionId).ifPresent(emitter -> {
+            safeComplete(sessionId, emitter);
+            cleanup(sessionId, emitter);
+        });
     }
 
     public void completeWithError(String sessionId, Throwable error) {
-        safeCompleteWithError(sessionId, error);
-        cleanup(sessionId);
-    }
-
-    private void safeComplete(String sessionId) {
-        if (!markClosed(sessionId)) {
-            return;
-        }
         connectionRegistry.get(sessionId).ifPresent(emitter -> {
-            try {
-                emitter.complete();
-            } catch (Exception ignored) {
-            }
+            safeCompleteWithError(sessionId, emitter, error);
+            cleanup(sessionId, emitter);
         });
     }
 
-    private void safeCompleteWithError(String sessionId, Throwable error) {
-        if (!markClosed(sessionId)) {
+    private void sendToEmitter(String sessionId, SseEmitter emitter, SseEventType type, Object data) throws IOException {
+        String name = type.name().toLowerCase(Locale.ROOT);
+        SseEvent event = SseEvent.builder()
+                .type(name)
+                .data(data)
+                .timestamp(System.currentTimeMillis())
+                .build();
+        emitter.send(SseEmitter.event().name(name).data(event));
+    }
+
+    private void safeComplete(String sessionId, SseEmitter emitter) {
+        if (!markClosed(emitter)) {
             return;
         }
-        connectionRegistry.get(sessionId).ifPresent(emitter -> {
-            try {
-                emitter.completeWithError(error);
-            } catch (Exception ignored) {
-            }
-        });
+        try {
+            emitter.complete();
+        } catch (Exception ignored) {
+        }
     }
 
-    private void cleanup(String sessionId) {
-        connectionRegistry.remove(sessionId);
-        taskRegistry.complete(sessionId);
-        closedSessions.remove(sessionId);
+    private void safeCompleteWithError(String sessionId, SseEmitter emitter, Throwable error) {
+        if (!markClosed(emitter)) {
+            return;
+        }
+        try {
+            emitter.completeWithError(error);
+        } catch (Exception ignored) {
+        }
     }
 
-    private boolean markClosed(String sessionId) {
-        return closedSessions.add(sessionId);
+    private void cleanup(String sessionId, SseEmitter emitter) {
+        connectionRegistry.remove(sessionId, emitter);
+        closedEmitters.remove(emitter);
+    }
+
+    private boolean markClosed(SseEmitter emitter) {
+        return closedEmitters.add(emitter);
     }
 }
-

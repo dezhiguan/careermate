@@ -1,6 +1,7 @@
 package com.careermate.agent.session;
 
 import com.careermate.agent.dto.AgentSessionCreateResponse;
+import com.careermate.agent.dto.AgentSessionListItemResponse;
 import com.careermate.agent.dto.AgentSessionResponse;
 import com.careermate.agent.dto.AgentTraceResponse;
 import com.careermate.model.entity.AgentMessageEntity;
@@ -12,6 +13,8 @@ public interface AgentSessionService {
     AgentSessionCreateResponse createSession(Long userId);
 
     AgentSessionResponse getSession(Long userId, String sessionId);
+
+    List<AgentSessionListItemResponse> listRecentSessions(Long userId, int limit);
 
     List<AgentTraceResponse> getTrace(Long userId, String sessionId);
 

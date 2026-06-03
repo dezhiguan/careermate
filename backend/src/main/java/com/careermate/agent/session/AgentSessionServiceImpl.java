@@ -4,8 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.careermate.agent.dto.AgentMessageResponse;
 import com.careermate.agent.dto.AgentSessionCreateResponse;
+import com.careermate.agent.dto.AgentSessionListItemResponse;
 import com.careermate.agent.dto.AgentSessionResponse;
 import com.careermate.agent.dto.AgentTraceResponse;
+import com.careermate.agent.sse.AgentTaskRegistry;
 import com.careermate.common.exception.BizException;
 import com.careermate.mapper.AgentMessageMapper;
 import com.careermate.mapper.AgentSessionMapper;
@@ -29,17 +31,25 @@ public class AgentSessionServiceImpl implements AgentSessionService {
     private final AgentMessageMapper agentMessageMapper;
     private final AgentToolCallMapper agentToolCallMapper;
     private final AgentTaskStateMapper agentTaskStateMapper;
+    private final AgentTaskRegistry agentTaskRegistry;
+
+    private static final int DEFAULT_LIST_LIMIT = 20;
+    private static final int TITLE_MAX_LEN = 30;
+    private static final int PREVIEW_MAX_LEN = 80;
+    private static final String DEFAULT_TITLE = "新会话";
 
     public AgentSessionServiceImpl(
             AgentSessionMapper agentSessionMapper,
             AgentMessageMapper agentMessageMapper,
             AgentToolCallMapper agentToolCallMapper,
-            AgentTaskStateMapper agentTaskStateMapper
+            AgentTaskStateMapper agentTaskStateMapper,
+            AgentTaskRegistry agentTaskRegistry
     ) {
         this.agentSessionMapper = agentSessionMapper;
         this.agentMessageMapper = agentMessageMapper;
         this.agentToolCallMapper = agentToolCallMapper;
         this.agentTaskStateMapper = agentTaskStateMapper;
+        this.agentTaskRegistry = agentTaskRegistry;
     }
 
     @Override
@@ -106,6 +116,20 @@ public class AgentSessionServiceImpl implements AgentSessionService {
     }
 
     @Override
+    public List<AgentSessionListItemResponse> listRecentSessions(Long userId, int limit) {
+        int safeLimit = limit <= 0 ? DEFAULT_LIST_LIMIT : Math.min(limit, DEFAULT_LIST_LIMIT);
+        List<AgentSessionEntity> sessions = agentSessionMapper.selectList(
+                new LambdaQueryWrapper<AgentSessionEntity>()
+                        .eq(AgentSessionEntity::getUserId, userId)
+                        .orderByDesc(AgentSessionEntity::getUpdatedAt)
+                        .last("LIMIT " + safeLimit)
+        );
+        return sessions.stream()
+                .map(s -> toListItem(userId, s))
+                .toList();
+    }
+
+    @Override
     public List<AgentTraceResponse> getTrace(Long userId, String sessionId) {
         AgentSessionEntity session = getSessionByUser(userId, sessionId);
         List<AgentToolCallEntity> traces = agentToolCallMapper.selectList(
@@ -152,8 +176,14 @@ public class AgentSessionServiceImpl implements AgentSessionService {
         message.setContent(content);
         message.setMessageType(messageType);
         message.setSequenceNo(next);
-        message.setCreatedAt(OffsetDateTime.now());
+        OffsetDateTime now = OffsetDateTime.now();
+        message.setCreatedAt(now);
         agentMessageMapper.insert(message);
+
+        agentSessionMapper.update(null, new LambdaUpdateWrapper<AgentSessionEntity>()
+                .eq(AgentSessionEntity::getId, session.getId())
+                .eq(AgentSessionEntity::getUserId, userId)
+                .set(AgentSessionEntity::getUpdatedAt, now));
         return message;
     }
 
@@ -228,6 +258,68 @@ public class AgentSessionServiceImpl implements AgentSessionService {
             throw new BizException(404, "会话不存在");
         }
         return session;
+    }
+
+    private AgentSessionListItemResponse toListItem(Long userId, AgentSessionEntity session) {
+        List<AgentMessageEntity> messages = agentMessageMapper.selectList(
+                new LambdaQueryWrapper<AgentMessageEntity>()
+                        .eq(AgentMessageEntity::getSessionId, session.getId())
+                        .eq(AgentMessageEntity::getUserId, userId)
+                        .orderByAsc(AgentMessageEntity::getSequenceNo)
+        );
+        String firstUserContent = messages.stream()
+                .filter(m -> "user".equalsIgnoreCase(m.getRole()))
+                .map(AgentMessageEntity::getContent)
+                .findFirst()
+                .orElse(null);
+        String lastPreview = messages.isEmpty()
+                ? ""
+                : truncate(messages.get(messages.size() - 1).getContent(), PREVIEW_MAX_LEN);
+
+        return AgentSessionListItemResponse.builder()
+                .sessionId(session.getSessionId())
+                .title(resolveTitle(session.getTitle(), firstUserContent))
+                .status(toPublicStatus(session, agentTaskRegistry.isRunning(session.getSessionId())))
+                .messageCount(messages.size())
+                .lastMessagePreview(lastPreview)
+                .createdAt(session.getCreatedAt())
+                .updatedAt(session.getUpdatedAt())
+                .build();
+    }
+
+    private String resolveTitle(String storedTitle, String firstUserContent) {
+        if (storedTitle != null && !storedTitle.isBlank() && !DEFAULT_TITLE.equals(storedTitle)) {
+            return storedTitle;
+        }
+        if (firstUserContent != null && !firstUserContent.isBlank()) {
+            return truncate(firstUserContent, TITLE_MAX_LEN);
+        }
+        return DEFAULT_TITLE;
+    }
+
+    private String toPublicStatus(AgentSessionEntity session, boolean running) {
+        String raw = session.getStatus();
+        if ("ERROR".equalsIgnoreCase(raw)) {
+            return "ERROR";
+        }
+        if ("COMPLETED".equalsIgnoreCase(raw)) {
+            return "COMPLETED";
+        }
+        if (running) {
+            return "RUNNING";
+        }
+        return "CREATED";
+    }
+
+    private String truncate(String text, int maxLen) {
+        if (text == null) {
+            return "";
+        }
+        String trimmed = text.trim();
+        if (trimmed.length() <= maxLen) {
+            return trimmed;
+        }
+        return trimmed.substring(0, maxLen);
     }
 
     private String safeJson(String raw) {

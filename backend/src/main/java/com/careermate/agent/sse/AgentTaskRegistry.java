@@ -42,4 +42,9 @@ public class AgentTaskRegistry {
     public void complete(String sessionId) {
         runningTasks.remove(sessionId);
     }
+
+    public boolean isRunning(String sessionId) {
+        Future<?> future = runningTasks.get(sessionId);
+        return future != null && !future.isDone() && !future.isCancelled();
+    }
 }
