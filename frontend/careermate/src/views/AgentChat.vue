@@ -85,6 +85,24 @@
           <div class="panel-value">{{ toolCallPanelSummary }}</div>
         </div>
         <div class="panel-divider" />
+        <div class="panel-title-sm">求职画像</div>
+        <div v-if="careerProfileLoading" class="tool-log">加载中...</div>
+        <div v-else-if="!hasCareerProfile" class="tool-log">暂无求职画像</div>
+        <div v-else class="career-profile-panel">
+          <div class="panel-section compact">
+            <div class="panel-label">目标岗位：</div>
+            <div class="panel-value">{{ careerProfile.targetRole || '-' }}</div>
+          </div>
+          <div class="panel-section compact">
+            <div class="panel-label">目标城市：</div>
+            <div class="panel-value">{{ careerProfile.targetCity || '-' }}</div>
+          </div>
+          <div class="panel-section compact">
+            <div class="panel-label">技能关键词：</div>
+            <div class="panel-value">{{ careerProfileSkillsText }}</div>
+          </div>
+        </div>
+        <div class="panel-divider" />
         <div class="panel-title-sm">最近会话</div>
         <div v-if="sessionsLoading" class="tool-log">加载中...</div>
         <div v-else-if="recentSessions.length === 0" class="tool-log">暂无历史会话</div>
@@ -133,6 +151,7 @@ import {
   listAgentSessions,
   sendAgentMessageStream,
 } from '../api/agent'
+import { getCareerProfile } from '../api/profile'
 import ToolCallCard from '../components/agent/ToolCallCard.vue'
 import { getToolLabel, isBusinessToolName, sanitizeToolSummary } from '../utils/agentToolDisplay'
 
@@ -153,6 +172,12 @@ const activeAgentMessage = ref(null)
 const recentSessions = ref([])
 const sessionsLoading = ref(false)
 const sessionSwitching = ref(false)
+const careerProfile = ref({
+  targetRole: '',
+  targetCity: '',
+  skillKeywords: [],
+})
+const careerProfileLoading = ref(false)
 
 const STREAM_UI_TIMEOUT_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_TIMEOUT_MS || 45000)
 
@@ -184,6 +209,21 @@ const userLabel = computed(() => {
   const user = authStore.state.currentUser
   if (!user) return '未登录'
   return `${user.username} / ${user.role}`
+})
+
+const hasCareerProfile = computed(() => {
+  const p = careerProfile.value
+  return !!(
+    (p.targetRole && p.targetRole.trim())
+    || (p.targetCity && p.targetCity.trim())
+    || (Array.isArray(p.skillKeywords) && p.skillKeywords.length > 0)
+  )
+})
+
+const careerProfileSkillsText = computed(() => {
+  const skills = careerProfile.value?.skillKeywords
+  if (!Array.isArray(skills) || skills.length === 0) return '-'
+  return skills.join(', ')
 })
 
 const toolCallPanelSummary = computed(() => {
@@ -427,6 +467,27 @@ function lastAgentMessage(msgs) {
   return null
 }
 
+async function loadCareerProfile() {
+  careerProfileLoading.value = true
+  try {
+    const data = await getCareerProfile()
+    careerProfile.value = {
+      targetRole: data?.targetRole || '',
+      targetCity: data?.targetCity || '',
+      skillKeywords: Array.isArray(data?.skillKeywords) ? data.skillKeywords : [],
+    }
+  } catch {
+    careerProfile.value = { targetRole: '', targetCity: '', skillKeywords: [] }
+  } finally {
+    careerProfileLoading.value = false
+  }
+}
+
+function shouldRefreshCareerProfile(traces) {
+  if (!Array.isArray(traces)) return false
+  return traces.some((t) => (t.toolName || t.type) === 'career_profile_update')
+}
+
 async function loadRecentSessionsList() {
   sessionsLoading.value = true
   try {
@@ -514,6 +575,9 @@ async function refreshTraceFromServer(agentMessage = null) {
       payload: t,
       timestamp: t.createdAt ? new Date(t.createdAt).getTime() : Date.now(),
     }))
+    if (shouldRefreshCareerProfile(traces)) {
+      await loadCareerProfile()
+    }
     if (traces.length === 0) {
       pushTrace('refresh', '服务端暂无 trace 记录')
     }
@@ -561,6 +625,7 @@ async function bootstrapChat() {
   globalError.value = ''
   streamState.value = 'session_creating'
   try {
+    await loadCareerProfile()
     await loadRecentSessionsList()
     const latest = recentSessions.value[0]
     if (latest?.sessionId) {
@@ -874,6 +939,8 @@ onBeforeUnmount(() => {
 .trace-refresh-btn:disabled { opacity: .5; cursor: default; }
 .trace-refresh-btn:not(:disabled):hover { background: var(--light); }
 .panel-section { margin-bottom: 10px; }
+.panel-section.compact { margin-bottom: 6px; }
+.career-profile-panel { margin-bottom: 4px; }
 .panel-label { font-weight: 600; margin-bottom: 2px; }
 .panel-value { color: var(--slate); word-break: break-all; }
 .panel-divider { border-top: 1px solid var(--border); margin: 10px 0; }
