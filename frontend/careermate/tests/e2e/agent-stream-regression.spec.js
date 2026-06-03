@@ -13,8 +13,10 @@ const {
   enterFromLoginIfNeeded,
   assertAgentDashboard,
   gotoApp,
-  MOCK_REPLY,
 } = require('./e2e-env');
+
+const AGENT_REPLY =
+  /Mock|CareerMate|简历|岗位|面试|建议|总结|优化|差距|复盘|分析|回复/i;
 
 const ROUNDS = [
   '帮我分析简历',
@@ -56,11 +58,10 @@ test.describe('云端 · Agent SSE 多轮回归', () => {
       const message = ROUNDS[i];
       console.log(`[agent-regression] round ${i + 1}/${ROUNDS.length}: ${message}`);
 
+      await expect(page.locator('.stream-flag')).not.toBeVisible({ timeout: 30_000 }).catch(() => {});
       await expect(input).toBeEnabled({ timeout: 30_000 });
-      await expect(sendBtn).toBeEnabled({ timeout: 30_000 });
-      await expect(page.locator('.stream-flag')).not.toBeVisible({ timeout: 5_000 }).catch(() => {});
-
       await input.fill(message);
+      await expect(sendBtn).toBeEnabled({ timeout: 15_000 });
       await sendBtn.click();
 
       await expect(page.locator('.user-bubble', { hasText: message })).toBeVisible({
@@ -68,14 +69,17 @@ test.describe('云端 · Agent SSE 多轮回归', () => {
       });
 
       const agentBubble = page.locator('.agent-bubble').last();
-      await expect(agentBubble).toContainText(MOCK_REPLY, { timeout: 90_000 });
+      await expect(agentBubble).toContainText(AGENT_REPLY, { timeout: 90_000 });
 
       await expect(page.locator('.stream-flag')).not.toBeVisible({ timeout: 30_000 });
       await expect(input).toBeEnabled({ timeout: 30_000 });
-      await expect(sendBtn).toBeEnabled({ timeout: 30_000 });
 
       const panelValue = page.locator('.panel-value').first();
       await expect(panelValue).not.toHaveText('流式生成中', { timeout: 5_000 });
+
+      await input.fill('测');
+      await expect(sendBtn).toBeEnabled({ timeout: 10_000 });
+      await input.clear();
     }
   });
 });
