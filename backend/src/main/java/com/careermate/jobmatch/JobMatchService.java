@@ -11,15 +11,12 @@ import com.careermate.model.entity.JobMatchEntity;
 import com.careermate.model.entity.ResumeEntity;
 import com.careermate.resume.ResumeService;
 import com.careermate.security.CurrentUserContext;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
-import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class JobMatchService {
@@ -30,18 +27,32 @@ public class JobMatchService {
     private final JobMatchMapper jobMatchMapper;
     private final ResumeService resumeService;
     private final JobMatchAnalyzer jobMatchAnalyzer;
-    private final ObjectMapper objectMapper;
+    private final JobMatchJsonSupport jobMatchJsonSupport;
 
     public JobMatchService(
             JobMatchMapper jobMatchMapper,
             ResumeService resumeService,
             JobMatchAnalyzer jobMatchAnalyzer,
-            ObjectMapper objectMapper
+            JobMatchJsonSupport jobMatchJsonSupport
     ) {
         this.jobMatchMapper = jobMatchMapper;
         this.resumeService = resumeService;
         this.jobMatchAnalyzer = jobMatchAnalyzer;
-        this.objectMapper = objectMapper;
+        this.jobMatchJsonSupport = jobMatchJsonSupport;
+    }
+
+    public Optional<JobMatchEntity> getLatestActiveMatch(Long userId) {
+        if (userId == null) {
+            return Optional.empty();
+        }
+        JobMatchEntity entity = jobMatchMapper.selectOne(
+                new LambdaQueryWrapper<JobMatchEntity>()
+                        .eq(JobMatchEntity::getUserId, userId)
+                        .eq(JobMatchEntity::getStatus, STATUS_ACTIVE)
+                        .orderByDesc(JobMatchEntity::getCreatedAt)
+                        .last("LIMIT 1")
+        );
+        return Optional.ofNullable(entity);
     }
 
     public List<JobMatchListItemResponse> listActiveMatches() {
@@ -76,11 +87,11 @@ public class JobMatchService {
         entity.setJdContent(request.getJdContent().trim());
         entity.setMatchScore(analysis.getMatchScore());
         entity.setMatchLevel(analysis.getMatchLevel());
-        entity.setMatchedSkills(writeJson(analysis.getMatchedSkills()));
-        entity.setMissingSkills(writeJson(analysis.getMissingSkills()));
-        entity.setStrengths(writeJson(analysis.getStrengths()));
-        entity.setRisks(writeJson(analysis.getRisks()));
-        entity.setSuggestions(writeJson(analysis.getSuggestions()));
+        entity.setMatchedSkills(jobMatchJsonSupport.writeStringList(analysis.getMatchedSkills()));
+        entity.setMissingSkills(jobMatchJsonSupport.writeStringList(analysis.getMissingSkills()));
+        entity.setStrengths(jobMatchJsonSupport.writeStringList(analysis.getStrengths()));
+        entity.setRisks(jobMatchJsonSupport.writeStringList(analysis.getRisks()));
+        entity.setSuggestions(jobMatchJsonSupport.writeStringList(analysis.getSuggestions()));
         entity.setAnalysisSummary(analysis.getAnalysisSummary());
         entity.setStatus(STATUS_ACTIVE);
         entity.setCreatedAt(now);
@@ -139,8 +150,8 @@ public class JobMatchService {
                 .companyName(entity.getCompanyName())
                 .matchScore(entity.getMatchScore())
                 .matchLevel(entity.getMatchLevel())
-                .matchedSkills(readStringList(entity.getMatchedSkills()))
-                .missingSkills(readStringList(entity.getMissingSkills()))
+                .matchedSkills(jobMatchJsonSupport.readStringList(entity.getMatchedSkills()))
+                .missingSkills(jobMatchJsonSupport.readStringList(entity.getMissingSkills()))
                 .analysisSummary(entity.getAnalysisSummary())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
@@ -156,34 +167,15 @@ public class JobMatchService {
                 .jdContent(entity.getJdContent())
                 .matchScore(entity.getMatchScore())
                 .matchLevel(entity.getMatchLevel())
-                .matchedSkills(readStringList(entity.getMatchedSkills()))
-                .missingSkills(readStringList(entity.getMissingSkills()))
-                .strengths(readStringList(entity.getStrengths()))
-                .risks(readStringList(entity.getRisks()))
-                .suggestions(readStringList(entity.getSuggestions()))
+                .matchedSkills(jobMatchJsonSupport.readStringList(entity.getMatchedSkills()))
+                .missingSkills(jobMatchJsonSupport.readStringList(entity.getMissingSkills()))
+                .strengths(jobMatchJsonSupport.readStringList(entity.getStrengths()))
+                .risks(jobMatchJsonSupport.readStringList(entity.getRisks()))
+                .suggestions(jobMatchJsonSupport.readStringList(entity.getSuggestions()))
                 .analysisSummary(entity.getAnalysisSummary())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
-    }
-
-    private String writeJson(List<String> values) {
-        try {
-            return objectMapper.writeValueAsString(values == null ? Collections.emptyList() : values);
-        } catch (JsonProcessingException e) {
-            throw new BizException(500, "JSON 序列化失败");
-        }
-    }
-
-    private List<String> readStringList(String json) {
-        if (json == null || json.isBlank()) {
-            return List.of();
-        }
-        try {
-            return objectMapper.readValue(json, new TypeReference<List<String>>() {});
-        } catch (JsonProcessingException e) {
-            return List.of();
-        }
     }
 
     private String trimToNull(String value) {

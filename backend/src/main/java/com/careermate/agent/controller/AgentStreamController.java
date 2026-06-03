@@ -6,6 +6,8 @@ import com.careermate.agent.dto.AgentSessionCreateResponse;
 import com.careermate.agent.dto.AgentSessionResponse;
 import com.careermate.agent.dto.AgentTraceResponse;
 import com.careermate.agent.session.AgentSessionService;
+import com.careermate.jobmatch.JobMatchContext;
+import com.careermate.jobmatch.JobMatchContextProvider;
 import com.careermate.resume.ResumeContext;
 import com.careermate.resume.ResumeContextProvider;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -51,9 +53,11 @@ public class AgentStreamController {
     private final AgentTaskRegistry taskRegistry;
     private final AgentSessionService agentSessionService;
     private final ResumeContextProvider resumeContextProvider;
+    private final JobMatchContextProvider jobMatchContextProvider;
     private final ObjectMapper objectMapper;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
+    private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
 
     public AgentStreamController(
             LlmClient llmClient,
@@ -62,6 +66,7 @@ public class AgentStreamController {
             AgentTaskRegistry taskRegistry,
             AgentSessionService agentSessionService,
             ResumeContextProvider resumeContextProvider,
+            JobMatchContextProvider jobMatchContextProvider,
             ObjectMapper objectMapper
     ) {
         this.llmClient = llmClient;
@@ -70,6 +75,7 @@ public class AgentStreamController {
         this.taskRegistry = taskRegistry;
         this.agentSessionService = agentSessionService;
         this.resumeContextProvider = resumeContextProvider;
+        this.jobMatchContextProvider = jobMatchContextProvider;
         this.objectMapper = objectMapper;
     }
 
@@ -160,7 +166,10 @@ public class AgentStreamController {
             ResumeContext resumeContext = resumeContextProvider.getResumeContext(userId);
             recordResumeContextTrace(userId, sessionId, resumeContext);
 
-            String systemPrompt = AgentPromptAssembler.buildSystemPrompt(resumeContext);
+            JobMatchContext jobMatchContext = jobMatchContextProvider.getLatestJobMatchContext(userId);
+            recordJobMatchContextTrace(userId, sessionId, jobMatchContext);
+
+            String systemPrompt = AgentPromptAssembler.buildSystemPrompt(resumeContext, jobMatchContext);
             ChatRequest chatRequest = ChatRequest.builder()
                     .messages(List.of(
                             ChatMessage.builder().role("system").content(systemPrompt).build(),
@@ -248,6 +257,41 @@ public class AgentStreamController {
         );
         agentSessionService.markError(userId, sessionId, errorCode);
         sseEmitterService.completeWithError(sessionId, error == null ? new RuntimeException("unknown") : error);
+    }
+
+    private void recordJobMatchContextTrace(Long userId, String sessionId, JobMatchContext jobMatchContext) {
+        boolean available = jobMatchContext != null && jobMatchContext.isAvailable();
+        String status = available ? "SUCCESS" : "EMPTY";
+        String message = available
+                ? "已加载最近岗位匹配：" + jobMatchContext.getJobTitle()
+                : "当前用户暂无岗位匹配记录";
+
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        if (available) {
+            payload.put("jobMatchId", jobMatchContext.getJobMatchId());
+            payload.put("jobTitle", jobMatchContext.getJobTitle());
+            payload.put("companyName", jobMatchContext.getCompanyName());
+            payload.put("matchScore", jobMatchContext.getMatchScore());
+            payload.put("matchLevel", jobMatchContext.getMatchLevel());
+            payload.put("matchedSkillsCount", sizeOf(jobMatchContext.getMatchedSkills()));
+            payload.put("missingSkillsCount", sizeOf(jobMatchContext.getMissingSkills()));
+        }
+        payload.put("message", message);
+
+        agentSessionService.recordTrace(
+                userId,
+                sessionId,
+                TRACE_JOB_MATCH_CONTEXT,
+                "{}",
+                writeJson(payload),
+                status,
+                null,
+                null
+        );
+    }
+
+    private int sizeOf(List<String> items) {
+        return items == null ? 0 : items.size();
     }
 
     private void recordResumeContextTrace(Long userId, String sessionId, ResumeContext resumeContext) {

@@ -81,8 +81,9 @@ public class MockLlmClient implements LlmClient {
 
     private String buildMockContent(ChatRequest request) {
         String latest = extractLatestUserContent(request == null ? null : request.getMessages()).toLowerCase(Locale.ROOT);
-        if (latest.contains("简历")) {
-            String system = extractSystemContent(request == null ? null : request.getMessages());
+        String system = extractSystemContent(request == null ? null : request.getMessages());
+
+        if (isResumeOnlyIntent(latest)) {
             String resumeTitle = extractResumeTitleFromSystem(system);
             if (resumeTitle != null && !resumeTitle.isBlank()) {
                 return String.format(
@@ -92,13 +93,104 @@ public class MockLlmClient implements LlmClient {
             }
             return "我还没有读取到默认简历，请先在简历页创建并设为默认。";
         }
-        if (latest.contains("岗位") || latest.contains("匹配")) {
-            return "这是 Mock 岗位匹配结果：你当前更匹配后端工程师与数据平台工程师方向，建议优先投递技术栈重合度高的岗位。";
+
+        if (isJobMatchUserIntent(latest)) {
+            JobMatchSnapshot snapshot = extractJobMatchSnapshotFromSystem(system);
+            if (snapshot != null) {
+                String missingPart = formatSkillPart(snapshot.missingSkills(), "暂无缺失技能");
+                String matchedPart = formatSkillPart(snapshot.matchedSkills(), "暂无命中技能");
+                return String.format(
+                        "我已读取你最近的岗位匹配结果《%s》，当前匹配分为 %d 分。建议你优先补齐 %s，并在简历中强化 %s 的项目证据。",
+                        snapshot.jobTitle(),
+                        snapshot.matchScore(),
+                        missingPart,
+                        matchedPart
+                );
+            }
+            return "我还没有读取到岗位匹配记录，请先在岗位匹配页录入 JD 并生成匹配结果。";
         }
+
         if (latest.contains("面试")) {
             return "这是 Mock 面试准备建议：先梳理项目亮点，再按八股题、系统设计、行为面三个维度准备高频问答。";
         }
         return "这是 Mock CareerMate 回复：我可以帮助你做简历优化、岗位匹配和面试准备。";
+    }
+
+    private boolean isResumeOnlyIntent(String latest) {
+        return latest.contains("简历") && !isJobMatchUserIntent(latest);
+    }
+
+    private boolean isJobMatchUserIntent(String latest) {
+        if (latest.contains("岗位") || latest.contains("匹配") || latest.contains("差距")
+                || latest.contains("缺失") || latest.contains("面试")) {
+            return true;
+        }
+        return latest.contains("优化")
+                && (latest.contains("岗位") || latest.contains("刚才") || latest.contains("匹配"));
+    }
+
+    private String formatSkillPart(List<String> skills, String fallback) {
+        if (skills == null || skills.isEmpty()) {
+            return fallback;
+        }
+        if (skills.size() == 1) {
+            return skills.get(0);
+        }
+        return skills.get(0) + "、" + skills.get(1);
+    }
+
+    private JobMatchSnapshot extractJobMatchSnapshotFromSystem(String systemContent) {
+        if (systemContent == null || !systemContent.contains("最近岗位匹配结果：")) {
+            return null;
+        }
+        String jobTitle = extractFieldValue(systemContent, "岗位：");
+        if (jobTitle == null || jobTitle.isBlank()) {
+            return null;
+        }
+        int matchScore = 0;
+        String scoreText = extractFieldValue(systemContent, "匹配分数：");
+        if (scoreText != null && !scoreText.isBlank()) {
+            try {
+                matchScore = Integer.parseInt(scoreText.trim());
+            } catch (NumberFormatException ignored) {
+                matchScore = 0;
+            }
+        }
+        List<String> matched = extractListField(systemContent, "命中技能：");
+        List<String> missing = extractListField(systemContent, "缺失技能：");
+        return new JobMatchSnapshot(jobTitle, matchScore, matched, missing);
+    }
+
+    private String extractFieldValue(String systemContent, String marker) {
+        int idx = systemContent.indexOf(marker);
+        if (idx < 0) {
+            return null;
+        }
+        int start = idx + marker.length();
+        int end = systemContent.indexOf('\n', start);
+        if (end < 0) {
+            end = systemContent.length();
+        }
+        return systemContent.substring(start, end).trim();
+    }
+
+    private List<String> extractListField(String systemContent, String marker) {
+        String value = extractFieldValue(systemContent, marker);
+        if (value == null || value.isBlank() || "无".equals(value)) {
+            return List.of();
+        }
+        String[] parts = value.split("、");
+        List<String> result = new ArrayList<>();
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                result.add(trimmed);
+            }
+        }
+        return result;
+    }
+
+    private record JobMatchSnapshot(String jobTitle, int matchScore, List<String> matchedSkills, List<String> missingSkills) {
     }
 
     private String extractSystemContent(List<ChatMessage> messages) {
