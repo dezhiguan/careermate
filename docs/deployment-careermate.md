@@ -289,3 +289,7 @@ Each deploy creates:
 - Do not modify production PostgreSQL / Redis / Elasticsearch from CI.
 - Do not delete old releases automatically in this phase.
 - No Docker image registry, Kubernetes, or blue/green in this phase.
+
+## 14. 本地 E2E 验收（Playwright）
+
+在 `frontend/careermate` 目录：先启动 backend，再执行 `npm run test:e2e:show`（功能验收）或 `npm run test:e2e:auth`（登录/注册，按当前 `SECURITY_MODE` 自动识别 single-user / jwt）。

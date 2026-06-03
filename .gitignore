@@ -45,3 +45,13 @@ frontend/careermate/.env.*.local
 
 # Docker
 docker-compose.override.yml
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+frontend/careermate/test-results/
+frontend/careermate/playwright-report/

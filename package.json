@@ -1,0 +1,32 @@
+{
+  "name": "careermate",
+  "version": "1.0.0",
+  "description": "CareerMate 是一个面向职业发展的智能助手平台，提供简历优化、面试辅导、职业规划等能力。本仓库为项目 monorepo，包含后端服务与前端应用。",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "test:e2e:chrome": "playwright test --project=\"Google Chrome\" --headed",
+    "playwright:install": "playwright install chromium firefox"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dezhiguan/careermate.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/dezhiguan/careermate/issues"
+  },
+  "homepage": "https://github.com/dezhiguan/careermate#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@types/node": "^25.9.1"
+  }
+}
