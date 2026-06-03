@@ -10,6 +10,8 @@ import java.util.Optional;
 public class ResumeContextProvider {
 
     private static final String EMPTY_CONTEXT_TEXT = "当前用户暂无默认简历。";
+    private static final int MAX_RESUME_CONTEXT_CHARS = 8000;
+    private static final String TRUNCATED_SUFFIX = "（简历内容已截断，仅展示前 8000 字符）";
 
     private final ResumeService resumeService;
 
@@ -49,12 +51,23 @@ public class ResumeContextProvider {
 
     private String buildContextText(String title, String content) {
         String safeTitle = title == null ? "" : title.trim();
-        String safeContent = content == null ? "" : content.trim();
+        String safeContent = truncateForPrompt(content);
         return """
                 用户默认简历：
                 标题：%s
                 正文：
                 %s
                 """.formatted(safeTitle, safeContent).trim();
+    }
+
+    private String truncateForPrompt(String content) {
+        if (content == null) {
+            return "";
+        }
+        String trimmed = content.trim();
+        if (trimmed.length() <= MAX_RESUME_CONTEXT_CHARS) {
+            return trimmed;
+        }
+        return trimmed.substring(0, MAX_RESUME_CONTEXT_CHARS) + "\n" + TRUNCATED_SUFFIX;
     }
 }

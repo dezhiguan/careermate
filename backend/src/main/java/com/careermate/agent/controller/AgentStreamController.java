@@ -99,19 +99,15 @@ public class AgentStreamController {
         Long userId = CurrentUserContext.getUserId();
         log.info("Agent stream request: sessionId={}, userId={}", sessionId, userId);
 
-        if (taskRegistry.isRunning(sessionId)) {
-            throw new BizException(429, "当前会话已有任务运行中");
-        }
-
         agentSessionService.getSession(userId, sessionId);
-
-        SseEmitter emitter = sseEmitterService.createEmitter(sessionId);
 
         FutureTask<Void> task = new FutureTask<>(() -> {
             runStreamingTask(userId, sessionId, request);
             return null;
         });
-        taskRegistry.tryStart(sessionId, task);
+        taskRegistry.startOrThrow(sessionId, task);
+
+        SseEmitter emitter = sseEmitterService.createEmitter(sessionId);
 
         try {
             agentExecutor.execute(task);

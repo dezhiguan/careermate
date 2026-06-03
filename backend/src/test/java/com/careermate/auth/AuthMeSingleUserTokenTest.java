@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -24,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * single-user 模式下携带 JWT 时，/auth/me 应返回 Token 对应用户而非 local-user。
  */
 @SpringBootTest
+@ActiveProfiles("test")
 @AutoConfigureMockMvc(addFilters = true)
 class AuthMeSingleUserTokenTest {
 
@@ -38,7 +40,7 @@ class AuthMeSingleUserTokenTest {
 
     @Test
     void authMeUsesJwtUserWhenBearerPresentInSingleUserMode() throws Exception {
-        String username = "auth_me_token_" + System.nanoTime();
+        String username = "test_auth_me_token_" + System.nanoTime();
         RegisterRequest registerRequest = new RegisterRequest();
         registerRequest.setUsername(username);
         registerRequest.setPassword("Test123456!");

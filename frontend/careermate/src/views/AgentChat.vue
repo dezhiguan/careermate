@@ -330,8 +330,19 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.chat-page { max-width: 1200px; margin: 0 auto; height: calc(100vh - 72px); }
-.chat-layout { display: grid; grid-template-columns: 1fr 260px; height: 100%; }
+.chat-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  height: calc(100dvh - 44px - 84px - env(safe-area-inset-bottom));
+  min-height: 520px;
+  overflow: hidden;
+}
+.chat-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  height: 100%;
+  min-height: 0;
+}
 
 .chat-header {
   padding: 14px 18px; background: #fff; border-bottom: 1px solid var(--border);
@@ -362,9 +373,23 @@ onMounted(async () => {
   border-radius: 8px;
 }
 
-.chat-main { display: flex; flex-direction: column; height: 100%; }
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
 .messages-area {
-  flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .msg-wrapper { margin-bottom: 6px; }
 .msg-row { display: flex; }
@@ -384,7 +409,13 @@ onMounted(async () => {
 .stream-flag { margin-top: 4px; color: var(--purple); font-size: 11px; }
 .stream-error { margin-top: 4px; color: var(--red); font-size: 11px; }
 
-.input-area { border-top: 1px solid var(--border); padding: 12px 16px; background: #fff; }
+.input-area {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: 12px 16px;
+  background: #fff;
+  z-index: 10;
+}
 .suggestions { display: flex; gap: 8px; margin-bottom: 8px; font-size: 10px; overflow-x: auto; }
 .sug-chip {
   color: var(--purple); cursor: pointer; white-space: nowrap; padding: 2px 8px; border-radius: 10px; background: #f5f3ff;
@@ -401,7 +432,12 @@ onMounted(async () => {
 .send-btn:disabled { opacity: .4; cursor: default; }
 
 .session-panel {
-  background: #f8fafc; border-left: 1px solid var(--border); padding: 16px 12px; font-size: 10px; overflow-y: auto;
+  background: #f8fafc;
+  border-left: 1px solid var(--border);
+  padding: 16px 12px;
+  font-size: 10px;
+  overflow-y: auto;
+  min-height: 0;
 }
 .panel-title { font-weight: 700; font-size: 11px; margin-bottom: 12px; }
 .panel-title-sm { font-weight: 600; margin-bottom: 6px; font-size: 10px; }
@@ -422,14 +458,14 @@ onMounted(async () => {
   .chat-page {
     max-width: 100%;
     margin: 0;
-    height: calc(100dvh - 128px - env(safe-area-inset-bottom));
-    min-height: 360px;
+    height: calc(100dvh - 40px - 84px - env(safe-area-inset-bottom));
+    min-height: 420px;
+    overflow: hidden;
   }
 
   .chat-layout {
     display: flex;
     flex-direction: column;
-    grid-template-columns: none;
     height: 100%;
     min-height: 0;
   }
@@ -437,20 +473,16 @@ onMounted(async () => {
   .chat-main {
     flex: 1;
     min-height: 0;
-    order: 1;
+    overflow: hidden;
   }
 
   .session-panel {
-    order: 2;
-    flex-shrink: 0;
-    max-height: min(36dvh, 240px);
-    border-left: none;
-    border-top: 1px solid var(--border);
+    display: none;
   }
 
-  .messages-area {
-    min-height: 0;
-    -webkit-overflow-scrolling: touch;
+  .input-area {
+    flex-shrink: 0;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
 
   .msg-bubble {
@@ -507,10 +539,6 @@ onMounted(async () => {
 }
 
 @media (max-width: 480px) {
-  .chat-page {
-    height: calc(100dvh - 136px - env(safe-area-inset-bottom));
-  }
-
   .chat-header {
     padding: 10px 12px;
     gap: 8px;
@@ -534,11 +562,6 @@ onMounted(async () => {
   .msg-bubble {
     max-width: 90%;
     font-size: 13px;
-  }
-
-  .session-panel {
-    max-height: min(32dvh, 200px);
-    padding: 12px 10px;
   }
 
   .panel-value {

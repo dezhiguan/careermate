@@ -11,14 +11,24 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class AgentTaskRegistryTest {
 
     @Test
-    void tryStartShouldRejectWhenAlreadyRunning() {
+    void startOrThrowShouldRejectWhenAlreadyRunning() {
         AgentTaskRegistry registry = new AgentTaskRegistry();
 
         CompletableFuture<Void> running = new CompletableFuture<>();
-        assertDoesNotThrow(() -> registry.tryStart("s1", running));
+        assertDoesNotThrow(() -> registry.startOrThrow("s1", running));
 
         CompletableFuture<Void> another = new CompletableFuture<>();
-        assertThrows(BizException.class, () -> registry.tryStart("s1", another));
+        assertThrows(BizException.class, () -> registry.startOrThrow("s1", another));
+    }
+
+    @Test
+    void startOrThrowAllowsReplaceWhenPreviousDone() {
+        AgentTaskRegistry registry = new AgentTaskRegistry();
+
+        CompletableFuture<Void> done = CompletableFuture.completedFuture(null);
+        assertDoesNotThrow(() -> registry.startOrThrow("s1", done));
+
+        CompletableFuture<Void> next = new CompletableFuture<>();
+        assertDoesNotThrow(() -> registry.startOrThrow("s1", next));
     }
 }
-

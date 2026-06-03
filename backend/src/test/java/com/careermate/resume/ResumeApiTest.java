@@ -1,10 +1,14 @@
 package com.careermate.resume;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.careermate.mapper.JobMatchMapper;
 import com.careermate.mapper.ResumeMapper;
+import com.careermate.mapper.UserMapper;
+import com.careermate.mapper.UserProfileMapper;
 import com.careermate.model.entity.ResumeEntity;
 import com.careermate.security.CurrentUser;
 import com.careermate.security.CurrentUserContext;
+import com.careermate.testsupport.TestUserSupport;
+import com.careermate.testsupport.TestUsers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,9 +17,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@ActiveProfiles("test")
 @AutoConfigureMockMvc(addFilters = false)
 class ResumeApiTest {
 
@@ -41,10 +47,22 @@ class ResumeApiTest {
     @Autowired
     private ResumeMapper resumeMapper;
 
+    @Autowired
+    private JobMatchMapper jobMatchMapper;
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private UserProfileMapper userProfileMapper;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @BeforeEach
-    void cleanResumeFixtures() {
-        resumeMapper.delete(new LambdaQueryWrapper<ResumeEntity>()
-                .in(ResumeEntity::getUserId, List.of(1L, 2L)));
+    void setUp() {
+        TestUserSupport.ensureTestUsers(userMapper, userProfileMapper, passwordEncoder);
+        TestUserSupport.cleanupUserBusinessData(resumeMapper, jobMatchMapper);
     }
 
     @AfterEach
@@ -63,10 +81,10 @@ class ResumeApiTest {
 
     @Test
     void createListUpdateDefaultDeleteAndIsolation() throws Exception {
-        loginAs(1L, "local-user");
+        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
 
         String createBody = objectMapper.writeValueAsString(Map.of(
-                "title", "Java后端简历",
+                "title", "test_java_resume",
                 "content", "三年 Java 开发经验，熟悉 Spring Boot。"
         ));
 
@@ -75,7 +93,7 @@ class ResumeApiTest {
                         .content(createBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.title").value("Java后端简历"))
+                .andExpect(jsonPath("$.data.title").value("test_java_resume"))
                 .andExpect(jsonPath("$.data.isDefault").value(true))
                 .andReturn()
                 .getResponse()
@@ -90,22 +108,22 @@ class ResumeApiTest {
                 .andExpect(jsonPath("$.data[0].contentPreview").exists());
 
         String updateBody = objectMapper.writeValueAsString(Map.of(
-                "title", "Java后端简历-更新",
-                "content", "更新后的正文内容。"
+                "title", "test_java_resume_updated",
+                "content", "test 更新后的正文内容。"
         ));
         mockMvc.perform(put("/api/resumes/" + resumeId).contentType(MediaType.APPLICATION_JSON).content(updateBody))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.title").value("Java后端简历-更新"));
+                .andExpect(jsonPath("$.data.title").value("test_java_resume_updated"));
 
-        loginAs(2L, "other-user");
+        loginAs(TestUsers.USER_B, TestUsers.USER_B_NAME);
         mockMvc.perform(get("/api/resumes/" + resumeId))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404));
 
-        loginAs(1L, "local-user");
+        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
         String secondCreate = objectMapper.writeValueAsString(Map.of(
-                "title", "第二份简历",
-                "content", "第二份简历正文。"
+                "title", "test_second_resume",
+                "content", "test 第二份简历正文。"
         ));
         String secondJson = mockMvc.perform(post("/api/resumes")
                         .contentType(MediaType.APPLICATION_JSON)
