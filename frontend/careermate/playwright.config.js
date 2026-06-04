@@ -45,7 +45,12 @@ module.exports = defineConfig({
   workers: 1,
   timeout: 180_000,
   expect: { timeout: 20_000 },
-  reporter: [['list']],
+  reporter: process.env.CI
+    ? [
+        ['list'],
+        ['html', { open: 'never', outputFolder: 'playwright-report' }],
+      ]
+    : [['list']],
   use: {
     baseURL,
     actionTimeout: 25_000,
@@ -72,6 +77,18 @@ module.exports = defineConfig({
         viewport: { width: 390, height: 844 },
         isMobile: true,
         hasTouch: true,
+        baseURL,
+        screenshot: 'only-on-failure',
+        video: 'retain-on-failure',
+        trace: 'retain-on-failure',
+      },
+    },
+    {
+      name: 'ci-chromium-desktop',
+      use: {
+        browserName: 'chromium',
+        headless: true,
+        viewport: { width: 1440, height: 900 },
         baseURL,
         screenshot: 'only-on-failure',
         video: 'retain-on-failure',
