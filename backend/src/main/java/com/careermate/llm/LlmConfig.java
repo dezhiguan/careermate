@@ -1,6 +1,7 @@
 package com.careermate.llm;
 
 import com.careermate.common.exception.BizException;
+import com.careermate.config.CareerMateDebugProperties;
 import com.careermate.llm.provider.DeepSeekLlmClient;
 import com.careermate.llm.provider.MockLlmClient;
 import com.careermate.llm.provider.OpenAiCompatibleLlmClient;
@@ -11,7 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties(LlmProperties.class)
+@EnableConfigurationProperties({LlmProperties.class, CareerMateDebugProperties.class})
 public class LlmConfig {
 
     @Bean

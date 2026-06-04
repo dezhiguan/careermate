@@ -7,6 +7,7 @@ import com.careermate.llm.dto.ChatMessage;
 import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
 import jakarta.validation.Valid;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,6 +17,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/debug/llm")
+@ConditionalOnProperty(prefix = "careermate.debug", name = "llm-api-enabled", havingValue = "true", matchIfMissing = true)
 public class LlmDebugController {
 
     private final LlmClient llmClient;

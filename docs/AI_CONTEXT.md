@@ -47,14 +47,15 @@
   - 岗位匹配
   - 面试特训
   - 求职看板
-- 当前前端仍是静态 mock 页面，后续分阶段接入后端 API。
-- LLM 抽象层（阶段五）已完成基础能力：
-  - 新增 `LlmClient` 抽象接口与 `streamChat` / `toolCall` 预留方法。
-  - 当前默认 provider 为 `mock`（`careermate.llm.provider=mock`）。
-  - 已支持 `mock` / `deepseek` / `qwen` / `openai-compatible` 四种 provider 路由。
-  - `qwen` 默认 model 为 `qwen-plus`，通过 DashScope OpenAI-compatible endpoint 调用。
-  - 新增开发验证接口 `POST /api/debug/llm/chat`（需要认证）。
-  - 当前未实现 Agent Runtime、Tool Registry。
+- 前端主要业务页已对接后端 API（Agent / 简历 / 岗位匹配 / 面试 / 看板）。
+- LLM 抽象层（已完成）：
+  - `LlmClient` + `mock` / `deepseek` / `qwen` / `openai-compatible`。
+  - 本地默认 `mock`；线上通过环境变量切换 `qwen` + `qwen-plus` + DashScope OpenAI 兼容 endpoint。
+  - `QwenLlmClient` 复用 `OpenAiCompatibleLlmClient`（`/chat/completions` + Bearer Token）。
+  - 调用失败返回明确摘要，SSE 走 `error` + `done` 兜底，不泄露 API Key。
+  - `POST /api/debug/llm/chat` 仅 dev 默认开启；`prod` profile 关闭（`careermate.debug.llm-api-enabled=false`）。
+- 已收口模块：Agent 对话、会话恢复、多轮上下文、求职画像、求职任务工具、简历、岗位匹配、面试训练、Dashboard、工具卡片。
+- **下一阶段（仅 Roadmap）**：RAGForge JD 知识库集成（本仓库当前不实现 RAG 代码）。
 - SSE 基础设施（阶段六）已完成基础能力：
   - 基于 Spring MVC `SseEmitter` 的 SSE 连接与事件发送基础设施。
   - 独立 `agent-executor` 线程池，避免阻塞 Tomcat 请求线程执行长任务。
@@ -145,13 +146,9 @@
 
 当前下一步建议：
 
-**阶段五：LLM 抽象层**
+**RAGForge JD 知识库集成**（岗位 JD 检索增强，通过 REST 调用 RAGForge，不直接操作 pgvector/ES）。
 
-核心内容（概要）：
-
-- 设计 `LlmClient` 抽象与多供应商适配接口。
-- 不在核心链路绑定具体模型供应商。
-- 不提前实现 Agent Runtime、RAG 编排与业务工具。
+本阶段已完成：**真实 Qwen 切换 + 已完成功能收口**（保持 mock 供本地/CI）。
 
 ## 8. Cursor Working Rules
 

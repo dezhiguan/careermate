@@ -26,43 +26,39 @@ CareerMate 是一个面向职业发展的智能助手平台，提供简历优化
 
 ## 当前阶段说明
 
-**阶段五：LLM 抽象层（基础能力）**
+**阶段：已完成功能收口 + 真实 Qwen LLM 切换**
 
-当前已完成：
+### 已收口并可用（本仓库当前范围）
 
-- Spring Boot 后端基础骨架
-- 统一响应与异常处理
-- 健康检查接口
-- Vue 前端页面导入
-- Flyway migration 基础
-- 用户核心表 `users` / `user_profiles` / `security_audit_logs`
-- 对应实体类与 MyBatis-Plus Mapper
-- Spring Security 接入
-- single-user / jwt 双模式
-- 认证接口：`POST /api/auth/register`、`POST /api/auth/login`、`GET /api/auth/me`
-- JWT 生成与校验
-- `CurrentUserContext` 用户上下文注入
-- 注册 / 登录审计日志写入 `security_audit_logs`
-- 前端统一请求层 `src/api/http.js`（fetch）
-- 前端认证状态管理 `src/stores/authStore.js`
-- 登录页 `#/login` 与登录/注册交互
-- 路由守卫（未认证自动跳转登录页）
-- single-user 模式可直接通过 `/api/auth/me` 进入应用
-- LLM 抽象接口 `LlmClient` 与 provider 路由配置
-- `mock` / `deepseek` / `openai-compatible` 三种 provider 选择
-- 开发验证接口：`POST /api/debug/llm/chat`（需认证）
+| 模块 | 说明 |
+|------|------|
+| Agent 对话 | SSE 流式、工具调用、错误兜底（done/error + 前端 45s UI 超时） |
+| 会话恢复 | 最近会话列表、切换会话、刷新后恢复消息 |
+| 多轮上下文 | 会话历史注入 LLM prompt |
+| 求职画像 | `career_profiles` 跨会话记忆 |
+| 求职任务 | Agent 工具创建/查询/完成 + Dashboard 同步 |
+| 简历文本管理 | 简历 CRUD、默认简历、上下文注入 |
+| 岗位匹配 | JD 分析、匹配结果、Agent 工具 |
+| 面试训练 | 会话创建、答题、Agent 工具 |
+| Dashboard | 统计、建议、下一步任务 |
+| Agent 工具卡片 | 业务工具展示名与页面跳转 |
 
-本阶段前端已优先对接已完成后端接口：
+### LLM Provider
 
-- Auth 当前用户展示
-- Agent 对话台 SSE mock stream（会话落库 + 消息/Trace 持久化）
+- `LlmClient` 抽象 + `mock` / `deepseek` / `qwen` / `openai-compatible`
+- **线上推荐**：`LLM_PROVIDER=qwen`，`LLM_MODEL=qwen-plus`，DashScope OpenAI 兼容 endpoint
+- **本地/CI 默认**：`mock`（无需外部 API Key）
+- 真实 Key **仅**配置在服务器本地 `.env.app`，**禁止**写入仓库、`.env.example`、README、GitHub Actions
 
-当前仍未对接（继续保留前端 mock 数据）：
+### 下一阶段（Roadmap，本阶段不实现）
 
-- 简历上传/解析页面
-- 岗位匹配页面
-- 面试训练页面
-- 求职看板页面
+- **RAGForge JD 知识库集成**（岗位 JD RAG、共享知识检索）
+
+### 基础设施（已完成）
+
+- Spring Boot 后端、Flyway、Spring Security（single-user / jwt）
+- 认证 API、前端 Auth、`src/api/http.js`
+- 开发验证：`POST /api/debug/llm/chat`（**生产 profile 默认关闭**）
 
 ### 数据库初始化
 
@@ -129,7 +125,7 @@ Qwen Plus:
 ```bash
 LLM_PROVIDER=qwen
 LLM_MODEL=qwen-plus
-LLM_API_KEY=your-dashscope-api-key
+LLM_API_KEY=your_dashscope_api_key
 LLM_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1
 ```
 
@@ -189,9 +185,23 @@ docker compose up --build
 | `POST /api/auth/login` | 用户登录并返回 JWT |
 | `GET /api/auth/me` | 获取当前用户信息（single-user 或 JWT） |
 
+## 线上 Qwen 验证（部署机执行）
+
+在服务器 `/opt/careermate/backend/.env.app` 配置 `LLM_PROVIDER=qwen` 与 `LLM_API_KEY` 后：
+
+```bash
+curl -s -X POST "http://127.0.0.1:18080/api/debug/llm/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"请用一句话介绍 CareerMate"}'
+```
+
+> 生产环境默认关闭 `/api/debug/llm`（`careermate.debug.llm-api-enabled=false`）。若需临时验证，可短时设置 `CAREERMATE_DEBUG_LLM_API_ENABLED=true` 并重启后端，**勿**在响应或日志中输出 API Key。
+
+也可直接通过 Agent 对话台发送：`请用一句话介绍 CareerMate`。
+
 ## LLM Debug 接口（仅开发验证）
 
-> Debug API 仅用于本地验证，生产环境建议关闭。
+> Debug API 仅用于本地验证；`SPRING_PROFILES_ACTIVE=prod` 时默认不注册该 Controller。
 
 | 接口 | 说明 |
 |------|------|

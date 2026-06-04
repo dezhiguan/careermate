@@ -1,3 +1,7 @@
+careermate:
+  debug:
+    llm-api-enabled: false
+
 spring:
   datasource:
     url: ${DB_URL}
