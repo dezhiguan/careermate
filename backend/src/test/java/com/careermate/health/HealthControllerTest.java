@@ -27,6 +27,9 @@ class HealthControllerTest {
                 .andExpect(jsonPath("$.message").value("success"))
                 .andExpect(jsonPath("$.data.status").value("UP"))
                 .andExpect(jsonPath("$.data.service").value("careermate-backend"))
-                .andExpect(jsonPath("$.data.version").value("0.1.0"));
+                .andExpect(jsonPath("$.data.version").value("0.1.0"))
+                .andExpect(jsonPath("$.data.llmProvider").value("mock"))
+                .andExpect(jsonPath("$.data.llmModel").exists())
+                .andExpect(jsonPath("$.data.llmApiKeyConfigured").exists());
     }
 }

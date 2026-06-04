@@ -6,19 +6,35 @@ import com.careermate.llm.provider.DeepSeekLlmClient;
 import com.careermate.llm.provider.MockLlmClient;
 import com.careermate.llm.provider.OpenAiCompatibleLlmClient;
 import com.careermate.llm.provider.QwenLlmClient;
+import com.careermate.observability.LlmChatTraceRecorder;
+import com.careermate.observability.LlmTracingSupport;
+import com.careermate.observability.TracingLlmClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+@Slf4j
 @Configuration
 @EnableConfigurationProperties({LlmProperties.class, CareerMateDebugProperties.class})
 public class LlmConfig {
 
     @Bean
-    public LlmClient llmClient(LlmProperties llmProperties, ObjectMapper objectMapper) {
+    public LlmClient llmClient(
+            LlmProperties llmProperties,
+            ObjectMapper objectMapper,
+            LlmTracingSupport llmTracingSupport,
+            LlmChatTraceRecorder llmChatTraceRecorder
+    ) {
         String provider = llmProperties.getProvider() == null ? "mock" : llmProperties.getProvider().trim();
-        return switch (provider) {
+        boolean apiKeyPresent = llmProperties.getApiKey() != null && !llmProperties.getApiKey().isBlank();
+        log.info("LLM client init: provider={}, model={}, endpoint={}, apiKeyConfigured={}",
+                provider,
+                llmProperties.getModel(),
+                llmProperties.getEndpoint(),
+                apiKeyPresent);
+        LlmClient delegate = switch (provider) {
             case "mock" -> new MockLlmClient(llmProperties);
             case "deepseek" -> new DeepSeekLlmClient(llmProperties, objectMapper);
             case "qwen" -> new QwenLlmClient(llmProperties, objectMapper);
@@ -34,5 +50,6 @@ public class LlmConfig {
             default -> throw new BizException(400, "未知 LLM Provider: " + provider
                     + "，仅支持 mock | deepseek | qwen | openai-compatible");
         };
+        return new TracingLlmClient(delegate, llmTracingSupport, llmChatTraceRecorder);
     }
 }

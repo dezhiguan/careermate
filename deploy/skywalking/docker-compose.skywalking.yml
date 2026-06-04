@@ -1,0 +1,41 @@
+# Optional SkyWalking OAP + UI for CareerMate / RAGForge shared tracing.
+# Start on ingress server (bind to localhost only):
+#   docker compose -f deploy/skywalking/docker-compose.skywalking.yml up -d
+#
+# UI (host): http://127.0.0.1:18088/
+# Public (via Nginx): http://<ingress>/skywalking/
+# Agent gRPC collector (host): 127.0.0.1:11800
+
+services:
+  skywalking-oap:
+    image: apache/skywalking-oap-server:10.2.0
+    container_name: skywalking-oap
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11800:11800"
+      - "127.0.0.1:12800:12800"
+    environment:
+      SW_HEALTH_CHECKER: default
+      SW_STORAGE: h2
+    networks:
+      - skywalking-net
+
+  skywalking-ui:
+    image: apache/skywalking-ui:10.2.0
+    container_name: skywalking-ui
+    restart: unless-stopped
+    depends_on:
+      - skywalking-oap
+    ports:
+      - "127.0.0.1:18088:8080"
+    environment:
+      SW_OAP_ADDRESS: http://skywalking-oap:12800
+      # When Nginx serves UI under /skywalking/, set context path (UI 10.x):
+      SW_SERVER_SERVLET_CONTEXT_PATH: /skywalking
+    networks:
+      - skywalking-net
+
+networks:
+  skywalking-net:
+    name: skywalking-net
+    driver: bridge

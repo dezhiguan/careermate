@@ -1,5 +1,5 @@
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT:8081}
 
 mybatis-plus:
   type-handlers-package: com.careermate.mybatis
@@ -15,6 +15,16 @@ management:
     web:
       exposure:
         include: health,info,metrics
+  tracing:
+    enabled: ${TRACING_ENABLED:true}
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+logging:
+  config: classpath:logback-spring.xml
 
 careermate:
   security:
@@ -44,3 +54,11 @@ careermate:
     stream-task-timeout-ms: ${AGENT_STREAM_TASK_TIMEOUT_MS:120000}
     conversation-context-max-messages: ${AGENT_CONVERSATION_CONTEXT_MAX_MESSAGES:10}
     conversation-context-max-chars: ${AGENT_CONVERSATION_CONTEXT_MAX_CHARS:6000}
+  tracing:
+    service-name: ${OTEL_SERVICE_NAME:careermate-backend}
+  ragforge:
+    enabled: ${RAGFORGE_ENABLED:false}          # true 时才真实调用，false 时跳过（开发期不强依赖）
+    url: ${RAGFORGE_URL:http://localhost:8080}
+    api-key: ${RAGFORGE_API_KEY:}
+    timeout-ms: ${RAGFORGE_TIMEOUT_MS:5000}
+    jd-kb-id: ${RAGFORGE_JD_KB_ID:}            # RAGForge 里存放 JD 的知识库 ID

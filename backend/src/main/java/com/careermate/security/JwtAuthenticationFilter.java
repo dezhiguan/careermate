@@ -14,6 +14,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import com.careermate.observability.MdcKeys;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -65,6 +67,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
             writeUnauthorized(response, "Unsupported SECURITY_MODE");
         } finally {
+            MDC.remove(MdcKeys.USER_ID);
             CurrentUserContext.clear();
             SecurityContextHolder.clearContext();
         }
@@ -147,6 +150,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private void setSecurityContext(CurrentUser currentUser) {
         CurrentUserContext.set(currentUser);
+        if (currentUser.getUserId() != null) {
+            MDC.put(MdcKeys.USER_ID, String.valueOf(currentUser.getUserId()));
+        }
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 currentUser.getUsername(),
                 null,
