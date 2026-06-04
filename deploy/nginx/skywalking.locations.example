@@ -23,9 +23,15 @@ location /skywalking/ {
 # 127.0.0.1 inside the container is NOT the host. Use one of:
 #   1) Attach skywalking-ui to the same Docker network and proxy by service name:
 # location /skywalking/ {
-#     proxy_pass http://skywalking-ui:8080/;
-#     ...
+#     proxy_pass http://skywalking-ui:8080/skywalking/;
+#     proxy_http_version 1.1;
+#     proxy_set_header Host $host;
+#     proxy_set_header X-Real-IP $remote_addr;
+#     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#     proxy_set_header X-Forwarded-Proto $scheme;
+#     proxy_read_timeout 300s;
 # }
+# docker network connect skywalking-net <nginx-container>
 #   2) Or proxy to host gateway (Linux Docker):
 # location /skywalking/ {
 #     proxy_pass http://172.17.0.1:18088/;

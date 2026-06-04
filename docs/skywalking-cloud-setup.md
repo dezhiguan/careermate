@@ -19,11 +19,24 @@ CareerMate 后端 (18080) --gRPC 11800--> SkyWalking OAP
 在入口服务器（与 RAGForge Nginx 同机）：
 
 ```bash
-cd /opt/careermate/current   # 或你的部署目录
-bash deploy/scripts/start-skywalking.sh
+# CI 只发布 jar/前端，deploy 需单独同步到 /opt/careermate/deploy/（见 deployment-careermate.md）
+bash /opt/careermate/deploy/scripts/start-skywalking.sh
 # 或:
-docker compose -f deploy/skywalking/docker-compose.skywalking.yml up -d
+docker compose -f /opt/careermate/deploy/skywalking/docker-compose.skywalking.yml up -d
 ```
+
+镜像拉取（入口机 Docker Hub 超时时，在服务器执行）：
+
+```bash
+docker pull docker.m.daocloud.io/apache/skywalking-oap-server:10.2.0
+docker pull docker.m.daocloud.io/apache/skywalking-ui:10.2.0
+docker pull docker.m.daocloud.io/apache/skywalking-banyandb:0.8.0
+docker tag docker.m.daocloud.io/apache/skywalking-oap-server:10.2.0 apache/skywalking-oap-server:10.2.0
+docker tag docker.m.daocloud.io/apache/skywalking-ui:10.2.0 apache/skywalking-ui:10.2.0
+docker tag docker.m.daocloud.io/apache/skywalking-banyandb:0.8.0 apache/skywalking-banyandb:0.8.0
+```
+
+> OAP 10.2 **不支持** `SW_STORAGE=h2`，需 BanyanDB 0.8+（已写入 compose）。
 
 验证（仅服务器本机）：
 

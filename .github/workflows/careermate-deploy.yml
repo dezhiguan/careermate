@@ -167,7 +167,7 @@ jobs:
           RELEASE_DIR="/opt/careermate/releases/${GITHUB_SHA}"
 
           ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "mkdir -p '${RELEASE_DIR}/backend' '${RELEASE_DIR}/frontend/dist' /opt/careermate/scripts"
+            "mkdir -p '${RELEASE_DIR}/backend' '${RELEASE_DIR}/frontend/dist' /opt/careermate/scripts /opt/careermate/deploy/scripts /opt/careermate/deploy/skywalking /opt/careermate/deploy/nginx"
 
           scp "${SCP_OPTS[@]}" release/backend/app.jar \
             "${DEPLOY_USER}@${DEPLOY_HOST}:${RELEASE_DIR}/backend/app.jar"
@@ -179,8 +179,17 @@ jobs:
           scp "${SCP_OPTS[@]}" deploy/scripts/deploy-from-github.sh deploy/scripts/rollback-careermate.sh \
             "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/careermate/scripts/"
 
+          scp "${SCP_OPTS[@]}" deploy/scripts/start-skywalking.sh deploy/scripts/install-skywalking-agent.sh \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/careermate/deploy/scripts/"
+
+          scp "${SCP_OPTS[@]}" deploy/skywalking/docker-compose.skywalking.yml \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/careermate/deploy/skywalking/"
+
+          scp "${SCP_OPTS[@]}" deploy/nginx/skywalking.locations.example \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/careermate/deploy/nginx/"
+
           ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "chmod +x /opt/careermate/scripts/deploy-from-github.sh /opt/careermate/scripts/rollback-careermate.sh"
+            "chmod +x /opt/careermate/scripts/deploy-from-github.sh /opt/careermate/scripts/rollback-careermate.sh /opt/careermate/deploy/scripts/start-skywalking.sh /opt/careermate/deploy/scripts/install-skywalking-agent.sh"
 
       - name: Activate release on server
         env:
