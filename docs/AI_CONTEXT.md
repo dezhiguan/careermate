@@ -1,186 +1,142 @@
 # CareerMate AI Context
 
-## 1. Project Identity
+供后续在 Cursor / 其他 AI 工具中**快速恢复项目上下文**。描述以仓库**当前真实实现**为准。
 
-- Project name: CareerMate
-- Repository name: careermate
-- Chinese name: CareerMate 求职智能体
-- Positioning: AI Job Search Agent built with Java, Spring Boot, Vue and RAGForge
-- Goal: 一个可开源、可部署、可演示的 Java AI Agent 应用，不是 demo，不是普通聊天壳子。
+## 1. 项目身份
 
-## 2. Current Project Path
+- **名称**：CareerMate（求职智能体工作台）
+- **路径**：`/Users/amy/CursorProject/careermate`
+- **定位**：基于 **Java + Spring Boot + Vue** 的 AI 求职 Agent 应用，可部署、可演示的阶段性 MVP
+- **目标架构文档**：`docs/design/CareerMate-architecture-v2.1.html`（桌面 `CareerMate-架构设计文档-V2.1.html` 为目标版，**不等于**当前已全部实现）
 
-```text
-/Users/amy/CursorProject/careermate
-```
+## 2. 当前阶段完成到哪里
 
-## 3. Current Status
+**P0–P5 已收口**（见 `docs/ROADMAP.md`、`docs/PHASE_CLOSEOUT.md`）：
 
-记录当前状态：
+- 应用闭环：Agent、简历、匹配、面试、看板、画像、任务、工具卡片
+- LLM：mock / qwen / deepseek / openai-compatible
+- 观测：日志 traceId、Micrometer OTLP（可选）、SkyWalking **部署模板与文档**
+- **未做**：RAGForge 业务集成、简历文件解析、Prompt/Eval/MCP
 
-- 后端基础骨架已创建。
-- 后端端口使用 **8080**。
-- 统一响应体 `ApiResponse` 与全局异常处理已就绪。
-- 健康检查接口 `GET /api/health` 可用。
-- Flyway 已开启；用户核心表 migration（V1）已落地。
-- 已创建表：`users`、`user_profiles`、`security_audit_logs`。
-- 已创建对应 Entity 与 MyBatis-Plus Mapper（无业务接口）。
-- 认证与用户隔离（阶段三）已开始并完成基础能力：
-  - Spring Security 已接入。
-  - 支持 `single-user` / `jwt` 双模式。
-  - `POST /api/auth/register`、`POST /api/auth/login`、`GET /api/auth/me` 已提供。
-  - JWT 生成与校验已接入。
-  - `CurrentUser` / `CurrentUserContext` 已接入。
-  - 注册、登录会写入 `security_audit_logs`。
-- 默认安全模式为 `single-user`（通过 `SECURITY_MODE` 可切换为 `jwt`）。
-- 前端 Vue 页面已导入，并且可以启动（路径：`frontend/careermate/`）。
-- 前端 Auth 接入（阶段四）已完成基础能力：
-  - 新增统一请求层 `src/api/http.js`（fetch + 自动 Authorization）。
-  - 新增认证 API `src/api/auth.js`。
-  - 新增轻量认证状态 `src/stores/authStore.js`（localStorage 持久化）。
-  - 新增登录页 `src/views/LoginView.vue`（含登录/注册与单用户入口）。
-  - 新增路由守卫，未认证访问受保护路由会跳转 `/login`。
-  - 401 会自动清理登录态并跳转登录页。
-- 当前已有 5 个前端页面：
-  - Agent 对话台
-  - 简历工作室
-  - 岗位匹配
-  - 面试特训
-  - 求职看板
-- 前端主要业务页已对接后端 API（Agent / 简历 / 岗位匹配 / 面试 / 看板）。
-- LLM 抽象层（已完成）：
-  - `LlmClient` + `mock` / `deepseek` / `qwen` / `openai-compatible`。
-  - 本地默认 `mock`；线上通过环境变量切换 `qwen` + `qwen-plus` + DashScope OpenAI 兼容 endpoint。
-  - `QwenLlmClient` 复用 `OpenAiCompatibleLlmClient`（`/chat/completions` + Bearer Token）。
-  - 调用失败返回明确摘要，SSE 走 `error` + `done` 兜底，不泄露 API Key。
-  - `POST /api/debug/llm/chat` 仅 dev 默认开启；`prod` profile 关闭（`careermate.debug.llm-api-enabled=false`）。
-- 已收口模块：Agent 对话、会话恢复、多轮上下文、求职画像、求职任务工具、简历、岗位匹配、面试训练、Dashboard、工具卡片。
-- **下一阶段（仅 Roadmap）**：RAGForge JD 知识库集成（本仓库当前不实现 RAG 代码）。
-- SSE 基础设施（阶段六）已完成基础能力：
-  - 基于 Spring MVC `SseEmitter` 的 SSE 连接与事件发送基础设施。
-  - 独立 `agent-executor` 线程池，避免阻塞 Tomcat 请求线程执行长任务。
-  - SSE 事件统一结构 `SseEvent` + `SseEventType`（本阶段使用 plan/token/message/done/error/heartbeat）。
-  - 支持同一 session 同时仅一个流式任务运行（冲突返回 429）。
-  - 支持基础取消：连接关闭/超时/错误会取消运行中任务并清理资源。
-  - 提供 mock 流式对话接口 `POST /api/agent/sessions/{sessionId}/messages/stream`，通过 `LlmClient.streamChat` 输出 token。
-- 前端阶段七（已完成当前范围）：
-  - `AgentChat` 已对接后端 SSE mock stream（plan/token/message/done/error/heartbeat）。
-  - 页面可创建 session 并展示当前 sessionId、流式状态、trace 与 latency。
-  - 其他业务页（简历/岗位/面试/看板）仍使用 mock 数据，待后端业务接口就绪后再对接。
-- Agent Session / Message / Trace 持久化（阶段八，已完成当前范围）：
-  - Flyway `V2__init_agent_runtime_tables.sql` 已落地：`agent_sessions` / `agent_messages` / `agent_tool_calls` / `agent_task_states`。
-  - `AgentSessionService` 负责创建会话、追加消息、记录 Trace、标记完成/错误；所有查询按 `user_id` 隔离。
-  - `POST /api/agent/sessions` 创建会话并落库；`POST .../messages/stream` 在 mock 流式过程中持久化 user/agent 消息与 PLAN/MESSAGE/DONE/ERROR Trace。
-  - `GET /api/agent/sessions/{sessionId}` 查询会话详情与消息列表；`GET /api/agent/sessions/{sessionId}/trace` 查询 Trace 列表。
-  - 前端 `AgentChat` 支持「刷新 Trace」从服务端拉取持久化记录；历史消息列表恢复留待下一阶段。
-  - **当前 Agent 仍是 mock stream + LLM 抽象，不是完整 Agent Runtime**；未实现 Tool Registry / RAGForge 对接。
-- 项目文档目录 `docs/` 已建立，含架构设计、原型设计与本文件。
+## 3. 已完成模块清单
 
-## 4. Core Architecture Decisions
+| 模块 | 后端 | 前端 |
+|------|------|------|
+| 认证 | Security single-user/jwt | LoginView、authStore、http.js |
+| Agent SSE | AgentStreamController、SseEmitterService | AgentChat.vue |
+| 会话恢复 | listRecentSessions、消息列表 | 侧栏最近会话 |
+| 多轮上下文 | AgentConversationContextProvider | — |
+| 求职画像 | career_profiles、自动更新 | — |
+| 求职任务 | career_tasks、Agent 工具 | Dashboard、任务卡片 |
+| 简历 | resumes 文本 | ResumeStudio |
+| 岗位匹配 | job_posts、job_matches | JobMatching |
+| 面试 | interview 表 | InterviewPrep |
+| Dashboard | dashboard API | CareerDashboard |
+| Agent 工具 | AgentToolRouter + 各 Tool 实现 | agentToolDisplay.js |
+| LLM | LlmClient、TracingLlmClient | — |
+| 追踪 | TracingMdcFilter、TraceIdResolver | — |
 
-写清楚以下决策：
+## 4. 架构边界
 
-- 后端使用 Java 17 + Spring Boot 3.2。
-- 前端使用 Vue 3 + Vite。
-- 数据库使用 PostgreSQL 15 + JSONB。
-- 数据库 migration 使用 Flyway。
-- 认证使用 Spring Security + JWT，后续实现 single-user / jwt 双模式。
-- LLM 不直接绑定 DeepSeek，使用 LlmClient 抽象。
-- LLM Provider 支持 `mock / deepseek / qwen / openai-compatible`，并通过统一 `LlmClient` 屏蔽供应商差异。
-- `qwen` 使用 DashScope OpenAI-compatible 协议，默认 endpoint 为 `https://dashscope.aliyuncs.com/compatible-mode/v1`。
-- 不使用 Spring AI / LangChain4j 作为核心 Agent Runtime。
-- 可以预留 Spring AI Adapter / LangChain4j Adapter，但不进入核心链路。
-- RAG 能力由 RAGForge 提供，CareerMate 通过 REST API 调用。
-- CareerMate 不直接操作 pgvector / Elasticsearch。
-- 用户私有简历默认不进入共享 RAGForge 知识库。
-- Agent 使用单主控 Agent + 分层工具系统 + 工具可并行执行。
-- 不展示 Chain-of-Thought，只展示 Agent Trace。
-- Redis 不是必选依赖，只作为多实例、缓存、限流、SSE 协同的可选增强。
+- **单体** Spring Boot；**不用** WebFlux、**不用** Spring AI / LangChain4j 作核心
+- **不**直接操作 pgvector / Elasticsearch（交给 RAGForge）
+- **不**把 userId 交给前端或 LLM 参数；从 `CurrentUserContext` 取
+- Redis **非**必选
+- RAGForge：**外部** REST；本阶段 `RAGFORGE_ENABLED=false` 为默认
 
-## 5. Frontend Design Memory
+## 5. CareerMate 与 RAGForge
 
-记录当前前端风格：
+- RAGForge：已有/将有的 **JD 与共享知识** RAG 平台
+- CareerMate：通过 `RagForgeClient`（`com.careermate.observability.ragforge`）+ `TraceHeaderPropagator` 调用
+- **当前**：仅配置、传播头、Span 命名与文档；**无**生产 JD 检索业务
+- 联动文档：`docs/ragforge-tracing-integration.md`、`docs/ragforge-skywalking-integration.md`
 
-- 轻量 SaaS 工具风格。
-- 白色 / 浅灰背景。
-- navy 深色重点区域。
-- purple 主色。
-- green / amber / red 表示状态。
-- 信息密度偏高，适合求职 Agent 工作台。
-- 当前底部导航偏移动端风格，后续可逐步调整为 PC Web 优先的响应式布局。
+## 6. 简历数据原则
 
-前端后续必须修正的口径：
+- 用户简历存 **PostgreSQL** `resumes`（文本字段），按 `user_id` 隔离
+- 默认简历注入 Agent system prompt（长度摘要进 Trace，**不**打全文日志）
+- **不上传**文件、**不**解析 PDF/Word 本阶段
+- 用户私有简历 **默认不**写入 RAGForge 共享库（目标架构原则，P7 再定具体策略）
 
-- “Agent 思考”需要改成“Agent Trace / 执行轨迹”。
-- 不展示 Chain-of-Thought 原文。
-- 简历页面不要展示 Chunk 数。
-- 不要写 RAGForge 解析简历。
-- Agent 跳转要表现为 UI Action 推荐跳转，不是 LLM 任意控制路由。
+## 7. JD 知识库规划（未完成）
 
-## 6. Planned Development Phases
+- JD 存入 RAGForge 知识库（`RAGFORGE_JD_KB_ID` 等配置预留）
+- Agent / 岗位模块通过检索增强匹配与问答
+- **下一阶段 P7**，本仓库勿写“已集成 RAGForge”
 
-记录后续阶段：
+## 8. 当前 Agent 工具清单
 
-1. 项目基础骨架 ✅
-2. 数据库 Migration + 用户核心表 ✅
-3. 认证与用户隔离 ✅（基础能力）
-4. 前端 Auth 接入 ✅（基础能力）
-5. LLM 抽象层 ✅（基础能力）
-6. SSE 基础设施 ✅（基础能力）
-7. Agent Session + Message + Trace 基础
-8. Tool Registry + ToolExecutor
-9. Memory 基础能力
-10. 简历上传、解析与画像
-11. RAGForge Client + Knowledge Tools
-12. 岗位匹配 + 技能差距 + 看板
-13. Agent Runtime 闭环
-14. 面试训练
-15. Prompt 模板与版本管理
-16. Agent Evaluation 评测体系
-17. Metrics / Cost / Observability
-18. MCP Adapter NoOp 实现
-19. 前端 UI 完整打磨
-20. Docker Compose 联合部署 + README + 演示数据
+| toolName | 用途 |
+|----------|------|
+| `get_default_resume` | 默认简历上下文 |
+| `get_latest_job_match` | 最近岗位匹配 |
+| `create_job_match` | 创建匹配（需 JD 文本等） |
+| `create_interview_session` | 创建面试练习 |
+| `get_dashboard_overview` | 看板概览 |
+| `get_career_tasks` | 任务列表 |
+| `create_career_task` | 创建任务 |
+| `mark_career_task_done` | 完成任务 |
 
-## 7. Current Next Task
+路由：`AgentToolRouter`（规则匹配，非 LLM tool_calls）。
 
-当前下一步建议：
+Trace 中 LLM 摘要：`toolName=llm_chat`（`LlmChatTraceRecorder`）。
 
-**RAGForge JD 知识库集成**（岗位 JD 检索增强，通过 REST 调用 RAGForge，不直接操作 pgvector/ES）。
+## 9. 重要 API（前缀 `/api`）
 
-本阶段已完成：**真实 Qwen 切换 + 已完成功能收口**（保持 mock 供本地/CI）。
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/health` | 健康检查 |
+| POST | `/auth/register`、`/login` | 注册登录 |
+| GET | `/auth/me` | 当前用户 |
+| POST | `/agent/sessions` | 创建会话 |
+| POST | `/agent/sessions/{id}/messages/stream` | SSE 对话 |
+| GET | `/agent/sessions/{id}` | 会话+消息 |
+| GET | `/agent/sessions/{id}/trace` | Trace 列表 |
+| GET | `/agent/sessions/recent` | 最近会话（列表） |
+| CRUD | `/resumes`、`/job-matches`、`/interviews`、`/tasks`、`/dashboard` 等 | 各业务模块 |
+| POST | `/debug/llm/chat` | **仅 dev**；prod 默认关闭 |
 
-## 8. Cursor Working Rules
+## 10. 当前数据库表（Flyway）
 
-写入以下规则：
+- V1：`users`、`user_profiles`、`security_audit_logs`
+- V2：`agent_sessions`、`agent_messages`、`agent_tool_calls`、`agent_task_states`
+- V3：`resumes`
+- V4：`job_posts`、`job_matches` 等
+- V5：简历默认唯一索引
+- V6：面试相关
+- V7：`career_profiles`
+- V8：`career_tasks`
 
-- 每次只实现当前阶段任务，不要提前实现后续阶段。
-- 不要一次性实现完整 Agent 系统。
-- 不要随意重构前端 UI。
-- 不要引入未经确认的框架。
-- 不要引入 Spring AI 作为核心框架。
-- 不要引入 LangChain4j 作为核心框架。
-- 不要引入 WebFlux。
-- 不要引入 Redis 作为必选依赖。
-- 不要把 userId 暴露给前端或 LLM 参数。
-- 不要把简历原文写入日志。
-- 不要展示 Chain-of-Thought。
-- 所有数据库变更必须走 Flyway migration。
-- 所有用户私有数据必须带 user_id。
-- 所有后续业务逻辑必须从 `CurrentUserContext` 获取 `userId`，禁止前端传入。
-- 所有接口必须使用统一响应结构。
-- 前端后续业务 API 统一通过 `src/api/http.js` 调用。
-- 本地验证启动的后端 / 前端进程，结束后应释放端口（8080、5173 等），避免占用。
+详见 `docs/database-design.md` 与 `backend/src/main/resources/db/migration/`。
 
-## 9. Important Documents
+## 11. 部署约定
 
-列出：
+- 生产 profile：`prod`，密钥在 `/opt/careermate/backend/.env.app`
+- 端口：本地 `8080`，生产 **`18080`**
+- Nginx：`/careermate/`、`/careermate-api/`、`/skywalking/`
+- 详见 `docs/DEPLOYMENT.md`、`docs/deployment-careermate.md`
 
-- [docs/design/CareerMate-architecture-v2.1.html](design/CareerMate-architecture-v2.1.html)
-- [docs/design/CareerMate-prototype-design.html](design/CareerMate-prototype-design.html)
-- [docs/AI_CONTEXT.md](AI_CONTEXT.md)
+## 12. 遗留问题 / 下一阶段建议
 
-桌面原始文档（勿删，仓库内为副本）：
+1. **RAGForge JD 集成**（最高业务优先级之一）
+2. 简历文件上传解析（P6）
+3. SkyWalking **云端** UI 与 Agent 同机部署验收
+4. Playwright 云端全量回归进 CI
+5. Agent 评测与 Prompt 版本管理
+6. 任务工具 E2E 与 mock 话术对齐（偶发失败）
 
-- `/Users/amy/Desktop/rag最终版本/CareerMate-架构设计文档-V2.1.html`
-- `/Users/amy/Desktop/rag最终版本/agent-service-design.html`
+## 13. Cursor 工作规则（摘要）
+
+- 不提前实现 Roadmap 外功能；不大改 UI 风格
+- Flyway 管理 schema；业务带 `user_id`
+- 日志禁止：API Key、完整 prompt、完整简历/JD、完整模型回复
+- 本地进程结束后释放 8080/5173 端口
+
+## 14. 文档索引
+
+- [ROADMAP.md](ROADMAP.md)
+- [ARCHITECTURE_SUMMARY.md](ARCHITECTURE_SUMMARY.md)
+- [TESTING.md](TESTING.md)
+- [DEPLOYMENT.md](DEPLOYMENT.md)
+- [PHASE_CLOSEOUT.md](PHASE_CLOSEOUT.md)
+- [skywalking-cloud-setup.md](skywalking-cloud-setup.md)
