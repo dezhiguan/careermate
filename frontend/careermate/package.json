@@ -15,6 +15,7 @@
     "test:e2e:agent-stream:cloud": "E2E_TARGET=cloud playwright test tests/e2e/agent-stream-regression.spec.js --project=local-chrome-desktop --headed --workers=1",
     "test:e2e:show:cloud:mobile": "E2E_TARGET=cloud playwright test tests/e2e/careermate.spec.js --project=local-chrome-mobile --headed --workers=1",
     "test:e2e:cloud:full": "E2E_TARGET=cloud playwright test tests/e2e/cloud-user-journey.spec.js --project=local-chrome-desktop --project=local-chrome-mobile --headed --workers=1",
+    "test:e2e:cloud:smoke": "E2E_TARGET=cloud playwright test tests/e2e/cloud-smoke.spec.js --project=ci-chromium-desktop --workers=1",
     "test:e2e:show": "npm run test:e2e:show:local",
     "test:e2e:show:mobile": "E2E_TARGET=local playwright test tests/e2e/careermate.spec.js --project=local-chrome-mobile --headed --workers=1",
     "test:e2e:auth": "npm run test:e2e:auth:local"

@@ -208,3 +208,65 @@ jobs:
       - name: Frontend entry check
         run: |
           curl -fsS http://8.163.63.222/careermate/ | grep -q 'CareerMate'
+
+  postdeploy-playwright:
+    name: postdeploy-playwright
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/careermate/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend/careermate
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: frontend/careermate
+        run: npx playwright install --with-deps chromium
+
+      - name: Run post-deploy cloud smoke
+        working-directory: frontend/careermate
+        env:
+          CI: true
+          E2E_TARGET: cloud
+          PLAYWRIGHT_BASE_URL: http://8.163.63.222/careermate
+          PLAYWRIGHT_API_BASE_URL: http://8.163.63.222/careermate-api
+        run: npm run test:e2e:cloud:smoke
+
+      - name: Upload Playwright HTML report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-postdeploy-report
+          path: frontend/careermate/playwright-report/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload Playwright test results
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-postdeploy-results
+          path: frontend/careermate/test-results/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Job summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "Post-deploy Playwright cloud smoke passed." >> "${GITHUB_STEP_SUMMARY}"
+          else
+            {
+              echo "Deployment completed, but post-deploy Playwright cloud smoke failed."
+              echo "Check **playwright-postdeploy-report** artifact."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
