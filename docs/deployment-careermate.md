@@ -87,7 +87,34 @@ Production notes:
 - production backend should run on `18080` to avoid RAGForge `8080` conflict
 - real `.env.app` must stay on server and must not be committed
 
-### 5.1 LLM（阿里云百炼 Qwen）
+### 5.1 分布式追踪（OTLP，可选 Collector）
+
+在 `/opt/careermate/backend/.env.app` 增加（模板见 `.env.example`）：
+
+```bash
+TRACING_ENABLED=true
+TRACING_SAMPLING_PROBABILITY=1.0
+OTEL_SERVICE_NAME=careermate-backend
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318/v1/traces
+```
+
+说明：
+
+- 使用 Spring Boot 3.2 Micrometer Tracing + OpenTelemetry OTLP；日志含 `traceId` / `spanId` / `requestId` / `userId` / `sessionId`。
+- HTTP 响应头：`X-Request-Id`、`X-Trace-Id`；调用 RAGForge 时透传 `traceparent` / `tracestate`。
+- **不强制**生产部署 OTLP Collector；未部署时仍可本地日志排查，仅无集中式 trace UI。
+- 可选 Collector 示例：`deploy/otel/otel-collector-config.yaml`（Docker 侧车或独立容器）。
+
+验证：
+
+```bash
+curl -i http://127.0.0.1:18080/api/health
+# 预期响应头含 X-Request-Id、X-Trace-Id
+```
+
+RAGForge 侧对接见 `docs/ragforge-tracing-integration.md`。
+
+### 5.2 LLM（阿里云百炼 Qwen）
 
 推荐在服务器 `/opt/careermate/backend/.env.app` 配置（占位符模板见 `deploy/env/careermate-backend.env.example`）：
 
@@ -116,6 +143,48 @@ curl -s -X POST "http://127.0.0.1:18080/api/debug/llm/chat" \
 ```
 
 预期：`code=0`，`data.provider=qwen`，`data.content` 为模型生成文本（非 mock 固定话术）。
+
+### 5.3 线上仍是 Mock 回复？排查清单
+
+若 Agent 仍返回「这是 Mock CareerMate 回复…」，说明进程内 **`LLM_PROVIDER` 实际为 `mock`**（或未传入，走 `application.yml` 默认值）。
+
+在服务器执行：
+
+```bash
+# 1) 环境文件是否存在、是否含 qwen
+sudo grep -E '^LLM_' /opt/careermate/backend/.env.app
+
+# 2) systemd 是否加载该文件
+sudo grep EnvironmentFile /etc/systemd/system/careermate-backend.service
+
+# 3) 运行中 Java 进程是否带上 LLM 变量（应看到 LLM_PROVIDER=qwen）
+PID=$(pgrep -f 'careermate.*app.jar' | head -1)
+sudo tr '\0' '\n' < /proc/$PID/environ | grep -E '^LLM_'
+
+# 4) 健康检查（部署含 llmProvider 字段的版本后）
+curl -s http://127.0.0.1:18080/api/health | python3 -m json.tool
+# 期望: "llmProvider": "qwen", "llmApiKeyConfigured": "true"
+```
+
+常见原因：
+
+| 现象 | 原因 | 处理 |
+|------|------|------|
+| `.env.app` 仍是 `LLM_PROVIDER=mock` | 未改或未保存 | 改为 `qwen` 并 **restart** |
+| 改了文件但未重启 | 旧进程仍用旧环境 | `sudo systemctl restart careermate-backend` |
+| 变量名写错 | 必须用 `LLM_PROVIDER`，不是 `CAREERMATE_LLM_PROVIDER` | 对照 `application.yml` 占位符 |
+| 大小写错误 | 代码只识别小写 `qwen` | 勿写 `Qwen` / `QWEN` |
+| systemd 未配置 `EnvironmentFile` | 进程读不到 `.env.app` | 安装 `deploy/systemd/careermate-backend.service.example` |
+| 占位符 Key 未替换 | `your_dashscope_api_key` 会导致 Qwen 认证失败（但不会回到 mock） | 填入真实百炼 Key |
+
+修改 `.env.app` 后务必：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart careermate-backend
+sudo journalctl -u careermate-backend -n 50 --no-pager | grep 'LLM client init'
+# 期望日志: provider=qwen, apiKeyConfigured=true
+```
 
 ## 6. Nginx Routing Plan
 

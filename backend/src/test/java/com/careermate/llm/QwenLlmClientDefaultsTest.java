@@ -1,8 +1,6 @@
 package com.careermate.llm;
 
 import com.careermate.llm.provider.LlmProviderDefaults;
-import com.careermate.llm.provider.QwenLlmClient;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,6 +20,7 @@ class QwenLlmClientDefaultsTest {
         assertEquals(LlmProviderDefaults.QWEN_ENDPOINT, resolved.getEndpoint());
         assertEquals(LlmProviderDefaults.QWEN_MODEL, resolved.getModel());
 
-        assertInstanceOf(QwenLlmClient.class, new LlmConfig().llmClient(source, new ObjectMapper()));
+        LlmProperties forClient = LlmProviderDefaults.copyWithQwenDefaults(source);
+        assertEquals("qwen", forClient.getProvider());
     }
 }

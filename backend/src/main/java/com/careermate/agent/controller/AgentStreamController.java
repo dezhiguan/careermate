@@ -36,8 +36,12 @@ import com.careermate.llm.StreamCallback;
 import com.careermate.llm.dto.ChatMessage;
 import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
+import com.careermate.llm.LlmProperties;
+import com.careermate.observability.AgentTracing;
+import com.careermate.observability.MdcKeys;
 import com.careermate.security.CurrentUserContext;
 import jakarta.validation.Valid;
+import org.slf4j.MDC;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,6 +52,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -76,6 +81,8 @@ public class AgentStreamController {
     private final AgentConversationContextProvider conversationContextProvider;
     private final CareerProfileContextProvider careerProfileContextProvider;
     private final CareerProfileAutoUpdateService careerProfileAutoUpdateService;
+    private final AgentTracing agentTracing;
+    private final LlmProperties llmProperties;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -97,7 +104,9 @@ public class AgentStreamController {
             AgentToolExecutionService agentToolExecutionService,
             AgentConversationContextProvider conversationContextProvider,
             CareerProfileContextProvider careerProfileContextProvider,
-            CareerProfileAutoUpdateService careerProfileAutoUpdateService
+            CareerProfileAutoUpdateService careerProfileAutoUpdateService,
+            AgentTracing agentTracing,
+            LlmProperties llmProperties
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -113,6 +122,8 @@ public class AgentStreamController {
         this.conversationContextProvider = conversationContextProvider;
         this.careerProfileContextProvider = careerProfileContextProvider;
         this.careerProfileAutoUpdateService = careerProfileAutoUpdateService;
+        this.agentTracing = agentTracing;
+        this.llmProperties = llmProperties;
     }
 
     @PostMapping("/sessions")
@@ -149,8 +160,19 @@ public class AgentStreamController {
 
         agentSessionService.getSession(userId, sessionId);
 
+        Map<String, String> parentMdc = MDC.getCopyOfContextMap();
         FutureTask<Void> task = new FutureTask<>(() -> {
-            runStreamingTask(userId, sessionId, request);
+            if (parentMdc != null) {
+                MDC.setContextMap(new HashMap<>(parentMdc));
+            }
+            MDC.put(MdcKeys.SESSION_ID, sessionId);
+            MDC.put(MdcKeys.USER_ID, String.valueOf(userId));
+            try {
+                agentTracing.runStream(userId, sessionId, () -> runStreamingTask(userId, sessionId, request));
+            } finally {
+                MDC.remove(MdcKeys.SESSION_ID);
+                MDC.remove(MdcKeys.USER_ID);
+            }
             return null;
         });
         taskRegistry.startOrThrow(sessionId, task);
@@ -224,19 +246,39 @@ public class AgentStreamController {
             );
             recordCareerProfileUpdateTrace(userId, sessionId, profileUpdate);
 
-            CareerProfileContextResult careerProfileContext = careerProfileContextProvider.load(userId);
+            CareerProfileContextResult careerProfileContext = agentTracing.call(
+                    "agent.load_profile_context",
+                    userId,
+                    sessionId,
+                    null,
+                    null,
+                    null,
+                    () -> careerProfileContextProvider.load(userId)
+            );
             recordCareerProfileContextTrace(userId, sessionId, careerProfileContext);
 
-            ResumeContext resumeContext = resumeContextProvider.getResumeContext(userId);
+            ResumeContext resumeContext = agentTracing.call(
+                    "agent.load_resume_context",
+                    userId,
+                    sessionId,
+                    null,
+                    null,
+                    null,
+                    () -> resumeContextProvider.getResumeContext(userId)
+            );
             recordResumeContextTrace(userId, sessionId, resumeContext);
 
             JobMatchContext jobMatchContext = jobMatchContextProvider.getLatestJobMatchContext(userId);
             recordJobMatchContextTrace(userId, sessionId, jobMatchContext);
 
-            ConversationContextResult conversationContext = loadConversationContextSafely(
+            ConversationContextResult conversationContext = agentTracing.call(
+                    "agent.load_conversation_context",
                     userId,
                     sessionId,
-                    request.getMessage()
+                    null,
+                    null,
+                    null,
+                    () -> loadConversationContextSafely(userId, sessionId, request.getMessage())
             );
             recordConversationContextTrace(userId, sessionId, conversationContext);
 
@@ -260,7 +302,15 @@ public class AgentStreamController {
                     ))
                     .build();
 
-            llmClient.streamChat(chatRequest, new StreamCallback() {
+            agentTracing.call(
+                    "agent.llm.stream_chat",
+                    userId,
+                    sessionId,
+                    null,
+                    llmProperties.getProvider(),
+                    llmProperties.getModel(),
+                    () -> {
+                        llmClient.streamChat(chatRequest, new StreamCallback() {
                 @Override
                 public void onToken(String token) {
                     if (terminalHandled.get()) {
@@ -325,7 +375,10 @@ public class AgentStreamController {
                         handleStreamError(userId, sessionId, error, "LLM_ERROR");
                     }
                 }
-            });
+                        });
+                        return null;
+                    }
+            );
             if (terminalHandled.compareAndSet(false, true)) {
                 handleStreamError(
                         userId,
@@ -370,7 +423,14 @@ public class AgentStreamController {
     }
 
     private AgentToolResult executeRoutedToolIfAny(Long userId, String sessionId, String userMessage) {
-        return agentToolRouter.route(userMessage)
+        return agentTracing.call(
+                "agent.route_tool",
+                userId,
+                sessionId,
+                null,
+                null,
+                null,
+                () -> agentToolRouter.route(userMessage)
                 .map(routed -> {
                     String toolName = routed.toolName();
                     Map<String, Object> startData = Map.of(
@@ -386,7 +446,15 @@ public class AgentStreamController {
                             .userMessage(userMessage)
                             .args(routed.args())
                             .build();
-                    AgentToolResult result = agentToolExecutionService.execute(context, toolName);
+                    AgentToolResult result = agentTracing.call(
+                            "agent.execute_tool",
+                            userId,
+                            sessionId,
+                            toolName,
+                            null,
+                            null,
+                            () -> agentToolExecutionService.execute(context, toolName)
+                    );
                     long latencyMs = System.currentTimeMillis() - toolStart;
 
                     Map<String, Object> resultData = Map.of(
@@ -414,7 +482,8 @@ public class AgentStreamController {
                     );
                     return result;
                 })
-                .orElse(null);
+                .orElse(null)
+        );
     }
 
     private void recordJobMatchContextTrace(Long userId, String sessionId, JobMatchContext jobMatchContext) {
