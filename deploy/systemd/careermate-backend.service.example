@@ -5,6 +5,10 @@ After=network.target
 [Service]
 WorkingDirectory=/opt/careermate/current/backend
 EnvironmentFile=/opt/careermate/backend/.env.app
+# SkyWalking Java Agent (install via deploy/scripts/install-skywalking-agent.sh).
+# Collector must be reachable from this host (e.g. 127.0.0.1:11800 when OAP maps localhost).
+# JAVA_TOOL_OPTIONS is read automatically by the java launcher.
+Environment=JAVA_TOOL_OPTIONS=-javaagent:/opt/skywalking-agent/skywalking-agent.jar -Dskywalking.agent.service_name=careermate-backend -Dskywalking.collector.backend_service=127.0.0.1:11800
 ExecStart=/usr/bin/java -jar /opt/careermate/current/backend/app.jar
 Restart=always
 RestartSec=5

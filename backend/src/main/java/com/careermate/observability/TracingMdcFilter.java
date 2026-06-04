@@ -1,8 +1,5 @@
 package com.careermate.observability;
 
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.TraceContext;
-import io.micrometer.tracing.Tracer;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,11 +14,11 @@ import java.util.UUID;
 
 public class TracingMdcFilter extends OncePerRequestFilter {
 
-    private final Tracer tracer;
+    private final TraceIdResolver traceIdResolver;
     private final TraceHeaderPropagator traceHeaderPropagator;
 
-    public TracingMdcFilter(Tracer tracer, TraceHeaderPropagator traceHeaderPropagator) {
-        this.tracer = tracer;
+    public TracingMdcFilter(TraceIdResolver traceIdResolver, TraceHeaderPropagator traceHeaderPropagator) {
+        this.traceIdResolver = traceIdResolver;
         this.traceHeaderPropagator = traceHeaderPropagator;
     }
 
@@ -68,19 +65,13 @@ public class TracingMdcFilter extends OncePerRequestFilter {
     }
 
     private void syncTraceMdc() {
-        Span span = tracer.currentSpan();
-        if (span == null) {
-            return;
+        String traceId = traceIdResolver.resolveTraceId();
+        if (StringUtils.hasText(traceId)) {
+            MDC.put(MdcKeys.TRACE_ID, traceId);
         }
-        TraceContext context = span.context();
-        if (context == null) {
-            return;
-        }
-        if (StringUtils.hasText(context.traceId())) {
-            MDC.put(MdcKeys.TRACE_ID, context.traceId());
-        }
-        if (StringUtils.hasText(context.spanId())) {
-            MDC.put(MdcKeys.SPAN_ID, context.spanId());
+        String spanId = traceIdResolver.resolveSpanId();
+        if (StringUtils.hasText(spanId)) {
+            MDC.put(MdcKeys.SPAN_ID, spanId);
         }
     }
 }

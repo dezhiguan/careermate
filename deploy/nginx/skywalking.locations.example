@@ -1,0 +1,36 @@
+# SkyWalking UI reverse proxy snippet.
+# Merge into the existing ingress server block (same server as RAGForge/CareerMate).
+# Do NOT expose 0.0.0.0:8088 publicly; bind UI to 127.0.0.1:18088 on host only.
+#
+# --- Case A: Nginx on host (systemd / host install) ---
+location /skywalking/ {
+    proxy_pass http://127.0.0.1:18088/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 300s;
+}
+
+# Optional basic auth (configure credentials only on server, not in git):
+# auth_basic "SkyWalking";
+# auth_basic_user_file /etc/nginx/.htpasswd-skywalking;
+
+# --- Case B: Nginx inside Docker (e.g. ragforge-nginx) ---
+# 127.0.0.1 inside the container is NOT the host. Use one of:
+#   1) Attach skywalking-ui to the same Docker network and proxy by service name:
+# location /skywalking/ {
+#     proxy_pass http://skywalking-ui:8080/;
+#     ...
+# }
+#   2) Or proxy to host gateway (Linux Docker):
+# location /skywalking/ {
+#     proxy_pass http://172.17.0.1:18088/;
+#     ...
+# }
+#
+# After merge: nginx -t && nginx -s reload
+# Verify: curl -I http://127.0.0.1/skywalking/  (on ingress host)

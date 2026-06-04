@@ -87,7 +87,34 @@ Production notes:
 - production backend should run on `18080` to avoid RAGForge `8080` conflict
 - real `.env.app` must stay on server and must not be committed
 
-### 5.1 分布式追踪（OTLP，可选 Collector）
+### 5.1 SkyWalking 链路追踪（生产推荐，可浏览器查看 Trace）
+
+入口服务器部署 OAP + UI，CareerMate 挂 Java Agent。完整步骤见 **`docs/skywalking-cloud-setup.md`**。
+
+快速索引：
+
+| 组件 | 说明 |
+|------|------|
+| Compose | `deploy/skywalking/docker-compose.skywalking.yml` |
+| 启动脚本 | `deploy/scripts/start-skywalking.sh` |
+| Agent 安装 | `deploy/scripts/install-skywalking-agent.sh` → `/opt/skywalking-agent` |
+| Nginx | `deploy/nginx/skywalking.locations.example` → `http://8.163.63.222/skywalking/` |
+| systemd | `deploy/systemd/careermate-backend.service.example`（`JAVA_TOOL_OPTIONS` + javaagent） |
+
+生产 `.env.app` 建议（无密钥）：
+
+```bash
+SKYWALKING_AGENT_SERVICE_NAME=careermate-backend
+SKYWALKING_COLLECTOR_BACKEND_SERVICE=127.0.0.1:11800
+JAVA_TOOL_OPTIONS=-javaagent:/opt/skywalking-agent/skywalking-agent.jar -Dskywalking.agent.service_name=careermate-backend -Dskywalking.collector.backend_service=127.0.0.1:11800
+TRACING_ENABLED=false
+```
+
+验收：UI 中可见 `careermate-backend`，Agent 对话后 Trace 列表有新记录；`curl -i http://127.0.0.1:18080/api/health` 含 `X-Trace-Id`。
+
+RAGForge 共用 OAP：见 `docs/ragforge-skywalking-integration.md`。
+
+### 5.2 分布式追踪（OTLP，可选 Collector）
 
 在 `/opt/careermate/backend/.env.app` 增加（模板见 `.env.example`）：
 
@@ -114,7 +141,7 @@ curl -i http://127.0.0.1:18080/api/health
 
 RAGForge 侧对接见 `docs/ragforge-tracing-integration.md`。
 
-### 5.2 LLM（阿里云百炼 Qwen）
+### 5.3 LLM（阿里云百炼 Qwen）
 
 推荐在服务器 `/opt/careermate/backend/.env.app` 配置（占位符模板见 `deploy/env/careermate-backend.env.example`）：
 
@@ -144,7 +171,7 @@ curl -s -X POST "http://127.0.0.1:18080/api/debug/llm/chat" \
 
 预期：`code=0`，`data.provider=qwen`，`data.content` 为模型生成文本（非 mock 固定话术）。
 
-### 5.3 线上仍是 Mock 回复？排查清单
+### 5.4 线上仍是 Mock 回复？排查清单
 
 若 Agent 仍返回「这是 Mock CareerMate 回复…」，说明进程内 **`LLM_PROVIDER` 实际为 `mock`**（或未传入，走 `application.yml` 默认值）。
 

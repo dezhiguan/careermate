@@ -12,8 +12,8 @@ import org.springframework.core.Ordered;
 public class ObservabilityConfig {
 
     @Bean
-    public TracingMdcFilter tracingMdcFilter(Tracer tracer, TraceHeaderPropagator traceHeaderPropagator) {
-        return new TracingMdcFilter(tracer, traceHeaderPropagator);
+    public TracingMdcFilter tracingMdcFilter(TraceIdResolver traceIdResolver, TraceHeaderPropagator traceHeaderPropagator) {
+        return new TracingMdcFilter(traceIdResolver, traceHeaderPropagator);
     }
 
     @Bean

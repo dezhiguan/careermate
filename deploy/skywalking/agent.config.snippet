@@ -1,0 +1,8 @@
+# Optional snippet: copy lines into /opt/skywalking-agent/config/agent.config on server.
+# Do not commit server-specific values.
+
+# agent.service_name is usually set via -Dskywalking.agent.service_name
+# collector.backend_service is set via -Dskywalking.collector.backend_service
+
+# Reduce noise from health checks (adjust as needed):
+# trace.ignore_path=${SW_AGENT_TRACE_IGNORE_PATH:/api/health,/actuator/**}

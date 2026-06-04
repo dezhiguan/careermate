@@ -9,6 +9,23 @@ services:
       - "127.0.0.1:18080:18080"
     env_file:
       - /opt/careermate/backend/.env.app
+    environment:
+      # SkyWalking agent JAR must exist in image or be mounted (see docs/skywalking-cloud-setup.md)
+      JAVA_TOOL_OPTIONS: >-
+        -javaagent:/opt/skywalking-agent/skywalking-agent.jar
+        -Dskywalking.agent.service_name=careermate-backend
+        -Dskywalking.collector.backend_service=skywalking-oap:11800
     volumes:
       - /opt/careermate/logs:/app/logs
+      - /opt/skywalking-agent:/opt/skywalking-agent:ro
+    networks:
+      - careermate-net
+      - skywalking-net
     restart: unless-stopped
+
+networks:
+  careermate-net:
+    driver: bridge
+  skywalking-net:
+    external: true
+    name: skywalking-net

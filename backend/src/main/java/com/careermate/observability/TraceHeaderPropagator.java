@@ -21,10 +21,12 @@ public class TraceHeaderPropagator {
 
     private final Tracer tracer;
     private final Propagator propagator;
+    private final TraceIdResolver traceIdResolver;
 
-    public TraceHeaderPropagator(Tracer tracer, Propagator propagator) {
+    public TraceHeaderPropagator(Tracer tracer, Propagator propagator, TraceIdResolver traceIdResolver) {
         this.tracer = tracer;
         this.propagator = propagator;
+        this.traceIdResolver = traceIdResolver;
     }
 
     public void inject(HttpRequest.Builder builder) {
@@ -67,6 +69,10 @@ public class TraceHeaderPropagator {
     }
 
     public String currentTraceId() {
+        String resolved = traceIdResolver.resolveTraceId();
+        if (StringUtils.hasText(resolved)) {
+            return resolved;
+        }
         TraceContext context = currentTraceContext();
         return context == null ? null : context.traceId();
     }
