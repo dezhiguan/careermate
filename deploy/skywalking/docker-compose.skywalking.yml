@@ -7,16 +7,28 @@
 # Agent gRPC collector (host): 127.0.0.1:11800
 
 services:
+  banyandb:
+    image: apache/skywalking-banyandb:0.8.0
+    container_name: skywalking-banyandb
+    restart: unless-stopped
+    command: standalone
+    networks:
+      - skywalking-net
+
   skywalking-oap:
     image: apache/skywalking-oap-server:10.2.0
     container_name: skywalking-oap
     restart: unless-stopped
+    depends_on:
+      - banyandb
     ports:
       - "127.0.0.1:11800:11800"
       - "127.0.0.1:12800:12800"
     environment:
       SW_HEALTH_CHECKER: default
-      SW_STORAGE: h2
+      SW_STORAGE: banyandb
+      SW_STORAGE_BANYANDB_TARGETS: banyandb:17912
+      JAVA_OPTS: -Xms256m -Xmx512m
     networks:
       - skywalking-net
 
