@@ -77,9 +77,10 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
             long latency = System.currentTimeMillis() - start;
 
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                log.warn("LLM call failed: provider={}, model={}, status={}, latencyMs={}",
-                        providerName, model, response.statusCode(), latency);
-                throw new BizException(500, "LLM 调用失败");
+                log.warn("LLM call failed: provider={}, model={}, status={}, latencyMs={}, body={}",
+                        providerName, model, response.statusCode(), latency,
+                        LlmProviderDefaults.sanitizeForLog(response.body()));
+                throw new BizException(500, LlmProviderDefaults.userFacingHttpError(response.statusCode()));
             }
 
             JsonNode root = objectMapper.readTree(response.body());
@@ -105,13 +106,14 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         } catch (java.net.http.HttpTimeoutException e) {
             log.warn("LLM timeout: provider={}, model={}, timeoutMs={}",
                     providerName, model, llmProperties.getTimeoutMs());
-            throw new BizException(500, "LLM 调用超时");
+            throw new BizException(504, "LLM 调用超时，请稍后重试");
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            log.error("LLM call exception: provider={}, model={}", providerName, model, e);
-            throw new BizException(500, "LLM 调用失败");
+            log.error("LLM call exception: provider={}, model={}, message={}",
+                    providerName, model, LlmProviderDefaults.sanitizeForLog(e.getMessage()), e);
+            throw new BizException(500, "LLM 调用失败，请稍后重试");
         }
     }
 

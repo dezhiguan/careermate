@@ -87,6 +87,36 @@ Production notes:
 - production backend should run on `18080` to avoid RAGForge `8080` conflict
 - real `.env.app` must stay on server and must not be committed
 
+### 5.1 LLM（阿里云百炼 Qwen）
+
+推荐在服务器 `/opt/careermate/backend/.env.app` 配置（占位符模板见 `deploy/env/careermate-backend.env.example`）：
+
+```bash
+LLM_PROVIDER=qwen
+LLM_MODEL=qwen-plus
+LLM_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_API_KEY=your_dashscope_api_key
+```
+
+说明：
+
+- 使用 DashScope **OpenAI 兼容** Chat Completions：`{endpoint}/chat/completions`，Header `Authorization: Bearer <API_KEY>`。
+- 官方文档：[OpenAI 兼容接口](https://help.aliyun.com/zh/model-studio/compatibility-of-openai-with-dashscope)
+- **禁止**将真实 `LLM_API_KEY` 写入仓库、GitHub Actions、前端或 README。
+- 生产 `SPRING_PROFILES_ACTIVE=prod` 时默认关闭 `/api/debug/llm`。
+- 本地与 CI 可继续使用 `LLM_PROVIDER=mock`。
+
+部署后验证（需临时开启 debug 或直接使用 Agent 对话台）：
+
+```bash
+# 可选：临时 CAREERMATE_DEBUG_LLM_API_ENABLED=true 后
+curl -s -X POST "http://127.0.0.1:18080/api/debug/llm/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"请用一句话介绍 CareerMate"}'
+```
+
+预期：`code=0`，`data.provider=qwen`，`data.content` 为模型生成文本（非 mock 固定话术）。
+
 ## 6. Nginx Routing Plan
 
 ### Plan A (recommended now)

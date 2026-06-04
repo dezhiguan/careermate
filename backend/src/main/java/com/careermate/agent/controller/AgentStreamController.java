@@ -31,6 +31,7 @@ import com.careermate.agent.sse.SseEventType;
 import com.careermate.common.api.ApiResponse;
 import com.careermate.common.exception.BizException;
 import com.careermate.llm.LlmClient;
+import com.careermate.llm.provider.LlmProviderDefaults;
 import com.careermate.llm.StreamCallback;
 import com.careermate.llm.dto.ChatMessage;
 import com.careermate.llm.dto.ChatRequest;
@@ -352,7 +353,7 @@ public class AgentStreamController {
     }
 
     private void handleStreamError(Long userId, String sessionId, Throwable error, String errorCode) {
-        String message = error == null ? "未知错误" : (error.getMessage() == null ? "未知错误" : error.getMessage());
+        String message = LlmProviderDefaults.safeStreamErrorMessage(error);
         sseEmitterService.send(sessionId, SseEventType.ERROR, Map.of("message", message));
         agentSessionService.recordTrace(
                 userId,
