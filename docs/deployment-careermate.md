@@ -260,6 +260,10 @@ Initialization template:
    ```bash
    sudo bash deploy/scripts/init-server3.sh
    ```
+   If GitHub Actions deploys with a non-root `CAREERMATE_APP_USER`, pass the same user during bootstrap so it can write releases:
+   ```bash
+   sudo CAREERMATE_DEPLOY_USER=<CAREERMATE_APP_USER> bash deploy/scripts/init-server3.sh
+   ```
 2. Edit `/opt/careermate/backend/.env.app` with real secrets (`DB_PASSWORD`, `JWT_SECRET`, `LLM_API_KEY`, etc.; never commit).
 3. Install systemd unit from `deploy/systemd/careermate-backend.service.example` as `/etc/systemd/system/careermate-backend.service`.
 4. `systemctl daemon-reload && systemctl enable careermate-backend`

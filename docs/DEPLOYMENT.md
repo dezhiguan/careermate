@@ -56,6 +56,12 @@ cd frontend/careermate && npm run dev
 sudo bash deploy/scripts/init-server3.sh
 ```
 
+如果 GitHub Actions 的 `CAREERMATE_APP_USER` 不是 `root`，初始化时指定同一个部署用户，脚本会把它加入 `careermate` 组以便写入 release 和脚本目录：
+
+```bash
+sudo CAREERMATE_DEPLOY_USER=<CAREERMATE_APP_USER> bash deploy/scripts/init-server3.sh
+```
+
 然后手工编辑 `/opt/careermate/backend/.env.app`，填入 `DB_PASSWORD`、`JWT_SECRET`、`LLM_API_KEY` 等真实值，再安装 systemd unit 并部署。
 
 ## 云端部署（概要）
