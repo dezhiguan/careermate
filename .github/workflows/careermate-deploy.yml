@@ -97,6 +97,9 @@ jobs:
           DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
           DEPLOY_USER: ${{ secrets.CAREERMATE_APP_USER }}
           DEPLOY_PORT: ${{ secrets.CAREERMATE_APP_PORT }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+          JUMP_USER: ${{ secrets.CAREERMATE_INGRESS_USER }}
+          JUMP_PORT: ${{ secrets.CAREERMATE_INGRESS_PORT }}
         run: |
           if [[ -z "${SSH_KEY}" || -z "${DEPLOY_HOST}" ]]; then
             echo "CAREERMATE_APP_SSH_KEY and CAREERMATE_APP_HOST must be set"
@@ -110,49 +113,58 @@ jobs:
           printf '%s\n' "${SSH_KEY}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           PORT="${DEPLOY_PORT:-22}"
-          ssh-keyscan -p "${PORT}" "${DEPLOY_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          JUMP_HOST="${JUMP_HOST:-8.163.63.222}"
+          JUMP_USER="${JUMP_USER:-root}"
+          JUMP_PORT="${JUMP_PORT:-22}"
+          ssh-keyscan -p "${JUMP_PORT}" "${JUMP_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          {
+            printf '%s\n' 'Host careermate-jump'
+            printf '%s\n' "  HostName ${JUMP_HOST}"
+            printf '%s\n' "  User ${JUMP_USER}"
+            printf '%s\n' "  Port ${JUMP_PORT}"
+            printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
+            printf '%s\n' '  IdentitiesOnly yes'
+            printf '%s\n' '  StrictHostKeyChecking accept-new'
+            printf '%s\n' ''
+            printf '%s\n' 'Host careermate-app'
+            printf '%s\n' "  HostName ${DEPLOY_HOST}"
+            printf '%s\n' "  User ${DEPLOY_USER}"
+            printf '%s\n' "  Port ${PORT}"
+            printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
+            printf '%s\n' '  IdentitiesOnly yes'
+            printf '%s\n' '  StrictHostKeyChecking accept-new'
+            printf '%s\n' '  ProxyJump careermate-jump'
+          } > ~/.ssh/config
+          chmod 600 ~/.ssh/config
 
       - name: Upload backend to Server 3
-        env:
-          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
-          DEPLOY_USER: ${{ secrets.CAREERMATE_APP_USER }}
-          DEPLOY_PORT: ${{ secrets.CAREERMATE_APP_PORT }}
         run: |
-          PORT="${DEPLOY_PORT:-22}"
-          SSH_OPTS=(-i ~/.ssh/deploy_key -p "${PORT}" -o StrictHostKeyChecking=yes)
-          SCP_OPTS=(-i ~/.ssh/deploy_key -P "${PORT}" -o StrictHostKeyChecking=yes)
           RELEASE_DIR="/opt/careermate/releases/${GITHUB_SHA}"
 
-          ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+          ssh careermate-app \
             "mkdir -p '${RELEASE_DIR}/backend' /opt/careermate/scripts /opt/careermate/deploy/scripts /opt/careermate/deploy/skywalking /opt/careermate/deploy/nginx"
 
-          scp "${SCP_OPTS[@]}" "$(find . -maxdepth 1 -name '*.jar' ! -name '*.original' | head -n 1)" \
-            "${DEPLOY_USER}@${DEPLOY_HOST}:${RELEASE_DIR}/backend/app.jar"
+          scp "$(find . -maxdepth 1 -name '*.jar' ! -name '*.original' | head -n 1)" \
+            "careermate-app:${RELEASE_DIR}/backend/app.jar"
 
-          scp "${SCP_OPTS[@]}" deploy/scripts/deploy-from-github.sh deploy/scripts/rollback-careermate.sh \
-            "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/careermate/scripts/"
+          scp deploy/scripts/deploy-from-github.sh deploy/scripts/rollback-careermate.sh \
+            "careermate-app:/opt/careermate/scripts/"
 
-          scp "${SCP_OPTS[@]}" deploy/scripts/start-skywalking.sh deploy/scripts/install-skywalking-agent.sh \
-            "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/careermate/deploy/scripts/"
+          scp deploy/scripts/start-skywalking.sh deploy/scripts/install-skywalking-agent.sh \
+            "careermate-app:/opt/careermate/deploy/scripts/"
 
-          scp "${SCP_OPTS[@]}" deploy/skywalking/docker-compose.skywalking.yml \
-            "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/careermate/deploy/skywalking/"
+          scp deploy/skywalking/docker-compose.skywalking.yml \
+            "careermate-app:/opt/careermate/deploy/skywalking/"
 
-          scp "${SCP_OPTS[@]}" deploy/nginx/skywalking.locations.example \
-            "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/careermate/deploy/nginx/"
+          scp deploy/nginx/skywalking.locations.example \
+            "careermate-app:/opt/careermate/deploy/nginx/"
 
-          ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+          ssh careermate-app \
             "chmod +x /opt/careermate/scripts/deploy-from-github.sh /opt/careermate/scripts/rollback-careermate.sh /opt/careermate/deploy/scripts/start-skywalking.sh /opt/careermate/deploy/scripts/install-skywalking-agent.sh"
 
       - name: Activate release on Server 3
-        env:
-          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
-          DEPLOY_USER: ${{ secrets.CAREERMATE_APP_USER }}
-          DEPLOY_PORT: ${{ secrets.CAREERMATE_APP_PORT }}
         run: |
-          PORT="${DEPLOY_PORT:-22}"
-          SSH_OPTS=(-i ~/.ssh/deploy_key -p "${PORT}" -o StrictHostKeyChecking=yes)
-          ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+          ssh careermate-app \
             "sudo bash /opt/careermate/scripts/deploy-from-github.sh '${GITHUB_SHA}'"
 
   deploy-ingress:
