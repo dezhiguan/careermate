@@ -77,71 +77,33 @@ jobs:
           path: frontend/careermate/dist
           if-no-files-found: error
 
-  package-release:
-    name: package-release
+  deploy-app:
+    name: deploy-app-server3
     runs-on: ubuntu-latest
     needs:
       - backend-build
-      - frontend-build
     steps:
+      - name: Checkout deploy scripts
+        uses: actions/checkout@v4
+
       - name: Download backend JAR artifact
         uses: actions/download-artifact@v4
         with:
           name: careermate-backend-jar
 
-      - name: Download frontend dist artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: careermate-frontend-dist
-          path: _frontend-dist
-
-      - name: Assemble release directory
-        run: |
-          mkdir -p release/backend release/frontend/dist
-          JAR_FILE="$(find . -maxdepth 2 -name '*.jar' ! -name '*.original' | head -n 1)"
-          if [[ -z "${JAR_FILE}" ]]; then
-            echo "Downloaded backend JAR not found"
-            exit 1
-          fi
-          cp "${JAR_FILE}" release/backend/app.jar
-          cp -a _frontend-dist/. release/frontend/dist/
-          test -f release/frontend/dist/index.html
-          test -f release/backend/app.jar
-
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: careermate-release
-          path: release
-          if-no-files-found: error
-
-  deploy-production:
-    name: deploy-production
-    runs-on: ubuntu-latest
-    needs: package-release
-    steps:
-      - name: Checkout deploy scripts
-        uses: actions/checkout@v4
-
-      - name: Download release artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: careermate-release
-          path: release
-
-      - name: Configure SSH
+      - name: Configure SSH (Server 3)
         env:
-          SSH_KEY: ${{ secrets.CAREERMATE_DEPLOY_SSH_KEY }}
-          DEPLOY_HOST: ${{ secrets.CAREERMATE_DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.CAREERMATE_DEPLOY_USER }}
-          DEPLOY_PORT: ${{ secrets.CAREERMATE_DEPLOY_PORT }}
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          DEPLOY_USER: ${{ secrets.CAREERMATE_APP_USER }}
+          DEPLOY_PORT: ${{ secrets.CAREERMATE_APP_PORT }}
         run: |
           if [[ -z "${SSH_KEY}" || -z "${DEPLOY_HOST}" ]]; then
-            echo "CAREERMATE_DEPLOY_SSH_KEY and CAREERMATE_DEPLOY_HOST must be set"
+            echo "CAREERMATE_APP_SSH_KEY and CAREERMATE_APP_HOST must be set"
             exit 1
           fi
           if [[ -z "${DEPLOY_USER}" ]]; then
-            echo "CAREERMATE_DEPLOY_USER must be set"
+            echo "CAREERMATE_APP_USER must be set"
             exit 1
           fi
           mkdir -p ~/.ssh
@@ -150,31 +112,22 @@ jobs:
           PORT="${DEPLOY_PORT:-22}"
           ssh-keyscan -p "${PORT}" "${DEPLOY_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Upload release to server
+      - name: Upload backend to Server 3
         env:
-          DEPLOY_HOST: ${{ secrets.CAREERMATE_DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.CAREERMATE_DEPLOY_USER }}
-          DEPLOY_PORT: ${{ secrets.CAREERMATE_DEPLOY_PORT }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          DEPLOY_USER: ${{ secrets.CAREERMATE_APP_USER }}
+          DEPLOY_PORT: ${{ secrets.CAREERMATE_APP_PORT }}
         run: |
-          if [[ -z "${DEPLOY_USER}" ]]; then
-            echo "CAREERMATE_DEPLOY_USER must be set"
-            exit 1
-          fi
           PORT="${DEPLOY_PORT:-22}"
           SSH_OPTS=(-i ~/.ssh/deploy_key -p "${PORT}" -o StrictHostKeyChecking=yes)
           SCP_OPTS=(-i ~/.ssh/deploy_key -P "${PORT}" -o StrictHostKeyChecking=yes)
-          RSYNC_SSH="ssh -i ~/.ssh/deploy_key -p ${PORT} -o StrictHostKeyChecking=yes"
           RELEASE_DIR="/opt/careermate/releases/${GITHUB_SHA}"
 
           ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "mkdir -p '${RELEASE_DIR}/backend' '${RELEASE_DIR}/frontend/dist' /opt/careermate/scripts /opt/careermate/deploy/scripts /opt/careermate/deploy/skywalking /opt/careermate/deploy/nginx"
+            "mkdir -p '${RELEASE_DIR}/backend' /opt/careermate/scripts /opt/careermate/deploy/scripts /opt/careermate/deploy/skywalking /opt/careermate/deploy/nginx"
 
-          scp "${SCP_OPTS[@]}" release/backend/app.jar \
+          scp "${SCP_OPTS[@]}" "$(find . -maxdepth 1 -name '*.jar' ! -name '*.original' | head -n 1)" \
             "${DEPLOY_USER}@${DEPLOY_HOST}:${RELEASE_DIR}/backend/app.jar"
-
-          rsync -avz -e "${RSYNC_SSH}" \
-            release/frontend/dist/ \
-            "${DEPLOY_USER}@${DEPLOY_HOST}:${RELEASE_DIR}/frontend/dist/"
 
           scp "${SCP_OPTS[@]}" deploy/scripts/deploy-from-github.sh deploy/scripts/rollback-careermate.sh \
             "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/careermate/scripts/"
@@ -191,25 +144,74 @@ jobs:
           ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
             "chmod +x /opt/careermate/scripts/deploy-from-github.sh /opt/careermate/scripts/rollback-careermate.sh /opt/careermate/deploy/scripts/start-skywalking.sh /opt/careermate/deploy/scripts/install-skywalking-agent.sh"
 
-      - name: Activate release on server
+      - name: Activate release on Server 3
         env:
-          DEPLOY_HOST: ${{ secrets.CAREERMATE_DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.CAREERMATE_DEPLOY_USER }}
-          DEPLOY_PORT: ${{ secrets.CAREERMATE_DEPLOY_PORT }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          DEPLOY_USER: ${{ secrets.CAREERMATE_APP_USER }}
+          DEPLOY_PORT: ${{ secrets.CAREERMATE_APP_PORT }}
         run: |
-          if [[ -z "${DEPLOY_USER}" ]]; then
-            echo "CAREERMATE_DEPLOY_USER must be set"
-            exit 1
-          fi
           PORT="${DEPLOY_PORT:-22}"
           SSH_OPTS=(-i ~/.ssh/deploy_key -p "${PORT}" -o StrictHostKeyChecking=yes)
           ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
             "sudo bash /opt/careermate/scripts/deploy-from-github.sh '${GITHUB_SHA}'"
 
+  deploy-ingress:
+    name: deploy-ingress-server2
+    runs-on: ubuntu-latest
+    needs:
+      - frontend-build
+    steps:
+      - name: Download frontend dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: careermate-frontend-dist
+          path: frontend-dist
+
+      - name: Configure SSH (Server 2)
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_INGRESS_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+          DEPLOY_USER: ${{ secrets.CAREERMATE_INGRESS_USER }}
+          DEPLOY_PORT: ${{ secrets.CAREERMATE_INGRESS_PORT }}
+        run: |
+          if [[ -z "${SSH_KEY}" || -z "${DEPLOY_HOST}" ]]; then
+            echo "CAREERMATE_INGRESS_SSH_KEY and CAREERMATE_INGRESS_HOST must be set"
+            exit 1
+          fi
+          if [[ -z "${DEPLOY_USER}" ]]; then
+            echo "CAREERMATE_INGRESS_USER must be set"
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          PORT="${DEPLOY_PORT:-22}"
+          ssh-keyscan -p "${PORT}" "${DEPLOY_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Upload frontend to Server 2
+        env:
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+          DEPLOY_USER: ${{ secrets.CAREERMATE_INGRESS_USER }}
+          DEPLOY_PORT: ${{ secrets.CAREERMATE_INGRESS_PORT }}
+        run: |
+          PORT="${DEPLOY_PORT:-22}"
+          SSH_OPTS=(-i ~/.ssh/deploy_key -p "${PORT}" -o StrictHostKeyChecking=yes)
+          RSYNC_SSH="ssh -i ~/.ssh/deploy_key -p ${PORT} -o StrictHostKeyChecking=yes"
+          FRONTEND_TARGET="/opt/rag-forge/frontend/dist/careermate"
+
+          ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "mkdir -p '${FRONTEND_TARGET}'"
+
+          rsync -avz --delete -e "${RSYNC_SSH}" \
+            frontend-dist/ \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:${FRONTEND_TARGET}/"
+
   smoke-test:
     name: smoke-test
     runs-on: ubuntu-latest
-    needs: deploy-production
+    needs:
+      - deploy-app
+      - deploy-ingress
     steps:
       - name: API health check
         run: curl -fsS http://8.163.63.222/careermate-api/health

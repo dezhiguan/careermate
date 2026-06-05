@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Deploy a GitHub Actions release on the ingress server.
+# Deploy a GitHub Actions release on Server 3 (app layer).
+# Frontend is deployed separately to Server 2 ingress by CI.
 # Usage: deploy-from-github.sh <release-sha>
 set -euo pipefail
 
@@ -11,9 +12,6 @@ fi
 RELEASE_SHA="${1}"
 RELEASE_DIR="/opt/careermate/releases/${RELEASE_SHA}"
 CURRENT_LINK="/opt/careermate/current"
-# Nginx container path: /usr/share/nginx/html/careermate/
-# Host bind-mount (ragforge-nginx): /opt/rag-forge/frontend/dist/careermate/
-FRONTEND_TARGET="/opt/rag-forge/frontend/dist/careermate"
 HEALTH_URL="http://127.0.0.1:18080/api/health"
 SYSTEMD_UNIT="/etc/systemd/system/careermate-backend.service"
 EXPECTED_JAR="/opt/careermate/current/backend/app.jar"
@@ -34,7 +32,7 @@ trap on_error ERR
 ensure_systemd_uses_current_jar() {
   if [[ ! -f "${SYSTEMD_UNIT}" ]]; then
     echo "Missing systemd unit: ${SYSTEMD_UNIT}" >&2
-    echo "Install from deploy/systemd/careermate-backend.service.example" >&2
+    echo "Install from deploy/systemd/careermate-backend.service.example (Server 3)" >&2
     exit 1
   fi
 
@@ -57,40 +55,30 @@ ensure_systemd_uses_current_jar() {
   echo "systemd unit fixed and reloaded"
 }
 
-echo "[1/10] Validate release directory: ${RELEASE_DIR}"
+echo "[1/7] Validate release directory: ${RELEASE_DIR}"
 if [[ ! -d "${RELEASE_DIR}" ]]; then
   echo "Release directory not found: ${RELEASE_DIR}" >&2
   exit 1
 fi
 
-echo "[2/10] Validate backend artifact"
+echo "[2/7] Validate backend artifact"
 if [[ ! -f "${RELEASE_DIR}/backend/app.jar" ]]; then
   echo "Missing ${RELEASE_DIR}/backend/app.jar" >&2
   exit 1
 fi
 
-echo "[3/10] Validate frontend artifact"
-if [[ ! -f "${RELEASE_DIR}/frontend/dist/index.html" ]]; then
-  echo "Missing ${RELEASE_DIR}/frontend/dist/index.html" >&2
-  exit 1
-fi
+echo "[3/7] Previous release: ${PREVIOUS_RELEASE:-<none>}"
 
-echo "[4/10] Previous release: ${PREVIOUS_RELEASE:-<none>}"
-
-echo "[5/10] Switch current symlink"
+echo "[4/7] Switch current symlink"
 ln -sfn "${RELEASE_DIR}" "${CURRENT_LINK}"
 
-echo "[6/10] Sync frontend dist to Nginx-visible directory: ${FRONTEND_TARGET}"
-mkdir -p "${FRONTEND_TARGET}"
-rsync -a --delete "${RELEASE_DIR}/frontend/dist/" "${FRONTEND_TARGET}/"
-
-echo "[7/10] Ensure systemd runs current release JAR"
+echo "[5/7] Ensure systemd runs current release JAR"
 ensure_systemd_uses_current_jar
 
-echo "[8/10] Restart careermate-backend"
+echo "[6/7] Restart careermate-backend"
 sudo systemctl restart careermate-backend
 
-echo "[9/10] Wait for backend health"
+echo "[7/7] Wait for backend health"
 for _ in $(seq 1 30); do
   if curl -fsS "${HEALTH_URL}" >/dev/null; then
     break
@@ -99,10 +87,10 @@ for _ in $(seq 1 30); do
 done
 curl -fsS "${HEALTH_URL}" >/dev/null
 
-echo "[10/10] Deployment succeeded"
+echo "Deployment succeeded (Server 3 backend only)"
 echo "  release: ${RELEASE_DIR}"
 echo "  current: $(readlink -f "${CURRENT_LINK}")"
-echo "  frontend: ${FRONTEND_TARGET}"
+echo "  frontend: deployed separately to Server 2 /opt/rag-forge/frontend/dist/careermate/"
 if [[ -n "${PREVIOUS_RELEASE}" && "${PREVIOUS_RELEASE}" != "$(readlink -f "${CURRENT_LINK}")" ]]; then
   echo "  rollback: sudo bash /opt/careermate/scripts/rollback-careermate.sh '${PREVIOUS_RELEASE}'"
 fi
