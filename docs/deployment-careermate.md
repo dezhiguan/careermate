@@ -6,7 +6,7 @@
 |-------|-----------|------------|----------|
 | Server 1 Data | 8.163.30.216 | 172.25.90.183 | PostgreSQL, ES, Redis, RocketMQ — **unchanged** |
 | Server 2 Ingress | 8.163.63.222 | 172.19.40.32 | Nginx, RAGForge frontend, CareerMate frontend |
-| Server 3 App | 8.138.191.228 | 172.25.90.184 | CareerMate backend (:18080), RAGForge backend (:8080), crawlers |
+| Server 3 App | 8.138.191.228 | 172.25.90.184 | CareerMate backend (:18080), RAGForge backend (:8080) |
 
 Request flow:
 
@@ -256,10 +256,14 @@ Initialization template:
 
 **Server 3 (app):**
 
-1. Create `/opt/careermate/backend/.env.app` with real secrets (never commit).
-2. Install systemd unit from `deploy/systemd/careermate-backend.service.example` as `/etc/systemd/system/careermate-backend.service`.
-3. `systemctl daemon-reload && systemctl enable careermate-backend`
-4. Configure GitHub Secrets (section 13).
+1. Run initialization script (directories, user, permissions, env template only — does **not** start backend):
+   ```bash
+   sudo bash deploy/scripts/init-server3.sh
+   ```
+2. Edit `/opt/careermate/backend/.env.app` with real secrets (`DB_PASSWORD`, `JWT_SECRET`, `LLM_API_KEY`, etc.; never commit).
+3. Install systemd unit from `deploy/systemd/careermate-backend.service.example` as `/etc/systemd/system/careermate-backend.service`.
+4. `systemctl daemon-reload && systemctl enable careermate-backend`
+5. Configure GitHub Secrets (section 13).
 
 **Server 2 (ingress):**
 
@@ -346,6 +350,7 @@ curl -fsS http://8.163.63.222/careermate-api/health
 - Backend env template: `deploy/env/careermate-backend.env.example`
 - Frontend env template: `deploy/env/careermate-frontend.env.example`
 - DB init SQL template: `deploy/sql/init-careermate-db.sql.example`
+- Server 3 init script: `deploy/scripts/init-server3.sh`
 - GitHub deploy script: `deploy/scripts/deploy-from-github.sh` (Server 3)
 - Rollback script: `deploy/scripts/rollback-careermate.sh` (Server 3)
 - systemd template: `deploy/systemd/careermate-backend.service.example` (Server 3)

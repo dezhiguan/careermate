@@ -8,7 +8,7 @@
 |------|---------|---------|------|
 | Server 1 数据层 | 8.163.30.216 | 172.25.90.183 | PostgreSQL、ES、Redis、RocketMQ |
 | Server 2 入口层 | 8.163.63.222 | 172.19.40.32 | Nginx、RAGForge 前端、CareerMate 前端 |
-| Server 3 应用层 | 8.138.191.228 | 172.25.90.184 | CareerMate backend、RAGForge backend、爬虫 |
+| Server 3 应用层 | 8.138.191.228 | 172.25.90.184 | CareerMate backend、RAGForge backend |
 
 请求链路：
 
@@ -47,6 +47,16 @@ cd frontend/careermate && npm run dev
 
 - 后端：`http://localhost:8080`
 - 前端：`http://localhost:5173`
+
+## Server 3 首次初始化
+
+在应用层服务器上，从 careermate 仓库根目录执行（仅创建用户、目录、权限和 `.env.app` 占位模板，**不启动后端**）：
+
+```bash
+sudo bash deploy/scripts/init-server3.sh
+```
+
+然后手工编辑 `/opt/careermate/backend/.env.app`，填入 `DB_PASSWORD`、`JWT_SECRET`、`LLM_API_KEY` 等真实值，再安装 systemd unit 并部署。
 
 ## 云端部署（概要）
 
