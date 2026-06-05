@@ -5,6 +5,7 @@
 #
 # Usage (from careermate repo root on Server 3):
 #   sudo bash deploy/scripts/init-server3.sh
+#   sudo CAREERMATE_DEPLOY_USER=<CAREERMATE_APP_USER> bash deploy/scripts/init-server3.sh
 set -euo pipefail
 
 BASE_DIR="/opt/careermate"

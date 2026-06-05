@@ -1,6 +1,6 @@
 # CareerMate 部署说明（索引）
 
-详细运维步骤见 **[deployment-careermate.md](deployment-careermate.md)**。三层架构迁移见 RAGForge 仓库 `docs/deployment-migration-runbook.md`。SkyWalking 见 **[skywalking-cloud-setup.md](skywalking-cloud-setup.md)**。
+详细运维步骤见 **[deployment-careermate.md](deployment-careermate.md)**。**最终部署 Runbook**（按真实执行顺序）：RAGForge 仓库 `docs/deployment-migration-runbook.md`。SkyWalking 见 **[skywalking-cloud-setup.md](skywalking-cloud-setup.md)**。
 
 ## 三层架构（生产）
 

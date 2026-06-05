@@ -1,5 +1,7 @@
 # CareerMate Deployment Guide
 
+> **最终部署 Runbook（按真实执行顺序）**：见 RAGForge 仓库 `docs/deployment-migration-runbook.md`（章节 A–J：Server1 检查 → Server3/2 初始化 → 连通性 → 部署顺序 → Smoke test → 回滚 → CI Secrets）。
+
 ## 1. Deployment Topology (Three-Tier)
 
 | Layer | Public IP | Private IP | Services |
@@ -250,9 +252,18 @@ Initialization template:
 
 ## 8. Deployment Steps
 
+完整顺序见 Runbook 章节 E：
+
+1. Server 1 — 仅检查（PostgreSQL / ES / Redis / RocketMQ）
+2. Server 3 — RAGForge backend
+3. Server 3 — CareerMate backend
+4. Server 2 — RAGForge frontend + Nginx
+5. Server 2 — CareerMate frontend
+6. 公网 smoke test
+
 ### 8.1 One-time server bootstrap (manual)
 
-**Server 1 (data):** initialize database and role (template SQL, manual confirm).
+**Server 1 (data):** 保持不动；确认中间件已启动，安全组仅允许 `172.25.90.184` 访问数据端口（见 Runbook 章节 A）。
 
 **Server 3 (app):**
 
@@ -269,11 +280,16 @@ Initialization template:
 4. `systemctl daemon-reload && systemctl enable careermate-backend`
 5. Configure GitHub Secrets (section 13).
 
-**Server 2 (ingress):**
+**Server 2 (ingress):** 见 Runbook 章节 C。
 
-1. Add Nginx locations for `/careermate/` and `/careermate-api/` (see `deploy/nginx/careermate.locations.example`).
-2. Ensure `mkdir -p /opt/rag-forge/frontend/dist/careermate/`
-3. Verify connectivity: `nc -vz -w 3 172.25.90.184 18080`
+1. `mkdir -p /opt/rag-forge/frontend/dist/careermate/`
+2. 确认 Nginx 反代：`/api/` → `172.25.90.184:8080`；`/careermate-api/` → `172.25.90.184:18080/api/`；`/careermate/` → 静态目录
+3. `docker compose -f docker-compose-ingress.yml up -d`
+4. 连通性：`nc -vz -w 3 172.25.90.184 8080` 和 `18080`
+
+**Server 3 RAGForge 敏感配置：**
+
+- `/opt/rag-forge/docker-compose.override.yml`（DashScope Key、DB 密码等，**不入库**）
 
 ### 8.2 Ongoing deploy via GitHub Actions (recommended)
 
@@ -449,11 +465,21 @@ Frontend is deployed directly to Server 2, not stored in Server 3 releases.
 
 在 `frontend/careermate` 目录执行 E2E（本机 Google Chrome headed）。云端完整用户场景：`npm run test:e2e:cloud:full`（要求 `SECURITY_MODE=jwt` 且 `JWT_SECRET`≥32 字节）。
 
-## 15. Migration Runbook
+## 15. Final Deployment Runbook & RAGForge CI Secrets
 
-See RAGForge repo **`docs/deployment-migration-runbook.md`** for:
+**主 Runbook**：RAGForge 仓库 `docs/deployment-migration-runbook.md`
 
-- Security group rules
-- Connectivity checks
-- File migration (`/data/files`)
-- Nginx cutover and rollback steps
+包含：Server1 检查、Server3/2 初始化、连通性探测、部署顺序、Smoke test、回滚、Secrets 清单、`/data/files` 迁移。
+
+**RAGForge GitHub Secrets**（在 `rag-forge` 仓库配置，勿写真实值）：
+
+| Secret | 说明 |
+|--------|------|
+| `RAGFORGE_INGRESS_HOST` | Server 2 SSH 目标 |
+| `RAGFORGE_APP_HOST` | Server 3 SSH 目标 |
+| `RAGFORGE_INGRESS_SSH_KEY` | Server 2 私钥 |
+| `RAGFORGE_APP_SSH_KEY` | Server 3 私钥 |
+| `RAGFORGE_INGRESS_KNOWN_HOSTS` | `ssh-keyscan 8.163.63.222` |
+| `RAGFORGE_APP_KNOWN_HOSTS` | `ssh-keyscan 8.138.191.228` |
+| `RAGFORGE_INGRESS_DIR` | 可选，默认 `/opt/rag-forge` |
+| `RAGFORGE_APP_DIR` | 可选，默认 `/opt/rag-forge` |
