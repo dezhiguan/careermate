@@ -178,7 +178,9 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
                     }
                     if (!line.startsWith("data:")) continue;
                     String data = line.substring(5).trim();
-                    if ("[DONE]".equals(data) || data.isEmpty()) continue;
+                    if (data.isEmpty()) continue;
+                    if ("[DONE]".equals(data)) break;
+                    String deltaContent = null;
                     try {
                         JsonNode root = objectMapper.readTree(data);
                         JsonNode choices = root.path("choices");
@@ -188,10 +190,9 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
                             if (!fr.isEmpty() && !"null".equals(fr)) {
                                 finishReason = fr;
                             }
-                            String content = choice.path("delta").path("content").asText(null);
-                            if (content != null && !content.isEmpty()) {
-                                fullContent.append(content);
-                                callback.onToken(content);
+                            deltaContent = choice.path("delta").path("content").asText(null);
+                            if (deltaContent != null && !deltaContent.isEmpty()) {
+                                fullContent.append(deltaContent);
                             }
                         }
                         JsonNode usage = root.path("usage");
@@ -201,6 +202,10 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
                         }
                     } catch (Exception e) {
                         log.debug("Skipping unparseable SSE chunk: provider={}", providerName);
+                        continue;
+                    }
+                    if (deltaContent != null && !deltaContent.isEmpty()) {
+                        callback.onToken(deltaContent);
                     }
                 }
             }

@@ -32,8 +32,11 @@
                     :tool="tc"
                   />
                 </div>
+                <div v-if="msg.streaming && !msg.text && !msg.toolCalls?.length" class="thinking-flag">
+                  <span class="thinking-dot" /><span class="thinking-dot" /><span class="thinking-dot" />
+                </div>
                 <div v-if="msg.text">{{ msg.text }}</div>
-                <div v-if="msg.streaming" class="stream-flag">流式输出中...</div>
+                <div v-if="msg.streaming && msg.text" class="stream-flag">▌</div>
                 <div v-if="msg.error" class="stream-error">{{ msg.error }}</div>
               </div>
             </div>
@@ -903,7 +906,21 @@ onBeforeUnmount(() => {
 }
 .user-bubble { background: var(--purple); color: #fff; border-radius: 10px 10px 0 10px; }
 .agent-bubble { background: #fff; border: 1px solid var(--border); border-radius: 10px 10px 10px 0; }
-.stream-flag { margin-top: 4px; color: var(--purple); font-size: 11px; }
+.stream-flag { display: inline-block; color: var(--purple); font-size: 13px; line-height: 1; animation: blink 1s step-start infinite; margin-left: 1px; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.thinking-flag { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+.thinking-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--purple); opacity: 0.5;
+  animation: thinking-bounce 1.2s ease-in-out infinite;
+}
+.thinking-dot:nth-child(1) { animation-delay: 0s; }
+.thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes thinking-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-6px); opacity: 1; }
+}
 .stream-error { margin-top: 4px; color: var(--red); font-size: 11px; }
 .tool-call-list {
   display: flex;
