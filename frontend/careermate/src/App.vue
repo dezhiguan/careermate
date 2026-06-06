@@ -1,5 +1,5 @@
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'nav-expanded': navExpanded }">
     <header class="top-status" v-if="authStore.state.currentUser">
       <span class="user-badge">
         {{ authStore.state.currentUser.username }} / {{ authStore.state.currentUser.role }}
@@ -9,33 +9,78 @@
     <main class="main-content">
       <router-view />
     </main>
-    <nav class="bottom-nav">
-      <router-link to="/" class="nav-item" active-class="active">
-        <span class="nav-icon">💬</span>
-        <span class="nav-label">对话台</span>
-      </router-link>
-      <router-link to="/resume" class="nav-item" active-class="active">
-        <span class="nav-icon">📝</span>
-        <span class="nav-label">简历</span>
-      </router-link>
-      <router-link to="/match" class="nav-item" active-class="active">
-        <span class="nav-icon">🎯</span>
-        <span class="nav-label">岗位匹配</span>
-      </router-link>
-      <router-link to="/interview" class="nav-item" active-class="active">
-        <span class="nav-icon">🎤</span>
-        <span class="nav-label">面试特训</span>
-      </router-link>
-      <router-link to="/dashboard" class="nav-item" active-class="active">
-        <span class="nav-icon">📊</span>
-        <span class="nav-label">求职看板</span>
-      </router-link>
-    </nav>
+    <div v-if="authStore.state.currentUser" class="bottom-nav-shell">
+      <button
+        v-if="!navExpanded"
+        type="button"
+        class="nav-expand-btn"
+        aria-label="打开导航菜单"
+        @click="setNavExpanded(true)"
+      >
+        <span class="nav-expand-icon">☰</span>
+        <span class="nav-expand-label">功能导航</span>
+      </button>
+      <nav v-else class="bottom-nav">
+        <button
+          type="button"
+          class="nav-collapse-btn"
+          aria-label="收起导航"
+          @click="setNavExpanded(false)"
+        >
+          <span class="collapse-bar" />
+          <span class="collapse-text">收起</span>
+        </button>
+        <div class="nav-items">
+          <router-link to="/" class="nav-item" active-class="active">
+            <span class="nav-icon">💬</span>
+            <span class="nav-label">对话台</span>
+          </router-link>
+          <router-link to="/resume" class="nav-item" active-class="active">
+            <span class="nav-icon">📝</span>
+            <span class="nav-label">简历</span>
+          </router-link>
+          <router-link to="/match" class="nav-item" active-class="active">
+            <span class="nav-icon">🎯</span>
+            <span class="nav-label">岗位匹配</span>
+          </router-link>
+          <router-link to="/interview" class="nav-item" active-class="active">
+            <span class="nav-icon">🎤</span>
+            <span class="nav-label">面试特训</span>
+          </router-link>
+          <router-link to="/dashboard" class="nav-item" active-class="active">
+            <span class="nav-icon">📊</span>
+            <span class="nav-label">求职看板</span>
+          </router-link>
+        </div>
+      </nav>
+    </div>
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { authStore } from './stores/authStore'
+
+const NAV_EXPANDED_KEY = 'careermate.navExpanded'
+
+function readNavExpanded() {
+  try {
+    return localStorage.getItem(NAV_EXPANDED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+const navExpanded = ref(readNavExpanded())
+
+function setNavExpanded(expanded) {
+  navExpanded.value = expanded
+  try {
+    localStorage.setItem(NAV_EXPANDED_KEY, expanded ? 'true' : 'false')
+  } catch {
+    // ignore storage failures
+  }
+}
 </script>
 
 <style>
@@ -45,7 +90,8 @@ import { authStore } from './stores/authStore'
   --green: #10b981; --amber: #f59e0b; --red: #ef4444;
   --purple: #8b5cf6; --border: #e2e8f0; --text: #1e293b;
   --text-muted: #64748b; --pink: #ec4899;
-  --bottom-nav-h: 60px;
+  --bottom-nav-h: 52px;
+  --bottom-nav-expanded-h: 88px;
 }
 
 .app-shell {
@@ -57,6 +103,10 @@ import { authStore } from './stores/authStore'
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
+}
+
+.app-shell.nav-expanded {
+  --bottom-nav-h: var(--bottom-nav-expanded-h);
 }
 
 .main-content {
@@ -97,19 +147,84 @@ import { authStore } from './stores/authStore'
   cursor: pointer;
 }
 
-.bottom-nav {
+.bottom-nav-shell {
   position: fixed;
-  bottom: 0; left: 0; right: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  width: 100%;
+  max-width: 100%;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.nav-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 auto 8px;
+  min-height: 44px;
+  padding: 8px 18px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, .12);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nav-expand-btn:hover {
+  color: var(--purple);
+  border-color: #ddd6fe;
+  background: #faf5ff;
+}
+
+.nav-expand-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.bottom-nav {
   background: #fff;
   border-top: 1px solid var(--border);
-  display: flex;
-  justify-content: space-around;
-  align-items: flex-end;
-  padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
-  z-index: 100;
   box-shadow: 0 -2px 12px rgba(0,0,0,.04);
   width: 100%;
   max-width: 100%;
+}
+
+.nav-collapse-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.collapse-bar {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.collapse-text {
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.nav-items {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  padding: 0 4px 8px;
 }
 
 .nav-item {
@@ -183,7 +298,7 @@ import { authStore } from './stores/authStore'
     padding-top: 52px;
   }
 
-  .bottom-nav {
+  .nav-items {
     padding-left: 0;
     padding-right: 0;
     gap: 0;

@@ -3,6 +3,9 @@ careermate:
     llm-api-enabled: false
 
 spring:
+  output:
+    ansi:
+      enabled: ${SPRING_OUTPUT_ANSI_ENABLED:never} # 生产日志默认关闭彩色，避免文件/聚合器出现 ANSI 乱码
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}

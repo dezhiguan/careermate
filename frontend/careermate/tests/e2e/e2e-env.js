@@ -176,6 +176,9 @@ async function detectAuthMode(request) {
  * @param {import('@playwright/test').Page} page
  */
 function attachDiagnostics(page) {
+  page.addInitScript(() => {
+    localStorage.setItem('careermate.navExpanded', 'true');
+  });
   page.on('console', (msg) => {
     if (msg.type() === 'error') {
       console.log(`[console.error] ${msg.text()}`);

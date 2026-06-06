@@ -222,7 +222,9 @@ public class AgentStreamController {
         }, agentProperties.getStreamTaskTimeoutMs(), TimeUnit.MILLISECONDS);
 
         try {
+            long phaseStart = System.currentTimeMillis();
             agentSessionService.appendMessage(userId, sessionId, "user", request.getMessage(), "text");
+            logPhase(sessionId, "persist_user_message", phaseStart);
 
             Map<String, Object> planData = Map.of(
                     "steps", List.of("接收用户输入", "调用 LLM", "生成回复"),
@@ -240,12 +242,15 @@ public class AgentStreamController {
                     null
             );
 
+            phaseStart = System.currentTimeMillis();
             CareerProfileUpdateResult profileUpdate = careerProfileAutoUpdateService.tryAutoUpdateTargetRole(
                     userId,
                     request.getMessage()
             );
             recordCareerProfileUpdateTrace(userId, sessionId, profileUpdate);
+            logPhase(sessionId, "career_profile_auto_update", phaseStart);
 
+            phaseStart = System.currentTimeMillis();
             CareerProfileContextResult careerProfileContext = agentTracing.call(
                     "agent.load_profile_context",
                     userId,
@@ -256,7 +261,9 @@ public class AgentStreamController {
                     () -> careerProfileContextProvider.load(userId)
             );
             recordCareerProfileContextTrace(userId, sessionId, careerProfileContext);
+            logPhase(sessionId, "load_career_profile_context", phaseStart);
 
+            phaseStart = System.currentTimeMillis();
             ResumeContext resumeContext = agentTracing.call(
                     "agent.load_resume_context",
                     userId,
@@ -267,10 +274,14 @@ public class AgentStreamController {
                     () -> resumeContextProvider.getResumeContext(userId)
             );
             recordResumeContextTrace(userId, sessionId, resumeContext);
+            logPhase(sessionId, "load_resume_context", phaseStart);
 
+            phaseStart = System.currentTimeMillis();
             JobMatchContext jobMatchContext = jobMatchContextProvider.getLatestJobMatchContext(userId);
             recordJobMatchContextTrace(userId, sessionId, jobMatchContext);
+            logPhase(sessionId, "load_job_match_context", phaseStart);
 
+            phaseStart = System.currentTimeMillis();
             ConversationContextResult conversationContext = agentTracing.call(
                     "agent.load_conversation_context",
                     userId,
@@ -281,12 +292,15 @@ public class AgentStreamController {
                     () -> loadConversationContextSafely(userId, sessionId, request.getMessage())
             );
             recordConversationContextTrace(userId, sessionId, conversationContext);
+            logPhase(sessionId, "load_conversation_context", phaseStart);
 
             String systemPrompt = AgentPromptAssembler.buildBaseSystemPrompt();
             systemPrompt = AgentPromptAssembler.appendCareerProfileContext(systemPrompt, careerProfileContext);
             systemPrompt = AgentPromptAssembler.appendResumeContext(systemPrompt, resumeContext);
             systemPrompt = AgentPromptAssembler.appendJobMatchContext(systemPrompt, jobMatchContext);
             systemPrompt = AgentPromptAssembler.appendConversationContext(systemPrompt, conversationContext);
+
+            phaseStart = System.currentTimeMillis();
             AgentToolResult toolResult = executeRoutedToolIfAny(
                     userId,
                     sessionId,
@@ -295,6 +309,7 @@ public class AgentStreamController {
             if (toolResult != null) {
                 systemPrompt = AgentPromptAssembler.appendToolResult(systemPrompt, toolResult);
             }
+            logPhase(sessionId, "route_and_execute_tool", phaseStart);
             ChatRequest chatRequest = ChatRequest.builder()
                     .messages(List.of(
                             ChatMessage.builder().role("system").content(systemPrompt).build(),
@@ -302,6 +317,15 @@ public class AgentStreamController {
                     ))
                     .build();
 
+            final long llmStart = System.currentTimeMillis();
+            final long[] firstTokenAt = { -1L };
+            log.info(
+                    "[agent-timing] sessionId={} phase=llm_stream_start provider={} model={} promptChars={}",
+                    sessionId,
+                    llmProperties.getProvider(),
+                    llmProperties.getModel(),
+                    systemPrompt.length() + request.getMessage().length()
+            );
             agentTracing.call(
                     "agent.llm.stream_chat",
                     userId,
@@ -321,6 +345,14 @@ public class AgentStreamController {
                     }
                     if (token == null || token.isEmpty()) {
                         return;
+                    }
+                    if (firstTokenAt[0] < 0) {
+                        firstTokenAt[0] = System.currentTimeMillis();
+                        log.info(
+                                "[agent-timing] sessionId={} phase=llm_first_token ttftMs={}",
+                                sessionId,
+                                firstTokenAt[0] - llmStart
+                        );
                     }
                     full.append(token);
                     sseEmitterService.send(sessionId, SseEventType.TOKEN, Map.of("content", token));
@@ -347,6 +379,12 @@ public class AgentStreamController {
                         );
 
                         long totalLatencyMs = System.currentTimeMillis() - start;
+                        log.info(
+                                "[agent-timing] sessionId={} phase=stream_total totalCostMs={} replyChars={}",
+                                sessionId,
+                                totalLatencyMs,
+                                content.length()
+                        );
                         Map<String, Object> doneData = Map.of(
                                 "sessionId", sessionId,
                                 "totalLatencyMs", totalLatencyMs
@@ -379,6 +417,13 @@ public class AgentStreamController {
                         return null;
                     }
             );
+            log.info(
+                    "[agent-timing] sessionId={} phase=llm_stream_total costMs={} ttftMs={} replyChars={}",
+                    sessionId,
+                    System.currentTimeMillis() - llmStart,
+                    firstTokenAt[0] < 0 ? -1 : firstTokenAt[0] - llmStart,
+                    full.length()
+            );
             if (terminalHandled.compareAndSet(false, true)) {
                 handleStreamError(
                         userId,
@@ -403,6 +448,15 @@ public class AgentStreamController {
             heartbeatExecutor.shutdownNow();
             taskRegistry.complete(sessionId);
         }
+    }
+
+    private void logPhase(String sessionId, String phase, long phaseStartMs) {
+        log.info(
+                "[agent-timing] sessionId={} phase={} costMs={}",
+                sessionId,
+                phase,
+                System.currentTimeMillis() - phaseStartMs
+        );
     }
 
     private void handleStreamError(Long userId, String sessionId, Throwable error, String errorCode) {

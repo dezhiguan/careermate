@@ -83,6 +83,7 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
   }
 
   let reader = null
+  let receivedMessage = false
   try {
     const response = await fetch(`${API_BASE_URL}/agent/sessions/${sessionId}/messages/stream`, {
       method: 'POST',
@@ -126,6 +127,7 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
             handlers.onToken?.(payload)
             break
           case 'message':
+            receivedMessage = true
             handlers.onMessage?.(payload)
             break
           case 'done':
@@ -162,6 +164,15 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
     }
     parser.end()
     if (!terminalEvent) {
+      // 后端在 onComplete 中依次发送 message→done 后立即 complete()，
+      // 真实 LLM 较长流式场景下，最后的 done 帧偶发会在连接关闭前未被刷新到客户端。
+      // 若已收到完整 message，则按正常完成处理，并由 onDone 触发服务端 trace 对账，
+      // 避免误报“未收到 done/error 结束事件”。
+      if (receivedMessage) {
+        terminalEvent = 'done'
+        handlers.onDone?.({ degraded: true, totalLatencyMs: 0 })
+        return
+      }
       throw new Error('流式响应未收到 done/error 结束事件')
     }
   } catch (e) {

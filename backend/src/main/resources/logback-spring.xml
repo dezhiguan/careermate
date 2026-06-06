@@ -3,14 +3,17 @@
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
+    <!-- 彩色控制台输出：时间(蓝绿)、级别(按级别配色)、线程(品红)、logger(青)、MDC(黄)、消息(默认) -->
     <property name="CONSOLE_LOG_PATTERN"
-              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} traceId=%X{traceId:-} requestId=%X{requestId:-} userId=%X{userId:-} sessionId=%X{sessionId:-} - %msg%n"/>
+              value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%thread]){magenta} %clr(%-5level) %clr(%logger{36}){cyan} %clr(traceId=%X{traceId:-} requestId=%X{requestId:-} userId=%X{userId:-} sessionId=%X{sessionId:-}){yellow} %clr(-){faint} %msg%n"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>${CONSOLE_LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
         </encoder>
+        <!-- 即使输出被重定向（非 TTY）也强制彩色，便于 IDE 控制台显示 -->
+        <withJansi>false</withJansi>
     </appender>
 
     <root level="INFO">
