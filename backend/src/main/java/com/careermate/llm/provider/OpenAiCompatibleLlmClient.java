@@ -13,11 +13,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -119,12 +123,116 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
 
     @Override
     public void streamChat(ChatRequest request, StreamCallback callback) {
+        long start = System.currentTimeMillis();
+        validateConfig();
+
+        String model = resolveModel(request);
+        Double temperature = resolveTemperature(request);
+        Integer maxTokens = resolveMaxTokens(request);
+        String endpoint = normalizeEndpoint(llmProperties.getEndpoint()) + "/chat/completions";
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("model", model);
+        payload.put("messages", buildMessages(request));
+        payload.put("temperature", temperature);
+        payload.put("max_tokens", maxTokens);
+        payload.put("stream", true);
+
         try {
-            ChatResponse response = chat(request);
-            callback.onToken(response.getContent() == null ? "" : response.getContent());
-            callback.onComplete(response);
-        } catch (Throwable t) {
-            callback.onError(t);
+            String json = objectMapper.writeValueAsString(payload);
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(endpoint))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + llmProperties.getApiKey())
+                    .timeout(Duration.ofMillis(llmProperties.getTimeoutMs()))
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+
+            HttpResponse<InputStream> response = httpClient.send(
+                    httpRequest, HttpResponse.BodyHandlers.ofInputStream());
+
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                String errorBody;
+                try {
+                    errorBody = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
+                } catch (Exception e) {
+                    errorBody = "(unreadable)";
+                }
+                log.warn("LLM stream failed: provider={}, model={}, status={}, body={}",
+                        providerName, model, response.statusCode(),
+                        LlmProviderDefaults.sanitizeForLog(errorBody));
+                throw new BizException(500, LlmProviderDefaults.userFacingHttpError(response.statusCode()));
+            }
+
+            StringBuilder fullContent = new StringBuilder();
+            String finishReason = "";
+            int inputTokens = 0;
+            int outputTokens = 0;
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        throw new InterruptedException("Stream reading interrupted");
+                    }
+                    if (!line.startsWith("data:")) continue;
+                    String data = line.substring(5).trim();
+                    if ("[DONE]".equals(data) || data.isEmpty()) continue;
+                    try {
+                        JsonNode root = objectMapper.readTree(data);
+                        JsonNode choices = root.path("choices");
+                        if (choices.isArray() && choices.size() > 0) {
+                            JsonNode choice = choices.get(0);
+                            String fr = choice.path("finish_reason").asText("");
+                            if (!fr.isEmpty() && !"null".equals(fr)) {
+                                finishReason = fr;
+                            }
+                            String content = choice.path("delta").path("content").asText(null);
+                            if (content != null && !content.isEmpty()) {
+                                fullContent.append(content);
+                                callback.onToken(content);
+                            }
+                        }
+                        JsonNode usage = root.path("usage");
+                        if (!usage.isMissingNode() && !usage.isNull()) {
+                            inputTokens = usage.path("prompt_tokens").asInt(inputTokens);
+                            outputTokens = usage.path("completion_tokens").asInt(outputTokens);
+                        }
+                    } catch (Exception e) {
+                        log.debug("Skipping unparseable SSE chunk: provider={}", providerName);
+                    }
+                }
+            }
+
+            long latency = System.currentTimeMillis() - start;
+            log.info("LLM stream completed: provider={}, model={}, outputTokens={}, latencyMs={}",
+                    providerName, model, outputTokens, latency);
+            callback.onComplete(ChatResponse.builder()
+                    .content(fullContent.toString())
+                    .model(model)
+                    .provider(providerName)
+                    .inputTokens(inputTokens)
+                    .outputTokens(outputTokens)
+                    .latencyMs(latency)
+                    .finishReason(finishReason)
+                    .build());
+
+        } catch (BizException e) {
+            callback.onError(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            callback.onError(new BizException(499, "请求已取消"));
+        } catch (java.net.http.HttpTimeoutException e) {
+            log.warn("LLM stream timeout: provider={}, model={}, timeoutMs={}",
+                    providerName, model, llmProperties.getTimeoutMs());
+            callback.onError(new BizException(504, "LLM 调用超时，请稍后重试"));
+        } catch (IOException e) {
+            log.error("LLM stream IO exception: provider={}, model={}", providerName, model, e);
+            callback.onError(new BizException(500, "LLM 调用失败，请稍后重试"));
+        } catch (Exception e) {
+            log.error("LLM stream exception: provider={}, model={}", providerName, model, e);
+            callback.onError(new BizException(500, "LLM 调用失败，请稍后重试"));
         }
     }
 

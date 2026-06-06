@@ -45,6 +45,7 @@ import { authStore } from './stores/authStore'
   --green: #10b981; --amber: #f59e0b; --red: #ef4444;
   --purple: #8b5cf6; --border: #e2e8f0; --text: #1e293b;
   --text-muted: #64748b; --pink: #ec4899;
+  --bottom-nav-h: 60px;
 }
 
 .app-shell {
@@ -60,7 +61,7 @@ import { authStore } from './stores/authStore'
 
 .main-content {
   flex: 1;
-  padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
   padding-top: 44px;
   width: 100%;
   max-width: 100%;

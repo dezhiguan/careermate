@@ -830,8 +830,8 @@ onBeforeUnmount(() => {
 .chat-page {
   max-width: 1200px;
   margin: 0 auto;
-  height: calc(100dvh - 44px - 84px - env(safe-area-inset-bottom));
-  min-height: 520px;
+  height: calc(100dvh - 44px - var(--bottom-nav-h, 84px) - env(safe-area-inset-bottom));
+  min-height: 0;
   overflow: hidden;
 }
 .chat-layout {
@@ -914,6 +914,7 @@ onBeforeUnmount(() => {
 
 .input-area {
   flex-shrink: 0;
+  position: relative;
   border-top: 1px solid var(--border);
   padding: 12px 16px;
   background: #fff;
@@ -995,8 +996,8 @@ onBeforeUnmount(() => {
   .chat-page {
     max-width: 100%;
     margin: 0;
-    height: calc(100dvh - 40px - 84px - env(safe-area-inset-bottom));
-    min-height: 420px;
+    height: calc(100dvh - 40px - var(--bottom-nav-h, 84px) - env(safe-area-inset-bottom));
+    min-height: 0;
     overflow: hidden;
   }
 

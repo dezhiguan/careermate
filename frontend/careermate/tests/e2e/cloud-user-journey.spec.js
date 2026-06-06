@@ -49,7 +49,10 @@ test.beforeEach(({ page }, testInfo) => {
 
 test.describe('云端 · 桌面端完整用户旅程', () => {
   test.beforeEach(({ }, testInfo) => {
-    test.skip(testInfo.project.name !== 'local-chrome-desktop', '桌面端用例');
+    test.skip(
+      !['local-chrome-desktop', 'ci-chromium-desktop'].includes(testInfo.project.name),
+      '桌面端用例'
+    );
   });
 
   test('01 未登录访问首页应跳转登录', async ({ page }) => {

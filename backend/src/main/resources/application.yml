@@ -9,6 +9,9 @@ spring:
     name: careermate-backend
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  mvc:
+    async:
+      request-timeout: ${SPRING_MVC_ASYNC_REQUEST_TIMEOUT:300000}
 
 management:
   endpoints:
