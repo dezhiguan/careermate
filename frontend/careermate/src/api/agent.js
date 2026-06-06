@@ -40,7 +40,7 @@ export async function getAgentTrace(sessionId) {
   return request(`/agent/sessions/${sessionId}/trace`)
 }
 
-const DEFAULT_STREAM_TIMEOUT_MS = Number(import.meta.env.VITE_AGENT_STREAM_TIMEOUT_MS || 120000)
+const DEFAULT_STREAM_TIMEOUT_MS = Number(import.meta.env.VITE_AGENT_STREAM_TIMEOUT_MS || 300000)
 
 /** 从 SSE data 块解析业务 payload（兼容 SseEvent 包装与扁平结构） */
 function resolveSsePayload(event) {

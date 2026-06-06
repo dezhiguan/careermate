@@ -419,7 +419,7 @@ public class AgentStreamController {
                 errorCode
         );
         agentSessionService.markError(userId, sessionId, errorCode);
-        sseEmitterService.completeWithError(sessionId, error == null ? new RuntimeException("unknown") : error);
+        sseEmitterService.complete(sessionId);
     }
 
     private AgentToolResult executeRoutedToolIfAny(Long userId, String sessionId, String userMessage) {

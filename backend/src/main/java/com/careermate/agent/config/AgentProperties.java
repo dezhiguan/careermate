@@ -12,7 +12,7 @@ public class AgentProperties {
     private Integer executorMaxPoolSize = 20;
     private Integer executorQueueCapacity = 200;
     private Integer maxConcurrentSessions = 100;
-    private Long streamTaskTimeoutMs = 120000L;
+    private Long streamTaskTimeoutMs = 300000L;
     private Integer conversationContextMaxMessages = 10;
     private Integer conversationContextMaxChars = 6000;
 }

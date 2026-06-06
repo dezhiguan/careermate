@@ -180,7 +180,7 @@ const careerProfile = ref({
 })
 const careerProfileLoading = ref(false)
 
-const STREAM_UI_TIMEOUT_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_TIMEOUT_MS || 45000)
+const STREAM_UI_IDLE_NOTICE_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_IDLE_NOTICE_MS || 90000)
 
 const suggestions = ['帮我优化简历', '匹配后端岗位', '准备 Java 面试']
 
@@ -355,12 +355,14 @@ function abortActiveStream(reason = '当前流式请求已取消') {
 
 function startStreamWatchdog(agentMessage) {
   clearStreamWatchdog()
-  if (!Number.isFinite(STREAM_UI_TIMEOUT_MS) || STREAM_UI_TIMEOUT_MS <= 0) return
+  if (!Number.isFinite(STREAM_UI_IDLE_NOTICE_MS) || STREAM_UI_IDLE_NOTICE_MS <= 0) return
   activeStreamTimer.value = window.setTimeout(() => {
-    const message = `Agent 流式响应超过 ${Math.round(STREAM_UI_TIMEOUT_MS / 1000)} 秒未结束，已自动释放输入框。`
-    markStreamInterrupted(agentMessage, message)
-    abortActiveStream(message)
-  }, STREAM_UI_TIMEOUT_MS)
+    if (streamState.value !== 'streaming' || !agentMessage?.streaming) return
+    const message = `Agent 已超过 ${Math.round(STREAM_UI_IDLE_NOTICE_MS / 1000)} 秒未返回结束事件，仍在等待后端完成。`
+    agentMessage.error = message
+    globalError.value = message
+    pushTrace('warning', message)
+  }, STREAM_UI_IDLE_NOTICE_MS)
 }
 
 /** tool_result 偶发丢失时，避免卡片一直停在「执行中」 */
