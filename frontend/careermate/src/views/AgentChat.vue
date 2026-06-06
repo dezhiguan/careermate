@@ -753,7 +753,6 @@ async function sendMessage() {
       },
     }, {
       signal: streamController.signal,
-      timeoutMs: STREAM_UI_TIMEOUT_MS,
     })
     if (streamState.value === 'streaming') {
       streamState.value = 'done'
