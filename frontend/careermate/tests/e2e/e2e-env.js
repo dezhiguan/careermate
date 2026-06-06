@@ -305,7 +305,7 @@ async function sendAgentMessageAndExpectMockReply(page, message = '帮我分析�
     await input.fill(message);
     await expect(sendBtn).toBeEnabled({ timeout: 15_000 });
     await sendBtn.click();
-    await expect(page.locator('.user-bubble', { hasText: message })).toBeVisible({
+    await expect(page.locator('.user-bubble', { hasText: message }).last()).toBeVisible({
       timeout: 20_000,
     });
     const agentBubble = page.locator('.agent-bubble').last();

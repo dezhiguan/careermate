@@ -16,8 +16,6 @@ const {
   FATAL_APP_ERROR,
 } = require('./e2e-env');
 
-const PROMPT = '请介绍一下 CareerMate';
-
 /** @type {'single-user' | 'jwt'} */
 let authMode = 'jwt';
 
@@ -58,11 +56,12 @@ test.describe('云端部署后 smoke', () => {
 
     const input = page.locator('input[placeholder="说说你想做什么..."]');
     const sendBtn = page.getByRole('button', { name: '↑' });
-    await input.fill(PROMPT);
+    const prompt = `请介绍一下 CareerMate ${Date.now()}`;
+    await input.fill(prompt);
     await expect(sendBtn).toBeEnabled({ timeout: 15_000 });
     await sendBtn.click();
 
-    await expect(page.locator('.user-bubble', { hasText: PROMPT })).toBeVisible({
+    await expect(page.locator('.user-bubble', { hasText: prompt }).last()).toBeVisible({
       timeout: 20_000,
     });
 
