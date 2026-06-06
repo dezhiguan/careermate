@@ -88,7 +88,7 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
+        Accept: 'text/event-stream, application/json',
         ...getAuthHeaders(),
       },
       body: JSON.stringify({ message }),
