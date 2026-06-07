@@ -8,6 +8,8 @@ import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
 import com.careermate.model.entity.JobMatchEntity;
 import com.careermate.model.entity.ResumeEntity;
+import com.careermate.ragforge.RagForgeChunk;
+import com.careermate.ragforge.RagForgeClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

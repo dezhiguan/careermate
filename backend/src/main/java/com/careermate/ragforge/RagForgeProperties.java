@@ -18,4 +18,6 @@ public class RagForgeProperties {
     private int timeoutMs = 5000;
     /** RAGForge 中 JD Pattern KB 的 id；空则禁用 JD 搜索能力 */
     private String jdKbId = "";
+    /** RAGForge 中 Interview Q&A KB 的 id；空则禁用面试题 RAG 增强 */
+    private String interviewKbId = "";
 }

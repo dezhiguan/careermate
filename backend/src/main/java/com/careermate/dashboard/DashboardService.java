@@ -8,7 +8,10 @@ import com.careermate.dashboard.dto.DashboardSuggestionResponse;
 import com.careermate.dashboard.dto.InterviewStatsResponse;
 import com.careermate.dashboard.dto.JobMatchStatsResponse;
 import com.careermate.dashboard.dto.ResumeStatsResponse;
+import com.careermate.dashboard.dto.SkillGapItem;
+import com.careermate.dashboard.dto.SkillGapResponse;
 import com.careermate.interview.InterviewPracticeService;
+import com.careermate.jobmatch.JobMatchJsonSupport;
 import com.careermate.jobmatch.JobMatchService;
 import com.careermate.mapper.InterviewSessionMapper;
 import com.careermate.mapper.JobMatchMapper;
@@ -26,6 +29,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -37,21 +41,54 @@ public class DashboardService {
     private final JobMatchMapper jobMatchMapper;
     private final InterviewSessionMapper interviewSessionMapper;
     private final CareerTaskService careerTaskService;
+    private final JobMatchJsonSupport jobMatchJsonSupport;
 
     public DashboardService(
             ResumeMapper resumeMapper,
             JobMatchMapper jobMatchMapper,
             InterviewSessionMapper interviewSessionMapper,
-            CareerTaskService careerTaskService
+            CareerTaskService careerTaskService,
+            JobMatchJsonSupport jobMatchJsonSupport
     ) {
         this.resumeMapper = resumeMapper;
         this.jobMatchMapper = jobMatchMapper;
         this.interviewSessionMapper = interviewSessionMapper;
         this.careerTaskService = careerTaskService;
+        this.jobMatchJsonSupport = jobMatchJsonSupport;
     }
 
     public DashboardOverviewResponse getOverview() {
         return getOverviewForUser(requireUserId());
+    }
+
+    public SkillGapResponse getSkillGap() {
+        Long userId = requireUserId();
+        List<JobMatchEntity> jobMatches = jobMatchMapper.selectList(
+                new LambdaQueryWrapper<JobMatchEntity>()
+                        .eq(JobMatchEntity::getUserId, userId)
+                        .eq(JobMatchEntity::getStatus, JobMatchService.STATUS_ACTIVE)
+        );
+
+        Map<String, Integer> countMap = new java.util.LinkedHashMap<>();
+        for (JobMatchEntity entity : jobMatches) {
+            List<String> missing = jobMatchJsonSupport.readStringList(entity.getMissingSkills());
+            for (String skill : missing) {
+                if (skill != null && !skill.isBlank()) {
+                    countMap.merge(skill.trim(), 1, Integer::sum);
+                }
+            }
+        }
+
+        List<SkillGapItem> items = countMap.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .limit(10)
+                .map(e -> SkillGapItem.builder().skill(e.getKey()).count(e.getValue()).build())
+                .toList();
+
+        return SkillGapResponse.builder()
+                .totalJobMatches(jobMatches.size())
+                .items(items)
+                .build();
     }
 
     public DashboardOverviewResponse getOverviewForUser(Long userId) {

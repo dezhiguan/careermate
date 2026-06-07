@@ -103,6 +103,24 @@
         </div>
       </div>
 
+      <div class="section-title">🧩 跨岗位技能缺口</div>
+      <div v-if="skillGapLoading" class="state-hint">分析中...</div>
+      <template v-else-if="skillGap">
+        <div v-if="!skillGap.items?.length" class="empty-state">
+          <div>暂无数据，录入多个岗位匹配后即可查看高频缺失技能</div>
+        </div>
+        <div v-else class="skill-gap-list">
+          <div v-for="item in skillGap.items" :key="item.skill" class="skill-gap-row">
+            <div class="gap-label">{{ item.skill }}</div>
+            <div class="gap-bar-wrap">
+              <div class="gap-bar" :style="{ width: gapBarWidth(item.count) }"></div>
+            </div>
+            <div class="gap-count">{{ item.count }}</div>
+          </div>
+          <div class="gap-note">基于 {{ skillGap.totalJobMatches }} 条岗位匹配</div>
+        </div>
+      </template>
+
       <div class="section-title">📅 最近动态</div>
       <div v-if="!overview.recentActivities?.length" class="empty-state">
         <div class="empty-icon">📭</div>
@@ -124,7 +142,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { getDashboardOverview } from '../api/dashboard'
+import { getDashboardOverview, getSkillGap } from '../api/dashboard'
 import { markTaskDone } from '../api/tasks'
 import { CAREER_TASKS_UPDATED_EVENT } from '../utils/agentToolDisplay'
 
@@ -132,6 +150,14 @@ const overview = ref(null)
 const loading = ref(false)
 const error = ref('')
 const completingTaskId = ref(null)
+const skillGap = ref(null)
+const skillGapLoading = ref(false)
+
+const skillGapMaxCount = computed(() => skillGap.value?.items?.[0]?.count || 1)
+
+function gapBarWidth(count) {
+  return Math.round(count * 100 / skillGapMaxCount.value) + '%'
+}
 
 const interviewStatusLabel = computed(() => {
   const stats = overview.value?.interviewStats
@@ -147,6 +173,11 @@ function onTasksUpdated() {
 
 onMounted(() => {
   loadOverview()
+  skillGapLoading.value = true
+  getSkillGap()
+    .then((data) => { skillGap.value = data })
+    .catch(() => {})
+    .finally(() => { skillGapLoading.value = false })
   window.addEventListener(CAREER_TASKS_UPDATED_EVENT, onTasksUpdated)
 })
 
@@ -324,6 +355,14 @@ function formatTime(iso) {
 .task-done-btn:hover:not(:disabled) { background: #f0fdf4; }
 .task-done-btn:disabled { opacity: .6; cursor: default; }
 .empty-icon { font-size: 28px; margin-bottom: 8px; }
+
+.skill-gap-list { margin-bottom: 16px; }
+.skill-gap-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+.gap-label { width: 90px; flex-shrink: 0; color: var(--slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gap-bar-wrap { flex: 1; background: #f1f5f9; border-radius: 4px; height: 8px; overflow: hidden; }
+.gap-bar { height: 100%; background: linear-gradient(90deg, #8b5cf6, #6366f1); border-radius: 4px; transition: width .3s; }
+.gap-count { width: 24px; text-align: right; color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
+.gap-note { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 
 .timeline { margin-bottom: 22px; }
 .timeline-item {

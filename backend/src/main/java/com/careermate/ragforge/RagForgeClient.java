@@ -55,6 +55,28 @@ public class RagForgeClient {
     }
 
     /**
+     * 在 Interview Q&A KB 中搜索；enabled=false 或 interviewKbId 为空 → 返回空列表。
+     * 任何异常 → log.warn + 返回空列表，不抛出。
+     */
+    public List<RagForgeChunk> searchInterview(String query, int topK) {
+        if (!properties.isEnabled()) {
+            return List.of();
+        }
+        String kbIdRaw = properties.getInterviewKbId();
+        if (kbIdRaw == null || kbIdRaw.isBlank()) {
+            return List.of();
+        }
+        long kbId;
+        try {
+            kbId = Long.parseLong(kbIdRaw.trim());
+        } catch (NumberFormatException e) {
+            log.warn("ragforge.interviewKbId 配置非数字，跳过 RAGForge 调用: {}", kbIdRaw);
+            return List.of();
+        }
+        return search(kbId, query, topK, null);
+    }
+
+    /**
      * 通用版本：在任意 KB 中搜索，可选 chunk_type 过滤。
      * enabled=false 直接返回空列表。任何异常 → 返回空列表。
      */

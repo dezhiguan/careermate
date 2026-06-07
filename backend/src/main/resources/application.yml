@@ -68,3 +68,4 @@ careermate:
     api-key: ${RAGFORGE_API_KEY:}
     timeout-ms: ${RAGFORGE_TIMEOUT_MS:5000}
     jd-kb-id: ${RAGFORGE_JD_KB_ID:}            # RAGForge 里存放 JD 的知识库 ID
+    interview-kb-id: ${RAGFORGE_INTERVIEW_KB_ID:}   # RAGForge 里存放面试题问答的知识库 ID（dev=18）

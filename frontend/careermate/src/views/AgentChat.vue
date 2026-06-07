@@ -62,31 +62,46 @@
       </div>
 
       <div class="session-panel">
-        <div class="panel-title">📋 当前会话</div>
-        <div class="panel-section">
-          <div class="panel-label">当前用户：</div>
-          <div class="panel-value">{{ userLabel }}</div>
-        </div>
-        <div class="panel-section">
-          <div class="panel-label">sessionId：</div>
-          <div class="panel-value">{{ sessionId || '创建中...' }}</div>
-        </div>
-        <div class="panel-section">
-          <div class="panel-label">当前状态：</div>
-          <div class="panel-value">{{ streamStateLabel }}</div>
-        </div>
-        <div class="panel-section">
-          <div class="panel-label">已接收事件数：</div>
-          <div class="panel-value">{{ eventCount }}</div>
-        </div>
-        <div class="panel-section">
-          <div class="panel-label">最后耗时：</div>
-          <div class="panel-value">{{ totalLatencyMs ? `${totalLatencyMs}ms` : '-' }}</div>
-        </div>
-        <div class="panel-section">
-          <div class="panel-label">工具调用：</div>
-          <div class="panel-value">{{ toolCallPanelSummary }}</div>
-        </div>
+        <div class="panel-title">求职状态</div>
+        <div v-if="statusLoading" class="tool-log">加载中...</div>
+        <template v-else>
+          <div class="status-card">
+            <div class="status-card-head">
+              <span class="status-icon">📄</span>
+              <span class="status-label">当前简历</span>
+            </div>
+            <div class="status-card-body">
+              {{ currentResume?.title || '暂无默认简历' }}
+            </div>
+          </div>
+          <div class="status-card">
+            <div class="status-card-head">
+              <span class="status-icon">🎯</span>
+              <span class="status-label">最新匹配</span>
+            </div>
+            <div v-if="latestMatch" class="status-card-body">
+              {{ latestMatch.companyName }} · {{ latestMatch.jobTitle }}
+              <span class="match-score">{{ latestMatch.matchScore }}%</span>
+              <span
+                class="match-level-badge"
+                :style="{ background: matchLevelColor(latestMatch.matchLevel) }"
+              >{{ latestMatch.matchLevel }}</span>
+            </div>
+            <div v-else class="status-card-body">暂无匹配记录</div>
+          </div>
+          <div class="status-card">
+            <div class="status-card-head">
+              <span class="status-icon">✅</span>
+              <span class="status-label">待完成任务</span>
+            </div>
+            <div v-if="pendingTasks.length === 0" class="status-card-body">暂无待完成任务</div>
+            <div v-else class="status-task-list">
+              <div v-for="task in pendingTasks" :key="task.id" class="status-task-item">
+                □ {{ task.title }}
+              </div>
+            </div>
+          </div>
+        </template>
         <div class="panel-divider" />
         <div class="panel-title-sm">求职画像</div>
         <div v-if="careerProfileLoading" class="tool-log">加载中...</div>
@@ -125,19 +140,51 @@
           </div>
         </button>
         <div class="panel-divider" />
-        <div class="panel-title-sm trace-header">
-          <span>🧠 Agent Trace / 执行轨迹</span>
-          <button
-            class="trace-refresh-btn"
-            :disabled="!sessionId || traceLoading"
-            @click="refreshTraceFromServer"
-          >
-            {{ traceLoading ? '刷新中...' : '刷新 Trace' }}
-          </button>
+        <div
+          class="dev-panel-toggle"
+          @click="devPanelExpanded = !devPanelExpanded"
+        >
+          🔧 开发调试 {{ devPanelExpanded ? '▼' : '▶' }}
         </div>
-        <div v-if="traceEvents.length === 0" class="tool-log">暂无 trace 事件</div>
-        <div v-for="trace in traceEvents" :key="trace.id" class="tool-log">
-          [{{ trace.type }}] {{ trace.title }}
+        <div v-show="devPanelExpanded" class="dev-panel-content">
+          <div class="panel-section compact">
+            <div class="panel-label">当前用户：</div>
+            <div class="panel-value">{{ userLabel }}</div>
+          </div>
+          <div class="panel-section compact">
+            <div class="panel-label">sessionId：</div>
+            <div class="panel-value">{{ sessionId || '创建中...' }}</div>
+          </div>
+          <div class="panel-section compact">
+            <div class="panel-label">当前状态：</div>
+            <div class="panel-value">{{ streamStateLabel }}</div>
+          </div>
+          <div class="panel-section compact">
+            <div class="panel-label">已接收事件数：</div>
+            <div class="panel-value">{{ eventCount }}</div>
+          </div>
+          <div class="panel-section compact">
+            <div class="panel-label">最后耗时：</div>
+            <div class="panel-value">{{ totalLatencyMs ? `${totalLatencyMs}ms` : '-' }}</div>
+          </div>
+          <div class="panel-section compact">
+            <div class="panel-label">工具调用：</div>
+            <div class="panel-value">{{ toolCallPanelSummary }}</div>
+          </div>
+          <div class="panel-title-sm trace-header">
+            <span>🧠 Agent Trace / 执行轨迹</span>
+            <button
+              class="trace-refresh-btn"
+              :disabled="!sessionId || traceLoading"
+              @click="refreshTraceFromServer"
+            >
+              {{ traceLoading ? '刷新中...' : '刷新 Trace' }}
+            </button>
+          </div>
+          <div v-if="traceEvents.length === 0" class="tool-log">暂无 trace 事件</div>
+          <div v-for="trace in traceEvents" :key="trace.id" class="tool-log">
+            [{{ trace.type }}] {{ trace.title }}
+          </div>
         </div>
       </div>
     </div>
@@ -155,6 +202,9 @@ import {
   sendAgentMessageStream,
 } from '../api/agent'
 import { getCareerProfile } from '../api/profile'
+import { listResumes } from '../api/resume'
+import { listJobMatches } from '../api/jobMatch'
+import { listTasks } from '../api/tasks'
 import { isCareerTaskToolName, notifyCareerTasksUpdated } from '../utils/agentToolDisplay'
 import ToolCallCard from '../components/agent/ToolCallCard.vue'
 import { getToolLabel, isBusinessToolName, sanitizeToolSummary } from '../utils/agentToolDisplay'
@@ -182,10 +232,35 @@ const careerProfile = ref({
   skillKeywords: [],
 })
 const careerProfileLoading = ref(false)
+const currentResume = ref(null)
+const latestMatch = ref(null)
+const pendingTasks = ref([])
+const statusLoading = ref(false)
+const devPanelExpanded = ref(false)
 
 const STREAM_UI_IDLE_NOTICE_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_IDLE_NOTICE_MS || 90000)
 
-const suggestions = ['帮我优化简历', '匹配后端岗位', '准备 Java 面试']
+const suggestions = computed(() => {
+  const chips = []
+
+  const role = careerProfile.value?.targetRole?.trim()
+  chips.push(role ? `帮我匹配${role}岗位` : '匹配后端岗位')
+
+  const firstTask = pendingTasks.value?.[0]
+  if (firstTask) {
+    const title = firstTask.title.length > 10
+      ? firstTask.title.slice(0, 10) + '…'
+      : firstTask.title
+    chips.push(`继续：${title}`)
+  } else {
+    chips.push('帮我优化简历')
+  }
+
+  const skill = careerProfile.value?.skillKeywords?.[0]?.trim()
+  chips.push(skill ? `准备${skill}面试` : '准备 Java 面试')
+
+  return chips
+})
 
 const messages = ref([{
   id: 'm_init',
@@ -489,6 +564,49 @@ async function loadCareerProfile() {
   }
 }
 
+async function loadJobStatus() {
+  statusLoading.value = true
+  try {
+    const [resumeRes, matchRes, taskRes] = await Promise.allSettled([
+      listResumes(),
+      listJobMatches(),
+      listTasks(),
+    ])
+    if (resumeRes.status === 'fulfilled') {
+      const def = (resumeRes.value || []).find((r) => r.isDefault)
+      currentResume.value = def ? { id: def.id, title: def.title } : null
+    }
+    if (matchRes.status === 'fulfilled') {
+      const first = (matchRes.value || [])[0]
+      latestMatch.value = first
+        ? {
+            companyName: first.companyName,
+            jobTitle: first.jobTitle,
+            matchScore: first.matchScore,
+            matchLevel: first.matchLevel,
+          }
+        : null
+    }
+    if (taskRes.status === 'fulfilled') {
+      pendingTasks.value = (taskRes.value || [])
+        .filter((t) => t.status === 'TODO')
+        .slice(0, 3)
+        .map((t) => ({ id: t.id, title: t.title }))
+    }
+  } finally {
+    statusLoading.value = false
+  }
+}
+
+function matchLevelColor(level) {
+  const colors = {
+    HIGH: '#16a34a',
+    MEDIUM: '#d97706',
+    LOW: '#dc2626',
+  }
+  return colors[level] || '#64748b'
+}
+
 function shouldRefreshCareerProfile(traces) {
   if (!Array.isArray(traces)) return false
   return traces.some((t) => (t.toolName || t.type) === 'career_profile_update')
@@ -591,6 +709,7 @@ async function refreshTraceFromServer(agentMessage = null) {
     }
     if (shouldRefreshCareerTasks(traces)) {
       notifyCareerTasksUpdated()
+      await loadJobStatus()
     }
     if (traces.length === 0) {
       pushTrace('refresh', '服务端暂无 trace 记录')
@@ -639,7 +758,7 @@ async function bootstrapChat() {
   globalError.value = ''
   streamState.value = 'session_creating'
   try {
-    await loadCareerProfile()
+    await Promise.all([loadCareerProfile(), loadJobStatus()])
     await loadRecentSessionsList()
     const latest = recentSessions.value[0]
     if (latest?.sessionId) {
@@ -975,6 +1094,64 @@ onBeforeUnmount(() => {
 .panel-label { font-weight: 600; margin-bottom: 2px; }
 .panel-value { color: var(--slate); word-break: break-all; }
 .panel-divider { border-top: 1px solid var(--border); margin: 10px 0; }
+.status-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+.status-card-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.status-icon { font-size: 11px; line-height: 1; }
+.status-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.status-card-body {
+  font-size: 11px;
+  color: var(--slate);
+  line-height: 1.5;
+  word-break: break-word;
+}
+.match-score {
+  margin-left: 4px;
+  font-weight: 600;
+}
+.match-level-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  vertical-align: middle;
+}
+.status-task-list { margin-top: 2px; }
+.status-task-item {
+  font-size: 10px;
+  color: var(--slate);
+  line-height: 1.5;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dev-panel-toggle {
+  font-weight: 600;
+  font-size: 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-muted);
+}
+.dev-panel-content { margin-top: 4px; }
 .session-history-item {
   display: block;
   width: 100%;
