@@ -20,4 +20,6 @@ public class RagForgeProperties {
     private String jdKbId = "";
     /** RAGForge 中 Interview Q&A KB 的 id；空则禁用面试题 RAG 增强 */
     private String interviewKbId = "";
+    /** RAGForge 中 Personal KB 的 id；空则禁用简历同步 */
+    private String personalKbId = "";
 }

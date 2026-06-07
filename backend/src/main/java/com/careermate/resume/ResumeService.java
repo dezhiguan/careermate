@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.careermate.common.exception.BizException;
 import com.careermate.mapper.ResumeMapper;
 import com.careermate.model.entity.ResumeEntity;
+import com.careermate.ragforge.RagForgeClient;
 import com.careermate.resume.dto.ResumeCreateRequest;
 import com.careermate.resume.dto.ResumeDetailResponse;
 import com.careermate.resume.dto.ResumeListItemResponse;
@@ -27,9 +28,11 @@ public class ResumeService {
     private static final int PREVIEW_MAX_LEN = 120;
 
     private final ResumeMapper resumeMapper;
+    private final RagForgeClient ragForgeClient;
 
-    public ResumeService(ResumeMapper resumeMapper) {
+    public ResumeService(ResumeMapper resumeMapper, RagForgeClient ragForgeClient) {
         this.resumeMapper = resumeMapper;
+        this.ragForgeClient = ragForgeClient;
     }
 
     public Optional<ResumeEntity> getDefaultActiveResume(Long userId) {
@@ -80,6 +83,9 @@ public class ResumeService {
         entity.setUpdatedAt(now);
         insertResumeEntity(entity);
 
+        // 异步同步到 RAGForge Personal KB，不阻塞主流程
+        asyncSyncToRag(entity.getId(), entity.getTitle(), entity.getContent(), null);
+
         return toDetail(entity);
     }
 
@@ -97,6 +103,11 @@ public class ResumeService {
         entity.setContent(request.getContent().trim());
         entity.setUpdatedAt(OffsetDateTime.now());
         resumeMapper.updateById(entity);
+
+        // 异步替换 RAGForge 里的旧文档
+        Long oldRagDocId = entity.getRagDocId();
+        asyncReplaceRagDoc(entity.getId(), entity.getTitle(), entity.getContent(), oldRagDocId);
+
         return toDetail(entity);
     }
 
@@ -119,6 +130,13 @@ public class ResumeService {
 
         if (wasDefault) {
             promoteLatestActiveAsDefault(userId);
+        }
+
+        // 异步删除 RAGForge 里对应的文档
+        Long ragDocId = entity.getRagDocId();
+        if (ragDocId != null) {
+            java.util.concurrent.CompletableFuture.runAsync(() ->
+                ragForgeClient.deleteDocument(ragDocId));
         }
     }
 
@@ -238,5 +256,46 @@ public class ResumeService {
             return normalized;
         }
         return normalized.substring(0, PREVIEW_MAX_LEN) + "...";
+    }
+
+    private void asyncSyncToRag(Long resumeId, String title, String content, Long ignoredOldDocId) {
+        Long kbId = parsePersonalKbId();
+        if (kbId == null) return;
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            Optional<Long> result = ragForgeClient.syncText(kbId, title, content, "RESUME");
+            result.ifPresent(docId ->
+                resumeMapper.update(null,
+                    new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ResumeEntity>()
+                        .eq(ResumeEntity::getId, resumeId)
+                        .set(ResumeEntity::getRagDocId, docId))
+            );
+        });
+    }
+
+    private void asyncReplaceRagDoc(Long resumeId, String title, String content, Long oldRagDocId) {
+        Long kbId = parsePersonalKbId();
+        if (kbId == null) return;
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            if (oldRagDocId != null) {
+                ragForgeClient.deleteDocument(oldRagDocId);
+            }
+            Optional<Long> result = ragForgeClient.syncText(kbId, title, content, "RESUME");
+            result.ifPresent(docId ->
+                resumeMapper.update(null,
+                    new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ResumeEntity>()
+                        .eq(ResumeEntity::getId, resumeId)
+                        .set(ResumeEntity::getRagDocId, docId))
+            );
+        });
+    }
+
+    private Long parsePersonalKbId() {
+        String raw = ragForgeClient.getProperties().getPersonalKbId();
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

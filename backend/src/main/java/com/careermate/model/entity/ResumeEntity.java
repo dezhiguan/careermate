@@ -29,4 +29,7 @@ public class ResumeEntity {
     private OffsetDateTime createdAt;
 
     private OffsetDateTime updatedAt;
+
+    /** RAGForge Personal KB 中对应的文档 ID，null 表示未同步 */
+    private Long ragDocId;
 }

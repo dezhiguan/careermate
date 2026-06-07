@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -30,6 +31,21 @@ public class RagForgeClient {
             .defaultHeader("X-API-Key", properties.getApiKey())
             .requestFactory(factory)
             .build();
+    }
+
+    public RagForgeProperties getProperties() {
+        return properties;
+    }
+
+    private Long parsePersonalKbId() {
+        String raw = properties.getPersonalKbId();
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (NumberFormatException e) {
+            log.warn("ragforge.personalKbId 配置非数字: {}", raw);
+            return null;
+        }
     }
 
     /**
@@ -74,6 +90,62 @@ public class RagForgeClient {
             return List.of();
         }
         return search(kbId, query, topK, null);
+    }
+
+    /**
+     * 把纯文本同步到指定 KB，成功返回 RAGForge 的 docId，失败返回 Optional.empty()。
+     * enabled=false 或 personalKbId 为空 → 直接返回 empty。
+     */
+    public Optional<Long> syncText(Long kbId, String title, String content, String chunkType) {
+        if (!properties.isEnabled() || kbId == null) {
+            return Optional.empty();
+        }
+        if (content == null || content.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            var body = new java.util.HashMap<String, Object>();
+            body.put("kbId", kbId);
+            body.put("title", title == null ? "简历" : title);
+            body.put("content", content);
+            if (chunkType != null) body.put("chunkType", chunkType);
+
+            String responseBody = restClient.post()
+                .uri("/api/v1/documents/text")
+                .body(body)
+                .retrieve()
+                .body(String.class);
+
+            if (responseBody == null) return Optional.empty();
+            JsonNode root = objectMapper.readTree(responseBody);
+            if (root.path("code").asInt(-1) != 0) {
+                log.warn("RAGForge syncText 返回非 0 code: {}", responseBody);
+                return Optional.empty();
+            }
+            long docId = root.path("data").path("docId").asLong(-1);
+            if (docId <= 0) return Optional.empty();
+            return Optional.of(docId);
+        } catch (Exception e) {
+            log.warn("RAGForge syncText 失败（已降级）: title={} err={}", title, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * 删除 RAGForge 中的文档。失败只 warn，不抛异常。
+     */
+    public void deleteDocument(Long docId) {
+        if (!properties.isEnabled() || docId == null) {
+            return;
+        }
+        try {
+            restClient.delete()
+                .uri("/api/v1/documents/{id}", docId)
+                .retrieve()
+                .toBodilessEntity();
+        } catch (Exception e) {
+            log.warn("RAGForge deleteDocument 失败（忽略）: docId={} err={}", docId, e.getMessage());
+        }
     }
 
     /**
