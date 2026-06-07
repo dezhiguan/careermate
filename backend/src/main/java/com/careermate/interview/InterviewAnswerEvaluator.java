@@ -6,9 +6,16 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @Component
 public class InterviewAnswerEvaluator {
+
+    private final InterviewLlmEvaluator llmEvaluator;
+
+    public InterviewAnswerEvaluator(InterviewLlmEvaluator llmEvaluator) {
+        this.llmEvaluator = llmEvaluator;
+    }
 
     public record EvaluationResult(
             int score,
@@ -19,6 +26,24 @@ public class InterviewAnswerEvaluator {
     }
 
     public EvaluationResult evaluate(InterviewQuestionEntity question, String answerText, List<String> referencePoints) {
+        Optional<EvaluationStructuredResult> llmResult =
+            llmEvaluator.tryEvaluate(question, answerText, referencePoints);
+        if (llmResult.isPresent()) {
+            return toEvaluationResult(llmResult.get());
+        }
+        return ruleBasedEvaluate(question, answerText, referencePoints);
+    }
+
+    private EvaluationResult toEvaluationResult(EvaluationStructuredResult r) {
+        return new EvaluationResult(
+            r.score(),
+            r.feedback(),
+            r.strengths() == null ? java.util.List.of() : r.strengths(),
+            r.improvements() == null ? java.util.List.of() : r.improvements()
+        );
+    }
+
+    public EvaluationResult ruleBasedEvaluate(InterviewQuestionEntity question, String answerText, List<String> referencePoints) {
         String trimmed = answerText == null ? "" : answerText.trim();
         int len = trimmed.length();
         int score = baseScoreByLength(len);
