@@ -11,6 +11,12 @@ import java.util.Set;
 @Component
 public class JobMatchAnalyzer {
 
+    private final com.careermate.ragforge.RagForgeClient ragForgeClient;
+
+    public JobMatchAnalyzer(com.careermate.ragforge.RagForgeClient ragForgeClient) {
+        this.ragForgeClient = ragForgeClient;
+    }
+
     private static final List<String> SKILL_KEYWORDS = List.of(
             "Java",
             "Spring Boot",
@@ -57,7 +63,7 @@ public class JobMatchAnalyzer {
         int score = calculateScore(jd, resume, jdSkills, matched);
         String level = toMatchLevel(score);
 
-        return JobMatchAnalysisResult.builder()
+        JobMatchAnalysisResult result = JobMatchAnalysisResult.builder()
                 .matchScore(score)
                 .matchLevel(level)
                 .matchedSkills(matched)
@@ -67,6 +73,30 @@ public class JobMatchAnalyzer {
                 .suggestions(buildSuggestions(missing, title))
                 .analysisSummary(buildSummary(title, score, level, matched, missing))
                 .build();
+
+        try {
+            if (jdContent != null && !jdContent.isBlank()) {
+                String preview = jdContent.length() > 200 ? jdContent.substring(0, 200) : jdContent;
+                String ragQuery = (title.isBlank() ? "" : title + " ") + preview;
+                java.util.List<com.careermate.ragforge.RagForgeChunk> chunks =
+                    ragForgeClient.searchJd(ragQuery, 3);
+                if (chunks != null && !chunks.isEmpty()) {
+                    StringBuilder ragSection = new StringBuilder();
+                    ragSection.append("\n\n【行业JD参考（来自 RAGForge）】\n");
+                    for (com.careermate.ragforge.RagForgeChunk c : chunks) {
+                        String txt = c.content() == null ? "" : c.content();
+                        if (txt.length() > 120) txt = txt.substring(0, 120) + "...";
+                        ragSection.append("- ").append(txt).append("\n");
+                    }
+                    String oldSummary = result.getAnalysisSummary() == null ? "" : result.getAnalysisSummary();
+                    result.setAnalysisSummary(oldSummary + ragSection.toString());
+                }
+            }
+        } catch (Exception e) {
+            // 任何异常都吞掉，不影响原 result
+        }
+
+        return result;
     }
 
     private List<String> detectSkills(String text) {

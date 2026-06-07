@@ -7,7 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JobMatchAnalyzerTest {
 
-    private final JobMatchAnalyzer analyzer = new JobMatchAnalyzer();
+    private final JobMatchAnalyzer analyzer =
+            new JobMatchAnalyzer(new com.careermate.ragforge.RagForgeClient(new com.careermate.ragforge.RagForgeProperties()));
 
     @Test
     void computesMatchedAndMissingSkills() {

@@ -20,6 +20,7 @@ public class AgentToolRouter {
     private static final String TOOL_GET_CAREER_TASKS = "get_career_tasks";
     private static final String TOOL_CREATE_CAREER_TASK = "create_career_task";
     private static final String TOOL_MARK_CAREER_TASK_DONE = "mark_career_task_done";
+    private static final String TOOL_SEARCH_KNOWLEDGE_BASE = "search_knowledge_base";
 
     private static final Pattern JOB_TITLE_PATTERN = Pattern.compile("(?:岗位|职位)[：:]\\s*([^\\n]+)");
     private static final Pattern COMPANY_PATTERN = Pattern.compile("公司[：:]\\s*([^\\n]+)");
@@ -60,6 +61,10 @@ public class AgentToolRouter {
         }
         if (containsAny(lower, "求职进展", "看板", "当前状态", "看一下求职")) {
             return Optional.of(new RoutedTool(TOOL_GET_DASHBOARD_OVERVIEW, Map.of()));
+        }
+        if (containsAny(lower, "搜索知识库", "查找相关岗位", "找找类似jd",
+                        "行业参考", "类似岗位要求", "搜一下行业")) {
+            return Optional.of(new RoutedTool(TOOL_SEARCH_KNOWLEDGE_BASE, Map.of()));
         }
         return Optional.empty();
     }
