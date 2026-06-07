@@ -10,8 +10,8 @@ import com.careermate.profile.CareerProfileAutoUpdateService;
 import com.careermate.profile.CareerProfileUpdateResult;
 import com.careermate.agent.tool.AgentToolContext;
 import com.careermate.agent.tool.AgentToolExecutionService;
+import com.careermate.agent.tool.AgentLlmIntentRecognizer;
 import com.careermate.agent.tool.AgentToolResult;
-import com.careermate.agent.tool.AgentToolRouter;
 import com.careermate.agent.tool.AgentToolTraceSupport;
 import com.careermate.agent.dto.AgentMessageRequest;
 import com.careermate.agent.dto.AgentSessionCreateResponse;
@@ -76,7 +76,7 @@ public class AgentStreamController {
     private final JobMatchContextProvider jobMatchContextProvider;
     private final ObjectMapper objectMapper;
     private final AgentProperties agentProperties;
-    private final AgentToolRouter agentToolRouter;
+    private final AgentLlmIntentRecognizer intentRecognizer;
     private final AgentToolExecutionService agentToolExecutionService;
     private final AgentConversationContextProvider conversationContextProvider;
     private final CareerProfileContextProvider careerProfileContextProvider;
@@ -100,7 +100,7 @@ public class AgentStreamController {
             JobMatchContextProvider jobMatchContextProvider,
             ObjectMapper objectMapper,
             AgentProperties agentProperties,
-            AgentToolRouter agentToolRouter,
+            AgentLlmIntentRecognizer intentRecognizer,
             AgentToolExecutionService agentToolExecutionService,
             AgentConversationContextProvider conversationContextProvider,
             CareerProfileContextProvider careerProfileContextProvider,
@@ -117,7 +117,7 @@ public class AgentStreamController {
         this.jobMatchContextProvider = jobMatchContextProvider;
         this.objectMapper = objectMapper;
         this.agentProperties = agentProperties;
-        this.agentToolRouter = agentToolRouter;
+        this.intentRecognizer = intentRecognizer;
         this.agentToolExecutionService = agentToolExecutionService;
         this.conversationContextProvider = conversationContextProvider;
         this.careerProfileContextProvider = careerProfileContextProvider;
@@ -484,7 +484,7 @@ public class AgentStreamController {
                 null,
                 null,
                 null,
-                () -> agentToolRouter.route(userMessage)
+                () -> intentRecognizer.route(userMessage)
                 .map(routed -> {
                     String toolName = routed.toolName();
                     Map<String, Object> startData = Map.of(
