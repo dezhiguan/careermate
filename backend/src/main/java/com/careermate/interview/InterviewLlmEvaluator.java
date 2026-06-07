@@ -6,6 +6,8 @@ import com.careermate.llm.dto.ChatMessage;
 import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
 import com.careermate.model.entity.InterviewQuestionEntity;
+import com.careermate.ragforge.RagForgeChunk;
+import com.careermate.ragforge.RagForgeClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -49,15 +51,18 @@ public class InterviewLlmEvaluator {
     private final LlmClient llmClient;
     private final LlmProperties llmProperties;
     private final ObjectMapper objectMapper;
+    private final RagForgeClient ragForgeClient;
 
     public InterviewLlmEvaluator(
         LlmClient llmClient,
         LlmProperties llmProperties,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        RagForgeClient ragForgeClient
     ) {
         this.llmClient = llmClient;
         this.llmProperties = llmProperties;
         this.objectMapper = objectMapper;
+        this.ragForgeClient = ragForgeClient;
     }
 
     public Optional<EvaluationStructuredResult> tryEvaluate(
@@ -70,7 +75,8 @@ public class InterviewLlmEvaluator {
             return Optional.empty();
         }
 
-        String userPrompt = buildUserPrompt(question, answerText, referencePoints);
+        String ragSection = buildRagContext(question.getQuestionText() == null ? "" : question.getQuestionText());
+        String userPrompt = buildUserPrompt(question, answerText, referencePoints, ragSection);
 
         ChatResponse response;
         try {
@@ -119,22 +125,39 @@ public class InterviewLlmEvaluator {
         return provider == null || provider.isBlank() || "mock".equalsIgnoreCase(provider.trim());
     }
 
-    private String buildUserPrompt(InterviewQuestionEntity q, String answer, List<String> refs) {
+    private String buildUserPrompt(InterviewQuestionEntity q, String answer, List<String> refs, String ragSection) {
         String qType = q.getQuestionType() == null ? "GENERAL" : q.getQuestionType();
         String qText = q.getQuestionText() == null ? "" : q.getQuestionText();
         String refsPart = (refs == null || refs.isEmpty())
             ? "(无)"
             : String.join("、", refs);
+        String rag = ragSection == null ? "" : ragSection;
         return """
             【题目类型】%s
             【题目内容】%s
             【参考要点】%s
-
+            %s
             【候选人回答】
             %s
 
             请基于上述信息严格输出符合 Schema 的 JSON。
-            """.formatted(qType, qText, refsPart, answer);
+            """.formatted(qType, qText, refsPart, rag, answer);
+    }
+
+    private String buildRagContext(String questionText) {
+        try {
+            List<RagForgeChunk> chunks = ragForgeClient.searchInterview(questionText, 3);
+            if (chunks == null || chunks.isEmpty()) return "";
+            StringBuilder sb = new StringBuilder("\n【参考答案知识点（来自 RAGForge）】\n");
+            for (RagForgeChunk c : chunks) {
+                String txt = c.content() == null ? "" : c.content();
+                if (txt.length() > 200) txt = txt.substring(0, 200) + "...";
+                sb.append("- ").append(txt).append("\n");
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private boolean isValid(EvaluationStructuredResult r) {

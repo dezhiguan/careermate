@@ -61,17 +61,20 @@ public class InterviewLlmQuestionGenerator {
     private final LlmProperties llmProperties;
     private final ObjectMapper objectMapper;
     private final JobMatchJsonSupport jobMatchJsonSupport;
+    private final RagForgeClient ragForgeClient;
 
     public InterviewLlmQuestionGenerator(
         LlmClient llmClient,
         LlmProperties llmProperties,
         ObjectMapper objectMapper,
-        JobMatchJsonSupport jobMatchJsonSupport
+        JobMatchJsonSupport jobMatchJsonSupport,
+        RagForgeClient ragForgeClient
     ) {
         this.llmClient = llmClient;
         this.llmProperties = llmProperties;
         this.objectMapper = objectMapper;
         this.jobMatchJsonSupport = jobMatchJsonSupport;
+        this.ragForgeClient = ragForgeClient;
     }
 
     public Optional<List<GeneratedQuestionList.LlmQuestion>> tryGenerate(
@@ -84,7 +87,11 @@ public class InterviewLlmQuestionGenerator {
             return Optional.empty();
         }
 
-        String userPrompt = buildUserPrompt(resume, latestJobMatch);
+        String ragSection = buildRagContext(
+            latestJobMatch.map(JobMatchEntity::getJobTitle).orElse(""),
+            latestJobMatch.map(m -> String.join(" ", jobMatchJsonSupport.readStringList(m.getMissingSkills()))).orElse("")
+        );
+        String userPrompt = buildUserPrompt(resume, latestJobMatch, ragSection);
 
         ChatResponse response;
         try {
@@ -132,7 +139,7 @@ public class InterviewLlmQuestionGenerator {
         return provider == null || provider.isBlank() || "mock".equalsIgnoreCase(provider.trim());
     }
 
-    private String buildUserPrompt(ResumeEntity resume, Optional<JobMatchEntity> latestJobMatch) {
+    private String buildUserPrompt(ResumeEntity resume, Optional<JobMatchEntity> latestJobMatch, String ragSection) {
         String resumeContent = resume.getContent() == null ? "" : resume.getContent();
         String resumeSummary = resumeContent.length() > 800
             ? resumeContent.substring(0, 800) + "..."
@@ -151,6 +158,7 @@ public class InterviewLlmQuestionGenerator {
             .filter(s -> s != null && !s.isBlank())
             .map(s -> s.length() > 400 ? s.substring(0, 400) + "..." : s)
             .orElse("(无)");
+        String rag = ragSection == null ? "" : ragSection;
 
         return """
             【目标公司】%s
@@ -163,7 +171,7 @@ public class InterviewLlmQuestionGenerator {
 
             【最近匹配命中技能】%s
             【最近匹配缺失技能】%s
-
+            %s
             请基于上述信息生成 5 道题，严格输出符合 Schema 的 JSON。
             """.formatted(
                 company.isBlank() ? "未指定" : company,
@@ -171,8 +179,28 @@ public class InterviewLlmQuestionGenerator {
                 jdSnippet,
                 resumeSummary,
                 matchedSkills.isBlank() ? "(无)" : matchedSkills,
-                missingSkills.isBlank() ? "(无)" : missingSkills
+                missingSkills.isBlank() ? "(无)" : missingSkills,
+                rag
             );
+    }
+
+    private String buildRagContext(String jobTitle, String missingSkills) {
+        try {
+            String q = (jobTitle == null ? "" : jobTitle.trim() + " ")
+                     + (missingSkills == null || missingSkills.isBlank() ? "" : missingSkills + " ")
+                     + "面试考点";
+            List<RagForgeChunk> chunks = ragForgeClient.searchInterview(q.trim(), 3);
+            if (chunks == null || chunks.isEmpty()) return "";
+            StringBuilder sb = new StringBuilder("\n【面试题参考知识（来自 RAGForge）】\n");
+            for (RagForgeChunk c : chunks) {
+                String txt = c.content() == null ? "" : c.content();
+                if (txt.length() > 200) txt = txt.substring(0, 200) + "...";
+                sb.append("- ").append(txt).append("\n");
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private boolean isValid(GeneratedQuestionList list) {

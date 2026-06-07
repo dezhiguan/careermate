@@ -7,6 +7,8 @@ import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
 import com.careermate.model.entity.JobMatchEntity;
 import com.careermate.model.entity.ResumeEntity;
+import com.careermate.ragforge.RagForgeClient;
+import com.careermate.ragforge.RagForgeProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -21,6 +23,13 @@ class InterviewLlmQuestionGeneratorTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final JobMatchJsonSupport jsonSupport = new JobMatchJsonSupport(mapper);
+    private final RagForgeClient ragNoop;
+
+    InterviewLlmQuestionGeneratorTest() {
+        RagForgeProperties p = new RagForgeProperties();
+        p.setEnabled(false);
+        this.ragNoop = new RagForgeClient(p);
+    }
 
     private LlmProperties props(String provider) {
         LlmProperties p = new LlmProperties();
@@ -49,7 +58,7 @@ class InterviewLlmQuestionGeneratorTest {
     void mockProviderReturnsEmpty() {
         LlmClient mockLlm = mock(LlmClient.class);
         InterviewLlmQuestionGenerator g =
-            new InterviewLlmQuestionGenerator(mockLlm, props("mock"), mapper, jsonSupport);
+            new InterviewLlmQuestionGenerator(mockLlm, props("mock"), mapper, jsonSupport, ragNoop);
         assertTrue(g.tryGenerate(sampleResume(), sampleJobMatch()).isEmpty());
         verify(mockLlm, never()).chat(any());
     }
@@ -71,7 +80,7 @@ class InterviewLlmQuestionGeneratorTest {
         when(mockLlm.chat(any(ChatRequest.class)))
             .thenReturn(ChatResponse.builder().content(json).build());
         InterviewLlmQuestionGenerator g =
-            new InterviewLlmQuestionGenerator(mockLlm, props("qwen"), mapper, jsonSupport);
+            new InterviewLlmQuestionGenerator(mockLlm, props("qwen"), mapper, jsonSupport, ragNoop);
         Optional<List<GeneratedQuestionList.LlmQuestion>> r = g.tryGenerate(sampleResume(), sampleJobMatch());
         assertTrue(r.isPresent());
         assertEquals(5, r.get().size());
@@ -91,7 +100,7 @@ class InterviewLlmQuestionGeneratorTest {
         when(mockLlm.chat(any(ChatRequest.class)))
             .thenReturn(ChatResponse.builder().content(json).build());
         InterviewLlmQuestionGenerator g =
-            new InterviewLlmQuestionGenerator(mockLlm, props("qwen"), mapper, jsonSupport);
+            new InterviewLlmQuestionGenerator(mockLlm, props("qwen"), mapper, jsonSupport, ragNoop);
         assertTrue(g.tryGenerate(sampleResume(), sampleJobMatch()).isEmpty());
     }
 
@@ -110,7 +119,7 @@ class InterviewLlmQuestionGeneratorTest {
         when(mockLlm.chat(any(ChatRequest.class)))
             .thenReturn(ChatResponse.builder().content(json).build());
         InterviewLlmQuestionGenerator g =
-            new InterviewLlmQuestionGenerator(mockLlm, props("qwen"), mapper, jsonSupport);
+            new InterviewLlmQuestionGenerator(mockLlm, props("qwen"), mapper, jsonSupport, ragNoop);
         assertTrue(g.tryGenerate(sampleResume(), sampleJobMatch()).isEmpty());
     }
 
@@ -120,7 +129,7 @@ class InterviewLlmQuestionGeneratorTest {
         when(mockLlm.chat(any(ChatRequest.class)))
             .thenThrow(new RuntimeException("timeout"));
         InterviewLlmQuestionGenerator g =
-            new InterviewLlmQuestionGenerator(mockLlm, props("qwen"), mapper, jsonSupport);
+            new InterviewLlmQuestionGenerator(mockLlm, props("qwen"), mapper, jsonSupport, ragNoop);
         assertTrue(g.tryGenerate(sampleResume(), sampleJobMatch()).isEmpty());
     }
 }
