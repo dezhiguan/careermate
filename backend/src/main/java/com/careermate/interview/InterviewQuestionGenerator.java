@@ -24,9 +24,14 @@ public class InterviewQuestionGenerator {
     );
 
     private final JobMatchJsonSupport jobMatchJsonSupport;
+    private final InterviewLlmQuestionGenerator llmGenerator;
 
-    public InterviewQuestionGenerator(JobMatchJsonSupport jobMatchJsonSupport) {
+    public InterviewQuestionGenerator(
+        JobMatchJsonSupport jobMatchJsonSupport,
+        InterviewLlmQuestionGenerator llmGenerator
+    ) {
         this.jobMatchJsonSupport = jobMatchJsonSupport;
+        this.llmGenerator = llmGenerator;
     }
 
     public record GeneratedQuestion(
@@ -38,6 +43,28 @@ public class InterviewQuestionGenerator {
     }
 
     public List<GeneratedQuestion> generate(ResumeEntity resume, Optional<JobMatchEntity> latestJobMatch) {
+        Optional<List<GeneratedQuestionList.LlmQuestion>> llmResult =
+            llmGenerator.tryGenerate(resume, latestJobMatch);
+        if (llmResult.isPresent()) {
+            return toGeneratedQuestions(llmResult.get());
+        }
+        return ruleBasedGenerate(resume, latestJobMatch);
+    }
+
+    private List<GeneratedQuestion> toGeneratedQuestions(List<GeneratedQuestionList.LlmQuestion> llmQuestions) {
+        List<GeneratedQuestion> result = new java.util.ArrayList<>(llmQuestions.size());
+        for (GeneratedQuestionList.LlmQuestion q : llmQuestions) {
+            result.add(new GeneratedQuestion(
+                q.questionNo(),
+                q.questionType(),
+                q.questionText(),
+                q.referencePoints() == null ? java.util.List.of() : q.referencePoints()
+            ));
+        }
+        return result;
+    }
+
+    public List<GeneratedQuestion> ruleBasedGenerate(ResumeEntity resume, Optional<JobMatchEntity> latestJobMatch) {
         List<String> matchedSkills = latestJobMatch
                 .map(m -> jobMatchJsonSupport.readStringList(m.getMatchedSkills()))
                 .orElse(List.of());
