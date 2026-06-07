@@ -1,14 +1,28 @@
 package com.careermate.jobmatch;
 
+import com.careermate.llm.LlmClient;
+import com.careermate.llm.LlmProperties;
+import com.careermate.ragforge.RagForgeClient;
+import com.careermate.ragforge.RagForgeProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 class JobMatchAnalyzerTest {
 
-    private final JobMatchAnalyzer analyzer =
-            new JobMatchAnalyzer(new com.careermate.ragforge.RagForgeClient(new com.careermate.ragforge.RagForgeProperties()));
+    private final JobMatchAnalyzer analyzer;
+
+    JobMatchAnalyzerTest() {
+        RagForgeClient ragClient = new RagForgeClient(new RagForgeProperties());
+        LlmProperties llmProps = new LlmProperties();
+        llmProps.setProvider("mock");
+        JobMatchLlmAnalyzer llmAnalyzer =
+            new JobMatchLlmAnalyzer(mock(LlmClient.class), llmProps, new ObjectMapper(), ragClient);
+        analyzer = new JobMatchAnalyzer(ragClient, llmAnalyzer);
+    }
 
     @Test
     void computesMatchedAndMissingSkills() {

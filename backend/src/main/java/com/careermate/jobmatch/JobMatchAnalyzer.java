@@ -1,20 +1,24 @@
 package com.careermate.jobmatch;
 
+import com.careermate.ragforge.RagForgeClient;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 @Component
 public class JobMatchAnalyzer {
 
-    private final com.careermate.ragforge.RagForgeClient ragForgeClient;
+    private final RagForgeClient ragForgeClient;
+    private final JobMatchLlmAnalyzer llmAnalyzer;
 
-    public JobMatchAnalyzer(com.careermate.ragforge.RagForgeClient ragForgeClient) {
+    public JobMatchAnalyzer(RagForgeClient ragForgeClient, JobMatchLlmAnalyzer llmAnalyzer) {
         this.ragForgeClient = ragForgeClient;
+        this.llmAnalyzer = llmAnalyzer;
     }
 
     private static final List<String> SKILL_KEYWORDS = List.of(
@@ -51,6 +55,29 @@ public class JobMatchAnalyzer {
     );
 
     public JobMatchAnalysisResult analyze(String resumeContent, String jdContent, String jobTitle) {
+        Optional<JobMatchStructuredResult> llmResult =
+            llmAnalyzer.tryAnalyze(resumeContent, jdContent, jobTitle);
+        if (llmResult.isPresent()) {
+            return toAnalysisResult(llmResult.get());
+        }
+        // LLM 不可用或失败：回退到规则算法（保留行业参考注入逻辑）
+        return ruleBasedAnalyze(resumeContent, jdContent, jobTitle);
+    }
+
+    private JobMatchAnalysisResult toAnalysisResult(JobMatchStructuredResult r) {
+        return JobMatchAnalysisResult.builder()
+            .matchScore(r.matchScore())
+            .matchLevel(r.matchLevel())
+            .matchedSkills(r.matchedSkills() == null ? java.util.List.of() : r.matchedSkills())
+            .missingSkills(r.missingSkills() == null ? java.util.List.of() : r.missingSkills())
+            .strengths(r.strengths() == null ? java.util.List.of() : r.strengths())
+            .risks(r.risks() == null ? java.util.List.of() : r.risks())
+            .suggestions(r.suggestions() == null ? java.util.List.of() : r.suggestions())
+            .analysisSummary(r.analysisSummary() == null ? "" : r.analysisSummary())
+            .build();
+    }
+
+    public JobMatchAnalysisResult ruleBasedAnalyze(String resumeContent, String jdContent, String jobTitle) {
         String resume = normalize(resumeContent);
         String jd = normalize(jdContent);
         String title = jobTitle == null ? "" : jobTitle.trim();
