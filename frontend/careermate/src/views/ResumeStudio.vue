@@ -20,7 +20,19 @@
           <div class="list-toolbar">
             <div class="section-title">我的简历 ({{ resumes.length }})</div>
             <button class="btn ghost" type="button" @click="openCreateForm">+ 新建</button>
+            <button class="btn ghost" type="button" :disabled="uploading" @click="fileInputRef?.click()">
+              {{ uploading ? '解析中...' : '上传文件' }}
+            </button>
+            <input
+              ref="fileInputRef"
+              type="file"
+              accept=".pdf,.doc,.docx,.md,.markdown"
+              style="display:none"
+              @change="onFileSelected"
+            />
           </div>
+
+          <div v-if="uploadError" class="upload-error">{{ uploadError }}</div>
 
           <div
             v-for="item in resumes"
@@ -104,6 +116,7 @@ import {
   updateResume,
   deleteResume,
   setDefaultResume,
+  uploadResumeFile,
 } from '../api/resume'
 
 const resumes = ref([])
@@ -119,6 +132,9 @@ const detailError = ref('')
 const saving = ref(false)
 const showCreateForm = ref(false)
 const editingId = ref(null)
+const fileInputRef = ref(null)
+const uploading = ref(false)
+const uploadError = ref('')
 
 function formatDate(value) {
   if (!value) return ''
@@ -255,6 +271,25 @@ async function removeResume() {
     detailError.value = e?.message || '删除失败'
   } finally {
     saving.value = false
+  }
+}
+
+async function onFileSelected(event) {
+  const file = event.target.files?.[0]
+  if (!fileInputRef.value) return
+  fileInputRef.value.value = '' // 允许重复选同一文件
+  if (!file) return
+
+  uploading.value = true
+  uploadError.value = ''
+  pageError.value = ''
+  try {
+    const created = await uploadResumeFile(file, null)
+    await loadList(created.id)
+  } catch (e) {
+    uploadError.value = e?.message || '上传失败'
+  } finally {
+    uploading.value = false
   }
 }
 
@@ -405,5 +440,14 @@ onMounted(() => {
   .form-actions .btn { flex: 1 1 auto; min-height: 44px; }
   .field-input,
   .field-textarea { font-size: 16px; }
+}
+
+.upload-error {
+  font-size: 12px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
 }
 </style>

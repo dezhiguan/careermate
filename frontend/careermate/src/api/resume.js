@@ -29,3 +29,32 @@ export function deleteResume(id) {
 export function setDefaultResume(id) {
   return request(`/resumes/${id}/default`, { method: 'POST' })
 }
+
+export async function uploadResumeFile(file, title) {
+  const { API_BASE_URL, getAuthHeaders, handleUnauthorized } = await import('./http')
+  const formData = new FormData()
+  formData.append('file', file)
+  if (title && title.trim()) {
+    formData.append('title', title.trim())
+  }
+
+  const response = await fetch(`${API_BASE_URL}/resumes/upload`, {
+    method: 'POST',
+    headers: getAuthHeaders(), // 只传 Authorization，不设 Content-Type
+    body: formData,
+  })
+
+  let payload = null
+  try { payload = await response.json() } catch (e) { payload = null }
+
+  if (response.status === 401 || payload?.code === 401) {
+    handleUnauthorized(payload)
+  }
+  if (!response.ok) {
+    throw new Error(payload?.message || `上传失败: ${response.status}`)
+  }
+  if (!payload || payload.code !== 0) {
+    throw new Error(payload?.message || '上传失败')
+  }
+  return payload.data
+}
