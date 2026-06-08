@@ -14,6 +14,7 @@ import com.careermate.security.CurrentUserContext;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -25,14 +26,19 @@ public class ResumeService {
     public static final String STATUS_ACTIVE = "ACTIVE";
     public static final String STATUS_DELETED = "DELETED";
     public static final String SOURCE_TYPE_TEXT = "TEXT";
+    public static final String SOURCE_TYPE_FILE = "FILE";
     private static final int PREVIEW_MAX_LEN = 120;
 
     private final ResumeMapper resumeMapper;
     private final RagForgeClient ragForgeClient;
+    private final ResumeFileParserService fileParserService;
 
-    public ResumeService(ResumeMapper resumeMapper, RagForgeClient ragForgeClient) {
+    public ResumeService(ResumeMapper resumeMapper,
+                         RagForgeClient ragForgeClient,
+                         ResumeFileParserService fileParserService) {
         this.resumeMapper = resumeMapper;
         this.ragForgeClient = ragForgeClient;
+        this.fileParserService = fileParserService;
     }
 
     public Optional<ResumeEntity> getDefaultActiveResume(Long userId) {
@@ -170,6 +176,50 @@ public class ResumeService {
         }
 
         return getResume(id);
+    }
+
+    @Transactional
+    public ResumeDetailResponse uploadResumeFile(String title, MultipartFile file) {
+        Long userId = requireUserId();
+
+        // 解析文件内容
+        String content = fileParserService.parse(file);
+
+        // 标题：优先用传入的，否则用文件名（去掉扩展名）
+        String resolvedTitle = (title != null && !title.isBlank())
+                ? title.trim()
+                : stripExtension(file.getOriginalFilename());
+
+        OffsetDateTime now = OffsetDateTime.now();
+
+        boolean hasDefault = resumeMapper.selectCount(
+                new LambdaQueryWrapper<ResumeEntity>()
+                        .eq(ResumeEntity::getUserId, userId)
+                        .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
+                        .eq(ResumeEntity::getIsDefault, true)
+        ) > 0;
+
+        ResumeEntity entity = new ResumeEntity();
+        entity.setUserId(userId);
+        entity.setTitle(resolvedTitle);
+        entity.setContent(content);
+        entity.setSourceType(SOURCE_TYPE_FILE);
+        entity.setIsDefault(!hasDefault);
+        entity.setStatus(STATUS_ACTIVE);
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        insertResumeEntity(entity);
+
+        // 同步到 RAGForge（复用已有异步逻辑）
+        asyncSyncToRag(entity.getId(), entity.getTitle(), entity.getContent(), null);
+
+        return toDetail(entity);
+    }
+
+    private String stripExtension(String filename) {
+        if (filename == null || filename.isBlank()) return "我的简历";
+        int idx = filename.lastIndexOf('.');
+        return idx > 0 ? filename.substring(0, idx) : filename;
     }
 
     private void insertResumeEntity(ResumeEntity entity) {

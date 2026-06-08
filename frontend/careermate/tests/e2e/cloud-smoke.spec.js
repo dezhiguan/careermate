@@ -66,12 +66,14 @@ test.describe('云端部署后 smoke', () => {
     });
 
     const agentBubble = page.locator('.agent-bubble').last();
-    await expect(agentBubble).not.toContainText('流式输出中', { timeout: 120_000 });
 
-    const replyText = (await agentBubble.innerText()).trim();
-    expect(replyText.length, 'Agent 应有可见回复内容').toBeGreaterThan(5);
+    // 等待流式结束（光标消失）且气泡有实质回复或明确错误提示
+    await expect(page.locator('.stream-flag')).toHaveCount(0, { timeout: 120_000 });
+    await expect.poll(
+      async () => (await agentBubble.innerText()).trim().length,
+      { timeout: 120_000, message: 'Agent 应有可见回复内容' },
+    ).toBeGreaterThan(5);
 
-    await expect(page.locator('.stream-flag')).toHaveCount(0, { timeout: 15_000 });
     await expect(input).toBeEnabled({ timeout: 15_000 });
     await expect(page.locator('body')).not.toContainText(FATAL_APP_ERROR);
   });

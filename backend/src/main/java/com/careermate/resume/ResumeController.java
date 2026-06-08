@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -35,6 +36,13 @@ public class ResumeController {
     @PostMapping
     public ApiResponse<ResumeDetailResponse> create(@RequestBody @Valid ResumeCreateRequest request) {
         return ApiResponse.success(resumeService.createResume(request));
+    }
+
+    @PostMapping("/upload")
+    public ApiResponse<ResumeDetailResponse> upload(
+            @RequestParam(value = "title", required = false) String title,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        return ApiResponse.success(resumeService.uploadResumeFile(title, file));
     }
 
     @GetMapping("/{id}")
