@@ -85,6 +85,7 @@ public class AgentStreamController {
     private final AgentTracing agentTracing;
     private final LlmProperties llmProperties;
     private final AgentSupervisor agentSupervisor;
+    private final com.careermate.agent.react.ReActEngine reactEngine;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -109,7 +110,8 @@ public class AgentStreamController {
             CareerProfileAutoUpdateService careerProfileAutoUpdateService,
             AgentTracing agentTracing,
             LlmProperties llmProperties,
-            AgentSupervisor agentSupervisor
+            AgentSupervisor agentSupervisor,
+            com.careermate.agent.react.ReActEngine reactEngine
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -128,6 +130,7 @@ public class AgentStreamController {
         this.agentTracing = agentTracing;
         this.llmProperties = llmProperties;
         this.agentSupervisor = agentSupervisor;
+        this.reactEngine = reactEngine;
     }
 
     @PostMapping("/sessions")
@@ -326,6 +329,23 @@ public class AgentStreamController {
                 }
             }
             logPhase(sessionId, "supervisor_dispatch", phaseStart);
+
+            // ReAct 推理链：非流式 LLM 推理循环，结果注入 system prompt
+            phaseStart = System.currentTimeMillis();
+            AgentToolContext reactCtx = AgentToolContext.builder()
+                    .userId(userId)
+                    .sessionId(sessionId)
+                    .userMessage(request.getMessage())
+                    .build();
+            com.careermate.agent.react.ReActTrace reactTrace =
+                    reactEngine.run(reactCtx, request.getMessage(), systemPrompt);
+            if (reactTrace.hasSteps()) {
+                systemPrompt = AgentPromptAssembler.appendReActTrace(systemPrompt, reactTrace);
+                log.info("ReAct trace injected: rounds={} reachedFinalAnswer={}",
+                        reactTrace.rounds(), reactTrace.reachedFinalAnswer());
+            }
+            logPhase(sessionId, "react_reasoning", phaseStart);
+
             ChatRequest chatRequest = ChatRequest.builder()
                     .messages(List.of(
                             ChatMessage.builder().role("system").content(systemPrompt).build(),

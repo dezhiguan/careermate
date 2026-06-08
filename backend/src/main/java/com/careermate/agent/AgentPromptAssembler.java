@@ -100,4 +100,13 @@ public final class AgentPromptAssembler {
         }
         return prompt + "\n\n【专家 Agent 结果 - " + sr.domain().name() + "】\n" + sr.toolSummary();
     }
+
+    public static String appendReActTrace(String systemPrompt,
+            com.careermate.agent.react.ReActTrace trace) {
+        if (trace == null || !trace.hasSteps()) {
+            return systemPrompt;
+        }
+        return (systemPrompt == null ? "" : systemPrompt)
+            + "\n\n" + trace.toContextText();
+    }
 }
