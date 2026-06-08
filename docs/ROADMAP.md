@@ -46,35 +46,34 @@
 - **日志追踪**：MDC `traceId` / `requestId` / `userId` / `sessionId`；`X-Request-Id` / `X-Trace-Id`
 - **LLM 耗时日志**：`llm.chat`（无 prompt / Key 泄露）
 - **SkyWalking**：OAP/UI compose、Java Agent 与 Nginx `/skywalking/` **部署文档与配置模板**（云端 UI 需按文档在服务器启用）
-- **RAGForge**：`RagForgeClient` + 传播头预留；**业务 RAG 集成未完成**
+- **RAGForge**：`RagForgeClient` + 传播头预留（P6 起业务 RAG 已集成，见下方）
+
+### P6 RAGForge 深度集成
+
+- RagForgeClient（搜索、文本上传、删除文档）
+- 简历保存/更新/删除时异步同步 Personal KB，rag_doc_id 版本追踪
+- POST /api/v1/documents/text 文本直传（RAGForge 侧新增）
+- JobMatchAnalyzer 调用 JD KB 做 RAG 上下文增强
+
+### P7 LLM 升级 + 简历文件上传
+
+- JobMatchAnalyzer / InterviewAnswerEvaluator / InterviewQuestionGenerator 全部 LLM 化 + Structured Output
+- 简历文件上传解析（Tika，PDF/Word/Markdown）
+- 岗位匹配页 JD 库浏览（搜索 + 一键填入）
+
+### P8 Agent 架构升级
+
+- AgentLlmIntentRecognizer：LLM 语义意图识别，降级到 regex
+- AgentSupervisor + 3 个专家 Agent（Resume/JobMatch/Interview）并行编排
+- ReActEngine：非流式推理循环（最多 3 轮），结果注入 system prompt
 
 ---
 
-## 下一阶段建议
+## 下一阶段建议（P9+）
 
-### P6 简历上传解析
-
-- 文件上传、解析 pipeline
-- 与现有文本简历模型衔接
-
-### P7 RAGForge JD 知识库集成
-
-- 启用 `RAGForgeClient` 业务调用
-- JD 入库、检索增强 Agent / 岗位模块
-- 与 SkyWalking / trace 头跨服务延续
-
-### P8 JD 闭环能力
-
-- 基于 JD 的推荐、匹配、简历优化、面试准备一体化
-
-### P9 Agent 评测与 Prompt 管理
-
-- Prompt 模板与版本
-- Agent Evaluation 数据集与回归
-
-### P10 开源展示增强
-
-- 演示数据、一键部署、文档与截图
+- 联合 docker-compose 一键部署（RAGForge + CareerMate + 中间件）
+- 薪资谈判官（Salary KB + 谈判脚本，新模块）
+- Agent 评测与 Prompt 管理
 - 云端完整 Playwright 端到端回归固化
 
 ---
@@ -83,4 +82,4 @@
 
 仓库内 [`docs/design/CareerMate-architecture-v2.1.html`](design/CareerMate-architecture-v2.1.html) 与桌面上的 **CareerMate-架构设计文档-V2.1.html** 描述**目标架构**。
 
-当前实现为**阶段性 MVP**：核心应用闭环已可演示，**RAGForge 深度集成、简历文件解析、Agent 评测、Prompt 管理**仍在 Roadmap。
+当前实现为**阶段性 MVP（P0–P8）**：核心应用闭环 + RAGForge 深度集成已可演示，**联合部署、Agent 评测、Prompt 管理**仍在 Roadmap。

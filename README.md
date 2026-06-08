@@ -2,7 +2,7 @@
 
 **CareerMate** 是一个基于 **Java + Spring Boot + Vue** 的 **AI 求职 Agent 工作台**：对话式求职助手，串联简历、岗位匹配、面试练习、任务与看板，支持 Qwen 与本地 Mock，并预留 RAGForge / SkyWalking 观测能力。
 
-本仓库为 monorepo（`backend/` + `frontend/careermate/`）。当前为 **阶段性 MVP（P0–P5）**，适合提交、演示与接力开发。
+本仓库为 monorepo（`backend/` + `frontend/careermate/`）。当前为 **阶段性 MVP（P0–P8）**，适合提交、演示与接力开发。
 
 ---
 
@@ -20,7 +20,7 @@
 | [docs/PHASE_CLOSEOUT.md](docs/PHASE_CLOSEOUT.md) | **本阶段收口报告** |
 | [docs/design/CareerMate-architecture-v2.1.html](docs/design/CareerMate-architecture-v2.1.html) | **目标架构**（非全部已实现） |
 
-桌面上的 **CareerMate-架构设计文档-V2.1.html** 与仓库内 V2.1 HTML 为目标架构；当前实现为核心应用闭环，**RAGForge 深度集成、简历上传解析、Agent 评测、Prompt 管理仍在 Roadmap**。
+桌面上的 **CareerMate-架构设计文档-V2.1.html** 与仓库内 V2.1 HTML 为目标架构；当前实现为核心应用闭环 + RAGForge 深度集成，**Agent 评测、Prompt 管理、联合部署仍在 Roadmap**。
 
 ---
 
@@ -39,16 +39,22 @@
 - **Agent 工具调用**：规则路由 + 工具执行 + **工具卡片**跳转
 - **Qwen / mock LLM 切换**：`LlmClient`；生产 Qwen 仅配服务器 `.env.app`
 - **链路追踪（工程化）**：日志 `traceId` / `requestId` / `userId` / `sessionId`；响应头 `X-Trace-Id`；可选 Micrometer OTLP；**SkyWalking** compose/Agent/文档（云端 UI 需按文档启用）
+- **RAGForge 双向集成**：简历保存/更新时自动异步同步至 RAGForge Personal KB（含 rag_doc_id 版本管理）；删除简历时联动删除 RAGForge 文档
+- **简历文件上传**：`POST /api/resumes/upload`，Apache Tika 解析 PDF/Word/Markdown（≤10MB），解析后存文本并同步 Personal KB
+- **JD 库浏览**：岗位匹配页支持从 RAGForge JD KB 搜索选取 JD，一键填入分析；手动粘贴也可用
+- **JobMatchAnalyzer LLM化**：替换 18 词关键词匹配，改为 LLM + Structured Output（matchScore/matchedSkills/missingSkills/strengths/risks），LLM 失败自动降级到规则匹配
+- **InterviewAnswerEvaluator LLM化**：替换按字数打分，改为 LLM 评估 + score/feedback/improvements 结构输出，同时召回 Interview KB 参考答案
+- **InterviewQuestionGenerator LLM化**：替换 5 道固定模板题，改为 LLM 根据简历、岗位、技能缺口生成个性化题目（PROJECT/SKILL/GAP/SYSTEM_DESIGN/BEHAVIOR），召回 Interview KB 辅助
+- **LLM 意图识别**：`AgentLlmIntentRecognizer` 替代 regex 路由，LLM 语义识别用户意图并映射工具，失败时降级到 `AgentToolRouter`
+- **Multi-Agent 架构**：`AgentSupervisor` 关键词分类 → 并行调度 ResumeSpecialistAgent / JobMatchSpecialistAgent / InterviewSpecialistAgent（8s 超时，CompletableFuture）
+- **ReAct 推理链**：`ReActEngine` 非流式推理循环（最多 3 轮 Thought→Action→Observation），结果注入 system prompt，最终流式回复；短消息/问候语跳过 ReAct
 
 ## 未完成 / Roadmap
 
-- 简历**文件**上传与解析  
-- **RAGForge** JD / 简历知识库**业务**集成  
-- Agent **多步骤规划**  
-- **Prompt** 管理  
-- **Agent 评测**体系  
-- **MCP** 预留实装  
-- 云端**完整** Playwright 端到端回归固化  
+- 联合 docker-compose 一键部署
+- 薪资谈判官（Salary KB + 谈判脚本）
+- **Agent 评测**体系 / **Prompt** 管理
+- 云端**完整** Playwright 端到端回归固化
 
 详见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 

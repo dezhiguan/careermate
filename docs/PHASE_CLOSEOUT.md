@@ -99,3 +99,53 @@
 - [deployment-careermate.md](deployment-careermate.md)
 
 **目标架构 HTML**（桌面 `CareerMate-架构设计文档-V2.1.html` / 仓库 `docs/design/CareerMate-architecture-v2.1.html`）≠ 当前 MVP 已全部实现。
+
+---
+
+# P6–P8 集成收口报告
+
+**阶段版本**：P6–P8（RAGForge 深度集成 + LLM 升级 + Agent 架构升级）
+**收口日期**：2026-06-08
+
+## 本阶段完成内容
+
+### RAGForge 侧新增（rag-forge 仓库）
+
+- V4 migration：document_chunks 加 chunk_type 列 + 复合索引
+- V6 migration：HNSW 向量索引（flyway:nonTransactional）
+- V7 migration：documents 加 chunk_type 列
+- P0 性能修复（A-F）：ES 并行化、recallTopK Bug、QueryRewriter 缓存、RestTemplate 超时、Reranker 截断、HNSW 迁移
+- POST /api/v1/documents/text：文本直传接口，md5 去重，支持 chunkType
+- 元数据过滤检索：VectorSearchService + EsSearchService 支持 chunk_type filter
+- MCP Server：spring-ai-mcp-server-webmvc，HTTP_SSE，暴露 searchKnowledgeBase / listKnowledgeBases
+
+### CareerMate 侧新增（careermate 仓库）
+
+- RagForgeClient：搜索（searchJd/searchKb）、文本上传（syncText）、删除（deleteDocument）
+- 简历同步：create/update/delete 时异步推送 RAGForge Personal KB，rag_doc_id 版本追踪
+- 简历文件上传：POST /api/resumes/upload，Tika 解析，≤10MB，同步 Personal KB
+- JD 库浏览：GET /api/job-matches/jd-kb-search，前端搜索卡片 + 一键填入
+- JobMatchAnalyzer LLM化：Structured Output + RAG 上下文 + 规则降级
+- InterviewAnswerEvaluator LLM化：Structured Output + Interview KB 参考 + 规则降级
+- InterviewQuestionGenerator LLM化：个性化 5 题 + Interview KB + 模板降级
+- AgentLlmIntentRecognizer：LLM 意图识别，降级到 AgentToolRouter
+- AgentSupervisor + 3 专家 Agent：并行 CompletableFuture，8s 超时
+- ReActEngine：非流式推理（max 3 轮），结果注入 system prompt
+- 对话台右侧面板重构：展示简历/匹配/任务，debug 面板折叠
+- Dashboard 技能缺口分析、面试 KB 集成题目生成与评分
+
+## 当前可演示路径
+
+1. 本地启动 RAGForge（:8080）+ CareerMate（:8081）
+2. 上传简历文件 → 自动解析 + 同步 RAGForge Personal KB
+3. 岗位匹配页：从 JD 库搜索选取 → LLM 分析（matchScore + 结构化结果）
+4. 面试训练：LLM 个性化生成题目 → 回答 → LLM 评分 + 改进建议
+5. Agent 对话：LLM 意图识别 → Supervisor 并行专家 → ReAct 推理 → 流式回复
+6. Claude Desktop 连接 RAGForge MCP Server（http://localhost:8080/sse）直接检索知识库
+
+## 未完成内容（下一阶段）
+
+- 联合 docker-compose 一键部署
+- 薪资谈判官（新模块）
+- Agent 评测体系 / Prompt 管理
+- 云端完整 Playwright 端到端回归
