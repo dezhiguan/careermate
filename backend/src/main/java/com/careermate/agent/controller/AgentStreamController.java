@@ -1,6 +1,7 @@
 package com.careermate.agent.controller;
 
 import com.careermate.agent.AgentPromptAssembler;
+import com.careermate.agent.multiagent.AgentSupervisor;
 import com.careermate.agent.config.AgentProperties;
 import com.careermate.agent.context.AgentConversationContextProvider;
 import com.careermate.agent.context.CareerProfileContextProvider;
@@ -83,6 +84,7 @@ public class AgentStreamController {
     private final CareerProfileAutoUpdateService careerProfileAutoUpdateService;
     private final AgentTracing agentTracing;
     private final LlmProperties llmProperties;
+    private final AgentSupervisor agentSupervisor;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -106,7 +108,8 @@ public class AgentStreamController {
             CareerProfileContextProvider careerProfileContextProvider,
             CareerProfileAutoUpdateService careerProfileAutoUpdateService,
             AgentTracing agentTracing,
-            LlmProperties llmProperties
+            LlmProperties llmProperties,
+            AgentSupervisor agentSupervisor
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -124,6 +127,7 @@ public class AgentStreamController {
         this.careerProfileAutoUpdateService = careerProfileAutoUpdateService;
         this.agentTracing = agentTracing;
         this.llmProperties = llmProperties;
+        this.agentSupervisor = agentSupervisor;
     }
 
     @PostMapping("/sessions")
@@ -301,15 +305,27 @@ public class AgentStreamController {
             systemPrompt = AgentPromptAssembler.appendConversationContext(systemPrompt, conversationContext);
 
             phaseStart = System.currentTimeMillis();
-            AgentToolResult toolResult = executeRoutedToolIfAny(
-                    userId,
-                    sessionId,
-                    request.getMessage()
-            );
-            if (toolResult != null) {
-                systemPrompt = AgentPromptAssembler.appendToolResult(systemPrompt, toolResult);
+            // Multi-Agent：Supervisor 派发给专家 Agent，专家结果注入 system prompt
+            AgentToolContext toolCtx = AgentToolContext.builder()
+                    .userId(userId)
+                    .sessionId(sessionId)
+                    .userMessage(request.getMessage())
+                    .build();
+            List<com.careermate.agent.multiagent.SpecialistResult> specialistResults =
+                    agentSupervisor.dispatch(toolCtx, request.getMessage());
+            for (com.careermate.agent.multiagent.SpecialistResult sr : specialistResults) {
+                if (sr.toolSummary() != null && !sr.toolSummary().isBlank()) {
+                    systemPrompt = AgentPromptAssembler.appendSpecialistResult(systemPrompt, sr);
+                }
             }
-            logPhase(sessionId, "route_and_execute_tool", phaseStart);
+            // 回退：若 Supervisor 无专家结果，走原有单工具路由（向后兼容）
+            if (specialistResults.isEmpty()) {
+                AgentToolResult toolResult = executeRoutedToolIfAny(userId, sessionId, request.getMessage());
+                if (toolResult != null) {
+                    systemPrompt = AgentPromptAssembler.appendToolResult(systemPrompt, toolResult);
+                }
+            }
+            logPhase(sessionId, "supervisor_dispatch", phaseStart);
             ChatRequest chatRequest = ChatRequest.builder()
                     .messages(List.of(
                             ChatMessage.builder().role("system").content(systemPrompt).build(),

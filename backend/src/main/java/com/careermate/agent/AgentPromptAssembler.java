@@ -92,4 +92,12 @@ public final class AgentPromptAssembler {
         }
         return sb.toString();
     }
+
+    public static String appendSpecialistResult(String prompt,
+            com.careermate.agent.multiagent.SpecialistResult sr) {
+        if (sr == null || sr.toolSummary() == null || sr.toolSummary().isBlank()) {
+            return prompt;
+        }
+        return prompt + "\n\n【专家 Agent 结果 - " + sr.domain().name() + "】\n" + sr.toolSummary();
+    }
 }
