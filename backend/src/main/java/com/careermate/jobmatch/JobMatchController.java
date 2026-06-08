@@ -45,4 +45,11 @@ public class JobMatchController {
         jobMatchService.deleteMatch(id);
         return ApiResponse.success();
     }
+
+    @GetMapping("/jd-kb-search")
+    public ApiResponse<List<com.careermate.jobmatch.dto.JdKbSearchResultItem>> searchJdKb(
+            @org.springframework.web.bind.annotation.RequestParam String q,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "5") int topK) {
+        return ApiResponse.success(jobMatchService.searchJdKb(q, topK));
+    }
 }

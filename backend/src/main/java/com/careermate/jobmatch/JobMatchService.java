@@ -3,6 +3,7 @@ package com.careermate.jobmatch;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.careermate.common.exception.BizException;
+import com.careermate.jobmatch.dto.JdKbSearchResultItem;
 import com.careermate.jobmatch.dto.JobMatchAnalyzeRequest;
 import com.careermate.jobmatch.dto.JobMatchDetailResponse;
 import com.careermate.jobmatch.dto.JobMatchListItemResponse;
@@ -28,17 +29,20 @@ public class JobMatchService {
     private final ResumeService resumeService;
     private final JobMatchAnalyzer jobMatchAnalyzer;
     private final JobMatchJsonSupport jobMatchJsonSupport;
+    private final com.careermate.ragforge.RagForgeClient ragForgeClient;
 
     public JobMatchService(
             JobMatchMapper jobMatchMapper,
             ResumeService resumeService,
             JobMatchAnalyzer jobMatchAnalyzer,
-            JobMatchJsonSupport jobMatchJsonSupport
+            JobMatchJsonSupport jobMatchJsonSupport,
+            com.careermate.ragforge.RagForgeClient ragForgeClient
     ) {
         this.jobMatchMapper = jobMatchMapper;
         this.resumeService = resumeService;
         this.jobMatchAnalyzer = jobMatchAnalyzer;
         this.jobMatchJsonSupport = jobMatchJsonSupport;
+        this.ragForgeClient = ragForgeClient;
     }
 
     public Optional<JobMatchEntity> getLatestActiveMatch(Long userId) {
@@ -191,5 +195,17 @@ public class JobMatchService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    public List<JdKbSearchResultItem> searchJdKb(String q, int topK) {
+        if (q == null || q.isBlank()) {
+            return List.of();
+        }
+        int limit = Math.min(Math.max(topK, 1), 10);
+        List<com.careermate.ragforge.RagForgeChunk> chunks =
+            ragForgeClient.searchJd(q.trim(), limit);
+        return chunks.stream()
+            .map(c -> new JdKbSearchResultItem(c.filename(), c.content(), c.finalScore()))
+            .toList();
     }
 }

@@ -18,3 +18,7 @@ export function getJobMatch(id) {
 export function deleteJobMatch(id) {
   return request(`/job-matches/${id}`, { method: 'DELETE' })
 }
+
+export function searchJdKb(q, topK = 5) {
+  return request(`/job-matches/jd-kb-search?q=${encodeURIComponent(q)}&topK=${topK}`, { method: 'GET' })
+}

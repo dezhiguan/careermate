@@ -30,6 +30,32 @@
       </button>
     </section>
 
+    <!-- JD 库浏览面板 -->
+    <section class="jdkb-panel">
+      <button class="btn ghost" type="button" @click="jdKbOpen = !jdKbOpen">
+        {{ jdKbOpen ? '▲ 收起 JD 库' : '▼ 从 JD 库搜索' }}
+      </button>
+      <div v-if="jdKbOpen" class="jdkb-body">
+        <div class="jdkb-search-row">
+          <input
+            v-model="jdKbQuery"
+            class="field-input"
+            placeholder="输入岗位关键词，例如：Java 后端、大数据"
+            @keyup.enter="searchJdKbHandler"
+          />
+          <button class="btn primary" type="button" :disabled="jdKbLoading" @click="searchJdKbHandler">
+            {{ jdKbLoading ? '搜索中...' : '搜索' }}
+          </button>
+        </div>
+        <div v-if="jdKbError" class="jdkb-hint">{{ jdKbError }}</div>
+        <div v-for="(item, idx) in jdKbResults" :key="idx" class="jdkb-result-card">
+          <div class="jdkb-filename">{{ item.filename || '未知来源' }}</div>
+          <p class="jdkb-preview">{{ item.content?.substring(0, 200) }}{{ item.content?.length > 200 ? '...' : '' }}</p>
+          <button class="btn secondary" type="button" @click="applyJd(item)">使用此 JD</button>
+        </div>
+      </div>
+    </section>
+
     <div v-if="listLoading" class="list-hint">加载匹配记录...</div>
     <div v-else-if="matches.length === 0" class="empty-state">
       <div class="empty-icon">📭</div>
@@ -127,7 +153,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { analyzeJobMatch, deleteJobMatch, getJobMatch, listJobMatches } from '../api/jobMatch'
+import { analyzeJobMatch, deleteJobMatch, getJobMatch, listJobMatches, searchJdKb } from '../api/jobMatch'
 
 const matches = ref([])
 const listLoading = ref(false)
@@ -141,6 +167,12 @@ const form = reactive({
   companyName: '',
   jdContent: '',
 })
+
+const jdKbOpen = ref(false)
+const jdKbQuery = ref('')
+const jdKbResults = ref([])
+const jdKbLoading = ref(false)
+const jdKbError = ref('')
 
 onMounted(() => {
   loadMatches()
@@ -195,6 +227,32 @@ async function openDetail(id) {
 
 function closeDetail() {
   selectedDetail.value = null
+}
+
+async function searchJdKbHandler() {
+  if (!jdKbQuery.value.trim()) return
+  jdKbLoading.value = true
+  jdKbError.value = ''
+  jdKbResults.value = []
+  try {
+    jdKbResults.value = await searchJdKb(jdKbQuery.value.trim(), 5)
+    if (jdKbResults.value.length === 0) jdKbError.value = '未找到相关 JD，换个关键词试试'
+  } catch (e) {
+    jdKbError.value = e?.message || '搜索失败'
+  } finally {
+    jdKbLoading.value = false
+  }
+}
+
+function applyJd(item) {
+  form.jdContent = item.content
+  // 尝试从文件名提取岗位名（去掉扩展名）
+  if (!form.jobTitle.trim() && item.filename) {
+    const name = item.filename.replace(/\.[^.]+$/, '')
+    form.jobTitle = name.substring(0, 128)
+  }
+  jdKbOpen.value = false
+  jdKbResults.value = []
 }
 
 async function confirmDelete(item) {
@@ -327,5 +385,67 @@ function levelLabel(level) {
   .job-grid { grid-template-columns: 1fr; }
   .modal-overlay { align-items: flex-end; padding: 12px; }
   .modal-card { width: calc(100vw - 24px); max-width: calc(100vw - 24px); }
+}
+
+.jdkb-panel {
+  margin-bottom: 24px;
+}
+.jdkb-body {
+  margin-top: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  background: #f9fafb;
+}
+.jdkb-search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.jdkb-search-row .field-input {
+  flex: 1;
+  margin-bottom: 0;
+}
+.jdkb-hint {
+  color: #6b7280;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.jdkb-result-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+.jdkb-filename {
+  font-weight: 600;
+  font-size: 13px;
+  color: #374151;
+  margin-bottom: 6px;
+}
+.jdkb-preview {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.btn.ghost {
+  background: transparent;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.btn.secondary {
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
 }
 </style>
