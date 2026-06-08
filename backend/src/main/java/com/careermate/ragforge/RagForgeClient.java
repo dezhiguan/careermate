@@ -37,6 +37,11 @@ public class RagForgeClient {
         return properties;
     }
 
+    /** RAGForge Result 成功码为 200；与 CareerMate ApiResponse(0) 不同，需兼容两者。 */
+    private static boolean isSuccessCode(int code) {
+        return code == 0 || code == 200;
+    }
+
     private Long parsePersonalKbId() {
         String raw = properties.getPersonalKbId();
         if (raw == null || raw.isBlank()) return null;
@@ -118,8 +123,8 @@ public class RagForgeClient {
 
             if (responseBody == null) return Optional.empty();
             JsonNode root = objectMapper.readTree(responseBody);
-            if (root.path("code").asInt(-1) != 0) {
-                log.warn("RAGForge syncText 返回非 0 code: {}", responseBody);
+            if (!isSuccessCode(root.path("code").asInt(-1))) {
+                log.warn("RAGForge syncText 返回失败 code: {}", responseBody);
                 return Optional.empty();
             }
             long docId = root.path("data").path("docId").asLong(-1);
@@ -177,8 +182,8 @@ public class RagForgeClient {
 
             JsonNode root = objectMapper.readTree(responseBody);
             int code = root.path("code").asInt(-1);
-            if (code != 0) {
-                log.warn("RAGForge 返回非 0 code: code={} body={}", code, responseBody);
+            if (!isSuccessCode(code)) {
+                log.warn("RAGForge 返回失败 code: code={} body={}", code, responseBody);
                 return List.of();
             }
             JsonNode results = root.path("data").path("results");

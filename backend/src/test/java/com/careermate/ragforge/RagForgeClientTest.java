@@ -8,8 +8,11 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.List;
 
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RagForgeClientTest {
 
@@ -60,5 +63,30 @@ class RagForgeClientTest {
         props.setJdKbId("16");
         RagForgeClient client = new RagForgeClient(props);
         assertDoesNotThrow(() -> assertEquals(List.of(), client.searchJd("test", 5)));
+    }
+
+    @Test
+    void syncTextAcceptsRagForgeCode200() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        int port = server.getAddress().getPort();
+        server.createContext("/api/v1/documents/text", exchange -> {
+            byte[] body =
+                "{\"code\":200,\"msg\":\"success\",\"data\":{\"docId\":42,\"skipped\":false}}"
+                    .getBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+
+        RagForgeProperties props = new RagForgeProperties();
+        props.setEnabled(true);
+        props.setUrl("http://localhost:" + port);
+        props.setApiKey("k");
+        RagForgeClient client = new RagForgeClient(props);
+        Optional<Long> docId = client.syncText(15L, "测试简历", "内容", "RESUME");
+        assertTrue(docId.isPresent());
+        assertEquals(42L, docId.get());
     }
 }
