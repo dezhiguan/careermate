@@ -1,15 +1,22 @@
 server {
     listen 80;
-    server_name your-domain.example.com;
+    server_name careerforge.cn www.careerforge.cn;
 
-    # CareerMate Frontend (Plan A: /careermate/)
-    location /careermate/ {
-        alias /opt/careermate/frontend/dist/;
-        try_files $uri $uri/ /careermate/index.html;
+    client_max_body_size 50m;
+
+    location = /index.html {
+        root /usr/share/nginx/html/careerforge;
+        add_header Cache-Control "no-store";
     }
 
-    # CareerMate API (Plan A: /careermate-api/ -> Server 3 backend /api/)
-    location /careermate-api/ {
+    # CareerForge Frontend (root path on careerforge.cn)
+    location / {
+        root /usr/share/nginx/html/careerforge;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # CareerForge API (/api/ -> Server 3 backend /api/)
+    location /api/ {
         proxy_pass http://172.25.90.184:18080/api/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

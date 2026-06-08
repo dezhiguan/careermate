@@ -90,7 +90,7 @@ curl -fsS "${HEALTH_URL}" >/dev/null
 echo "Deployment succeeded (Server 3 backend only)"
 echo "  release: ${RELEASE_DIR}"
 echo "  current: $(readlink -f "${CURRENT_LINK}")"
-echo "  frontend: deployed separately to Server 2 /opt/rag-forge/frontend/dist/careermate/"
+echo "  frontend: deployed separately to Server 2 /opt/rag-forge/frontend/dist/careerforge/"
 if [[ -n "${PREVIOUS_RELEASE}" && "${PREVIOUS_RELEASE}" != "$(readlink -f "${CURRENT_LINK}")" ]]; then
   echo "  rollback: sudo bash /opt/careermate/scripts/rollback-careermate.sh '${PREVIOUS_RELEASE}'"
 fi

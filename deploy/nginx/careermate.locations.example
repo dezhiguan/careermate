@@ -1,15 +1,19 @@
-# CareerMate location snippet for Server 2 ingress Nginx.
-# Merge these locations into the RAGForge server block after backup.
-# Do not add another listen 80 server block on a host that already serves RAGForge.
-# If Nginx runs in a container, alias must use container-visible path:
-#   /usr/share/nginx/html/careermate/ (host: /opt/rag-forge/frontend/dist/careermate/)
+# CareerForge location snippet for Server 2 ingress Nginx (careerforge.cn server block).
+# Canonical config lives in rag-forge/nginx.conf; merge only if maintaining a fork.
+# If Nginx runs in a container, root must use container-visible path:
+#   /usr/share/nginx/html/careerforge/ (host: /opt/rag-forge/frontend/dist/careerforge/)
 
-location /careermate/ {
-    alias /usr/share/nginx/html/careermate/;
-    try_files $uri $uri/ /careermate/index.html;
+location = /index.html {
+    root /usr/share/nginx/html/careerforge;
+    add_header Cache-Control "no-store";
 }
 
-location /careermate-api/ {
+location / {
+    root /usr/share/nginx/html/careerforge;
+    try_files $uri $uri/ /index.html;
+}
+
+location /api/ {
     # Server 2 Nginx proxies to Server 3 app layer (172.25.90.184:18080).
     # Do not proxy to 127.0.0.1 when Nginx is inside Docker.
     proxy_pass http://172.25.90.184:18080/api/;

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Roll back CareerMate backend on Server 3 to a previous release directory.
-# Frontend rollback: rsync a previous dist to Server 2 /opt/rag-forge/frontend/dist/careermate/
+# Frontend rollback: rsync a previous dist to Server 2 /opt/rag-forge/frontend/dist/careerforge/
 # Usage: rollback-careermate.sh /opt/careermate/releases/<sha>
 set -euo pipefail
 

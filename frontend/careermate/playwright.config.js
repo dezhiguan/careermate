@@ -10,8 +10,8 @@ const targets = {
     startWebServer: true,
   },
   cloud: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://8.163.63.222/careermate',
-    apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://8.163.63.222/careermate-api',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://careerforge.cn',
+    apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://careerforge.cn/api',
     startWebServer: false,
   },
 };

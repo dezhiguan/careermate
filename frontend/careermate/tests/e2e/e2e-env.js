@@ -9,8 +9,8 @@ const targets = {
     apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8080/api',
   },
   cloud: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://8.163.63.222/careermate',
-    apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://8.163.63.222/careermate-api',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://careerforge.cn',
+    apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://careerforge.cn/api',
   },
 };
 
@@ -94,7 +94,7 @@ async function assertUserFlowEnvironment(request) {
 }
 
 /**
- * Hash 路由完整 URL（避免 Playwright baseURL 子路径下 goto('/x') 丢失 /careermate 前缀）。
+ * Hash 路由完整 URL（根路径部署时 baseURL 即为站点根）。
  * @param {string} [route] 如 '/'、'/login'
  */
 function appUrl(route = '/') {
@@ -144,7 +144,7 @@ async function assertBackendReady(request) {
         `无法访问后端健康检查：${healthUrl}`,
         isLocal
           ? '请先启动 backend（默认 http://localhost:8080），并确保数据库可用。'
-          : '请确认云端 careermate-api 可访问。',
+          : '请确认云端 careerforge.cn/api 可访问。',
         `详情: ${err instanceof Error ? err.message : String(err)}`,
       ].join('\n')
     );
