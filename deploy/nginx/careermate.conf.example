@@ -15,9 +15,9 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
-    # CareerForge API (/api/ -> Server 3 backend /api/)
+    # CareerForge API (/api/ -> Server 3 backend replicas via upstream)
     location /api/ {
-        proxy_pass http://172.25.90.184:18080/api/;
+        proxy_pass http://careermate_backend/api/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

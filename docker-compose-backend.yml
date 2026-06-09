@@ -1,0 +1,43 @@
+# Server 3 app layer: CareerMate backend — 3 replicas on one host.
+# Config is read from shared server-local env files.
+#
+# Start: docker compose -f docker-compose-backend.yml up -d
+services:
+  careermate-backend-1:
+    image: careermate-backend:latest
+    container_name: careermate-backend-1
+    restart: unless-stopped
+    ports:
+      - "18080:18080"
+    env_file:
+      - /opt/shared/env/common.env
+      - /opt/shared/env/careermate.env
+    volumes:
+      - /opt/careermate/logs/backend-1:/app/logs
+      - /opt/skywalking-agent:/opt/skywalking-agent:ro
+
+  careermate-backend-2:
+    image: careermate-backend:latest
+    container_name: careermate-backend-2
+    restart: unless-stopped
+    ports:
+      - "18081:18080"
+    env_file:
+      - /opt/shared/env/common.env
+      - /opt/shared/env/careermate.env
+    volumes:
+      - /opt/careermate/logs/backend-2:/app/logs
+      - /opt/skywalking-agent:/opt/skywalking-agent:ro
+
+  careermate-backend-3:
+    image: careermate-backend:latest
+    container_name: careermate-backend-3
+    restart: unless-stopped
+    ports:
+      - "18082:18080"
+    env_file:
+      - /opt/shared/env/common.env
+      - /opt/shared/env/careermate.env
+    volumes:
+      - /opt/careermate/logs/backend-3:/app/logs
+      - /opt/skywalking-agent:/opt/skywalking-agent:ro

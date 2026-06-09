@@ -147,6 +147,12 @@ jobs:
           scp "$(find . -maxdepth 1 -name '*.jar' ! -name '*.original' | head -n 1)" \
             "careermate-app:${RELEASE_DIR}/backend/app.jar"
 
+          scp backend/Dockerfile \
+            "careermate-app:${RELEASE_DIR}/backend/Dockerfile"
+
+          scp docker-compose-backend.yml \
+            "careermate-app:/opt/careermate/docker-compose-backend.yml"
+
           scp deploy/scripts/deploy-from-github.sh deploy/scripts/rollback-careermate.sh \
             "careermate-app:/opt/careermate/scripts/"
 

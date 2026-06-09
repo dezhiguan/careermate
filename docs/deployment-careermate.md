@@ -8,14 +8,14 @@
 |-------|-----------|------------|----------|
 | Server 1 Data | 8.163.30.216 | 172.25.90.183 | PostgreSQL, ES, Redis, RocketMQ — **unchanged** |
 | Server 2 Ingress | 8.163.63.222 | 172.19.40.32 | Nginx, RAGForge frontend, CareerMate frontend |
-| Server 3 App | 8.138.191.228 | 172.25.90.184 | CareerMate backend (:18080), RAGForge backend (:8080) |
+| Server 3 App | 8.138.191.228 | 172.25.90.184 | CareerMate backend (:18080/:18081/:18082), RAGForge backend (:8080/:8081/:8082) |
 
 Request flow:
 
 ```text
 User → Server 2 Nginx (8.163.63.222)
   /careermate/      → static files at /opt/rag-forge/frontend/dist/careermate/
-  /careermate-api/  → http://172.25.90.184:18080/api/
+  /careermate-api/  → careermate_backend upstream (Server 2 SSH tunnels → Server 3 :18080/:18081/:18082)
 
 Server 3 backend → Server 1 data (172.25.90.183:5432)
 ```
@@ -31,8 +31,8 @@ Server 3 backend → Server 1 data (172.25.90.183:5432)
   - config isolation
 - Do not store real secrets in repository.
 - Keep sensitive values only on Server 3 local files:
-  - `/opt/careermate/backend/.env.app`
-  - local systemd files on Server 3
+  - `/opt/shared/env/common.env`
+  - `/opt/shared/env/careermate.env`
 
 ## 3. Build Artifacts
 
@@ -57,7 +57,7 @@ VITE_API_BASE_URL=/careermate-api VITE_BASE_PATH=/careermate/ npm run build
 - `prod` profile loads `backend/src/main/resources/application-prod.yml`.
 - `application-prod.yml` contains no real secrets.
 - `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` must be injected from server-local:
-  - `/opt/careermate/backend/.env.app` (on **Server 3**)
+  - `/opt/shared/env/careermate.env` (on **Server 3**)
 
 ## 4. Server Directories
 
@@ -69,12 +69,17 @@ VITE_API_BASE_URL=/careermate-api VITE_BASE_PATH=/careermate/ npm run build
   releases/
     <git-sha>/
       backend/app.jar
+      backend/Dockerfile
   backend/
-    .env.app                              # persistent secrets (not in releases)
   logs/
+  docker-compose-backend.yml
   scripts/
     deploy-from-github.sh
     rollback-careermate.sh
+
+/opt/shared/env/
+  common.env                              # shared secrets/config for app containers
+  careermate.env                          # CareerMate-specific secrets/config
 ```
 
 ### Server 2 (ingress layer) — frontend static files
@@ -96,10 +101,10 @@ Use placeholder templates only:
 Production notes:
 
 - local dev backend can run on `8080`
-- production backend runs on **Server 3** port `18080`
+- production backend runs on **Server 3** ports `18080`, `18081`, `18082` (3 replicas)
 - `DB_URL=jdbc:postgresql://172.25.90.183:5432/careermate_db`
 - `RAGFORGE_URL=http://127.0.0.1:8080` when RAGForge integration is enabled on Server 3
-- real `.env.app` must stay on Server 3 and must not be committed
+- real shared env files must stay on Server 3 and must not be committed
 
 ### 5.1 SkyWalking 链路追踪（生产推荐，可浏览器查看 Trace）
 
@@ -113,14 +118,15 @@ Server 3 部署 OAP + UI（或与 RAGForge 共用），CareerMate 挂 Java Agent
 | 启动脚本 | `deploy/scripts/start-skywalking.sh` |
 | Agent 安装 | `deploy/scripts/install-skywalking-agent.sh` → `/opt/skywalking-agent` |
 | Nginx | `deploy/nginx/skywalking.locations.example` → `http://8.163.63.222/skywalking/` |
-| systemd | `deploy/systemd/careermate-backend.service.example`（Server 3，`JAVA_TOOL_OPTIONS` 含 `-Xms512m -Xmx2g` + javaagent） |
+| Backend compose | `docker-compose-backend.yml`（Server 3，容器通过 shared env 读取 `JAVA_OPTS` / `JAVA_TOOL_OPTIONS`） |
 
-生产 `.env.app` 建议（无密钥）：
+生产 `/opt/shared/env/careermate.env` 建议（无密钥）：
 
 ```bash
 SKYWALKING_AGENT_SERVICE_NAME=careermate-backend
 SKYWALKING_COLLECTOR_BACKEND_SERVICE=127.0.0.1:11800
-JAVA_TOOL_OPTIONS=-Xms512m -Xmx2g -javaagent:/opt/skywalking-agent/skywalking-agent.jar -Dskywalking.agent.service_name=careermate-backend -Dskywalking.collector.backend_service=127.0.0.1:11800
+JAVA_OPTS=-Xms512m -Xmx1g
+JAVA_TOOL_OPTIONS=-javaagent:/opt/skywalking-agent/skywalking-agent.jar -Dskywalking.agent.service_name=careermate-backend -Dskywalking.collector.backend_service=127.0.0.1:11800
 TRACING_ENABLED=false
 ```
 
@@ -130,7 +136,7 @@ RAGForge 共用 OAP：见 `docs/ragforge-skywalking-integration.md`。
 
 ### 5.2 分布式追踪（OTLP，可选 Collector）
 
-在 `/opt/careermate/backend/.env.app` 增加（模板见 `.env.example`）：
+在 `/opt/shared/env/careermate.env` 增加（模板见 `deploy/env/careermate-backend.env.example`）：
 
 ```bash
 TRACING_ENABLED=true
@@ -157,13 +163,13 @@ RAGForge 侧对接见 `docs/ragforge-tracing-integration.md`。
 
 ### 5.3 LLM（阿里云百炼 Qwen）
 
-推荐在 Server 3 `/opt/careermate/backend/.env.app` 配置（占位符模板见 `deploy/env/careermate-backend.env.example`）：
+推荐在 Server 3 `/opt/shared/env/common.env` + `/opt/shared/env/careermate.env` 配置（占位符模板见 `deploy/env/careermate-backend.env.example`）：
 
 ```bash
 LLM_PROVIDER=qwen
 LLM_MODEL=qwen-plus
 LLM_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1
-LLM_API_KEY=your_dashscope_api_key
+LLM_API_KEY=your_dashscope_api_key # common.env
 ```
 
 说明：
@@ -191,10 +197,8 @@ curl -s -X POST "http://127.0.0.1:18080/api/debug/llm/chat" \
 在 **Server 3** 执行：
 
 ```bash
-sudo grep -E '^LLM_' /opt/careermate/backend/.env.app
-sudo grep EnvironmentFile /etc/systemd/system/careermate-backend.service
-PID=$(pgrep -f 'careermate.*app.jar' | head -1)
-sudo tr '\0' '\n' < /proc/$PID/environ | grep -E '^LLM_'
+sudo grep -E '^LLM_' /opt/shared/env/common.env /opt/shared/env/careermate.env
+docker exec careermate-backend-1 sh -lc 'env | grep -E "^LLM_"'
 curl -s http://127.0.0.1:18080/api/health | python3 -m json.tool
 ```
 
@@ -202,16 +206,16 @@ curl -s http://127.0.0.1:18080/api/health | python3 -m json.tool
 
 | 现象 | 原因 | 处理 |
 |------|------|------|
-| `.env.app` 仍是 `LLM_PROVIDER=mock` | 未改或未保存 | 改为 `qwen` 并 **restart** |
-| 改了文件但未重启 | 旧进程仍用旧环境 | `sudo systemctl restart careermate-backend` |
+| `careermate.env` 仍是 `LLM_PROVIDER=mock` | 未改或未保存 | 改为 `qwen` 并重建容器 |
+| 改了文件但未重启 | 旧容器仍用旧环境 | `docker compose -f /opt/careermate/docker-compose-backend.yml up -d --force-recreate` |
 | 变量名写错 | 必须用 `LLM_PROVIDER` | 对照 `application.yml` 占位符 |
-| systemd 未配置 `EnvironmentFile` | 进程读不到 `.env.app` | 安装 `deploy/systemd/careermate-backend.service.example` |
+| compose 未配置 `env_file` | 容器读不到 shared env | 使用 `docker-compose-backend.yml` |
 
-修改 `.env.app` 后务必：
+修改 shared env 后务必：
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl restart careermate-backend
+cd /opt/careermate
+docker compose -f docker-compose-backend.yml up -d --force-recreate
 ```
 
 ## 6. Nginx Routing Plan
@@ -221,7 +225,7 @@ sudo systemctl restart careermate-backend
 Keep RAGForge routes unchanged and use:
 
 - CareerMate frontend: `/careermate/`
-- CareerMate API: `/careermate-api/` → `http://172.25.90.184:18080/api/`
+- CareerMate API: `/careermate-api/` → `careermate_backend` upstream (`172.19.40.32:18080/18081/18082`)
 - Nginx runs on **Server 2** only
 - Merge location snippet: `deploy/nginx/careermate.locations.example`
 - Always backup current Nginx config before modification
@@ -230,7 +234,8 @@ Keep RAGForge routes unchanged and use:
   - `proxy_buffering off`
   - `proxy_read_timeout 300s`
   - `proxy_send_timeout 300s`
-- `/careermate-api/` must proxy to Server 3 private IP (`172.25.90.184:18080`), not `127.0.0.1`
+- `/careermate-api/` proxies to Server 2 local tunnels (`172.19.40.32:18080/18081/18082`), not directly to Server 3 private IP.
+- Replica details: `docs/deployment-app-cluster.md`
 
 ### Plan B (future migration)
 
@@ -275,27 +280,28 @@ Initialization template:
    ```bash
    sudo CAREERMATE_DEPLOY_USER=<CAREERMATE_APP_USER> bash deploy/scripts/init-server3.sh
    ```
-2. Edit `/opt/careermate/backend/.env.app` with real secrets (`DB_PASSWORD`, `JWT_SECRET`, `LLM_API_KEY`, etc.; never commit).
-3. Install systemd unit from `deploy/systemd/careermate-backend.service.example` as `/etc/systemd/system/careermate-backend.service`.
-4. `systemctl daemon-reload && systemctl enable careermate-backend`
-5. Configure GitHub Secrets (section 13).
+2. Edit `/opt/shared/env/common.env` and `/opt/shared/env/careermate.env` with real secrets (`DB_PASSWORD`, `JWT_SECRET`, `LLM_API_KEY`, etc.; never commit).
+3. Configure GitHub Secrets (section 13).
 
 **Server 2 (ingress):** 见 Runbook 章节 C。
 
 1. `mkdir -p /opt/rag-forge/frontend/dist/careermate/`
-2. 确认 Nginx 反代：`/api/` → `172.25.90.184:8080`；`/careermate-api/` → `172.25.90.184:18080/api/`；`/careermate/` → 静态目录
-3. `docker compose -f docker-compose-ingress.yml up -d`
-4. 连通性：`nc -vz -w 3 172.25.90.184 8080` 和 `18080`
+2. 确认 Nginx 反代：`/api/`（RAGForge）→ `ragforge_backend`；CareerForge `/api/` 与 `/careermate-api/` → `careermate_backend`；`/careermate/` → 静态目录
+3. 确认 Server 2 SSH 隧道覆盖 `18080/18081/18082`（见 `docs/deployment-app-cluster.md`）
+4. `docker compose -f docker-compose-ingress.yml up -d`
+5. 连通性：`nc -vz -w 3 172.25.90.184 8080 18080 18081 18082`
 
-**Server 3 RAGForge 敏感配置：**
+**Server 3 shared env：**
 
-- `/opt/rag-forge/docker-compose.override.yml`（DashScope Key、DB 密码等，**不入库**）
+- `/opt/shared/env/common.env`（DashScope/LLM Key、时区等，**不入库**）
+- `/opt/shared/env/ragforge.env`（RAGForge 专属运行参数，**不入库**）
+- `/opt/shared/env/careermate.env`（CareerMate 专属运行参数，**不入库**）
 
 ### 8.2 Ongoing deploy via GitHub Actions (recommended)
 
 1. Push to `main` (or run workflow manually).
 2. GitHub Actions builds backend JAR and frontend `dist`.
-3. **Server 3:** backend JAR uploaded to `/opt/careermate/releases/${GITHUB_SHA}/backend/app.jar`; `deploy-from-github.sh` switches `current` and restarts systemd.
+3. **Server 3:** backend JAR and Dockerfile uploaded to `/opt/careermate/releases/${GITHUB_SHA}/backend/`; `deploy-from-github.sh` switches `current`, builds `careermate-backend:latest`, and restarts Docker Compose.
 4. **Server 2:** frontend `dist` rsynced to `/opt/rag-forge/frontend/dist/careermate/`.
 5. Workflow smoke tests pass, or the job fails without deleting previous releases.
 
@@ -304,7 +310,7 @@ Initialization template:
 **Backend (Server 3):**
 
 ```bash
-# Upload app.jar to /opt/careermate/releases/<sha>/backend/app.jar
+# Upload app.jar and Dockerfile to /opt/careermate/releases/<sha>/backend/
 sudo bash /opt/careermate/scripts/deploy-from-github.sh <release-sha>
 ```
 
@@ -318,14 +324,15 @@ rsync -avz --delete frontend/careermate/dist/ \
 ## 9. Verification
 
 ```bash
-# Server 3
-curl -fsS http://127.0.0.1:18080/api/health
+# Server 3 (all replicas)
+for p in 18080 18081 18082; do curl -fsS "http://127.0.0.1:${p}/api/health"; done
 
-# Server 2 internal
-curl -fsS http://172.25.90.184:18080/api/health
+# Server 2 tunnels
+for p in 18080 18081 18082; do curl -fsS "http://172.19.40.32:${p}/api/health"; done
 
 # Public ingress
 curl -fsS http://8.163.63.222/careermate-api/health
+curl -fsS https://careerforge.cn/api/health
 ```
 
 Functional checks:
@@ -352,14 +359,15 @@ Rsync a previous `dist/` snapshot back to `/opt/rag-forge/frontend/dist/careerma
 Verify:
 
 ```bash
-curl -fsS http://127.0.0.1:18080/api/health
+for p in 18080 18081 18082; do curl -fsS "http://127.0.0.1:${p}/api/health"; done
 curl -fsS http://8.163.63.222/careermate-api/health
 ```
 
 ## 11. Risk Notes
 
 - Server 2 `80` is occupied by `ragforge-nginx` — only static files and proxy, no backend containers.
-- Server 3 hosts both RAGForge (:8080) and CareerMate (:18080) backends.
+- Server 3 hosts RAGForge Docker backends (:8080/:8081/:8082) and CareerMate Docker backends (:18080/:18081/:18082).
+- Agent SSE uses in-memory task state; Nginx `ip_hash` keeps a client on one replica. Multiple users behind the same NAT may share a replica.
 - Data server disk usage should be monitored.
 - Do not reuse `/api/` for CareerMate; use `/careermate-api/` to avoid route conflicts.
 
@@ -373,7 +381,7 @@ curl -fsS http://8.163.63.222/careermate-api/health
 - Server 3 init script: `deploy/scripts/init-server3.sh`
 - GitHub deploy script: `deploy/scripts/deploy-from-github.sh` (Server 3)
 - Rollback script: `deploy/scripts/rollback-careermate.sh` (Server 3)
-- systemd template: `deploy/systemd/careermate-backend.service.example` (Server 3)
+- Docker compose: `docker-compose-backend.yml` (Server 3)
 - GitHub Actions workflow: `.github/workflows/careermate-deploy.yml`
 
 ## 13. GitHub CI/CD
@@ -430,11 +438,11 @@ Do **not** put database passwords, `JWT_SECRET`, or LLM API keys in the reposito
 
 | Item | Location / command |
 |------|-------------------|
-| Backend env | `/opt/careermate/backend/.env.app` |
-| systemd unit | `/etc/systemd/system/careermate-backend.service` |
-| Backend port | `18080` |
+| Backend env | `/opt/shared/env/common.env`, `/opt/shared/env/careermate.env` |
+| Backend compose | `/opt/careermate/docker-compose-backend.yml` |
+| Backend ports | `18080`, `18081`, `18082` |
 | Deploy scripts | `/opt/careermate/scripts/` |
-| SSH access | Deploy user can `sudo systemctl restart careermate-backend` |
+| SSH access | Deploy user can run Docker deploy script on Server 3 |
 
 **Server 2:**
 
@@ -448,6 +456,7 @@ Do **not** put database passwords, `JWT_SECRET`, or LLM API keys in the reposito
 ```text
 /opt/careermate/releases/<git-sha>/
   backend/app.jar
+  backend/Dockerfile
 /opt/careermate/current -> /opt/careermate/releases/<git-sha>
 ```
 
@@ -455,7 +464,7 @@ Frontend is deployed directly to Server 2, not stored in Server 3 releases.
 
 ### 13.5 Prohibited
 
-- Do not commit `.env.app` or production secrets.
+- Do not commit shared env files or production secrets.
 - Do not store DB passwords / JWT / LLM keys in repo files.
 - Do not change RAGForge deploy paths or port `8080`.
 - Do not modify production PostgreSQL / Redis / Elasticsearch from CI.

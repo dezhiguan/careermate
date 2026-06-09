@@ -13,10 +13,18 @@ location / {
     try_files $uri $uri/ /index.html;
 }
 
+# Define once in http context (see rag-forge/nginx.conf):
+# upstream careermate_backend {
+#     ip_hash;
+#     server 172.19.40.32:18080;
+#     server 172.19.40.32:18081;
+#     server 172.19.40.32:18082;
+#     keepalive 32;
+# }
+
 location /api/ {
-    # Server 2 Nginx proxies to Server 3 app layer (172.25.90.184:18080).
-    # Do not proxy to 127.0.0.1 when Nginx is inside Docker.
-    proxy_pass http://172.25.90.184:18080/api/;
+    # Server 2 Nginx proxies through local SSH tunnels to Server 3 app layer.
+    proxy_pass http://careermate_backend/api/;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
