@@ -16,18 +16,34 @@ COMPOSE_FILE="/opt/careermate/docker-compose-backend.yml"
 IMAGE_NAME="careermate-backend:latest"
 
 wait_for_health() {
-  local port
-  for port in "${HEALTH_PORTS[@]}"; do
-    local url="http://127.0.0.1:${port}/api/health"
-    for _ in $(seq 1 30); do
-      if curl -fsS "${url}" >/dev/null; then
+  local port url
+  local max_attempts="${HEALTH_MAX_ATTEMPTS:-60}"
+  local sleep_secs="${HEALTH_SLEEP_SECS:-3}"
+
+  echo "  waiting up to $((max_attempts * sleep_secs))s for ports: ${HEALTH_PORTS[*]}"
+
+  for attempt in $(seq 1 "${max_attempts}"); do
+    local all_ok=true
+    for port in "${HEALTH_PORTS[@]}"; do
+      url="http://127.0.0.1:${port}/api/health"
+      if ! curl -fsS "${url}" >/dev/null 2>&1; then
+        all_ok=false
         break
       fi
-      sleep 2
     done
-    curl -fsS "${url}"
-    echo "  health ok: ${url}"
+    if [[ "${all_ok}" == true ]]; then
+      for port in "${HEALTH_PORTS[@]}"; do
+        curl -fsS "http://127.0.0.1:${port}/api/health" >/dev/null
+        echo "  health ok: http://127.0.0.1:${port}/api/health"
+      done
+      return 0
+    fi
+    echo "  attempt ${attempt}/${max_attempts}: backends still starting..."
+    sleep "${sleep_secs}"
   done
+
+  echo "ERROR: health check timed out for ports: ${HEALTH_PORTS[*]}" >&2
+  return 1
 }
 
 echo "[1/4] Validate release directory: ${RELEASE_DIR}"
@@ -57,9 +73,12 @@ if docker ps -a --format '{{.Names}}' | grep -qx 'careermate-backend'; then
   docker rm -f careermate-backend
 fi
 
-echo "[3/4] Build image and restart Docker container"
+echo "[3/4] Build image and rolling-restart Docker containers"
 docker build --build-arg JAR_FILE=app.jar -t "${IMAGE_NAME}" "${CURRENT_LINK}/backend"
-docker compose -f "${COMPOSE_FILE}" up -d --force-recreate
+for service in careermate-backend-1 careermate-backend-2 careermate-backend-3; do
+  echo "  recreating ${service}..."
+  docker compose -f "${COMPOSE_FILE}" up -d --force-recreate --no-deps "${service}"
+done
 
 echo "[4/4] Wait for backend health (ports: ${HEALTH_PORTS[*]})"
 wait_for_health
