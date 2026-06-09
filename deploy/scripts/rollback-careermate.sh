@@ -52,6 +52,11 @@ fi
 echo "[2/4] Switch current symlink"
 ln -sfn "${RELEASE_DIR}" "${CURRENT_LINK}"
 
+if docker ps -a --format '{{.Names}}' | grep -qx 'careermate-backend'; then
+  echo "Removing legacy Docker container: careermate-backend"
+  docker rm -f careermate-backend
+fi
+
 echo "[3/4] Build image and restart Docker container"
 docker build --build-arg JAR_FILE=app.jar -t "${IMAGE_NAME}" "${CURRENT_LINK}/backend"
 docker compose -f "${COMPOSE_FILE}" up -d --force-recreate

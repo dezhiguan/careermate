@@ -57,6 +57,14 @@ stop_legacy_systemd() {
   fi
 }
 
+stop_legacy_docker() {
+  # Single-replica container from pre-3-node compose; it holds :18080 and blocks backend-1.
+  if docker ps -a --format '{{.Names}}' | grep -qx 'careermate-backend'; then
+    echo "Removing legacy Docker container: careermate-backend"
+    docker rm -f careermate-backend
+  fi
+}
+
 echo "[1/7] Validate release directory: ${RELEASE_DIR}"
 if [[ ! -d "${RELEASE_DIR}" ]]; then
   echo "Release directory not found: ${RELEASE_DIR}" >&2
@@ -86,8 +94,9 @@ echo "[3/7] Previous release: ${PREVIOUS_RELEASE:-<none>}"
 echo "[4/7] Switch current symlink"
 ln -sfn "${RELEASE_DIR}" "${CURRENT_LINK}"
 
-echo "[5/7] Stop legacy systemd service if present"
+echo "[5/7] Stop legacy systemd service and single-node container if present"
 stop_legacy_systemd
+stop_legacy_docker
 
 echo "[6/7] Build image and restart Docker container"
 docker build --build-arg JAR_FILE=app.jar -t "${IMAGE_NAME}" "${CURRENT_LINK}/backend"
