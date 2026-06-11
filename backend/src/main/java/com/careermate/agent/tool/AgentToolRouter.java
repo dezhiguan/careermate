@@ -21,6 +21,7 @@ public class AgentToolRouter {
     private static final String TOOL_CREATE_CAREER_TASK = "create_career_task";
     private static final String TOOL_MARK_CAREER_TASK_DONE = "mark_career_task_done";
     private static final String TOOL_SEARCH_KNOWLEDGE_BASE = "search_knowledge_base";
+    private static final String TOOL_GENERATE_RESUME_FROM_JD = "generate_resume_from_jd";
 
     private static final Pattern JOB_TITLE_PATTERN = Pattern.compile("(?:岗位|职位)[：:]\\s*([^\\n]+)");
     private static final Pattern COMPANY_PATTERN = Pattern.compile("公司[：:]\\s*([^\\n]+)");
@@ -38,6 +39,10 @@ public class AgentToolRouter {
         String text = userMessage.trim();
         String lower = text.toLowerCase(Locale.ROOT);
 
+        if (containsAny(lower, "生成简历", "重写简历", "改简历", "优化简历", "按jd", "按 jd",
+                "pdf简历", "pdf 简历", "下载pdf", "下载 pdf", "定制简历", "帮我改简历")) {
+            return Optional.of(new RoutedTool(TOOL_GENERATE_RESUME_FROM_JD, Map.of()));
+        }
         if (containsAny(lower, "默认简历", "我的简历", "查看简历", "分析简历")) {
             return Optional.of(new RoutedTool(TOOL_GET_DEFAULT_RESUME, Map.of()));
         }

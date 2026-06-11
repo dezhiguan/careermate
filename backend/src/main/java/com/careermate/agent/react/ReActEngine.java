@@ -29,7 +29,8 @@ public class ReActEngine {
     private static final Set<String> KNOWN_TOOLS = Set.of(
         "get_default_resume", "get_latest_job_match", "create_job_match",
         "create_interview_session", "get_dashboard_overview", "get_career_tasks",
-        "create_career_task", "mark_career_task_done", "search_knowledge_base"
+        "create_career_task", "mark_career_task_done", "search_knowledge_base",
+        "generate_resume_from_jd"
     );
 
     private static final String REACT_SYSTEM_PROMPT = """
@@ -42,6 +43,7 @@ public class ReActEngine {
         - create_interview_session: 创建面试训练会话
         - get_dashboard_overview: 读取求职看板概览
         - search_knowledge_base: 搜索知识库
+        - generate_resume_from_jd: 在 JD 准备空间中按目标 JD 生成定制简历 Markdown 版本；生成完成后用户可点击对话卡片「下载 PDF」导出 PDF 文件
 
         请严格输出 JSON，不要 markdown 围栏：
         {"thought": "你的推理过程", "action": "工具名或final_answer"}

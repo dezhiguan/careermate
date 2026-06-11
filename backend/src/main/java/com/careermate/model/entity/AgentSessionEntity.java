@@ -1,15 +1,17 @@
 package com.careermate.model.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.careermate.mybatis.JsonbStringTypeHandler;
 import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 @Data
-@TableName("agent_sessions")
+@TableName(value = "agent_sessions", autoResultMap = true)
 public class AgentSessionEntity {
 
     @TableId(type = IdType.AUTO)
@@ -30,6 +32,10 @@ public class AgentSessionEntity {
     private String modelName;
     private Integer toolCallCount;
     private String errorCode;
+    private String workspaceType;
+    private String jdId;
+    @TableField(value = "jd_snapshot", typeHandler = JsonbStringTypeHandler.class)
+    private String jdSnapshot;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

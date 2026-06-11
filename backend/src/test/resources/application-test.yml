@@ -3,6 +3,10 @@
 #   createdb -h localhost -U careermate careermate_test_db
 # 或通过环境变量覆盖：TEST_DB_URL / TEST_DB_USERNAME / TEST_DB_PASSWORD
 spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
   datasource:
     hikari:
       maximum-pool-size: 3

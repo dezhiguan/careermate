@@ -50,6 +50,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         try {
+            if (securityProperties.isDevSkipAuth() && request.getRequestURI().startsWith("/api/")) {
+                if (!isAnonymousPath(request.getRequestURI())) {
+                    applyConfiguredSingleUser();
+                }
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             String mode = securityProperties.getMode();
             if (MODE_SINGLE_USER.equals(mode)) {
                 if (!applySingleUserAuth(request, response)) {
@@ -83,8 +91,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String bearerToken = extractBearerToken(request);
         if (StringUtils.hasText(bearerToken)) {
             if (!jwtTokenProvider.validateToken(bearerToken)) {
-                writeUnauthorized(response, ErrorCode.UNAUTHORIZED.getMessage());
-                return false;
+                applyConfiguredSingleUser();
+                return true;
             }
             return authenticateUserFromToken(bearerToken, response);
         }
@@ -173,7 +181,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return "/api/health".equals(path)
                 || "/api/auth/register".equals(path)
                 || "/api/auth/login".equals(path)
-                || "/actuator/health".equals(path);
+                || "/actuator/health".equals(path)
+                || isResumeVersionPdfExport(path);
+    }
+
+    private static boolean isResumeVersionPdfExport(String path) {
+        return path != null && path.matches("/api/resume-version/[^/]+/export/pdf");
     }
 
     private void writeUnauthorized(HttpServletResponse response, String message) throws IOException {

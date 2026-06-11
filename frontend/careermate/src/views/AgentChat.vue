@@ -28,26 +28,45 @@
     <div class="chat-layout">
       <div class="chat-main">
         <div class="chat-header">
-          <button
-            v-if="isMobile"
-            type="button"
-            class="hamburger-btn"
-            aria-label="打开菜单"
-            @click="drawerOpen = true"
-          >
-            ☰
-          </button>
           <div class="header-left">
+            <button
+              v-if="isMobile"
+              type="button"
+              class="hamburger-btn"
+              aria-label="打开菜单"
+              @click="drawerOpen = true"
+            >
+              ☰
+            </button>
             <div class="ai-avatar-header">职</div>
             <div>
               <div class="header-title">小职</div>
-              <div class="header-sub">● 在线</div>
+              <div class="header-sub" :class="workspaceSubClass">
+                <template v-if="workspaceInfo">● {{ workspaceSubText }}</template>
+                <template v-else>● 在线</template>
+              </div>
             </div>
           </div>
-          <button class="header-action" :disabled="sessionCreating" @click="resetChat">
-            {{ sessionCreating ? '创建中...' : streamState === 'streaming' ? '停止并新会话' : '🔄 新会话' }}
-          </button>
+          <div class="header-actions">
+            <button
+              type="button"
+              class="header-action secondary"
+              :disabled="!workspaceInfo"
+              @click="openContext"
+            >
+              查看上下文
+            </button>
+            <button class="header-action" :disabled="sessionCreating" @click="resetChat">
+              {{ sessionCreating ? '创建中...' : '重置会话' }}
+            </button>
+          </div>
         </div>
+
+        <div v-if="workspaceInfo" class="context-chips-bar">
+          <span v-if="jdChipLabel" class="ctx-chip">{{ jdChipLabel }}</span>
+          <span v-if="resumeChipLabel" class="ctx-chip ctx-chip--resume">{{ resumeChipLabel }}</span>
+        </div>
+
         <div v-if="globalError" class="global-error">{{ globalError }}</div>
 
         <div class="messages-area" ref="msgContainer">
@@ -70,6 +89,13 @@
                   <span class="thinking-dot" /><span class="thinking-dot" /><span class="thinking-dot" />
                 </div>
                 <div v-if="msg.text">{{ msg.text }}</div>
+                <ChatCard
+                  v-if="msg.card"
+                  :card="msg.card"
+                  :disabled="resumeGenerating"
+                  :pdf-downloading="pdfDownloading"
+                  @action="handleCardAction"
+                />
                 <div v-if="msg.streaming && msg.text" class="stream-flag">▌</div>
                 <div v-if="msg.error" class="stream-error">{{ msg.error }}</div>
               </div>
@@ -79,146 +105,58 @@
         </div>
 
         <div class="input-area">
-          <div class="suggestions">
-            <span v-for="s in suggestions" :key="s" class="sug-chip" @click="sendSuggestion(s)">💡 {{ s }}</span>
-          </div>
           <div class="input-row">
-            <span class="mic-btn">🎤</span>
             <input
               v-model="inputText"
-              placeholder="说说你想做什么..."
+              :placeholder="resumeGenerating ? '小职正在为你重写简历...' : '说说你想做什么...'"
               class="chat-input"
+              :disabled="resumeGenerating"
               @keydown.enter="sendMessage"
             >
             <button class="send-btn" @click="sendMessage" :disabled="!canSend">↑</button>
           </div>
         </div>
       </div>
+    </div>
 
-      <div class="session-panel">
-        <div class="panel-title">求职状态</div>
-        <div v-if="statusLoading" class="tool-log">加载中...</div>
-        <template v-else>
-          <div class="status-card">
-            <div class="status-card-head">
-              <span class="status-icon">📄</span>
-              <span class="status-label">当前简历</span>
-            </div>
-            <div class="status-card-body">
-              {{ currentResume?.title || '暂无默认简历' }}
-            </div>
-          </div>
-          <div class="status-card">
-            <div class="status-card-head">
-              <span class="status-icon">🎯</span>
-              <span class="status-label">最新匹配</span>
-            </div>
-            <div v-if="latestMatch" class="status-card-body">
-              {{ latestMatch.companyName }} · {{ latestMatch.jobTitle }}
-              <span class="match-score">{{ latestMatch.matchScore }}%</span>
-              <span
-                class="match-level-badge"
-                :style="{ background: matchLevelColor(latestMatch.matchLevel) }"
-              >{{ latestMatch.matchLevel }}</span>
-            </div>
-            <div v-else class="status-card-body">暂无匹配记录</div>
-          </div>
-          <div class="status-card">
-            <div class="status-card-head">
-              <span class="status-icon">✅</span>
-              <span class="status-label">待完成任务</span>
-            </div>
-            <div v-if="pendingTasks.length === 0" class="status-card-body">暂无待完成任务</div>
-            <div v-else class="status-task-list">
-              <div v-for="task in pendingTasks" :key="task.id" class="status-task-item">
-                □ {{ task.title }}
-              </div>
-            </div>
-          </div>
-        </template>
-        <div class="panel-divider" />
-        <div class="panel-title-sm">求职画像</div>
-        <div v-if="careerProfileLoading" class="tool-log">加载中...</div>
-        <div v-else-if="!hasCareerProfile" class="tool-log">暂无求职画像</div>
-        <div v-else class="career-profile-panel">
-          <div class="panel-section compact">
-            <div class="panel-label">目标岗位：</div>
-            <div class="panel-value">{{ careerProfile.targetRole || '-' }}</div>
-          </div>
-          <div class="panel-section compact">
-            <div class="panel-label">目标城市：</div>
-            <div class="panel-value">{{ careerProfile.targetCity || '-' }}</div>
-          </div>
-          <div class="panel-section compact">
-            <div class="panel-label">技能关键词：</div>
-            <div class="panel-value">{{ careerProfileSkillsText }}</div>
-          </div>
+    <div v-if="jdViewerOpen" class="modal-overlay" @click.self="jdViewerOpen = false">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <span>JD 详情</span>
+          <button type="button" class="modal-close" @click="jdViewerOpen = false">×</button>
         </div>
-        <div class="panel-divider" />
-        <div class="panel-title-sm">最近会话</div>
-        <div v-if="sessionsLoading" class="tool-log">加载中...</div>
-        <div v-else-if="recentSessions.length === 0" class="tool-log">暂无历史会话</div>
-        <button
-          v-for="item in recentSessions"
-          :key="item.sessionId"
-          type="button"
-          class="session-history-item"
-          :class="{ active: item.sessionId === sessionId }"
-          :data-session-id="item.sessionId"
-          @click="switchToSession(item.sessionId)"
-        >
-          <div class="session-history-title">{{ item.title }}</div>
-          <div class="session-history-meta">
-            <span class="session-history-status">{{ formatSessionStatus(item.status) }}</span>
-            <span class="session-history-time">{{ formatSessionTime(item.updatedAt) }}</span>
-          </div>
-        </button>
-        <div class="panel-divider" />
-        <div
-          class="dev-panel-toggle"
-          @click="devPanelExpanded = !devPanelExpanded"
-        >
-          🔧 开发调试 {{ devPanelExpanded ? '▼' : '▶' }}
+        <pre class="modal-body">{{ jdViewerContent }}</pre>
+      </div>
+    </div>
+
+    <div v-if="resumeViewerOpen" class="modal-overlay" @click.self="resumeViewerOpen = false">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <span>{{ resumeViewerTitle }}</span>
+          <button type="button" class="modal-close" @click="resumeViewerOpen = false">×</button>
         </div>
-        <div v-show="devPanelExpanded" class="dev-panel-content">
-          <div class="panel-section compact">
-            <div class="panel-label">当前用户：</div>
-            <div class="panel-value">{{ userLabel }}</div>
-          </div>
-          <div class="panel-section compact">
-            <div class="panel-label">sessionId：</div>
-            <div class="panel-value">{{ sessionId || '创建中...' }}</div>
-          </div>
-          <div class="panel-section compact">
-            <div class="panel-label">当前状态：</div>
-            <div class="panel-value">{{ streamStateLabel }}</div>
-          </div>
-          <div class="panel-section compact">
-            <div class="panel-label">已接收事件数：</div>
-            <div class="panel-value">{{ eventCount }}</div>
-          </div>
-          <div class="panel-section compact">
-            <div class="panel-label">最后耗时：</div>
-            <div class="panel-value">{{ totalLatencyMs ? `${totalLatencyMs}ms` : '-' }}</div>
-          </div>
-          <div class="panel-section compact">
-            <div class="panel-label">工具调用：</div>
-            <div class="panel-value">{{ toolCallPanelSummary }}</div>
-          </div>
-          <div class="panel-title-sm trace-header">
-            <span>🧠 Agent Trace / 执行轨迹</span>
-            <button
-              class="trace-refresh-btn"
-              :disabled="!sessionId || traceLoading"
-              @click="refreshTraceFromServer"
-            >
-              {{ traceLoading ? '刷新中...' : '刷新 Trace' }}
-            </button>
-          </div>
-          <div v-if="traceEvents.length === 0" class="tool-log">暂无 trace 事件</div>
-          <div v-for="trace in traceEvents" :key="trace.id" class="tool-log">
-            [{{ trace.type }}] {{ trace.title }}
-          </div>
+        <pre class="modal-body">{{ resumeViewerContent }}</pre>
+      </div>
+    </div>
+
+    <div v-if="versionsDrawerOpen" class="modal-overlay" @click.self="versionsDrawerOpen = false">
+      <div class="modal-panel drawer-panel">
+        <div class="modal-header">
+          <span>本空间简历版本</span>
+          <button type="button" class="modal-close" @click="versionsDrawerOpen = false">×</button>
+        </div>
+        <div class="modal-body versions-list">
+          <div v-if="workspaceVersions.length === 0" class="empty-hint">暂无生成版本</div>
+          <button
+            v-for="v in workspaceVersions"
+            :key="v.versionId"
+            type="button"
+            class="version-item"
+            @click="openResumeVersion(v.versionId)"
+          >
+            <span>{{ v.versionName }}</span>
+            <span class="version-date">{{ formatVersionDate(v.createdAt) }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -226,22 +164,20 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authStore } from '../stores/authStore'
 import {
   createAgentSession,
-  getAgentSession,
   getAgentTrace,
-  listAgentSessions,
   sendAgentMessageStream,
 } from '../api/agent'
-import { getCareerProfile } from '../api/profile'
-import { listResumes } from '../api/resume'
-import { listJobMatches } from '../api/jobMatch'
-import { listTasks } from '../api/tasks'
+import { getWorkspace, getMessages, postAction, openResumeGenerateStream } from '../api/workspace'
+import { getOpportunityDetail } from '../api/opportunity'
+import { downloadVersionPdf, getVersion, listVersions } from '../api/resumeVersion'
 import { isCareerTaskToolName, notifyCareerTasksUpdated } from '../utils/agentToolDisplay'
 import ToolCallCard from '../components/agent/ToolCallCard.vue'
+import ChatCard from '../components/ChatCard.vue'
 import { getToolLabel, isBusinessToolName, sanitizeToolSummary } from '../utils/agentToolDisplay'
 
 const route = useRoute()
@@ -260,51 +196,47 @@ const sessionId = ref('')
 const streamState = ref('idle')
 const sessionCreating = ref(false)
 const globalError = ref('')
-const eventCount = ref(0)
-const totalLatencyMs = ref(0)
-const traceEvents = ref([])
-const traceLoading = ref(false)
 const idSeed = ref(0)
 const activeStreamController = ref(null)
 const activeStreamTimer = ref(null)
 const activeAgentMessage = ref(null)
-const recentSessions = ref([])
-const sessionsLoading = ref(false)
-const sessionSwitching = ref(false)
-const careerProfile = ref({
-  targetRole: '',
-  targetCity: '',
-  skillKeywords: [],
-})
-const careerProfileLoading = ref(false)
-const currentResume = ref(null)
-const latestMatch = ref(null)
-const pendingTasks = ref([])
-const statusLoading = ref(false)
-const devPanelExpanded = ref(false)
+const workspaceInfo = ref(null)
+const resumeGenerating = ref(false)
+const activeResumeStream = ref(null)
+const jdViewerOpen = ref(false)
+const jdViewerContent = ref('')
+const resumeViewerOpen = ref(false)
+const resumeViewerTitle = ref('')
+const resumeViewerContent = ref('')
+const versionsDrawerOpen = ref(false)
+const workspaceVersions = ref([])
+const pdfDownloading = ref(false)
 
 const STREAM_UI_IDLE_NOTICE_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_IDLE_NOTICE_MS || 90000)
 
-const suggestions = computed(() => {
-  const chips = []
+const hasResumeVersion = computed(() => workspaceVersions.value.length > 0)
 
-  const role = careerProfile.value?.targetRole?.trim()
-  chips.push(role ? `帮我匹配${role}岗位` : '匹配后端岗位')
+const workspaceSubText = computed(() => {
+  if (!workspaceInfo.value) return ''
+  return hasResumeVersion.value ? 'JD + 简历已加载' : 'JD 已加载，等待简历'
+})
 
-  const firstTask = pendingTasks.value?.[0]
-  if (firstTask) {
-    const title = firstTask.title.length > 10
-      ? firstTask.title.slice(0, 10) + '…'
-      : firstTask.title
-    chips.push(`继续：${title}`)
-  } else {
-    chips.push('帮我优化简历')
-  }
+const workspaceSubClass = computed(() => {
+  if (!workspaceInfo.value) return ''
+  return hasResumeVersion.value ? 'header-sub--ready' : 'header-sub--pending'
+})
 
-  const skill = careerProfile.value?.skillKeywords?.[0]?.trim()
-  chips.push(skill ? `准备${skill}面试` : '准备 Java 面试')
+const jdChipLabel = computed(() => {
+  const snap = workspaceInfo.value?.jdSnapshot
+  if (!snap) return ''
+  const parts = [snap.company, snap.title].filter((v) => v && String(v).trim())
+  return parts.length ? `📋 ${parts.join(' ')} JD` : ''
+})
 
-  return chips
+const resumeChipLabel = computed(() => {
+  const latest = workspaceVersions.value?.[0]
+  if (!latest?.versionName) return ''
+  return `📄 ${latest.versionName}`
 })
 
 const messages = ref([{
@@ -320,20 +252,8 @@ const canSend = computed(() => (
   !!inputText.value.trim()
   && streamState.value !== 'streaming'
   && !sessionCreating.value
-  && !sessionSwitching.value
+  && !resumeGenerating.value
 ))
-const streamStateLabel = computed(() => {
-  if (streamState.value === 'session_creating') return '会话创建中'
-  if (streamState.value === 'streaming') return '流式生成中'
-  if (streamState.value === 'done') return '已完成'
-  if (streamState.value === 'error') return '错误'
-  return '空闲'
-})
-const userLabel = computed(() => {
-  const user = authStore.state.currentUser
-  if (!user) return '未登录'
-  return `${user.username} / ${user.role}`
-})
 
 const userDisplayName = computed(() => authStore.state.currentUser?.username || '用户')
 
@@ -355,31 +275,6 @@ function navigateFromDrawer(path) {
     router.push(path)
   }
 }
-
-const hasCareerProfile = computed(() => {
-  const p = careerProfile.value
-  return !!(
-    (p.targetRole && p.targetRole.trim())
-    || (p.targetCity && p.targetCity.trim())
-    || (Array.isArray(p.skillKeywords) && p.skillKeywords.length > 0)
-  )
-})
-
-const careerProfileSkillsText = computed(() => {
-  const skills = careerProfile.value?.skillKeywords
-  if (!Array.isArray(skills) || skills.length === 0) return '-'
-  return skills.join(', ')
-})
-
-const toolCallPanelSummary = computed(() => {
-  for (let i = messages.value.length - 1; i >= 0; i--) {
-    const msg = messages.value[i]
-    if (msg.role !== 'agent' || !msg.toolCalls?.length) continue
-    const names = msg.toolCalls.map((t) => getToolLabel(t.toolName)).join('、')
-    return `${msg.toolCalls.length} 次：${names}`
-  }
-  return '暂无工具调用'
-})
 
 function ensureAgentMessageShape(msg) {
   if (!msg.toolCalls) {
@@ -485,7 +380,6 @@ function markStreamInterrupted(agentMessage, message) {
   finalizeRunningToolCalls(agentMessage, false)
   agentMessage.error = message
   globalError.value = message
-  pushTrace('error', message)
 }
 
 function abortActiveStream(reason = '当前流式请求已取消') {
@@ -505,7 +399,6 @@ function startStreamWatchdog(agentMessage) {
     const message = `Agent 已超过 ${Math.round(STREAM_UI_IDLE_NOTICE_MS / 1000)} 秒未返回结束事件，仍在等待后端完成。`
     agentMessage.error = message
     globalError.value = message
-    pushTrace('warning', message)
   }, STREAM_UI_IDLE_NOTICE_MS)
 }
 
@@ -537,49 +430,9 @@ function scrollBottom() {
   })
 }
 
-function sendSuggestion(text) {
-  if (streamState.value === 'streaming') return
-  inputText.value = text
-  sendMessage()
-}
-
-function formatTraceTitle(t) {
-  const type = t.toolName || t.type || 'trace'
-  if (t.responseSummary) {
-    try {
-      const summary = JSON.parse(t.responseSummary)
-      if (summary?.message) {
-        return summary.message
-      }
-    } catch {
-      // 非 JSON 时沿用默认格式
-    }
-  }
-  const latency = t.latencyMs ? ` · ${t.latencyMs}ms` : ''
-  return `${type} · ${t.status || ''}${latency}`.trim()
-}
-
-function formatSessionStatus(status) {
-  const map = {
-    CREATED: '已创建',
-    RUNNING: '进行中',
-    COMPLETED: '已完成',
-    ERROR: '错误',
-    ACTIVE: '进行中',
-  }
-  return map[status] || status || '-'
-}
-
-function formatSessionTime(value) {
-  if (!value) return '-'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '-'
-  return d.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+function openContext() {
+  if (!workspaceInfo.value) return
+  versionsDrawerOpen.value = true
 }
 
 function defaultWelcomeMessage() {
@@ -597,193 +450,228 @@ function mapServerMessages(serverMessages) {
   if (!Array.isArray(serverMessages) || serverMessages.length === 0) {
     return []
   }
-  return serverMessages.map((m) => ({
+  return serverMessages.map((m) => mapWorkspaceMessage(m))
+}
+
+function mapWorkspaceMessage(m) {
+  const messageType = (m.messageType || '').toUpperCase()
+  const card = m.metadata?.card || null
+  const isCard = messageType === 'CARD' && card
+  return {
     id: `m_${m.id ?? idSeed.value++}`,
     role: m.role === 'user' ? 'user' : 'agent',
-    text: m.content || '',
+    text: isCard ? (m.content || '') : (m.content || ''),
+    card: isCard ? card : null,
+    messageType,
     streaming: false,
     error: '',
     toolCalls: [],
-  }))
-}
-
-function lastAgentMessage(msgs) {
-  for (let i = msgs.length - 1; i >= 0; i--) {
-    if (msgs[i].role === 'agent') return msgs[i]
-  }
-  return null
-}
-
-async function loadCareerProfile() {
-  careerProfileLoading.value = true
-  try {
-    const data = await getCareerProfile()
-    careerProfile.value = {
-      targetRole: data?.targetRole || '',
-      targetCity: data?.targetCity || '',
-      skillKeywords: Array.isArray(data?.skillKeywords) ? data.skillKeywords : [],
-    }
-  } catch {
-    careerProfile.value = { targetRole: '', targetCity: '', skillKeywords: [] }
-  } finally {
-    careerProfileLoading.value = false
   }
 }
 
-async function loadJobStatus() {
-  statusLoading.value = true
-  try {
-    const [resumeRes, matchRes, taskRes] = await Promise.allSettled([
-      listResumes(),
-      listJobMatches(),
-      listTasks(),
-    ])
-    if (resumeRes.status === 'fulfilled') {
-      const def = (resumeRes.value || []).find((r) => r.isDefault)
-      currentResume.value = def ? { id: def.id, title: def.title } : null
-    }
-    if (matchRes.status === 'fulfilled') {
-      const first = (matchRes.value || [])[0]
-      latestMatch.value = first
-        ? {
-            companyName: first.companyName,
-            jobTitle: first.jobTitle,
-            matchScore: first.matchScore,
-            matchLevel: first.matchLevel,
-          }
-        : null
-    }
-    if (taskRes.status === 'fulfilled') {
-      pendingTasks.value = (taskRes.value || [])
-        .filter((t) => t.status === 'TODO')
-        .slice(0, 3)
-        .map((t) => ({ id: t.id, title: t.title }))
-    }
-  } finally {
-    statusLoading.value = false
-  }
+function formatVersionDate(value) {
+  if (!value) return ''
+  return new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
-function matchLevelColor(level) {
-  const colors = {
-    HIGH: '#16a34a',
-    MEDIUM: '#d97706',
-    LOW: '#dc2626',
-  }
-  return colors[level] || '#64748b'
-}
-
-function shouldRefreshCareerProfile(traces) {
-  if (!Array.isArray(traces)) return false
-  return traces.some((t) => (t.toolName || t.type) === 'career_profile_update')
-}
-
-function shouldRefreshCareerTasks(traces) {
-  if (!Array.isArray(traces)) return false
-  return traces.some((t) => isCareerTaskToolName(t.toolName || t.type))
-}
-
-async function loadRecentSessionsList() {
-  sessionsLoading.value = true
-  try {
-    recentSessions.value = await listAgentSessions() || []
-  } catch (e) {
-    recentSessions.value = []
-    const msg = e?.message || '加载会话列表失败'
-    pushTrace('error', msg.includes('系统异常') ? '加载会话列表失败' : msg)
-  } finally {
-    sessionsLoading.value = false
-  }
-}
-
-async function restoreSession(sessionIdToLoad, { refreshList = true } = {}) {
-  if (!sessionIdToLoad || sessionSwitching.value) return false
-  sessionSwitching.value = true
-  abortActiveStream('切换会话，已取消当前流式请求')
-  if (activeAgentMessage.value?.streaming) {
-    finishStreaming(activeAgentMessage.value)
-    activeAgentMessage.value = null
-  }
+async function loadWorkspaceContext(wsId) {
+  sessionCreating.value = true
   globalError.value = ''
-  streamState.value = 'idle'
-  eventCount.value = 0
-  totalLatencyMs.value = 0
-  traceEvents.value = []
+  try {
+    const [ws, msgs, versions] = await Promise.all([
+      getWorkspace(wsId),
+      getMessages(wsId, { limit: 100 }),
+      listVersions(wsId).catch(() => []),
+    ])
+    workspaceInfo.value = ws
+    workspaceVersions.value = versions || ws?.resumeVersions || []
+    sessionId.value = wsId
+    const restored = mapServerMessages(msgs)
+    messages.value = restored.length > 0 ? restored : [defaultWelcomeMessage()]
+    streamState.value = 'idle'
+    scrollBottom()
+  } catch (e) {
+    globalError.value = e?.message || '加载工作空间失败'
+    messages.value = [{
+      id: `m_err_${Date.now()}`,
+      role: 'agent',
+      text: globalError.value,
+      streaming: false,
+      error: globalError.value,
+      toolCalls: [],
+    }]
+  } finally {
+    sessionCreating.value = false
+  }
+}
+
+async function handleCardAction(actionItem) {
+  const action = actionItem?.action
+  const payload = actionItem?.payload
+  if (!action || !sessionId.value) return
+
+  if (action === 'GENERATE_RESUME' || action === 'RETRY') {
+    await startResumeGeneration(payload)
+    return
+  }
+  if (action === 'VIEW_JD') {
+    await openJdViewer(payload || workspaceInfo.value?.jdId)
+    return
+  }
+  if (action === 'VIEW_RESUME') {
+    await openResumeVersion(payload)
+    return
+  }
+  if (action === 'DOWNLOAD_PDF') {
+    const pl = typeof payload === 'object' && payload !== null
+      ? payload
+      : { versionId: payload, versionName: '' }
+    pdfDownloading.value = true
+    try {
+      await downloadVersionPdf(pl.versionId, pl.versionName)
+    } catch (e) {
+      globalError.value = e?.message || 'PDF 下载失败'
+    } finally {
+      pdfDownloading.value = false
+    }
+    return
+  }
+  if (action === 'COPY_MARKDOWN') {
+    await copyResumeMarkdown(payload)
+    return
+  }
+  if (action === 'NAVIGATE') {
+    router.push(payload || '/mine')
+  }
+}
+
+async function openJdViewer(jdId) {
+  if (!jdId) return
+  try {
+    const detail = await getOpportunityDetail(jdId)
+    jdViewerContent.value = detail?.jdContent || '暂无 JD 内容'
+    jdViewerOpen.value = true
+  } catch (e) {
+    globalError.value = e?.message || '加载 JD 失败'
+  }
+}
+
+async function openResumeVersion(versionId) {
+  if (!versionId) return
+  try {
+    const detail = await getVersion(versionId)
+    resumeViewerTitle.value = detail?.versionName || '简历预览'
+    resumeViewerContent.value = detail?.contentMarkdown || ''
+    resumeViewerOpen.value = true
+    versionsDrawerOpen.value = false
+  } catch (e) {
+    globalError.value = e?.message || '加载简历版本失败'
+  }
+}
+
+async function copyResumeMarkdown(versionId) {
+  if (!versionId) return
+  try {
+    const detail = await getVersion(versionId)
+    const text = detail?.contentMarkdown || ''
+    await navigator.clipboard.writeText(text)
+  } catch (e) {
+    globalError.value = e?.message || '复制失败'
+  }
+}
+
+async function startResumeGeneration(jdId) {
+  if (!sessionId.value || resumeGenerating.value) return
+  resumeGenerating.value = true
+  streamState.value = 'streaming'
+
+  const streamMsg = {
+    id: `m_resume_stream_${Date.now()}`,
+    role: 'agent',
+    text: '',
+    streaming: true,
+    error: '',
+    toolCalls: [],
+  }
+  messages.value.push(streamMsg)
+  scrollBottom()
 
   try {
-    const detail = await getAgentSession(sessionIdToLoad)
-    const restored = mapServerMessages(detail?.messages)
-    messages.value = restored.length > 0 ? restored : [defaultWelcomeMessage()]
-    sessionId.value = detail?.sessionId || sessionIdToLoad
-    streamState.value = 'idle'
-    const agentMsg = lastAgentMessage(messages.value)
-    await refreshTraceFromServer(agentMsg)
-    if (refreshList) {
-      await loadRecentSessionsList()
+    const ack = await postAction(sessionId.value, 'GENERATE_RESUME', jdId || workspaceInfo.value?.jdId)
+    if (ack?.noop) {
+      throw new Error('无法启动简历生成')
     }
-    scrollBottom()
-    return true
+
+    if (activeResumeStream.value?.close) {
+      activeResumeStream.value.close()
+    }
+
+    activeResumeStream.value = openResumeGenerateStream(sessionId.value, {
+      onResumeDelta(delta) {
+        streamMsg.text += delta || ''
+        scrollBottom()
+      },
+      onCard(card) {
+        finishStreaming(streamMsg)
+        messages.value.push({
+          id: `m_card_${Date.now()}`,
+          role: 'agent',
+          text: '',
+          card,
+          messageType: 'CARD',
+          streaming: false,
+          error: '',
+          toolCalls: [],
+        })
+        scrollBottom()
+      },
+      onError(message) {
+        streamMsg.error = message
+        streamMsg.streaming = false
+        globalError.value = message
+        messages.value.push({
+          id: `m_fail_${Date.now()}`,
+          role: 'agent',
+          text: message,
+          card: {
+            type: 'GENERATE_FAILED',
+            message,
+            actions: [{ label: '重试', action: 'RETRY', payload: workspaceInfo.value?.jdId }],
+          },
+          messageType: 'CARD',
+          streaming: false,
+          error: message,
+          toolCalls: [],
+        })
+      },
+      onDone() {
+        finishStreaming(streamMsg)
+        listVersions(sessionId.value).then((v) => {
+          workspaceVersions.value = v || []
+        }).catch(() => {})
+      },
+    })
   } catch (e) {
-    globalError.value = e?.message || '加载会话失败'
-    pushTrace('error', globalError.value)
-    return false
+    streamMsg.streaming = false
+    streamMsg.error = e?.message || '启动生成失败'
+    globalError.value = streamMsg.error
   } finally {
-    sessionSwitching.value = false
-  }
-}
-
-async function switchToSession(targetSessionId) {
-  if (!targetSessionId || targetSessionId === sessionId.value) return
-  if (streamState.value === 'streaming') {
-    abortActiveStream('切换会话，已取消当前流式请求')
-    if (activeAgentMessage.value?.streaming) {
-      finishStreaming(activeAgentMessage.value)
-      activeAgentMessage.value = null
+    resumeGenerating.value = false
+    if (streamState.value === 'streaming') {
+      streamState.value = 'idle'
     }
-    streamState.value = 'idle'
   }
-  await restoreSession(targetSessionId)
-}
-
-function pushTrace(type, title, payload = null) {
-  traceEvents.value.push({
-    id: `t_${Date.now()}_${idSeed.value++}`,
-    type,
-    title,
-    payload,
-    timestamp: Date.now(),
-  })
 }
 
 async function refreshTraceFromServer(agentMessage = null) {
-  if (!sessionId.value || traceLoading.value) return
-  traceLoading.value = true
+  if (!sessionId.value) return
   try {
     const traces = await getAgentTrace(sessionId.value)
     if (agentMessage) {
       syncToolCallsFromServerTraces(agentMessage, traces)
     }
-    traceEvents.value = traces.map((t) => ({
-      id: `db_${t.id}`,
-      type: t.toolName || t.type,
-      title: formatTraceTitle(t),
-      payload: t,
-      timestamp: t.createdAt ? new Date(t.createdAt).getTime() : Date.now(),
-    }))
-    if (shouldRefreshCareerProfile(traces)) {
-      await loadCareerProfile()
-    }
-    if (shouldRefreshCareerTasks(traces)) {
-      notifyCareerTasksUpdated()
-      await loadJobStatus()
-    }
-    if (traces.length === 0) {
-      pushTrace('refresh', '服务端暂无 trace 记录')
-    }
-  } catch (e) {
-    pushTrace('error', e?.message || '刷新 trace 失败')
-  } finally {
-    traceLoading.value = false
+  } catch {
+    // trace 同步失败不影响主流程
   }
 }
 
@@ -797,15 +685,9 @@ async function createNewSession({ withWelcome = true } = {}) {
     if (withWelcome) {
       messages.value = [defaultWelcomeMessage()]
     }
-    traceEvents.value = []
-    eventCount.value = 0
-    totalLatencyMs.value = 0
-    pushTrace('session', `会话创建成功: ${sessionId.value}`)
-    await loadRecentSessionsList()
   } catch (e) {
     streamState.value = 'error'
     globalError.value = e?.message || '会话创建失败'
-    pushTrace('error', '会话创建失败')
     messages.value.push({
       id: `m_${Date.now()}`,
       role: 'agent',
@@ -820,24 +702,11 @@ async function createNewSession({ withWelcome = true } = {}) {
 }
 
 async function bootstrapChat() {
-  sessionCreating.value = true
-  globalError.value = ''
-  streamState.value = 'session_creating'
-  try {
-    await Promise.all([loadCareerProfile(), loadJobStatus()])
-    await loadRecentSessionsList()
-    const latest = recentSessions.value[0]
-    if (latest?.sessionId) {
-      const ok = await restoreSession(latest.sessionId, { refreshList: false })
-      if (ok) return
-    }
-    await createNewSession({ withWelcome: true })
-  } finally {
-    if (streamState.value === 'session_creating') {
-      streamState.value = 'idle'
-    }
-    sessionCreating.value = false
+  if (workspaceId.value) {
+    await loadWorkspaceContext(workspaceId.value)
+    return
   }
+  await createNewSession({ withWelcome: true })
 }
 
 async function sendMessage() {
@@ -871,8 +740,6 @@ async function sendMessage() {
   messages.value.push(agentMessage)
   streamState.value = 'streaming'
   activeAgentMessage.value = agentMessage
-  eventCount.value = 0
-  totalLatencyMs.value = 0
   scrollBottom()
 
   const streamController = new AbortController()
@@ -881,32 +748,18 @@ async function sendMessage() {
 
   try {
     await sendAgentMessageStream(sessionId.value, text, {
-      onRawEvent() {
-        eventCount.value += 1
-      },
-      onPlan(data) {
-        const steps = Array.isArray(data?.steps) ? data.steps.join(' -> ') : '执行计划已生成'
-        pushTrace('plan', steps, data)
-      },
+      onPlan() {},
       onToolStart(data) {
         handleToolStart(agentMessage, data)
-        const name = data?.toolName || 'unknown'
-        const summary = data?.summary || '正在执行工具'
-        pushTrace('tool_start', `${getToolLabel(name)}：${summary}`, data)
       },
       onToolResult(data) {
         handleToolResult(agentMessage, data)
         const name = data?.toolName || 'unknown'
-        const status = data?.success ? '执行成功' : '执行失败'
-        const summary = data?.summary || ''
-        pushTrace('tool_result', `${getToolLabel(name)} ${status}${summary ? `：${summary}` : ''}`, data)
         if (isCareerTaskToolName(name) && data?.success) {
           notifyCareerTasksUpdated()
         }
       },
-      onTrace(data) {
-        pushTrace('trace', data?.message || data?.summary || 'trace 事件', data)
-      },
+      onTrace() {},
       onToken(data) {
         const token = data?.content || ''
         agentMessage.text += token
@@ -918,17 +771,13 @@ async function sendMessage() {
         }
         finalizeRunningToolCalls(agentMessage, true)
         finishStreaming(agentMessage)
-        pushTrace('message', '收到完整回复', data)
       },
       onDone(data) {
         clearStreamWatchdog()
         streamState.value = 'done'
-        totalLatencyMs.value = Number(data?.totalLatencyMs || 0)
         finalizeRunningToolCalls(agentMessage, true)
         finishStreaming(agentMessage)
-        pushTrace('done', `流式完成，耗时 ${totalLatencyMs.value}ms`, data)
         refreshTraceFromServer(agentMessage)
-        loadRecentSessionsList()
       },
       onError(error) {
         clearStreamWatchdog()
@@ -937,7 +786,6 @@ async function sendMessage() {
         finishStreaming(agentMessage)
         agentMessage.error = error?.message || '流式调用失败'
         globalError.value = agentMessage.error
-        pushTrace('error', agentMessage.error)
       },
     }, {
       signal: streamController.signal,
@@ -951,7 +799,6 @@ async function sendMessage() {
     finishStreaming(agentMessage)
     agentMessage.error = e?.message || '流式请求失败'
     globalError.value = agentMessage.error
-    pushTrace('error', agentMessage.error)
   } finally {
     clearStreamWatchdog()
     if (activeStreamController.value === streamController) {
@@ -971,7 +818,6 @@ async function sendMessage() {
       finishStreaming(agentMessage)
       agentMessage.error = '流式响应未正常结束，请重试。'
       globalError.value = agentMessage.error
-      pushTrace('error', agentMessage.error)
     }
     if (!agentMessage.text) {
       agentMessage.text = '暂未收到回复，请稍后重试。'
@@ -988,8 +834,6 @@ async function resetChat() {
   activeAgentMessage.value = null
   globalError.value = ''
   streamState.value = 'idle'
-  eventCount.value = 0
-  totalLatencyMs.value = 0
   sessionId.value = ''
   messages.value = [{
     id: `m_${Date.now()}_reset`,
@@ -999,10 +843,15 @@ async function resetChat() {
     error: '',
     toolCalls: [],
   }]
-  traceEvents.value = []
   await createNewSession({ withWelcome: false })
   scrollBottom()
 }
+
+watch(() => route.params.wsId, async (wsId) => {
+  if (wsId) {
+    await loadWorkspaceContext(wsId)
+  }
+})
 
 onMounted(async () => {
   updateViewport()
@@ -1014,10 +863,104 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateViewport)
   abortActiveStream('页面已离开，流式请求已取消')
+  if (activeResumeStream.value?.close) {
+    activeResumeStream.value.close()
+  }
 })
 </script>
 
 <style scoped>
+.header-action.secondary {
+  margin-right: 8px;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-panel {
+  width: min(640px, 100%);
+  max-height: 80vh;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.drawer-panel {
+  align-self: flex-end;
+  margin-left: auto;
+  height: 80vh;
+  width: min(360px, 100%);
+  border-radius: 12px 0 0 12px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  font-weight: 600;
+}
+
+.modal-close {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.modal-body {
+  padding: 16px;
+  overflow: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.versions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.version-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+  text-align: left;
+}
+
+.version-date {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.empty-hint {
+  color: #94a3b8;
+  font-size: 14px;
+}
+
 .chat-page {
   max-width: 1200px;
   margin: 0 auto;
@@ -1027,11 +970,40 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
 }
+
 .chat-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
+}
+
+.context-chips-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 16px;
+  background: #eef2ff;
+  border-bottom: 1px solid #c7d2fe;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.ctx-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  background: #fff;
+  color: #4338ca;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ctx-chip--resume {
+  background: #f0fdf4;
+  color: #15803d;
 }
 
 .chat-drawer-overlay {
@@ -1147,7 +1119,9 @@ onBeforeUnmount(() => {
   gap: 10px;
   flex-shrink: 0;
 }
+
 .header-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+
 .hamburger-btn {
   border: none;
   background: transparent;
@@ -1158,6 +1132,7 @@ onBeforeUnmount(() => {
   color: #0f172a;
   flex-shrink: 0;
 }
+
 .ai-avatar-header {
   width: 32px;
   height: 32px;
@@ -1170,14 +1145,27 @@ onBeforeUnmount(() => {
   font-size: 13px;
   flex-shrink: 0;
 }
+
 .header-title { font-weight: 700; font-size: 13px; color: #0f172a; }
 .header-sub { font-size: 10px; color: #10b981; }
+.header-sub--ready { color: #10b981; }
+.header-sub--pending { color: #f59e0b; }
+
+.header-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .header-action {
   background: none; border: 1px solid var(--border); padding: 5px 12px;
   border-radius: 6px; font-size: 11px; cursor: pointer; color: var(--text-muted);
 }
+
 .header-action:hover { background: var(--light); }
 .header-action:disabled { opacity: .5; cursor: default; }
+
 .global-error {
   margin: 10px 16px 0;
   padding: 8px 10px;
@@ -1195,6 +1183,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: hidden;
 }
+
 .messages-area {
   flex: 1;
   min-height: 0;
@@ -1206,10 +1195,12 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 4px;
 }
+
 .msg-wrapper { margin-bottom: 6px; }
 .msg-row { display: flex; }
 .user-row { justify-content: flex-end; }
 .agent-row { gap: 8px; align-items: flex-start; }
+
 .ai-avatar {
   width: 32px;
   height: 32px;
@@ -1222,17 +1213,20 @@ onBeforeUnmount(() => {
   font-size: 11px;
   font-weight: 700;
 }
+
 .msg-bubble {
   max-width: 75%;
   font-size: 13px;
   line-height: 1.6;
 }
+
 .user-bubble {
   background: #4f46e5;
   color: #fff;
   border-radius: 14px 14px 4px 14px;
   padding: 9px 13px;
 }
+
 .agent-bubble {
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -1240,22 +1234,29 @@ onBeforeUnmount(() => {
   padding: 12px 14px;
   color: #334155;
 }
+
 .stream-flag { display: inline-block; color: var(--purple); font-size: 13px; line-height: 1; animation: blink 1s step-start infinite; margin-left: 1px; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
 .thinking-flag { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+
 .thinking-dot {
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--purple); opacity: 0.5;
   animation: thinking-bounce 1.2s ease-in-out infinite;
 }
+
 .thinking-dot:nth-child(1) { animation-delay: 0s; }
 .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
 .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
 @keyframes thinking-bounce {
   0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
   40% { transform: translateY(-6px); opacity: 1; }
 }
+
 .stream-error { margin-top: 4px; color: var(--red); font-size: 11px; }
+
 .tool-call-list {
   display: flex;
   flex-direction: column;
@@ -1271,135 +1272,24 @@ onBeforeUnmount(() => {
   background: #fff;
   z-index: 10;
 }
-.suggestions { display: flex; gap: 8px; margin-bottom: 8px; font-size: 10px; overflow-x: auto; }
-.sug-chip {
-  color: var(--purple); cursor: pointer; white-space: nowrap; padding: 2px 8px; border-radius: 10px; background: #f5f3ff;
-  transition: background .2s;
+
+.input-row {
+  display: flex;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 6px 6px 6px 14px;
 }
-.sug-chip:hover { background: #ede9fe; }
-.input-row { display: flex; align-items: center; background: var(--light); border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
-.mic-btn { padding: 6px 10px; color: var(--text-muted); font-size: 14px; cursor: default; }
+
 .chat-input { flex: 1; border: none; background: transparent; padding: 6px; outline: none; font-size: 12px; font-family: inherit; }
+
 .send-btn {
   padding: 6px 12px; background: var(--purple); color: #fff; border: none; border-radius: 6px;
   font-size: 14px; cursor: pointer; transition: opacity .2s;
 }
-.send-btn:disabled { opacity: .4; cursor: default; }
 
-.session-panel {
-  background: #f8fafc;
-  border-left: 1px solid var(--border);
-  padding: 16px 12px;
-  font-size: 10px;
-  overflow-y: auto;
-  min-height: 0;
-}
-.panel-title { font-weight: 700; font-size: 11px; margin-bottom: 12px; }
-.panel-title-sm { font-weight: 600; margin-bottom: 6px; font-size: 10px; }
-.trace-header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.trace-refresh-btn {
-  border: 1px solid var(--border); background: #fff; border-radius: 4px;
-  font-size: 9px; padding: 2px 6px; cursor: pointer; color: var(--text-muted);
-}
-.trace-refresh-btn:disabled { opacity: .5; cursor: default; }
-.trace-refresh-btn:not(:disabled):hover { background: var(--light); }
-.panel-section { margin-bottom: 10px; }
-.panel-section.compact { margin-bottom: 6px; }
-.career-profile-panel { margin-bottom: 4px; }
-.panel-label { font-weight: 600; margin-bottom: 2px; }
-.panel-value { color: var(--slate); word-break: break-all; }
-.panel-divider { border-top: 1px solid var(--border); margin: 10px 0; }
-.status-card {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-bottom: 8px;
-}
-.status-card-head {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 4px;
-}
-.status-icon { font-size: 11px; line-height: 1; }
-.status-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-.status-card-body {
-  font-size: 11px;
-  color: var(--slate);
-  line-height: 1.5;
-  word-break: break-word;
-}
-.match-score {
-  margin-left: 4px;
-  font-weight: 600;
-}
-.match-level-badge {
-  display: inline-block;
-  margin-left: 4px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 9px;
-  font-weight: 700;
-  color: #fff;
-  vertical-align: middle;
-}
-.status-task-list { margin-top: 2px; }
-.status-task-item {
-  font-size: 10px;
-  color: var(--slate);
-  line-height: 1.5;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.dev-panel-toggle {
-  font-weight: 600;
-  font-size: 10px;
-  margin-bottom: 6px;
-  cursor: pointer;
-  user-select: none;
-  color: var(--text-muted);
-}
-.dev-panel-content { margin-top: 4px; }
-.session-history-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  border: 1px solid var(--border);
-  background: #fff;
-  border-radius: 6px;
-  padding: 6px 8px;
-  margin-bottom: 6px;
-  cursor: pointer;
-  font-family: inherit;
-}
-.session-history-item:hover { background: var(--light); }
-.session-history-item.active {
-  border-color: var(--purple);
-  background: #f5f3ff;
-}
-.session-history-title {
-  font-weight: 600;
-  font-size: 10px;
-  color: var(--slate);
-  line-height: 1.4;
-  word-break: break-word;
-}
-.session-history-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 4px;
-  margin-top: 2px;
-  font-size: 9px;
-  color: var(--text-muted);
-}
-.tool-log { color: var(--text-muted); padding: 2px 0; line-height: 1.4; }
+.send-btn:disabled { opacity: .4; cursor: default; }
 
 @media (max-width: 768px) {
   .chat-page {
@@ -1423,10 +1313,6 @@ onBeforeUnmount(() => {
     overflow: hidden;
   }
 
-  .session-panel {
-    display: none;
-  }
-
   .input-area {
     flex-shrink: 0;
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
@@ -1434,15 +1320,6 @@ onBeforeUnmount(() => {
 
   .msg-bubble {
     max-width: 88%;
-  }
-
-  .suggestions {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  .suggestions::-webkit-scrollbar {
-    display: none;
   }
 
   .chat-input {
@@ -1458,14 +1335,6 @@ onBeforeUnmount(() => {
     justify-content: center;
   }
 
-  .mic-btn {
-    min-height: 44px;
-    min-width: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
   .input-row {
     min-height: 44px;
   }
@@ -1473,6 +1342,14 @@ onBeforeUnmount(() => {
   .header-action {
     min-height: 44px;
     flex-shrink: 0;
+  }
+
+  .hamburger-btn {
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .header-left {
@@ -1509,19 +1386,6 @@ onBeforeUnmount(() => {
   .msg-bubble {
     max-width: 90%;
     font-size: 13px;
-  }
-
-  .panel-value {
-    word-break: break-all;
-    overflow-wrap: anywhere;
-  }
-
-  .trace-header {
-    flex-wrap: wrap;
-  }
-
-  .trace-refresh-btn {
-    min-height: 32px;
   }
 }
 </style>

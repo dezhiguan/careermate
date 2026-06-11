@@ -19,6 +19,9 @@ function redirectToLogin() {
 }
 
 function getAuthHeaders(extraHeaders = {}) {
+  if (SKIP_AUTH) {
+    return { ...extraHeaders }
+  }
   const token = localStorage.getItem(TOKEN_KEY)
   return {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),

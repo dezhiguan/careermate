@@ -15,7 +15,7 @@ import java.util.Set;
 public class ResumeSpecialistAgent {
 
     private static final Set<String> RESUME_TOOLS =
-        Set.of("get_default_resume", "search_knowledge_base");
+        Set.of("get_default_resume", "search_knowledge_base", "generate_resume_from_jd");
 
     private final AgentToolExecutionService toolExecutionService;
 
@@ -34,10 +34,26 @@ public class ResumeSpecialistAgent {
     }
 
     private String pickTool(String message) {
-        if (message != null && (message.contains("搜索") || message.contains("推荐")
-                || message.contains("建议") || message.contains("知识库"))) {
-            return "search_knowledge_base";
+        if (message != null) {
+            String lower = message.toLowerCase();
+            if (containsAny(lower, "生成简历", "重写简历", "改简历", "优化简历", "按jd", "按 jd",
+                    "pdf简历", "pdf 简历", "下载pdf", "下载 pdf", "帮我改", "定制简历")) {
+                return "generate_resume_from_jd";
+            }
+            if (message.contains("搜索") || message.contains("推荐")
+                    || message.contains("建议") || message.contains("知识库")) {
+                return "search_knowledge_base";
+            }
         }
         return "get_default_resume";
+    }
+
+    private static boolean containsAny(String text, String... keywords) {
+        for (String keyword : keywords) {
+            if (text.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

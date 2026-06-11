@@ -24,7 +24,8 @@ public class AgentLlmIntentRecognizer {
     private static final Set<String> KNOWN_TOOLS = Set.of(
         "get_default_resume", "get_latest_job_match", "create_job_match",
         "create_interview_session", "get_dashboard_overview", "get_career_tasks",
-        "create_career_task", "mark_career_task_done", "search_knowledge_base"
+        "create_career_task", "mark_career_task_done", "search_knowledge_base",
+        "generate_resume_from_jd"
     );
 
     private static final Pattern JSON_BLOCK = Pattern.compile("\\{[\\s\\S]*\\}");
@@ -44,6 +45,7 @@ public class AgentLlmIntentRecognizer {
         - create_career_task：用户想创建/添加任务或提醒。args 必须含 title(string)
         - mark_career_task_done：用户说某件事完成了或要标记任务完成。args 必须含 titleKeyword(string)
         - search_knowledge_base：用户想搜索行业 JD 参考、类似岗位、知识库
+        - generate_resume_from_jd：用户在 JD 准备空间要求按 JD 生成/重写/优化简历，或要求 PDF 简历（先生成 Markdown 版本，再引导用户点卡片「下载 PDF」）
 
         如果用户消息是普通对话、问答，不需要调用工具，toolName 输出 null。
 

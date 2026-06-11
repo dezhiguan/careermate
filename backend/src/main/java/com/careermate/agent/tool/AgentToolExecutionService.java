@@ -37,6 +37,7 @@ public class AgentToolExecutionService {
             case "get_career_tasks" -> "正在读取求职任务";
             case "create_career_task" -> "正在创建求职任务";
             case "mark_career_task_done" -> "正在完成任务";
+            case "generate_resume_from_jd" -> "正在按 JD 生成定制简历";
             default -> "正在执行 " + toolName;
         };
     }

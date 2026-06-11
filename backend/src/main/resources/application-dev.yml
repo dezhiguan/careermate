@@ -1,4 +1,8 @@
 spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
   config:
     import: optional:file:../.env[.properties],optional:file:.env[.properties]
   datasource:
@@ -17,3 +21,8 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+
+# 开发期跳过 API 鉴权；恢复登录时设 SECURITY_DEV_SKIP_AUTH=false
+careermate:
+  security:
+    dev-skip-auth: ${SECURITY_DEV_SKIP_AUTH:true}

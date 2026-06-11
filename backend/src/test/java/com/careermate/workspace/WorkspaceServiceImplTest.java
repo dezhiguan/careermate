@@ -1,0 +1,131 @@
+package com.careermate.workspace;
+
+import com.careermate.common.exception.BizException;
+import com.careermate.model.entity.AgentMessageEntity;
+import com.careermate.model.entity.AgentSessionEntity;
+import com.careermate.resume.version.dto.ResumeVersionListItemVO;
+import com.careermate.resume.version.service.ResumeVersionService;
+import com.careermate.workspace.dto.ActionAckResponse;
+import com.careermate.workspace.dto.MessageVO;
+import com.careermate.workspace.dto.WorkspaceVO;
+import com.careermate.workspace.service.impl.WorkspaceServiceImpl;
+import com.careermate.workspace.support.WorkspaceSessionRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class WorkspaceServiceImplTest {
+
+    @Mock
+    private WorkspaceSessionRepository workspaceSessionRepository;
+    @Mock
+    private ResumeVersionService resumeVersionService;
+
+    private WorkspaceServiceImpl service;
+
+    @BeforeEach
+    void setUp() {
+        service = new WorkspaceServiceImpl(workspaceSessionRepository, resumeVersionService, new ObjectMapper());
+    }
+
+    @Test
+    void getWorkspaceReturnsJdSnapshot() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        session.setJdSnapshot("{\"company\":\"腾讯\",\"title\":\"算法工程师\"}");
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        when(resumeVersionService.listBySession(1L, "WS-abc")).thenReturn(List.of());
+
+        WorkspaceVO vo = service.getWorkspace(1L, "WS-abc");
+
+        assertEquals("腾讯", vo.jdSnapshot().get("company"));
+        assertEquals("算法工程师", vo.jdSnapshot().get("title"));
+    }
+
+    @Test
+    void getMessagesOrderedBySequenceNo() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        AgentMessageEntity m1 = message(1L, 1, "assistant", "hello");
+        AgentMessageEntity m2 = message(2L, 2, "user", "hi");
+        when(workspaceSessionRepository.listMessages(10L, 1L, null, 50)).thenReturn(List.of(m1, m2));
+
+        List<MessageVO> messages = service.getMessages(1L, "WS-abc", null, 50);
+
+        assertEquals(2, messages.size());
+        assertEquals(1, messages.get(0).sequenceNo());
+        assertEquals(2, messages.get(1).sequenceNo());
+    }
+
+    @Test
+    void getMessagesAfterParameterApplied() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        when(workspaceSessionRepository.listMessages(10L, 1L, 3, 50)).thenReturn(List.of());
+
+        service.getMessages(1L, "WS-abc", 3, 50);
+
+        verify(workspaceSessionRepository).listMessages(10L, 1L, 3, 50);
+    }
+
+    @Test
+    void actionGenerateResumeReturnsSseEndpoint() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+
+        ActionAckResponse ack = service.handleAction(1L, "WS-abc", "GENERATE_RESUME", "doc-1");
+
+        assertFalse(ack.noop());
+        assertNotNull(ack.sseEndpoint());
+        assertTrue(ack.sseEndpoint().contains("/api/workspace/WS-abc/generate-resume/stream"));
+    }
+
+    @Test
+    void tenantIsolationForbiddenForOtherUser() {
+        when(workspaceSessionRepository.requireSession(2L, "WS-abc"))
+                .thenThrow(new BizException(403, "无权访问该工作空间"));
+
+        assertThrows(BizException.class, () -> service.getWorkspace(2L, "WS-abc"));
+    }
+
+    private static AgentSessionEntity baseSession(Long id, Long userId) {
+        AgentSessionEntity session = new AgentSessionEntity();
+        session.setId(id);
+        session.setUserId(userId);
+        session.setSessionId("WS-abc");
+        session.setWorkspaceType("JD_PREP");
+        session.setTitle("腾讯 算法工程师");
+        session.setJdId("doc-1");
+        session.setCreatedAt(OffsetDateTime.now());
+        session.setUpdatedAt(OffsetDateTime.now());
+        return session;
+    }
+
+    private static AgentMessageEntity message(Long id, int seq, String role, String content) {
+        AgentMessageEntity entity = new AgentMessageEntity();
+        entity.setId(id);
+        entity.setSequenceNo(seq);
+        entity.setRole(role);
+        entity.setContent(content);
+        entity.setMessageType("TEXT");
+        entity.setCreatedAt(OffsetDateTime.now());
+        return entity;
+    }
+}
