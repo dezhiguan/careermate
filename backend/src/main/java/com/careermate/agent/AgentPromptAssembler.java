@@ -152,4 +152,46 @@ public final class AgentPromptAssembler {
         return (systemPrompt == null ? "" : systemPrompt)
             + "\n\n" + trace.toContextText();
     }
+
+    /**
+     * 当会话为 JD 准备空间时，向系统提示注入工作空间上下文，
+     * 让 AI 知道 JD 已加载、可直接调用 generate_resume_from_jd 工具。
+     */
+    public static String appendWorkspaceContext(String systemPrompt,
+            String workspaceType, String jdId, String jdSnapshot) {
+        if (!"JD_PREP".equals(workspaceType) || jdId == null || jdId.isBlank()) {
+            return systemPrompt;
+        }
+        StringBuilder sb = new StringBuilder(systemPrompt == null ? "" : systemPrompt);
+        sb.append("\n\n【当前工作空间】");
+        sb.append("\n类型：JD 准备空间（generate_resume_from_jd 工具在此空间可用）");
+        sb.append("\n目标 JD ID：").append(jdId);
+        if (jdSnapshot != null && !jdSnapshot.isBlank()) {
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper =
+                        new com.fasterxml.jackson.databind.ObjectMapper();
+                java.util.Map<?, ?> snap = mapper.readValue(jdSnapshot, java.util.Map.class);
+                Object company = snap.get("company");
+                Object title = snap.get("title");
+                if (company != null || title != null) {
+                    sb.append("\n目标岗位：");
+                    if (company != null && !company.toString().isBlank()) {
+                        sb.append(company);
+                    }
+                    if (company != null && title != null) {
+                        sb.append(" · ");
+                    }
+                    if (title != null && !title.toString().isBlank()) {
+                        sb.append(title);
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        sb.append("\n\n【工具调用规则 - JD 空间】");
+        sb.append("\n- 用户要求生成简历、定制简历、写简历时：直接调用 generate_resume_from_jd，");
+        sb.append("不要要求用户再提供 JD，JD 已在工作空间中加载");
+        sb.append("\n- 生成成功后对话卡片会出现「下载 PDF」按钮，告知用户点击下载");
+        return sb.toString();
+    }
 }

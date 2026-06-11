@@ -64,6 +64,14 @@ public class WorkspaceSessionRepository {
         return session;
     }
 
+    public AgentSessionEntity getSessionIfExists(Long userId, String sessionId) {
+        try {
+            return requireSession(userId, sessionId);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     @Transactional
     public AgentSessionEntity createJdPrepSession(
             Long userId,

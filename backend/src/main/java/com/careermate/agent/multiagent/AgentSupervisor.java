@@ -82,6 +82,9 @@ public class AgentSupervisor {
         if (m.contains("简历") || m.contains("resume") || m.contains("经历") || m.contains("项目经验")) {
             return AgentDomain.RESUME;
         }
+        if (m.contains("pdf") && (m.contains("生成") || m.contains("下载") || m.contains("导出"))) {
+            return AgentDomain.RESUME;
+        }
         return AgentDomain.GENERAL;
     }
 }

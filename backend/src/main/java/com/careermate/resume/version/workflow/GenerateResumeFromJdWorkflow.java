@@ -73,7 +73,7 @@ public class GenerateResumeFromJdWorkflow {
 
     public void generate(Long userId, String sessionId, String jdId, SseEmitterService sseEmitterService) {
         try {
-            doGenerate(userId, sessionId, jdId, sseEmitterService);
+            Map<String, Object> card = doGenerate(userId, sessionId, jdId, sseEmitterService);
         } catch (BizException e) {
             log.warn("generate resume failed: sessionId={}, code={}, msg={}", sessionId, e.getCode(), e.getMessage());
             pushError(sseEmitterService, sessionId, e.getMessage());
@@ -87,7 +87,15 @@ public class GenerateResumeFromJdWorkflow {
         }
     }
 
-    protected void doGenerate(Long userId, String sessionId, String jdId, SseEmitterService sseEmitterService) {
+    /**
+     * 不通过 SSE 推送、仅生成并落库，返回供调用方广播的卡片 Map。
+     * 由 GenerateResumeFromJdTool 调用（工具调用场景，SSE 生命周期由 Agent 流管理）。
+     */
+    public Map<String, Object> generateAndReturnCard(Long userId, String sessionId, String jdId) {
+        return doGenerate(userId, sessionId, jdId, null);
+    }
+
+    protected Map<String, Object> doGenerate(Long userId, String sessionId, String jdId, SseEmitterService sseEmitterService) {
         AgentSessionEntity session = workspaceSessionRepository.requireSession(userId, sessionId);
         if (jdId == null || jdId.isBlank()) {
             throw new BizException(400, "缺少目标 JD");
@@ -101,8 +109,8 @@ public class GenerateResumeFromJdWorkflow {
             throw new BizException(400, "请先上传简历");
         }
 
-        String jdContent = fetchJdContent(jdId);
         Map<String, Object> snapshot = parseSnapshot(session.getJdSnapshot());
+        String jdContent = fetchJdContent(jdId, snapshot);
         String company = stringValue(snapshot.get("company"));
         String title = stringValue(snapshot.get("title"));
         String versionName = buildVersionName(company, title);
@@ -182,24 +190,43 @@ public class GenerateResumeFromJdWorkflow {
             sseEmitterService.send(sessionId, SseEventType.DONE, Map.of("versionId", saved.versionId()));
             sseEmitterService.complete(sessionId);
         }
+        return card;
     }
 
-    private String fetchJdContent(String jdId) {
+    private String fetchJdContent(String jdId, Map<String, Object> jdSnapshot) {
         Long docId = parseDocId(jdId);
+
+        List<RagForgeChunk> direct = ragForgeClient.fetchDocumentChunks(docId);
+        if (!direct.isEmpty()) {
+            return mergeChunkContent(direct);
+        }
+
         List<RagForgeChunk> chunks = ragForgeClient.searchJd("工程师", JD_SEARCH_TOP_K);
-        List<RagForgeChunk> filtered = chunks.stream()
-                .filter(c -> docId.equals(c.docId()))
-                .toList();
+        List<RagForgeChunk> filtered = filterByDocId(chunks, docId);
         if (filtered.isEmpty()) {
             chunks = ragForgeClient.searchJd("Java 后端", JD_SEARCH_TOP_K);
-            filtered = chunks.stream()
-                    .filter(c -> docId.equals(c.docId()))
-                    .toList();
+            filtered = filterByDocId(chunks, docId);
         }
-        if (filtered.isEmpty()) {
-            throw new BizException(404, "JD 不存在或已下架");
+        if (!filtered.isEmpty()) {
+            return mergeChunkContent(filtered);
         }
-        return filtered.stream()
+
+        String cached = stringValue(jdSnapshot.get("jdContent"));
+        if (!cached.isBlank()) {
+            return cached;
+        }
+
+        throw new BizException(404, "JD 不存在或已下架");
+    }
+
+    private static List<RagForgeChunk> filterByDocId(List<RagForgeChunk> chunks, Long docId) {
+        return chunks.stream()
+                .filter(c -> docId.equals(c.docId()))
+                .toList();
+    }
+
+    private static String mergeChunkContent(List<RagForgeChunk> chunks) {
+        return chunks.stream()
                 .sorted(Comparator.comparing(RagForgeChunk::chunkId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(RagForgeChunk::content)
                 .filter(c -> c != null && !c.isBlank())

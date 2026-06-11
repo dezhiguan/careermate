@@ -838,6 +838,19 @@ async function sendMessage() {
         }
       },
       onTrace() {},
+      onCard(card) {
+        messages.value.push({
+          id: `m_card_${Date.now()}`,
+          role: 'agent',
+          text: '',
+          card,
+          messageType: 'CARD',
+          streaming: false,
+          error: '',
+          toolCalls: [],
+        })
+        scrollBottom()
+      },
       onToken(data) {
         const token = data?.content || ''
         agentMessage.text += token

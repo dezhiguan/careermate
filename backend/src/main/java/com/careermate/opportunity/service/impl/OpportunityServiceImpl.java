@@ -211,7 +211,8 @@ public class OpportunityServiceImpl implements OpportunityService {
         List<OpportunityListItemVO> converted = converter.convert(chunks);
         OpportunityListItemVO jdMeta = converted.get(0);
         String title = buildWorkspaceTitle(jdMeta.company(), jdMeta.title());
-        String jdSnapshotJson = buildJdSnapshotJson(jdMeta);
+        String jdContent = mergeChunkContent(chunks);
+        String jdSnapshotJson = buildJdSnapshotJson(jdMeta, jdContent);
 
         AgentSessionEntity session = workspaceSessionRepository.createJdPrepSession(
                 userId, docIdStr, jdSnapshotJson, title
@@ -243,7 +244,7 @@ public class OpportunityServiceImpl implements OpportunityService {
         return "JD 准备空间";
     }
 
-    private String buildJdSnapshotJson(OpportunityListItemVO jdMeta) {
+    private String buildJdSnapshotJson(OpportunityListItemVO jdMeta, String jdContent) {
         try {
             Map<String, Object> snapshot = new LinkedHashMap<>();
             snapshot.put("company", jdMeta.company());
@@ -252,6 +253,9 @@ public class OpportunityServiceImpl implements OpportunityService {
             snapshot.put("experienceRange", jdMeta.experienceRange());
             snapshot.put("education", jdMeta.education());
             snapshot.put("skills", jdMeta.skills() == null ? List.of() : jdMeta.skills());
+            if (jdContent != null && !jdContent.isBlank()) {
+                snapshot.put("jdContent", jdContent);
+            }
             return objectMapper.writeValueAsString(snapshot);
         } catch (Exception e) {
             log.warn("build jd snapshot failed: {}", e.getMessage());

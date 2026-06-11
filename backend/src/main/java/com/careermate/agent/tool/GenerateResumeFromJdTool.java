@@ -1,5 +1,7 @@
 package com.careermate.agent.tool;
 
+import com.careermate.agent.sse.SseEmitterService;
+import com.careermate.agent.sse.SseEventType;
 import com.careermate.model.entity.AgentSessionEntity;
 import com.careermate.resume.version.workflow.GenerateResumeFromJdWorkflow;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
@@ -15,13 +17,16 @@ public class GenerateResumeFromJdTool implements AgentTool {
 
     private final GenerateResumeFromJdWorkflow generateResumeFromJdWorkflow;
     private final WorkspaceSessionRepository workspaceSessionRepository;
+    private final SseEmitterService sseEmitterService;
 
     public GenerateResumeFromJdTool(
             GenerateResumeFromJdWorkflow generateResumeFromJdWorkflow,
-            WorkspaceSessionRepository workspaceSessionRepository
+            WorkspaceSessionRepository workspaceSessionRepository,
+            SseEmitterService sseEmitterService
     ) {
         this.generateResumeFromJdWorkflow = generateResumeFromJdWorkflow;
         this.workspaceSessionRepository = workspaceSessionRepository;
+        this.sseEmitterService = sseEmitterService;
     }
 
     @Override
@@ -60,7 +65,15 @@ public class GenerateResumeFromJdTool implements AgentTool {
                     context.getUserId(), sessionId
             );
             String targetJdId = jdId != null && !jdId.isBlank() ? jdId : session.getJdId();
-            generateResumeFromJdWorkflow.generate(context.getUserId(), sessionId, targetJdId, null);
+            Map<String, Object> card = generateResumeFromJdWorkflow.generateAndReturnCard(
+                    context.getUserId(), sessionId, targetJdId);
+            if (card != null) {
+                try {
+                    sseEmitterService.send(sessionId, SseEventType.UI_ACTION, Map.of("card", card));
+                } catch (Exception ignored) {
+                    // 推送失败不影响工具结果，前端重载历史消息时仍能看到卡片
+                }
+            }
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("sessionId", sessionId);
             data.put("jdId", targetJdId);

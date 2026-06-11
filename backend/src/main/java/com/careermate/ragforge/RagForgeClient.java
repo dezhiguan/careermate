@@ -54,6 +54,58 @@ public class RagForgeClient {
     }
 
     /**
+     * 按 docId 直接拉取文档分块（比 hybrid search 更可靠，用于按 JD 生成简历）。
+     * enabled=false → 返回空列表；任何异常 → log.warn + 返回空列表。
+     */
+    public List<RagForgeChunk> fetchDocumentChunks(Long docId) {
+        if (!properties.isEnabled() || docId == null || docId <= 0) {
+            return List.of();
+        }
+        try {
+            List<RagForgeChunk> all = new ArrayList<>();
+            int page = 1;
+            int size = 100;
+            while (true) {
+                String responseBody = restClient.get()
+                        .uri("/api/v1/documents/{id}/chunks?page={page}&size={size}", docId, page, size)
+                        .retrieve()
+                        .body(String.class);
+                if (responseBody == null || responseBody.isBlank()) {
+                    break;
+                }
+                JsonNode root = objectMapper.readTree(responseBody);
+                if (!isSuccessCode(root.path("code").asInt(-1))) {
+                    log.warn("RAGForge fetchDocumentChunks 返回失败: docId={} body={}", docId, responseBody);
+                    break;
+                }
+                JsonNode list = root.path("data").path("list");
+                if (!list.isArray() || list.isEmpty()) {
+                    break;
+                }
+                for (JsonNode node : list) {
+                    all.add(new RagForgeChunk(
+                            node.path("chunkIndex").isNumber() ? node.path("chunkIndex").asLong() : null,
+                            docId,
+                            null,
+                            node.path("content").asText(""),
+                            null,
+                            null
+                    ));
+                }
+                long total = root.path("data").path("total").asLong(all.size());
+                if ((long) page * size >= total) {
+                    break;
+                }
+                page++;
+            }
+            return all;
+        } catch (Exception e) {
+            log.warn("RAGForge fetchDocumentChunks 失败（已降级）: docId={} err={}", docId, e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
      * 在 JD KB 中搜索；enabled=false 或 jdKbId 为空 → 返回空列表。
      * 任何异常 → log.warn + 返回空列表，不抛出。
      */

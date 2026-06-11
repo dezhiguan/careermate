@@ -38,9 +38,11 @@ import com.careermate.llm.dto.ChatMessage;
 import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
 import com.careermate.llm.LlmProperties;
+import com.careermate.model.entity.AgentSessionEntity;
 import com.careermate.observability.AgentTracing;
 import com.careermate.observability.MdcKeys;
 import com.careermate.security.CurrentUserContext;
+import com.careermate.workspace.support.WorkspaceSessionRepository;
 import jakarta.validation.Valid;
 import org.slf4j.MDC;
 import lombok.extern.slf4j.Slf4j;
@@ -86,6 +88,7 @@ public class AgentStreamController {
     private final LlmProperties llmProperties;
     private final AgentSupervisor agentSupervisor;
     private final com.careermate.agent.react.ReActEngine reactEngine;
+    private final WorkspaceSessionRepository workspaceSessionRepository;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -111,7 +114,8 @@ public class AgentStreamController {
             AgentTracing agentTracing,
             LlmProperties llmProperties,
             AgentSupervisor agentSupervisor,
-            com.careermate.agent.react.ReActEngine reactEngine
+            com.careermate.agent.react.ReActEngine reactEngine,
+            WorkspaceSessionRepository workspaceSessionRepository
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -131,6 +135,7 @@ public class AgentStreamController {
         this.llmProperties = llmProperties;
         this.agentSupervisor = agentSupervisor;
         this.reactEngine = reactEngine;
+        this.workspaceSessionRepository = workspaceSessionRepository;
     }
 
     @PostMapping("/sessions")
@@ -306,6 +311,20 @@ public class AgentStreamController {
             systemPrompt = AgentPromptAssembler.appendResumeContext(systemPrompt, resumeContext);
             systemPrompt = AgentPromptAssembler.appendJobMatchContext(systemPrompt, jobMatchContext);
             systemPrompt = AgentPromptAssembler.appendConversationContext(systemPrompt, conversationContext);
+
+            try {
+                AgentSessionEntity wsSession = workspaceSessionRepository.getSessionIfExists(userId, sessionId);
+                if (wsSession != null) {
+                    systemPrompt = AgentPromptAssembler.appendWorkspaceContext(
+                            systemPrompt,
+                            wsSession.getWorkspaceType(),
+                            wsSession.getJdId(),
+                            wsSession.getJdSnapshot()
+                    );
+                }
+            } catch (Exception ignored) {
+                // 工作空间上下文加载失败不中断主流程
+            }
 
             phaseStart = System.currentTimeMillis();
             // Multi-Agent：Supervisor 派发给专家 Agent，专家结果注入 system prompt

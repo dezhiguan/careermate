@@ -159,6 +159,13 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
           case 'trace':
             handlers.onTrace?.(payload)
             break
+          case 'ui_action': {
+            const card = payload?.card || payload
+            if (card && typeof card === 'object') {
+              handlers.onCard?.(card)
+            }
+            break
+          }
           default:
             break
         }
