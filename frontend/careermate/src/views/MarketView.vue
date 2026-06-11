@@ -19,9 +19,16 @@
 
     <div class="market-content">
       <section class="card positioning-card">
-        <div class="pos-label">你的简历定位 · 约 P63</div>
-        <div class="pos-value">32K</div>
-        <div class="pos-sub">超过 63% 同行</div>
+        <template v-if="salaryLoading">
+          <div class="skeleton-line" style="width:60%;height:11px" />
+          <div class="skeleton-line" style="width:40%;height:30px;margin:6px 0" />
+          <div class="skeleton-line" style="width:50%;height:11px" />
+        </template>
+        <template v-else>
+          <div class="pos-label">市场薪资中位 · P50</div>
+          <div class="pos-value">{{ salaryData?.p50 || '28K' }}</div>
+          <div class="pos-sub">P25: {{ salaryData?.p25 || '20K' }} · P75: {{ salaryData?.p75 || '38K' }}</div>
+        </template>
       </section>
 
       <section class="card offer-card">
@@ -51,11 +58,10 @@
           </div>
         </div>
         <div class="percentile-labels">
-          <span><b>P10</b><br>18K</span>
-          <span><b>P25</b><br>22K</span>
-          <span class="p50-text"><b>P50</b><br>28K</span>
-          <span><b>P75</b><br>38K</span>
-          <span><b>P90</b><br>50K</span>
+          <span><b>P25</b><br>{{ salaryData?.p25 || '22K' }}</span>
+          <span class="p50-text"><b>P50</b><br>{{ salaryData?.p50 || '28K' }}</span>
+          <span><b>P75</b><br>{{ salaryData?.p75 || '38K' }}</span>
+          <span><b>P90</b><br>{{ salaryData?.p90 || '50K' }}</span>
         </div>
       </section>
 
@@ -89,11 +95,13 @@
       </section>
 
       <section class="card advice-card">
-        <div class="advice-title">🎯 AI 决策建议</div>
-        <p class="advice-text">
-          <b>Offer 偏上</b>（P82）·<br>
-          base 难再涨，<b>建议谈签字费 / 股权加发 / 调薪条款</b>
-        </p>
+        <div class="advice-title">🎯 AI 薪资解读</div>
+        <template v-if="salaryLoading">
+          <div class="skeleton-line" style="width:90%;height:12px;margin-bottom:6px" />
+          <div class="skeleton-line" style="width:75%;height:12px" />
+        </template>
+        <p v-else class="advice-text">{{ salaryData?.aiSummary || '暂无数据' }}</p>
+        <p class="advice-disclaimer">基于 AI 分析，仅供参考</p>
       </section>
 
       <button type="button" class="salary-cta" @click="goToChat">
@@ -176,7 +184,53 @@
           </div>
         </div>
         <div class="invest-tip">
-          🎯 投资建议：你已命中 3 个高涨技能。下一个值得学：<b class="flink-link">Flink</b>（涨 22% + 学曲线平缓 + 数据中台 JD 必备）。
+          <template v-if="gapLoading">
+            <div class="skeleton-line" style="width:85%;height:12px" />
+          </template>
+          <template v-else-if="gapData?.topSuggestion">
+            🎯 {{ gapData.topSuggestion }}
+          </template>
+          <template v-else>
+            🎯 投资建议：你已命中 {{ gapData?.hasSkills?.length || 3 }} 个高频技能，继续完善技术栈。
+          </template>
+        </div>
+      </section>
+
+      <section class="card company-search-card">
+        <div class="section-title">目标公司情报</div>
+        <div class="company-search-row">
+          <input
+            v-model="companyInput"
+            class="company-search-input"
+            placeholder="输入公司名，如：腾讯、字节跳动"
+            @keydown.enter="searchCompany"
+          >
+          <button
+            type="button"
+            class="company-search-btn"
+            :disabled="companyLoading || !companyInput.trim()"
+            @click="searchCompany"
+          >
+            {{ companyLoading ? '查询中...' : '查询' }}
+          </button>
+        </div>
+
+        <div v-if="companyLoading" class="company-result">
+          <div class="skeleton-line" style="width:60%;height:13px;margin-bottom:8px" />
+          <div class="skeleton-line" style="width:90%;height:11px;margin-bottom:6px" />
+          <div class="skeleton-line" style="width:75%;height:11px" />
+        </div>
+
+        <div v-else-if="companyData" class="company-result">
+          <div class="company-result-name">{{ companyData.companyName }}</div>
+          <div class="company-result-meta">{{ companyData.scale }} · {{ companyData.stage }}</div>
+          <div v-if="companyData.techStack?.length" class="company-tech-chips">
+            <span v-for="t in companyData.techStack" :key="t" class="tech-chip">{{ t }}</span>
+          </div>
+          <div v-if="companyData.currentJds?.length" class="company-jds">
+            在招：{{ companyData.currentJds.join(' · ') }}
+          </div>
+          <p class="company-summary">{{ companyData.aiSummary }}</p>
         </div>
       </section>
 
@@ -260,10 +314,51 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { getSalaryInsight, getSkillTrends, getResumeGap, getCompanyInsight } from '../api/market'
 
 const router = useRouter()
+
+const salaryLoading = ref(true)
+const skillsLoading = ref(true)
+const gapLoading = ref(true)
+const companyLoading = ref(false)
+
+const salaryData = ref(null)
+const skillsData = ref(null)
+const gapData = ref(null)
+const companyData = ref(null)
+
+const companyInput = ref('')
+
+onMounted(async () => {
+  await Promise.allSettled([
+    getSalaryInsight()
+      .then((r) => { salaryData.value = r })
+      .finally(() => { salaryLoading.value = false }),
+    getSkillTrends()
+      .then((r) => { skillsData.value = r })
+      .finally(() => { skillsLoading.value = false }),
+    getResumeGap()
+      .then((r) => { gapData.value = r })
+      .finally(() => { gapLoading.value = false }),
+  ])
+})
+
+async function searchCompany() {
+  const q = companyInput.value.trim()
+  if (!q) return
+  companyLoading.value = true
+  companyData.value = null
+  try {
+    companyData.value = await getCompanyInsight(q)
+  } catch (e) {
+    companyData.value = null
+  } finally {
+    companyLoading.value = false
+  }
+}
 
 const headerFilterOptions = ['广州', '3-5y', '大厂', '含股']
 const activeHeaderFilters = reactive({
@@ -293,14 +388,29 @@ const heatMonths = [
   { month: '6月', value: '1,247' },
 ]
 
-const skillRankings = [
-  { rank: 1, name: '大模型/RAG', owned: false, pct: 28, width: 92 },
-  { rank: 2, name: 'Flink流计算', owned: false, pct: 22, width: 78 },
-  { rank: 3, name: 'Redis集群', owned: true, pct: 18, width: 64 },
-  { rank: 4, name: 'K8s/云原生', owned: false, pct: 15, width: 54 },
-  { rank: 5, name: 'RocketMQ', owned: true, pct: 12, width: 42 },
-  { rank: 6, name: 'MySQL优化', owned: true, pct: 8, width: 28 },
-]
+const skillRankings = computed(() => {
+  if (!skillsData.value?.skills?.length) {
+    return [
+      { rank: 1, name: '大模型/RAG', owned: false, pct: 28, width: 92 },
+      { rank: 2, name: 'Flink 流计算', owned: false, pct: 22, width: 78 },
+      { rank: 3, name: 'Redis 集群', owned: true, pct: 18, width: 64 },
+      { rank: 4, name: 'K8s / 云原生', owned: false, pct: 15, width: 54 },
+      { rank: 5, name: 'RocketMQ', owned: true, pct: 12, width: 42 },
+      { rank: 6, name: 'MySQL 优化', owned: true, pct: 8, width: 28 },
+    ]
+  }
+  const hasSet = new Set((gapData.value?.hasSkills || []).map((s) => s.toLowerCase()))
+  const growthToPct = { 快涨: 28, 上涨: 15, 稳定: 8, 下降: 3 }
+  return skillsData.value.skills.map((s, i) => ({
+    rank: s.rank ?? i + 1,
+    name: s.name,
+    owned: hasSet.size > 0
+      ? hasSet.has(s.name.toLowerCase())
+      : i % 2 === 0,
+    pct: growthToPct[s.growth] ?? 10,
+    width: Math.max(20, 100 - (s.rank - 1) * 13),
+  }))
+})
 
 const companies = [
   {
@@ -1152,4 +1262,62 @@ function goToOpportunity() {
     grid-template-columns: 1fr;
   }
 }
+
+.skeleton-line {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 4px;
+  display: block;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.advice-disclaimer {
+  font-size: 10px;
+  color: #94a3b8;
+  margin: 6px 0 0;
+}
+.company-search-card {
+  margin-bottom: 12px;
+}
+.company-search-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.company-search-input {
+  flex: 1;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+}
+.company-search-btn {
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.company-search-btn:disabled { opacity: .5; cursor: not-allowed; }
+.company-result { margin-top: 12px; }
+.company-result-name { font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+.company-result-meta { font-size: 11px; color: #64748b; margin-bottom: 8px; }
+.company-tech-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.tech-chip {
+  background: #eef2ff;
+  color: #4338ca;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.company-jds { font-size: 11px; color: #334155; margin-bottom: 6px; }
+.company-summary { font-size: 12px; color: #475569; line-height: 1.6; margin: 0; }
 </style>
