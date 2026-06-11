@@ -12,6 +12,8 @@ import lombok.NoArgsConstructor;
 public class CurrentUserResponse {
     private Long userId;
     private String username;
+    private String displayName;
+    private String avatarUrl;
     private String role;
     private boolean authenticated;
 }

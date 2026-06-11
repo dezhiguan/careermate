@@ -4,10 +4,12 @@ import com.careermate.auth.dto.AuthTokenResponse;
 import com.careermate.auth.dto.CurrentUserResponse;
 import com.careermate.auth.dto.LoginRequest;
 import com.careermate.auth.dto.RegisterRequest;
+import com.careermate.auth.dto.UpdateProfileRequest;
 import com.careermate.common.api.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,5 +37,10 @@ public class AuthController {
     @GetMapping("/me")
     public ApiResponse<CurrentUserResponse> me() {
         return ApiResponse.success(authService.currentUser());
+    }
+
+    @PutMapping("/me")
+    public ApiResponse<CurrentUserResponse> updateProfile(@RequestBody @Valid UpdateProfileRequest request) {
+        return ApiResponse.success(authService.updateProfile(request));
     }
 }

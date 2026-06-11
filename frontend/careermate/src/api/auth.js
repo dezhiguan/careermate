@@ -19,3 +19,10 @@ export function getCurrentUser() {
     method: 'GET',
   })
 }
+
+export function updateProfile(payload) {
+  return request('/auth/me', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}

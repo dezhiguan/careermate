@@ -1,0 +1,7 @@
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS display_name VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
+UPDATE users
+SET display_name = username
+WHERE display_name IS NULL OR display_name = '';

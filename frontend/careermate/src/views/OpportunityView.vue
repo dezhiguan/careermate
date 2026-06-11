@@ -9,22 +9,17 @@
           </p>
         </div>
       </div>
-      <div class="filter-row">
+      <div class="search-row">
         <input
           v-model="searchInput"
           class="search-input"
           type="search"
           placeholder="搜索：Redis / Java / 算法..."
-          @input="onSearchInput"
+          @keydown.enter="handleSearch"
         />
-        <select v-model="filterCity" class="filter-select">
-          <option value="">全部城市</option>
-          <option v-for="city in cityOptions" :key="city" :value="city">{{ city }}</option>
-        </select>
-        <select v-model="filterPosition" class="filter-select">
-          <option value="">全部岗位</option>
-          <option v-for="pos in positionOptions" :key="pos" :value="pos">{{ pos }}</option>
-        </select>
+        <button type="button" class="search-btn" :disabled="loading" @click="handleSearch">
+          {{ loading ? '搜索中...' : '搜索' }}
+        </button>
       </div>
     </header>
 
@@ -42,13 +37,13 @@
       </div>
     </div>
 
-    <div v-else-if="filteredItems.length === 0" class="empty-state">
+    <div v-else-if="items.length === 0" class="empty-state">
       暂无机会 · 换个关键词试试
     </div>
 
     <div v-else class="card-list">
       <article
-        v-for="(item, index) in filteredItems"
+        v-for="(item, index) in items"
         :key="item.jdId"
         class="jd-card"
         :class="{ 'jd-card-high': item.matchTier === 'HIGH' }"
@@ -114,57 +109,21 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listOpportunities, prepareWithAi } from '../api/opportunity'
 
 const router = useRouter()
 
 const searchInput = ref('')
-const keyword = ref('')
-const filterCity = ref('')
-const filterPosition = ref('')
 const items = ref([])
 const hasResume = ref(false)
 const loading = ref(true)
 const error = ref('')
 const preparingId = ref('')
 
-let debounceTimer = null
-
-const cityOptions = computed(() => {
-  const set = new Set()
-  items.value.forEach((item) => {
-    if (item.city) set.add(item.city)
-  })
-  return [...set]
-})
-
-const positionOptions = computed(() => {
-  const set = new Set()
-  items.value.forEach((item) => {
-    if (item.title) set.add(item.title)
-  })
-  return [...set]
-})
-
-const filteredItems = computed(() => {
-  let list = items.value.slice(0, 10)
-  if (filterCity.value) {
-    list = list.filter((item) => item.city === filterCity.value)
-  }
-  if (filterPosition.value) {
-    list = list.filter((item) => item.title === filterPosition.value)
-  }
-  return list
-})
-
-function onSearchInput() {
-  clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => {
-    keyword.value = searchInput.value.trim()
-    fetchList()
-  }, 300)
+function handleSearch() {
+  fetchList()
 }
 
 async function fetchList() {
@@ -172,7 +131,7 @@ async function fetchList() {
   error.value = ''
   try {
     const data = await listOpportunities({
-      keyword: keyword.value || undefined,
+      keyword: searchInput.value.trim() || undefined,
       page: 1,
       size: 10,
     })
@@ -254,16 +213,16 @@ onMounted(fetchList)
   color: #64748b;
 }
 
-.filter-row {
+.search-row {
   display: flex;
   gap: 8px;
   margin-top: 10px;
-  flex-wrap: wrap;
+  align-items: center;
 }
 
 .search-input {
   flex: 1;
-  min-width: 160px;
+  min-width: 0;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 8px 12px;
@@ -272,13 +231,22 @@ onMounted(fetchList)
   background: #fff;
 }
 
-.filter-select {
-  border: 1px solid #e2e8f0;
+.search-btn {
+  flex-shrink: 0;
+  border: 0;
+  background: #4f46e5;
+  color: #fff;
   border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 12px;
-  color: #334155;
-  background: #fff;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.search-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .resume-banner {

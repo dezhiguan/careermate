@@ -7,6 +7,7 @@ import com.careermate.auth.dto.AuthTokenResponse;
 import com.careermate.auth.dto.CurrentUserResponse;
 import com.careermate.auth.dto.LoginRequest;
 import com.careermate.auth.dto.RegisterRequest;
+import com.careermate.auth.dto.UpdateProfileRequest;
 import com.careermate.common.api.ErrorCode;
 import com.careermate.common.exception.BizException;
 import com.careermate.mapper.UserMapper;
@@ -65,6 +66,7 @@ public class AuthServiceImpl implements AuthService {
         user.setEmail(StringUtils.hasText(request.getEmail()) ? request.getEmail() : null);
         user.setRole("USER");
         user.setStatus("ACTIVE");
+        user.setDisplayName(request.getUsername());
         userMapper.insert(user);
 
         UserProfileEntity profile = new UserProfileEntity();
@@ -110,16 +112,67 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public CurrentUserResponse currentUser() {
+        UserEntity user = requireCurrentUserEntity();
+        return toCurrentUserResponse(user);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CurrentUserResponse updateProfile(UpdateProfileRequest request) {
+        UserEntity user = requireCurrentUserEntity();
+        user.setDisplayName(request.getDisplayName().trim());
+        if (request.getAvatarUrl() != null) {
+            String avatarUrl = request.getAvatarUrl().trim();
+            if (!avatarUrl.isEmpty() && !isValidAvatarDataUrl(avatarUrl)) {
+                throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "头像格式不支持");
+            }
+            user.setAvatarUrl(avatarUrl.isEmpty() ? null : avatarUrl);
+        }
+        userMapper.updateById(user);
+        auditService.recordSuccess(
+                user.getId(),
+                AuditActionType.PROFILE_UPDATE,
+                "USER",
+                String.valueOf(user.getId()),
+                "update profile displayName=" + user.getDisplayName()
+        );
+        return toCurrentUserResponse(user);
+    }
+
+    private UserEntity requireCurrentUserEntity() {
         CurrentUser currentUser = CurrentUserContext.get();
         if (currentUser == null || !currentUser.isAuthenticated()) {
             throw new BizException(ErrorCode.UNAUTHORIZED.getCode(), ErrorCode.UNAUTHORIZED.getMessage());
         }
+        UserEntity user = userMapper.selectById(currentUser.getUserId());
+        if (user == null) {
+            throw new BizException(ErrorCode.UNAUTHORIZED.getCode(), ErrorCode.UNAUTHORIZED.getMessage());
+        }
+        return user;
+    }
+
+    private CurrentUserResponse toCurrentUserResponse(UserEntity user) {
+        String displayName = StringUtils.hasText(user.getDisplayName()) ? user.getDisplayName() : user.getUsername();
         return CurrentUserResponse.builder()
-                .userId(currentUser.getUserId())
-                .username(currentUser.getUsername())
-                .role(currentUser.getRole())
-                .authenticated(currentUser.isAuthenticated())
+                .userId(user.getId())
+                .username(user.getUsername())
+                .displayName(displayName)
+                .avatarUrl(user.getAvatarUrl())
+                .role(user.getRole())
+                .authenticated(true)
                 .build();
+    }
+
+    private boolean isValidAvatarDataUrl(String avatarUrl) {
+        if (avatarUrl.length() > 600_000) {
+            return false;
+        }
+        String lower = avatarUrl.toLowerCase();
+        return lower.startsWith("data:image/jpeg;base64,")
+                || lower.startsWith("data:image/jpg;base64,")
+                || lower.startsWith("data:image/png;base64,")
+                || lower.startsWith("data:image/webp;base64,")
+                || lower.startsWith("data:image/gif;base64,");
     }
 
     private AuthTokenResponse buildTokenResponse(UserEntity user) {

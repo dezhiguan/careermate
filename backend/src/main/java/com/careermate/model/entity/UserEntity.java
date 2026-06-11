@@ -16,6 +16,10 @@ public class UserEntity {
 
     private String username;
 
+    private String displayName;
+
+    private String avatarUrl;
+
     private String passwordHash;
 
     private String email;

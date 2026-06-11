@@ -11,6 +11,8 @@ public interface ResumeVersionService {
 
     ResumeVersionVO getVersion(Long userId, String versionId);
 
+    ResumeVersionVO updateVersion(Long userId, String versionId, String versionName, String contentMarkdown);
+
     List<ResumeVersionListItemVO> listBySession(Long userId, String sessionId);
 
     ResumeVersionVO createVersion(

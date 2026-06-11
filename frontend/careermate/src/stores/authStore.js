@@ -1,5 +1,5 @@
 import { reactive, computed } from 'vue'
-import { getCurrentUser, login as loginApi, register as registerApi } from '../api/auth'
+import { getCurrentUser, login as loginApi, register as registerApi, updateProfile as updateProfileApi } from '../api/auth'
 import { TOKEN_KEY, USER_KEY } from '../api/http'
 
 const state = reactive({
@@ -94,6 +94,25 @@ function logout() {
   window.location.hash = '/login'
 }
 
+async function updateProfile(payload) {
+  const user = await updateProfileApi(payload)
+  persistUser({
+    ...state.currentUser,
+    ...user,
+    authenticated: true,
+  })
+  return user
+}
+
+function applyUserProfile(user) {
+  if (!user) return
+  persistUser({
+    ...state.currentUser,
+    ...user,
+    authenticated: state.currentUser?.authenticated ?? true,
+  })
+}
+
 const isAuthenticated = computed(() => !!state.currentUser?.authenticated)
 
 export const authStore = {
@@ -102,6 +121,8 @@ export const authStore = {
   login,
   register,
   logout,
+  updateProfile,
+  applyUserProfile,
   fetchCurrentUser,
   isAuthenticated: () => isAuthenticated.value,
 }

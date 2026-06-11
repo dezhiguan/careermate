@@ -8,5 +8,6 @@ public enum AuditActionType {
     DELETE_RESUME,
     CLEAR_MEMORY,
     EXPORT_PROFILE,
-    DELETE_SESSION
+    DELETE_SESSION,
+    PROFILE_UPDATE
 }

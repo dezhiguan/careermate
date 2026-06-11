@@ -9,6 +9,13 @@ export async function getVersion(versionId) {
   return request(`/resume-version/${encodeURIComponent(versionId)}`, { method: 'GET' })
 }
 
+export async function updateVersion(versionId, payload) {
+  return request(`/resume-version/${encodeURIComponent(versionId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
 /**
  * 下载简历版本 PDF，触发浏览器保存文件。
  * @param {string} versionId

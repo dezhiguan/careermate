@@ -78,6 +78,22 @@ class ResumeVersionServiceImplTest {
     }
 
     @Test
+    void updateVersionPersistsNameAndContent() {
+        ResumeVersionEntity entity = entity("v-1", LocalDateTime.now());
+        entity.setId(10L);
+        entity.setUserId(1L);
+        when(resumeVersionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
+
+        var updated = service.updateVersion(1L, "v-1", "新标题", "# 新内容");
+
+        assertEquals("新标题", updated.versionName());
+        assertEquals("# 新内容", updated.contentMarkdown());
+        verify(resumeVersionMapper).updateById(entity);
+        assertEquals("新标题", entity.getVersionName());
+        assertEquals("# 新内容", entity.getContentMarkdown());
+    }
+
+    @Test
     void tenantIsolationForbidden() {
         ResumeVersionEntity entity = entity("v-1", LocalDateTime.now());
         entity.setUserId(1L);
