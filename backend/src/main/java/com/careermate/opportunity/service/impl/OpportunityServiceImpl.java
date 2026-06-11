@@ -89,11 +89,11 @@ public class OpportunityServiceImpl implements OpportunityService {
                 ? new OpportunityListRequest(null, null, null, 1, 10)
                 : request;
         String query = resolveQuery(userId, safeRequest.keyword());
-        String cacheKey = OpportunityCacheKeys.listKey(userId, md5Hex(query));
+        String cacheKey = OpportunityCacheKeys.listKey(userId, sha256Hex(query));
 
         PageResult<OpportunityListItemVO> cached = readListCache(cacheKey);
         if (cached != null) {
-            log.info("opportunity list cache hit, userId={}, queryHash={}", userId, md5Hex(query));
+            log.info("opportunity list cache hit, userId={}, queryHash={}", userId, sha256Hex(query));
             return paginate(cached, safeRequest.page(), safeRequest.size());
         }
 
@@ -514,9 +514,9 @@ public class OpportunityServiceImpl implements OpportunityService {
         }
     }
 
-    private static String md5Hex(String input) {
+    private static String sha256Hex(String input) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("MD5");
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException e) {

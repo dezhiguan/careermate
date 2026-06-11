@@ -2,6 +2,8 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 ARG JAR_FILE=target/careermate-backend-0.1.0.jar
 ENV JAVA_OPTS="-Xms512m -Xmx1g"
-COPY ${JAR_FILE} app.jar
+RUN groupadd --system app && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app
+COPY --chown=app:app ${JAR_FILE} app.jar
 EXPOSE 18080
+USER app
 ENTRYPOINT ["sh", "-c", "exec java ${JAVA_OPTS} -jar app.jar"]
