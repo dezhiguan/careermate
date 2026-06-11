@@ -16,6 +16,25 @@ HEALTH_PORTS=(18080 18081 18082)
 COMPOSE_FILE="/opt/careermate/docker-compose-backend.yml"
 IMAGE_NAME="careermate-backend:latest"
 
+wait_for_port_health() {
+  local port="$1"
+  local max_attempts="${HEALTH_MAX_ATTEMPTS:-60}"
+  local sleep_secs="${HEALTH_SLEEP_SECS:-3}"
+  local url="http://127.0.0.1:${port}/api/health"
+
+  for attempt in $(seq 1 "${max_attempts}"); do
+    if curl -fsS "${url}" >/dev/null 2>&1; then
+      echo "  health ok: ${url}"
+      return 0
+    fi
+    echo "  attempt ${attempt}/${max_attempts}: ${url} not ready"
+    sleep "${sleep_secs}"
+  done
+
+  echo "ERROR: health check timed out: ${url}" >&2
+  return 1
+}
+
 wait_for_health() {
   local port url
   local max_attempts="${HEALTH_MAX_ATTEMPTS:-60}"
@@ -115,9 +134,18 @@ stop_legacy_docker
 
 echo "[6/7] Build image and rolling-restart Docker containers"
 docker build --build-arg JAR_FILE=app.jar -t "${IMAGE_NAME}" "${CURRENT_LINK}/backend"
-for service in careermate-backend-1 careermate-backend-2 careermate-backend-3; do
-  echo "  recreating ${service}..."
+services=(
+  "careermate-backend-1:18080"
+  "careermate-backend-2:18081"
+  "careermate-backend-3:18082"
+)
+for item in "${services[@]}"; do
+  service="${item%%:*}"
+  port="${item##*:}"
+
+  echo "  recreating ${service} on port ${port}..."
   docker compose -f "${COMPOSE_FILE}" up -d --force-recreate --no-deps "${service}"
+  wait_for_port_health "${port}"
 done
 docker compose -f "${COMPOSE_FILE}" ps
 
