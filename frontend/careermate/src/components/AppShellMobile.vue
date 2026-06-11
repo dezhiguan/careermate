@@ -15,7 +15,7 @@
           <circle cx="12" cy="12" r="10" />
           <circle cx="12" cy="12" r="6" />
         </svg>
-        <span>机会</span>
+        <span>看机会</span>
       </button>
 
       <button
@@ -47,7 +47,7 @@
           <line x1="18" y1="20" x2="18" y2="4" />
           <line x1="6" y1="20" x2="6" y2="16" />
         </svg>
-        <span>市场</span>
+        <span>市场行情</span>
       </button>
 
       <button

@@ -116,7 +116,7 @@
               :disabled="resumeGenerating"
               @keydown.enter="sendMessage"
             >
-            <button class="send-btn" @click="sendMessage" :disabled="!canSend">↑</button>
+            <button type="button" class="send-btn" :disabled="!canSend" @click="sendMessage">发送</button>
           </div>
         </div>
       </div>
@@ -1488,8 +1488,17 @@ onBeforeUnmount(() => {
 .chat-input { flex: 1; border: none; background: transparent; padding: 6px; outline: none; font-size: 12px; font-family: inherit; }
 
 .send-btn {
-  padding: 6px 12px; background: var(--purple); color: #fff; border: none; border-radius: 6px;
-  font-size: 14px; cursor: pointer; transition: opacity .2s;
+  flex-shrink: 0;
+  padding: 6px 14px;
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .2s;
+  white-space: nowrap;
 }
 
 .send-btn:disabled { opacity: .4; cursor: default; }
@@ -1536,7 +1545,8 @@ onBeforeUnmount(() => {
 
   .send-btn {
     min-height: 44px;
-    min-width: 44px;
+    min-width: 56px;
+    padding: 8px 12px;
     display: flex;
     align-items: center;
     justify-content: center;
