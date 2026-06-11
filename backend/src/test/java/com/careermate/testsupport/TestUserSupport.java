@@ -1,12 +1,22 @@
 package com.careermate.testsupport;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.careermate.mapper.AgentMessageMapper;
+import com.careermate.mapper.AgentSessionMapper;
+import com.careermate.mapper.AgentTaskStateMapper;
+import com.careermate.mapper.AgentToolCallMapper;
+import com.careermate.mapper.CareerTaskMapper;
 import com.careermate.mapper.InterviewQuestionMapper;
 import com.careermate.mapper.InterviewSessionMapper;
 import com.careermate.mapper.JobMatchMapper;
 import com.careermate.mapper.ResumeMapper;
 import com.careermate.mapper.UserMapper;
 import com.careermate.mapper.UserProfileMapper;
+import com.careermate.model.entity.AgentMessageEntity;
+import com.careermate.model.entity.AgentSessionEntity;
+import com.careermate.model.entity.AgentTaskStateEntity;
+import com.careermate.model.entity.AgentToolCallEntity;
+import com.careermate.model.entity.CareerTaskEntity;
 import com.careermate.model.entity.InterviewQuestionEntity;
 import com.careermate.model.entity.InterviewSessionEntity;
 import com.careermate.model.entity.JobMatchEntity;
@@ -54,6 +64,36 @@ public final class TestUserSupport {
                 .in(JobMatchEntity::getUserId, testUserIds));
         resumeMapper.delete(new LambdaQueryWrapper<ResumeEntity>()
                 .in(ResumeEntity::getUserId, testUserIds));
+    }
+
+    public static void cleanupAgentAndTaskUserData(
+            CareerTaskMapper careerTaskMapper,
+            AgentSessionMapper agentSessionMapper,
+            AgentMessageMapper agentMessageMapper,
+            AgentToolCallMapper agentToolCallMapper,
+            AgentTaskStateMapper agentTaskStateMapper
+    ) {
+        List<Long> testUserIds = List.of(TestUsers.USER_A, TestUsers.USER_B);
+        if (agentToolCallMapper != null) {
+            agentToolCallMapper.delete(new LambdaQueryWrapper<AgentToolCallEntity>()
+                    .in(AgentToolCallEntity::getUserId, testUserIds));
+        }
+        if (agentMessageMapper != null) {
+            agentMessageMapper.delete(new LambdaQueryWrapper<AgentMessageEntity>()
+                    .in(AgentMessageEntity::getUserId, testUserIds));
+        }
+        if (agentTaskStateMapper != null) {
+            agentTaskStateMapper.delete(new LambdaQueryWrapper<AgentTaskStateEntity>()
+                    .in(AgentTaskStateEntity::getUserId, testUserIds));
+        }
+        if (agentSessionMapper != null) {
+            agentSessionMapper.delete(new LambdaQueryWrapper<AgentSessionEntity>()
+                    .in(AgentSessionEntity::getUserId, testUserIds));
+        }
+        if (careerTaskMapper != null) {
+            careerTaskMapper.delete(new LambdaQueryWrapper<CareerTaskEntity>()
+                    .in(CareerTaskEntity::getUserId, testUserIds));
+        }
     }
 
     private static void ensureUser(UserMapper userMapper, UserProfileMapper userProfileMapper,

@@ -7,11 +7,22 @@ import com.careermate.agent.tool.AgentToolExecutionService;
 import com.careermate.agent.tool.AgentToolResult;
 import com.careermate.agent.tool.AgentToolRouter;
 import com.careermate.agent.tool.AgentToolTraceSupport;
+import com.careermate.mapper.AgentMessageMapper;
+import com.careermate.mapper.AgentSessionMapper;
+import com.careermate.mapper.AgentTaskStateMapper;
+import com.careermate.mapper.AgentToolCallMapper;
+import com.careermate.mapper.CareerTaskMapper;
+import com.careermate.mapper.UserMapper;
+import com.careermate.mapper.UserProfileMapper;
+import com.careermate.testsupport.TestUserSupport;
+import com.careermate.testsupport.TestUsers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -19,7 +30,6 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
@@ -38,9 +48,45 @@ class AgentTaskToolTraceTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private UserProfileMapper userProfileMapper;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private CareerTaskMapper careerTaskMapper;
+
+    @Autowired
+    private AgentSessionMapper agentSessionMapper;
+
+    @Autowired
+    private AgentMessageMapper agentMessageMapper;
+
+    @Autowired
+    private AgentToolCallMapper agentToolCallMapper;
+
+    @Autowired
+    private AgentTaskStateMapper agentTaskStateMapper;
+
+    @BeforeEach
+    void setUp() {
+        TestUserSupport.ensureTestUsers(userMapper, userProfileMapper, passwordEncoder);
+        TestUserSupport.cleanupAgentAndTaskUserData(
+                careerTaskMapper,
+                agentSessionMapper,
+                agentMessageMapper,
+                agentToolCallMapper,
+                agentTaskStateMapper
+        );
+    }
+
     @Test
     void recordsCreateCareerTaskTraceWithRealToolName() throws Exception {
-        long userId = 900_002L;
+        long userId = TestUsers.USER_A;
         String sessionId = agentSessionService.createSession(userId).getSessionId();
         String userMessage = "帮我创建一个任务：E2E trace 任务";
 
@@ -82,7 +128,7 @@ class AgentTaskToolTraceTest {
 
     @Test
     void failedMarkDoneTraceDoesNotIncludeFullPrompt() throws Exception {
-        long userId = 900_003L;
+        long userId = TestUsers.USER_B;
         String sessionId = agentSessionService.createSession(userId).getSessionId();
         String userMessage = "不存在的任务标题已经做完了";
 
