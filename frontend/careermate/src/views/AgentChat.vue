@@ -1,13 +1,47 @@
 <template>
-  <div class="chat-page">
+  <div class="chat-page" :data-workspace-id="workspaceId || undefined">
+    <div v-if="isMobile && drawerOpen" class="chat-drawer-overlay" @click.self="drawerOpen = false">
+      <aside class="chat-drawer">
+        <div class="drawer-user">
+          <div class="drawer-avatar">
+            {{ avatarInitial }}
+            <span class="drawer-online-dot" />
+          </div>
+          <div>
+            <div class="drawer-name">{{ userDisplayName }}</div>
+            <div class="drawer-status">已登录</div>
+          </div>
+        </div>
+        <nav class="drawer-nav">
+          <button type="button" class="drawer-link" @click="navigateFromDrawer('/opportunity')">机会</button>
+          <button type="button" class="drawer-link active" @click="drawerOpen = false">小职 · 当前</button>
+          <button type="button" class="drawer-link" @click="navigateFromDrawer('/interview')">面试题</button>
+          <button type="button" class="drawer-link" @click="navigateFromDrawer('/market')">市场</button>
+          <button type="button" class="drawer-link" @click="navigateFromDrawer('/mine')">我的</button>
+        </nav>
+        <div class="drawer-footer">
+          <button type="button" class="drawer-footer-link" @click="authStore.logout()">退出登录</button>
+        </div>
+      </aside>
+    </div>
+
     <div class="chat-layout">
       <div class="chat-main">
         <div class="chat-header">
+          <button
+            v-if="isMobile"
+            type="button"
+            class="hamburger-btn"
+            aria-label="打开菜单"
+            @click="drawerOpen = true"
+          >
+            ☰
+          </button>
           <div class="header-left">
-            <div class="ai-badge">AI</div>
+            <div class="ai-avatar-header">职</div>
             <div>
-              <div class="header-title">Agent 对话台</div>
-              <div class="header-sub">CareerMate · 一切交互的起点和终点</div>
+              <div class="header-title">小职</div>
+              <div class="header-sub">● 在线</div>
             </div>
           </div>
           <button class="header-action" :disabled="sessionCreating" @click="resetChat">
@@ -23,7 +57,7 @@
             </div>
 
             <div v-else class="msg-row agent-row">
-              <div class="ai-avatar">AI</div>
+              <div class="ai-avatar">职</div>
               <div class="msg-bubble agent-bubble">
                 <div v-if="msg.toolCalls?.length" class="tool-call-list">
                   <ToolCallCard
@@ -193,6 +227,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { authStore } from '../stores/authStore'
 import {
   createAgentSession,
@@ -208,6 +243,16 @@ import { listTasks } from '../api/tasks'
 import { isCareerTaskToolName, notifyCareerTasksUpdated } from '../utils/agentToolDisplay'
 import ToolCallCard from '../components/agent/ToolCallCard.vue'
 import { getToolLabel, isBusinessToolName, sanitizeToolSummary } from '../utils/agentToolDisplay'
+
+const route = useRoute()
+const router = useRouter()
+
+/** Phase 2: workspaceId 将用于 API；Phase 1 仅接收路由参数 */
+const workspaceId = computed(() => route.params.wsId || null)
+
+const MOBILE_MAX = 767
+const isMobile = ref(false)
+const drawerOpen = ref(false)
 
 const inputText = ref('')
 const msgContainer = ref(null)
@@ -289,6 +334,27 @@ const userLabel = computed(() => {
   if (!user) return '未登录'
   return `${user.username} / ${user.role}`
 })
+
+const userDisplayName = computed(() => authStore.state.currentUser?.username || '用户')
+
+const avatarInitial = computed(() => {
+  const name = authStore.state.currentUser?.username || '用'
+  return name.charAt(0).toUpperCase()
+})
+
+function updateViewport() {
+  isMobile.value = window.innerWidth <= MOBILE_MAX
+  if (!isMobile.value) {
+    drawerOpen.value = false
+  }
+}
+
+function navigateFromDrawer(path) {
+  drawerOpen.value = false
+  if (route.path !== path) {
+    router.push(path)
+  }
+}
 
 const hasCareerProfile = computed(() => {
   const p = careerProfile.value
@@ -939,11 +1005,14 @@ async function resetChat() {
 }
 
 onMounted(async () => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
   await bootstrapChat()
   scrollBottom()
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateViewport)
   abortActiveStream('页面已离开，流式请求已取消')
 })
 </script>
@@ -952,9 +1021,11 @@ onBeforeUnmount(() => {
 .chat-page {
   max-width: 1200px;
   margin: 0 auto;
-  height: calc(100dvh - 44px - var(--bottom-nav-h, 84px) - env(safe-area-inset-bottom));
+  height: 100%;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .chat-layout {
   display: grid;
@@ -963,19 +1034,144 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 
+.chat-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.chat-drawer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 80%;
+  max-width: 300px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.15);
+}
+
+.drawer-user {
+  padding: 18px 16px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.drawer-avatar {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.drawer-online-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  background: #10b981;
+  border: 2px solid #fff;
+  border-radius: 50%;
+}
+
+.drawer-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.drawer-status {
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+.drawer-nav {
+  padding: 14px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drawer-link {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #0f172a;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.drawer-link.active {
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 700;
+}
+
+.drawer-footer {
+  margin-top: auto;
+  padding: 14px 20px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.drawer-footer-link {
+  border: none;
+  background: transparent;
+  color: #ef4444;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+}
+
 .chat-header {
-  padding: 14px 18px; background: #fff; border-bottom: 1px solid var(--border);
-  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
 }
-.header-left { display: flex; align-items: center; gap: 10px; }
-.ai-badge {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  display: flex; align-items: center; justify-content: center; color: #fff;
-  font-size: 11px; font-weight: 700;
+.header-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.hamburger-btn {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  padding: 6px;
+  cursor: pointer;
+  color: #0f172a;
+  flex-shrink: 0;
 }
-.header-title { font-weight: 700; font-size: 15px; }
-.header-sub { font-size: 11px; color: var(--text-muted); }
+.ai-avatar-header {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.header-title { font-weight: 700; font-size: 13px; color: #0f172a; }
+.header-sub { font-size: 10px; color: #10b981; }
 .header-action {
   background: none; border: 1px solid var(--border); padding: 5px 12px;
   border-radius: 6px; font-size: 11px; cursor: pointer; color: var(--text-muted);
@@ -1015,16 +1211,35 @@ onBeforeUnmount(() => {
 .user-row { justify-content: flex-end; }
 .agent-row { gap: 8px; align-items: flex-start; }
 .ai-avatar {
-  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 10px; font-weight: 700;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
 }
 .msg-bubble {
-  max-width: 75%; padding: 10px 14px; border-radius: 10px; font-size: 12px; line-height: 1.7;
+  max-width: 75%;
+  font-size: 13px;
+  line-height: 1.6;
 }
-.user-bubble { background: var(--purple); color: #fff; border-radius: 10px 10px 0 10px; }
-.agent-bubble { background: #fff; border: 1px solid var(--border); border-radius: 10px 10px 10px 0; }
+.user-bubble {
+  background: #4f46e5;
+  color: #fff;
+  border-radius: 14px 14px 4px 14px;
+  padding: 9px 13px;
+}
+.agent-bubble {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px 14px 14px 14px;
+  padding: 12px 14px;
+  color: #334155;
+}
 .stream-flag { display: inline-block; color: var(--purple); font-size: 13px; line-height: 1; animation: blink 1s step-start infinite; margin-left: 1px; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 .thinking-flag { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
@@ -1190,7 +1405,7 @@ onBeforeUnmount(() => {
   .chat-page {
     max-width: 100%;
     margin: 0;
-    height: calc(100dvh - 40px - var(--bottom-nav-h, 84px) - env(safe-area-inset-bottom));
+    height: 100dvh;
     min-height: 0;
     overflow: hidden;
   }

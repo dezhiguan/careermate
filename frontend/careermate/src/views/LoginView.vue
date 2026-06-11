@@ -1,42 +1,61 @@
 <template>
   <div class="login-page">
-    <div class="login-card">
-      <h1>CareerMate</h1>
-      <p class="subtitle">AI 求职智能体</p>
+    <div class="login-layout">
+      <section class="login-hero">
+        <div class="hero-brand">
+          <div class="hero-logo">C</div>
+          <div class="hero-name">CareerMate</div>
+        </div>
+        <h1 class="hero-title">看 JD · 改简历 · 练面试<br>一个对话搞定</h1>
+        <p class="hero-desc">AI 把你的求职流程接管 80%，你只做 AI 做不了的事：开口答题、点投递、做决策</p>
+        <div class="hero-quote">
+          <div class="hero-quote-label">本周用户故事</div>
+          "广州 Java 3 年，14 天投 28 家，拿 3 个 Offer 最高 32K。AI 帮我做了 23 次面试模拟。" — @小李
+        </div>
+      </section>
 
-      <div class="mode-toggle">
-        <button :class="{ active: mode === 'login' }" @click="mode = 'login'">登录</button>
-        <button :class="{ active: mode === 'register' }" @click="mode = 'register'">注册</button>
-      </div>
+      <section class="login-card">
+        <h2 class="card-title">账号登录</h2>
+        <p class="card-sub">使用现有账号进入 CareerMate</p>
 
-      <form class="form" @submit.prevent="submit">
-        <label>
-          用户名
-          <input v-model.trim="form.username" required minlength="3" maxlength="64" />
-        </label>
+        <div class="mode-toggle">
+          <button type="button" :class="{ active: mode === 'login' }" @click="mode = 'login'">登录</button>
+          <button type="button" :class="{ active: mode === 'register' }" @click="mode = 'register'">注册</button>
+        </div>
 
-        <label v-if="mode === 'register'">
-          邮箱
-          <input v-model.trim="form.email" type="email" />
-        </label>
+        <form class="form" @submit.prevent="submit">
+          <label>
+            <span class="field-label">用户名</span>
+            <input v-model.trim="form.username" required minlength="3" maxlength="64" />
+          </label>
 
-        <label>
-          密码
-          <input v-model="form.password" type="password" required minlength="8" maxlength="64" />
-        </label>
+          <label v-if="mode === 'register'">
+            <span class="field-label">邮箱</span>
+            <input v-model.trim="form.email" type="email" />
+          </label>
 
-        <button class="primary" type="submit" :disabled="authStore.state.loading">
-          {{ authStore.state.loading ? '处理中...' : mode === 'login' ? '登录' : '注册并进入' }}
-        </button>
-      </form>
+          <label>
+            <span class="field-label">密码</span>
+            <input v-model="form.password" type="password" required minlength="8" maxlength="64" />
+          </label>
 
-      <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
-      <p v-if="successMsg" class="success">{{ successMsg }}</p>
+          <button class="btn-primary" type="submit" :disabled="authStore.state.loading">
+            {{ authStore.state.loading ? '处理中...' : mode === 'login' ? '登录' : '注册并进入' }}
+          </button>
+        </form>
 
-      <div class="single-user-tip">
-        <p>当前为本地单用户模式，可直接进入。</p>
-        <button class="secondary" @click="enterSingleUser" :disabled="authStore.state.loading">进入 CareerMate</button>
-      </div>
+        <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
+        <p v-if="successMsg" class="success">{{ successMsg }}</p>
+
+        <div class="divider">— 其他方式 —</div>
+
+        <div class="single-user-tip">
+          <p>当前为本地单用户模式，可直接进入。</p>
+          <button class="btn-ghost" type="button" @click="enterSingleUser" :disabled="authStore.state.loading">
+            游客体验
+          </button>
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -67,7 +86,7 @@ async function submit() {
       await authStore.register(form.username, form.password, form.email)
       successMsg.value = '注册成功，正在进入...'
     }
-    await router.replace('/')
+    await router.replace('/opportunity')
   } catch (e) {
     errorMsg.value = e?.message || '操作失败'
   }
@@ -79,7 +98,7 @@ async function enterSingleUser() {
   try {
     await authStore.fetchCurrentUser()
     successMsg.value = '已获取本地用户，正在进入...'
-    await router.replace('/')
+    await router.replace('/opportunity')
   } catch (e) {
     errorMsg.value = e?.message || '当前模式不支持直接进入，请先登录'
   }
@@ -89,144 +108,245 @@ async function enterSingleUser() {
 <style scoped>
 .login-page {
   min-height: 100vh;
+  min-height: 100dvh;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  padding: 24px;
   display: grid;
   place-items: center;
-  background: #f8fafc;
-  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
-.login-card {
-  width: min(460px, 100%);
+
+.login-layout {
+  width: min(920px, 100%);
   background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
 }
-h1 {
+
+.login-hero {
+  padding: 40px 36px;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.hero-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-logo {
+  width: 36px;
+  height: 36px;
+  background: #fff;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #4f46e5;
+  font-weight: 800;
+}
+
+.hero-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.hero-title {
   margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.hero-desc {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.85;
+  line-height: 1.7;
+}
+
+.hero-quote {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.hero-quote-label {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-bottom: 6px;
+}
+
+.login-card {
+  padding: 40px 36px;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
   color: #0f172a;
 }
-.subtitle {
-  margin: 8px 0 16px;
-  color: #64748b;
+
+.card-sub {
+  margin: 4px 0 24px;
+  font-size: 12px;
+  color: #94a3b8;
 }
+
 .mode-toggle {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
 }
+
 .mode-toggle button {
   flex: 1;
-  border: 1px solid #dbe4ee;
+  border: 1px solid #e2e8f0;
   background: #f8fafc;
   color: #334155;
-  border-radius: 10px;
-  padding: 8px 12px;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
   cursor: pointer;
+  font-family: inherit;
 }
+
 .mode-toggle button.active {
-  background: #ede9fe;
-  border-color: #8b5cf6;
-  color: #6d28d9;
+  background: #eef2ff;
+  border-color: #4f46e5;
+  color: #4f46e5;
+  font-weight: 600;
 }
+
 .form {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
+
 label {
   display: grid;
   gap: 6px;
+}
+
+.field-label {
+  font-size: 12px;
   color: #334155;
-  font-size: 14px;
+  font-weight: 500;
 }
+
 input {
-  border: 1px solid #dbe4ee;
-  border-radius: 10px;
-  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-family: inherit;
 }
-.primary,
-.secondary {
+
+.btn-primary {
+  width: 100%;
   border: 0;
-  border-radius: 10px;
-  padding: 10px 14px;
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  background: #4f46e5;
+  color: #fff;
   cursor: pointer;
+  font-family: inherit;
 }
-.primary {
-  background: #8b5cf6;
-  color: #fff;
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
-.secondary {
-  background: #0f172a;
-  color: #fff;
+
+.btn-ghost {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  font-family: inherit;
 }
+
 .error {
   margin: 12px 0 0;
-  color: #dc2626;
+  color: #ef4444;
+  font-size: 12px;
 }
+
 .success {
   margin: 12px 0 0;
-  color: #059669;
+  color: #10b981;
+  font-size: 12px;
 }
-.single-user-tip {
-  margin-top: 16px;
-  border-top: 1px dashed #cbd5e1;
-  padding-top: 12px;
+
+.divider {
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 20px 0 14px;
 }
+
 .single-user-tip p {
   margin: 0 0 8px;
-  color: #92400e;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  color: #64748b;
+  font-size: 12px;
 }
 
 @media (max-width: 768px) {
   .login-page {
-    min-height: calc(100dvh - env(safe-area-inset-bottom));
-    padding: 20px 16px calc(96px + env(safe-area-inset-bottom));
-    align-content: center;
+    padding: 16px;
+    align-content: start;
+    padding-top: 32px;
+  }
+
+  .login-layout {
+    grid-template-columns: 1fr;
+    width: min(380px, 100%);
+  }
+
+  .login-hero {
+    padding: 24px 20px;
+  }
+
+  .hero-title {
+    font-size: 22px;
+  }
+
+  .hero-quote {
+    display: none;
   }
 
   .login-card {
-    width: calc(100vw - 32px);
-    max-width: 420px;
-  }
-}
-
-@media (max-width: 480px) {
-  .login-page {
-    padding-left: 16px;
-    padding-right: 16px;
+    padding: 24px 20px 28px;
   }
 
-  .login-card {
-    width: calc(100vw - 32px);
-    padding: 20px 16px;
-  }
-
+  input,
+  .btn-primary,
+  .btn-ghost,
   .mode-toggle button {
     min-height: 44px;
-    padding: 10px 8px;
-    font-size: 13px;
-  }
-
-  input {
-    min-height: 44px;
     font-size: 16px;
-    width: 100%;
-    max-width: 100%;
   }
 
-  .primary,
-  .secondary {
-    min-height: 44px;
-    width: 100%;
-    font-size: 14px;
-  }
-
-  .error,
-  .success {
-    word-break: break-word;
-    overflow-wrap: anywhere;
+  .field-label {
+    font-size: 12px;
   }
 }
 </style>

@@ -3,11 +3,46 @@ import { authStore } from '../stores/authStore'
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
-  { path: '/', name: 'chat', component: () => import('../views/AgentChat.vue') },
-  { path: '/resume', name: 'resume', component: () => import('../views/ResumeStudio.vue') },
-  { path: '/match', name: 'match', component: () => import('../views/JobMatching.vue') },
-  { path: '/interview', name: 'interview', component: () => import('../views/InterviewPrep.vue') },
-  { path: '/dashboard', name: 'dashboard', component: () => import('../views/CareerDashboard.vue') },
+  { path: '/', redirect: '/opportunity' },
+  {
+    path: '/opportunity',
+    name: 'opportunity',
+    component: () => import('../views/OpportunityView.vue'),
+    meta: { title: '机会' },
+  },
+  {
+    path: '/interview',
+    name: 'interview',
+    component: () => import('../views/InterviewPrep.vue'),
+    meta: { title: '面试题' },
+  },
+  {
+    path: '/chat',
+    name: 'chat',
+    component: () => import('../views/AgentChat.vue'),
+    meta: { title: '小职', immersive: true },
+  },
+  {
+    path: '/chat/:wsId',
+    name: 'chat-workspace',
+    component: () => import('../views/AgentChat.vue'),
+    meta: { title: '小职', immersive: true },
+  },
+  {
+    path: '/market',
+    name: 'market',
+    component: () => import('../views/MarketView.vue'),
+    meta: { title: '市场' },
+  },
+  {
+    path: '/mine',
+    name: 'mine',
+    component: () => import('../views/MineView.vue'),
+    meta: { title: '我的' },
+  },
+  { path: '/match', redirect: '/opportunity' },
+  { path: '/dashboard', redirect: '/opportunity' },
+  { path: '/resume', redirect: '/opportunity' },
 ]
 
 const router = createRouter({
@@ -23,7 +58,7 @@ router.beforeEach(async (to) => {
   const authenticated = authStore.isAuthenticated()
   if (to.path === '/login') {
     if (authenticated) {
-      return '/'
+      return '/opportunity'
     }
     return true
   }
