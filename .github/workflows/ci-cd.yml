@@ -180,7 +180,6 @@ jobs:
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
       - backend-build
-      - frontend-build
       - backend-smoke-test
     environment:
       name: production
@@ -293,6 +292,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
       - frontend-build
+      - deploy-app
     environment:
       name: production
     steps:
@@ -347,7 +347,6 @@ jobs:
     timeout-minutes: 5
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
-      - deploy-app
       - deploy-ingress
     steps:
       - name: API health check
