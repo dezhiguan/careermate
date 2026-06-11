@@ -8,12 +8,13 @@ on:
 
 concurrency:
   group: careermate-deploy-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   backend-build:
     name: backend-build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,6 +51,7 @@ jobs:
   frontend-build:
     name: frontend-build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,6 +82,7 @@ jobs:
   deploy-app:
     name: deploy-app-server3
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     needs:
       - backend-build
     steps:
@@ -125,6 +128,10 @@ jobs:
             printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
             printf '%s\n' '  IdentitiesOnly yes'
             printf '%s\n' '  StrictHostKeyChecking accept-new'
+            printf '%s\n' '  BatchMode yes'
+            printf '%s\n' '  ConnectTimeout 15'
+            printf '%s\n' '  ServerAliveInterval 30'
+            printf '%s\n' '  ServerAliveCountMax 3'
             printf '%s\n' ''
             printf '%s\n' 'Host careermate-app'
             printf '%s\n' "  HostName ${DEPLOY_HOST}"
@@ -133,6 +140,10 @@ jobs:
             printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
             printf '%s\n' '  IdentitiesOnly yes'
             printf '%s\n' '  StrictHostKeyChecking accept-new'
+            printf '%s\n' '  BatchMode yes'
+            printf '%s\n' '  ConnectTimeout 15'
+            printf '%s\n' '  ServerAliveInterval 30'
+            printf '%s\n' '  ServerAliveCountMax 3'
             printf '%s\n' '  ProxyJump careermate-jump'
           } > ~/.ssh/config
           chmod 600 ~/.ssh/config
@@ -140,42 +151,46 @@ jobs:
       - name: Upload backend to Server 3
         run: |
           RELEASE_DIR="/opt/careermate/releases/${GITHUB_SHA}"
+          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          SCP_OPTS=(-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
 
-          ssh careermate-app \
+          ssh "${SSH_OPTS[@]}" careermate-app \
             "mkdir -p '${RELEASE_DIR}/backend' /opt/careermate/scripts /opt/careermate/deploy/scripts /opt/careermate/deploy/skywalking /opt/careermate/deploy/nginx"
 
-          scp "$(find . -maxdepth 1 -name '*.jar' ! -name '*.original' | head -n 1)" \
+          scp "${SCP_OPTS[@]}" "$(find . -maxdepth 1 -name '*.jar' ! -name '*.original' | head -n 1)" \
             "careermate-app:${RELEASE_DIR}/backend/app.jar"
 
-          scp backend/Dockerfile \
+          scp "${SCP_OPTS[@]}" backend/Dockerfile \
             "careermate-app:${RELEASE_DIR}/backend/Dockerfile"
 
-          scp docker-compose-backend.yml \
+          scp "${SCP_OPTS[@]}" docker-compose-backend.yml \
             "careermate-app:/opt/careermate/docker-compose-backend.yml"
 
-          scp deploy/scripts/deploy-from-github.sh deploy/scripts/rollback-careermate.sh \
+          scp "${SCP_OPTS[@]}" deploy/scripts/deploy-from-github.sh deploy/scripts/rollback-careermate.sh \
             "careermate-app:/opt/careermate/scripts/"
 
-          scp deploy/scripts/start-skywalking.sh deploy/scripts/install-skywalking-agent.sh \
+          scp "${SCP_OPTS[@]}" deploy/scripts/start-skywalking.sh deploy/scripts/install-skywalking-agent.sh \
             "careermate-app:/opt/careermate/deploy/scripts/"
 
-          scp deploy/skywalking/docker-compose.skywalking.yml \
+          scp "${SCP_OPTS[@]}" deploy/skywalking/docker-compose.skywalking.yml \
             "careermate-app:/opt/careermate/deploy/skywalking/"
 
-          scp deploy/nginx/skywalking.locations.example \
+          scp "${SCP_OPTS[@]}" deploy/nginx/skywalking.locations.example \
             "careermate-app:/opt/careermate/deploy/nginx/"
 
-          ssh careermate-app \
+          ssh "${SSH_OPTS[@]}" careermate-app \
             "chmod +x /opt/careermate/scripts/deploy-from-github.sh /opt/careermate/scripts/rollback-careermate.sh /opt/careermate/deploy/scripts/start-skywalking.sh /opt/careermate/deploy/scripts/install-skywalking-agent.sh"
 
       - name: Activate release on Server 3
         run: |
-          ssh careermate-app \
-            "sudo bash /opt/careermate/scripts/deploy-from-github.sh '${GITHUB_SHA}'"
+          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          timeout 20m ssh "${SSH_OPTS[@]}" careermate-app \
+            "sudo -n env HEALTH_MAX_ATTEMPTS=60 HEALTH_SLEEP_SECS=3 bash /opt/careermate/scripts/deploy-from-github.sh '${GITHUB_SHA}'"
 
   deploy-ingress:
     name: deploy-ingress-server2
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs:
       - frontend-build
     steps:
@@ -213,13 +228,37 @@ jobs:
           DEPLOY_PORT: ${{ secrets.CAREERMATE_INGRESS_PORT }}
         run: |
           PORT="${DEPLOY_PORT:-22}"
-          SSH_OPTS=(-i ~/.ssh/deploy_key -p "${PORT}" -o StrictHostKeyChecking=yes)
-          RSYNC_SSH="ssh -i ~/.ssh/deploy_key -p ${PORT} -o StrictHostKeyChecking=yes"
+          SSH_OPTS=(-i ~/.ssh/deploy_key -p "${PORT}" -T -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          RSYNC_SSH="ssh -i ~/.ssh/deploy_key -p ${PORT} -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3"
           FRONTEND_TARGET="/opt/rag-forge/frontend/dist/careerforge"
 
           ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
             "mkdir -p '${FRONTEND_TARGET}'"
 
-          rsync -avz --delete -e "${RSYNC_SSH}" \
+          timeout 10m rsync -avz --delete -e "${RSYNC_SSH}" \
             frontend-dist/ \
             "${DEPLOY_USER}@${DEPLOY_HOST}:${FRONTEND_TARGET}/"
+
+  smoke-test:
+    name: smoke-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - deploy-app
+      - deploy-ingress
+    steps:
+      - name: API health check
+        run: |
+          curl --fail --silent --show-error --max-time 10 --retry 6 --retry-delay 5 \
+            "${{ vars.CAREERFORGE_API_BASE_URL || 'https://careerforge.cn/api' }}/health"
+
+      - name: Frontend entry check
+        run: |
+          BASE="${{ vars.CAREERFORGE_BASE_URL || 'https://careerforge.cn' }}"
+          if curl --fail --silent --show-error --max-time 10 --retry 6 --retry-delay 5 \
+            "${BASE}/careerforge/" | grep -q 'CareerMate'; then
+            echo "Frontend entry OK: ${BASE}/careerforge/"
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 10 --retry 6 --retry-delay 5 \
+            "${BASE}/" | grep -q 'CareerMate'
