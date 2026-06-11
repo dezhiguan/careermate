@@ -385,6 +385,8 @@ function go(path) {
 }
 
 .main-content.chat-layout {
+  flex: 1 1 0;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;

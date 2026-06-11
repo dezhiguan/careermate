@@ -21,6 +21,7 @@
     "test:e2e:auth": "npm run test:e2e:auth:local"
   },
   "dependencies": {
+    "marked": "^18.0.5",
     "vue": "^3.4.0",
     "vue-router": "^4.3.0"
   },

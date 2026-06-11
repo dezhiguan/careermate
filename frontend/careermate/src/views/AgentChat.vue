@@ -88,7 +88,10 @@
                 <div v-if="msg.streaming && !msg.text && !msg.toolCalls?.length" class="thinking-flag">
                   <span class="thinking-dot" /><span class="thinking-dot" /><span class="thinking-dot" />
                 </div>
-                <div v-if="msg.text">{{ msg.text }}</div>
+                <div v-if="msg.text || msg.html" class="md-body">
+                  <span v-if="msg.streaming || !msg.html" class="md-plain">{{ msg.text }}</span>
+                  <div v-else v-html="msg.html"></div>
+                </div>
                 <ChatCard
                   v-if="msg.card"
                   :card="msg.card"
@@ -166,9 +169,11 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { marked } from 'marked'
 import { authStore } from '../stores/authStore'
 import {
   createAgentSession,
+  getAgentSession,
   getAgentTrace,
   sendAgentMessageStream,
 } from '../api/agent'
@@ -182,6 +187,91 @@ import { getToolLabel, isBusinessToolName, sanitizeToolSummary } from '../utils/
 
 const route = useRoute()
 const router = useRouter()
+
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+  async: false,
+})
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function renderMd(text) {
+  if (text == null || text === '') return ''
+  const raw = typeof text === 'string' ? text : String(text)
+  try {
+    const html = marked.parse(raw, { async: false })
+    if (html instanceof Promise) return `<p>${escapeHtml(raw)}</p>`
+    return String(html)
+  } catch {
+    return `<p>${escapeHtml(raw).replace(/\n/g, '<br>')}</p>`
+  }
+}
+
+function withMarkdown(msg) {
+  const text = msg?.text || ''
+  return {
+    ...msg,
+    text,
+    html: text ? renderMd(text) : '',
+  }
+}
+
+function scheduleMarkdownForMessages(msgs) {
+  if (!Array.isArray(msgs) || msgs.length === 0) return
+  const pending = msgs.filter((msg) => msg?.role === 'agent' && msg.text && !msg.html)
+  if (pending.length === 0) return
+  if (pending.length <= 24) {
+    for (const msg of pending) {
+      msg.html = renderMd(msg.text)
+    }
+    return
+  }
+  let index = 0
+  const step = () => {
+    const batchSize = 6
+    for (let n = 0; n < batchSize && index < pending.length; n += 1, index += 1) {
+      const msg = pending[index]
+      msg.html = renderMd(msg.text)
+    }
+    if (index < pending.length) {
+      requestAnimationFrame(step)
+    }
+  }
+  requestAnimationFrame(step)
+}
+
+function pickLastAgentContent(serverMessages) {
+  if (!Array.isArray(serverMessages) || serverMessages.length === 0) return ''
+  const lastAgent = [...serverMessages].reverse().find((m) => m.role !== 'user' && m.content)
+  return lastAgent?.content || ''
+}
+
+async function recoverAgentReplyFromServer(agentMessage) {
+  if (!sessionId.value || agentMessage?.text) return
+  try {
+    let content = ''
+    if (workspaceId.value) {
+      const msgs = await getMessages(sessionId.value, { limit: 30 })
+      content = pickLastAgentContent(msgs)
+    }
+    if (!content) {
+      const detail = await getAgentSession(sessionId.value)
+      content = pickLastAgentContent(detail?.messages)
+    }
+    if (!content) return
+    agentMessage.text = content
+    agentMessage.html = renderMd(content)
+  } catch {
+    // 回捞失败时沿用本地兜底文案
+  }
+}
 
 /** Phase 2: workspaceId 将用于 API；Phase 1 仅接收路由参数 */
 const workspaceId = computed(() => route.params.wsId || null)
@@ -239,14 +329,14 @@ const resumeChipLabel = computed(() => {
   return `📄 ${latest.versionName}`
 })
 
-const messages = ref([{
+const messages = ref([withMarkdown({
   id: 'm_init',
   role: 'agent',
   text: '你好！我是 CareerMate 求职助手。你可以直接提问，比如“帮我分析简历”。',
   streaming: false,
   error: '',
   toolCalls: [],
-}])
+})])
 
 const canSend = computed(() => (
   !!inputText.value.trim()
@@ -364,6 +454,9 @@ function handleToolResult(agentMessage, data) {
 
 function finishStreaming(agentMessage) {
   agentMessage.streaming = false
+  if (agentMessage.text) {
+    agentMessage.html = renderMd(agentMessage.text)
+  }
 }
 
 function clearStreamWatchdog() {
@@ -394,11 +487,17 @@ function abortActiveStream(reason = '当前流式请求已取消') {
 function startStreamWatchdog(agentMessage) {
   clearStreamWatchdog()
   if (!Number.isFinite(STREAM_UI_IDLE_NOTICE_MS) || STREAM_UI_IDLE_NOTICE_MS <= 0) return
-  activeStreamTimer.value = window.setTimeout(() => {
+  activeStreamTimer.value = window.setTimeout(async () => {
     if (streamState.value !== 'streaming' || !agentMessage?.streaming) return
-    const message = `Agent 已超过 ${Math.round(STREAM_UI_IDLE_NOTICE_MS / 1000)} 秒未返回结束事件，仍在等待后端完成。`
-    agentMessage.error = message
-    globalError.value = message
+    await recoverAgentReplyFromServer(agentMessage)
+    const message = agentMessage.text
+      ? `Agent 响应较慢，已展示服务端结果。`
+      : `Agent 已超过 ${Math.round(STREAM_UI_IDLE_NOTICE_MS / 1000)} 秒未返回结束事件，仍在等待后端完成。`
+    finishStreaming(agentMessage)
+    if (!agentMessage.text) {
+      agentMessage.error = message
+      globalError.value = message
+    }
   }, STREAM_UI_IDLE_NOTICE_MS)
 }
 
@@ -436,14 +535,14 @@ function openContext() {
 }
 
 function defaultWelcomeMessage() {
-  return {
+  return withMarkdown({
     id: `m_welcome_${idSeed.value++}`,
     role: 'agent',
     text: '你好！我是 CareerMate 求职助手。你可以直接提问，比如“帮我分析简历”。',
     streaming: false,
     error: '',
     toolCalls: [],
-  }
+  })
 }
 
 function mapServerMessages(serverMessages) {
@@ -457,16 +556,22 @@ function mapWorkspaceMessage(m) {
   const messageType = (m.messageType || '').toUpperCase()
   const card = m.metadata?.card || null
   const isCard = messageType === 'CARD' && card
-  return {
+  const role = m.role === 'user' ? 'user' : 'agent'
+  const text = m.content || ''
+  const base = {
     id: `m_${m.id ?? idSeed.value++}`,
-    role: m.role === 'user' ? 'user' : 'agent',
-    text: isCard ? (m.content || '') : (m.content || ''),
+    role,
+    text,
     card: isCard ? card : null,
     messageType,
     streaming: false,
     error: '',
     toolCalls: [],
   }
+  if (role === 'agent') {
+    return { ...base, html: '' }
+  }
+  return base
 }
 
 function formatVersionDate(value) {
@@ -488,18 +593,19 @@ async function loadWorkspaceContext(wsId) {
     sessionId.value = wsId
     const restored = mapServerMessages(msgs)
     messages.value = restored.length > 0 ? restored : [defaultWelcomeMessage()]
+    scheduleMarkdownForMessages(messages.value)
     streamState.value = 'idle'
     scrollBottom()
   } catch (e) {
     globalError.value = e?.message || '加载工作空间失败'
-    messages.value = [{
+    messages.value = [withMarkdown({
       id: `m_err_${Date.now()}`,
       role: 'agent',
       text: globalError.value,
       streaming: false,
       error: globalError.value,
       toolCalls: [],
-    }]
+    })]
   } finally {
     sessionCreating.value = false
   }
@@ -589,6 +695,7 @@ async function startResumeGeneration(jdId) {
     id: `m_resume_stream_${Date.now()}`,
     role: 'agent',
     text: '',
+    html: '',
     streaming: true,
     error: '',
     toolCalls: [],
@@ -627,9 +734,9 @@ async function startResumeGeneration(jdId) {
       },
       onError(message) {
         streamMsg.error = message
-        streamMsg.streaming = false
+        finishStreaming(streamMsg)
         globalError.value = message
-        messages.value.push({
+        messages.value.push(withMarkdown({
           id: `m_fail_${Date.now()}`,
           role: 'agent',
           text: message,
@@ -642,7 +749,7 @@ async function startResumeGeneration(jdId) {
           streaming: false,
           error: message,
           toolCalls: [],
-        })
+        }))
       },
       onDone() {
         finishStreaming(streamMsg)
@@ -688,17 +795,27 @@ async function createNewSession({ withWelcome = true } = {}) {
   } catch (e) {
     streamState.value = 'error'
     globalError.value = e?.message || '会话创建失败'
-    messages.value.push({
+    messages.value.push(withMarkdown({
       id: `m_${Date.now()}`,
       role: 'agent',
       text: '会话创建失败，请刷新后重试。',
       streaming: false,
       error: e?.message || '',
       toolCalls: [],
-    })
+    }))
   } finally {
     sessionCreating.value = false
   }
+}
+
+async function resetToPlainChat() {
+  abortActiveStream('切换会话，流式请求已取消')
+  workspaceInfo.value = null
+  workspaceVersions.value = []
+  globalError.value = ''
+  streamState.value = 'idle'
+  await createNewSession({ withWelcome: true })
+  scrollBottom()
 }
 
 async function bootstrapChat() {
@@ -706,7 +823,7 @@ async function bootstrapChat() {
     await loadWorkspaceContext(workspaceId.value)
     return
   }
-  await createNewSession({ withWelcome: true })
+  await resetToPlainChat()
 }
 
 async function sendMessage() {
@@ -733,6 +850,7 @@ async function sendMessage() {
     id: `m_${Date.now()}_a`,
     role: 'agent',
     text: '',
+    html: '',
     streaming: true,
     error: '',
     toolCalls: [],
@@ -772,10 +890,13 @@ async function sendMessage() {
         finalizeRunningToolCalls(agentMessage, true)
         finishStreaming(agentMessage)
       },
-      onDone(data) {
+      async onDone() {
         clearStreamWatchdog()
         streamState.value = 'done'
         finalizeRunningToolCalls(agentMessage, true)
+        if (!agentMessage.text) {
+          await recoverAgentReplyFromServer(agentMessage)
+        }
         finishStreaming(agentMessage)
         refreshTraceFromServer(agentMessage)
       },
@@ -815,13 +936,16 @@ async function sendMessage() {
     if (streamState.value === 'streaming') {
       streamState.value = 'error'
       finalizeRunningToolCalls(agentMessage, false)
-      finishStreaming(agentMessage)
       agentMessage.error = '流式响应未正常结束，请重试。'
       globalError.value = agentMessage.error
     }
     if (!agentMessage.text) {
+      await recoverAgentReplyFromServer(agentMessage)
+    }
+    if (!agentMessage.text) {
       agentMessage.text = '暂未收到回复，请稍后重试。'
     }
+    finishStreaming(agentMessage)
     scrollBottom()
   }
 }
@@ -835,21 +959,27 @@ async function resetChat() {
   globalError.value = ''
   streamState.value = 'idle'
   sessionId.value = ''
-  messages.value = [{
+  messages.value = [withMarkdown({
     id: `m_${Date.now()}_reset`,
     role: 'agent',
     text: '新会话已重置。你可以继续提问。',
     streaming: false,
     error: '',
     toolCalls: [],
-  }]
+  })]
   await createNewSession({ withWelcome: false })
   scrollBottom()
 }
 
-watch(() => route.params.wsId, async (wsId) => {
+watch(workspaceId, async (wsId, prevWsId) => {
   if (wsId) {
-    await loadWorkspaceContext(wsId)
+    if (wsId !== sessionId.value || !workspaceInfo.value) {
+      await loadWorkspaceContext(wsId)
+    }
+    return
+  }
+  if (prevWsId) {
+    await resetToPlainChat()
   }
 })
 
@@ -962,9 +1092,10 @@ onBeforeUnmount(() => {
 }
 
 .chat-page {
+  flex: 1 1 0;
+  width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  height: 100%;
   min-height: 0;
   overflow: hidden;
   display: flex;
@@ -972,10 +1103,11 @@ onBeforeUnmount(() => {
 }
 
 .chat-layout {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
-  height: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
 .context-chips-bar {
@@ -1177,9 +1309,9 @@ onBeforeUnmount(() => {
 }
 
 .chat-main {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
-  height: 100%;
   min-height: 0;
   overflow: hidden;
 }
@@ -1194,6 +1326,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  background: #f8fafc;
 }
 
 .msg-wrapper { margin-bottom: 6px; }
@@ -1233,6 +1366,125 @@ onBeforeUnmount(() => {
   border-radius: 4px 14px 14px 14px;
   padding: 12px 14px;
   color: #334155;
+}
+
+.md-body {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #334155;
+  word-break: break-word;
+}
+
+.md-plain {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.md-body :deep(p) {
+  margin: 0 0 8px;
+}
+
+.md-body :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.md-body :deep(h1),
+.md-body :deep(h2),
+.md-body :deep(h3) {
+  font-weight: 700;
+  color: #0f172a;
+  margin: 12px 0 6px;
+  line-height: 1.4;
+}
+
+.md-body :deep(h1) { font-size: 16px; }
+.md-body :deep(h2) { font-size: 14px; }
+.md-body :deep(h3) { font-size: 13px; }
+
+.md-body :deep(ul),
+.md-body :deep(ol) {
+  padding-left: 18px;
+  margin: 6px 0 8px;
+}
+
+.md-body :deep(li) {
+  margin-bottom: 4px;
+  line-height: 1.6;
+}
+
+.md-body :deep(strong) {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.md-body :deep(em) {
+  font-style: italic;
+  color: #475569;
+}
+
+.md-body :deep(code) {
+  background: #f1f5f9;
+  color: #4f46e5;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.md-body :deep(pre) {
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+
+.md-body :deep(pre code) {
+  background: transparent;
+  color: #e2e8f0;
+  padding: 0;
+  font-size: 12px;
+}
+
+.md-body :deep(blockquote) {
+  border-left: 3px solid #c7d2fe;
+  background: #eef2ff;
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: 0 6px 6px 0;
+  color: #4338ca;
+  font-size: 12px;
+}
+
+.md-body :deep(hr) {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 10px 0;
+}
+
+.md-body :deep(a) {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+
+.md-body :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 8px 0;
+}
+
+.md-body :deep(th),
+.md-body :deep(td) {
+  border: 1px solid #e2e8f0;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.md-body :deep(th) {
+  background: #f8fafc;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .stream-flag { display: inline-block; color: var(--purple); font-size: 13px; line-height: 1; animation: blink 1s step-start infinite; margin-left: 1px; }
@@ -1293,23 +1545,11 @@ onBeforeUnmount(() => {
 
 @media (max-width: 768px) {
   .chat-page {
+    flex: 1 1 auto;
     max-width: 100%;
     margin: 0;
+    min-height: 100dvh;
     height: 100dvh;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .chat-layout {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-  }
-
-  .chat-main {
-    flex: 1;
-    min-height: 0;
     overflow: hidden;
   }
 
