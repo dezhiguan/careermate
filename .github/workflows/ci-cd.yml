@@ -1,20 +1,75 @@
-name: CareerMate Deploy
+name: CareerMate CI/CD
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
-  group: careermate-deploy-${{ github.ref }}
+  group: careermate-ci-cd-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  backend-test:
+    name: backend-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: careermate_test_db
+          POSTGRES_USER: careermate
+          POSTGRES_PASSWORD: careermate
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U careermate -d careermate_test_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Run backend tests
+        working-directory: backend
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          TEST_DB_URL: jdbc:postgresql://localhost:5432/careermate_test_db
+          TEST_DB_USERNAME: careermate
+          TEST_DB_PASSWORD: careermate
+        run: mvn -B test
+
+      - name: Upload backend test reports
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: backend-test-reports
+          path: backend/target/surefire-reports/
+          retention-days: 14
+          if-no-files-found: ignore
+
   backend-build:
     name: backend-build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs:
+      - backend-test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,14 +118,16 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/careermate/package-lock.json
 
+      - name: Install frontend dependencies
+        working-directory: frontend/careermate
+        run: npm ci
+
       - name: Build frontend
         working-directory: frontend/careermate
         env:
           VITE_API_BASE_URL: /api
           VITE_BASE_PATH: /
-        run: |
-          npm ci
-          npm run build
+        run: npm run build
 
       - name: Upload frontend dist artifact
         uses: actions/upload-artifact@v4
@@ -83,8 +140,11 @@ jobs:
     name: deploy-app-server3
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
       - backend-build
+    environment:
+      name: production
     steps:
       - name: Checkout deploy scripts
         uses: actions/checkout@v4
@@ -191,8 +251,11 @@ jobs:
     name: deploy-ingress-server2
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
       - frontend-build
+    environment:
+      name: production
     steps:
       - name: Download frontend dist artifact
         uses: actions/download-artifact@v4
@@ -243,6 +306,7 @@ jobs:
     name: smoke-test
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
       - deploy-app
       - deploy-ingress
