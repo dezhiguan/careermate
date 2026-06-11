@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CareerMate · Agent 能力图谱</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --primary: #4f46e5;
+    --primary-50: #eef2ff;
+    --primary-100: #e0e7ff;
+    --accent: #8b5cf6;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --ink: #0f172a;
+    --ink-2: #334155;
+    --ink-3: #64748b;
+    --line: #e2e8f0;
+    --bg: #f8fafc;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0f172a; color: #e2e8f0; }
+  .page-section { display: block !important; padding: 24px; }
+  .page-meta { max-width: 1600px; margin: 0 auto 20px; padding: 16px 20px; background: #1e293b; border-left: 4px solid #6366f1; border-radius: 8px; }
+  .page-meta h2 { font-size: 18px; font-weight: 700; color: #f1f5f9; margin: 0 0 6px; }
+  .page-meta p { font-size: 13px; color: #cbd5e1; margin: 0; line-height: 1.6; }
+  .page-meta .tag { display: inline-block; padding: 2px 8px; background: #312e81; color: #c7d2fe; border-radius: 4px; font-size: 11px; margin-right: 6px; }
+  .dual-view { max-width: 1600px; margin: 0 auto; display: grid; grid-template-columns: 1fr 400px; gap: 24px; align-items: start; }
+  @media (max-width: 1280px) { .dual-view { grid-template-columns: 1fr; } }
+  .view-label { font-size: 11px; font-weight: 600; color: #64748b; letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase; }
+  .web-frame { background: var(--bg); border: 1px solid #334155; border-radius: 12px; overflow: hidden; color: var(--ink); }
+  .web-titlebar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f1f5f9; border-bottom: 1px solid var(--line); }
+  .web-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .web-url { flex: 1; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; font-size: 11px; color: var(--ink-3); }
+  .mobile-frame { width: 380px; margin: 0 auto; background: var(--bg); border: 9px solid #1e293b; border-radius: 40px; overflow: hidden; color: var(--ink); position: relative; box-shadow: 0 20px 50px rgba(0,0,0,.4); }
+  .mobile-notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 120px; height: 24px; background: #1e293b; border-radius: 0 0 14px 14px; z-index: 10; }
+  .mobile-statusbar { padding: 32px 20px 6px; display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--ink); }
+  .icon { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: inline-block; vertical-align: -3px; }
+  .ai-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: linear-gradient(135deg, #4f46e5, #8b5cf6); color: #fff; border-radius: 999px; font-size: 10px; font-weight: 600; }
+  .ai-done { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; background: #d1fae5; color: #047857; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .chip { display:inline-flex;align-items:center;gap:3px;padding:2px 8px;background:var(--primary-50);color:var(--primary);border-radius:999px;font-size:11px;font-weight:500; }
+  .chip-gray { background:#f1f5f9;color:var(--ink-2); }
+  .chip-success { background:#d1fae5;color:#047857; }
+  .chip-warning { background:#fef3c7;color:#b45309; }
+  .chip-danger { background:#fee2e2;color:#b91c1c; }
+  .btn-primary { background: var(--primary); color: #fff; border-radius: 8px; padding: 9px 14px; font-size: 13px; font-weight: 600; border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .btn-ghost { background: #fff; color: var(--ink-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; font-size: 13px; cursor: pointer; }
+  .nav-mobile-bottom { display: flex; justify-content: space-around; padding: 8px 0 6px; background: #fff; border-top: 1px solid var(--line); position: absolute; bottom: 0; left: 0; right: 0; }
+  .nav-mobile-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 8px; color: var(--ink-3); font-size: 10px; flex: 1; cursor: pointer; }
+  .nav-mobile-item.active { color: var(--primary); }
+  .nav-mobile-item .icon { width: 22px; height: 22px; stroke-width: 2; }
+  .nav-mobile-item.center-ai { position: relative; color: var(--primary); font-weight: 700; }
+  .nav-mobile-item.center-ai .ai-fab { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); width: 50px; height: 50px; background: linear-gradient(135deg,#4f46e5,#8b5cf6); border-radius: 50%; display: grid; place-items: center; color: #fff; box-shadow: 0 6px 18px rgba(99,102,241,.5); border: 4px solid #fff; }
+  .nav-mobile-item.center-ai .nav-ai-label { margin-top: 32px; }
+  .ai-bubble { background: #fff; border: 1px solid var(--line); border-radius: 4px 14px 14px 14px; padding: 12px 14px; font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+  .user-bubble { background: var(--primary); color: #fff; border-radius: 14px 14px 4px 14px; padding: 9px 13px; font-size: 13px; line-height: 1.5; max-width: 75%; }
+  .ai-avatar { width:32px;height:32px;background:linear-gradient(135deg,#4f46e5,#8b5cf6);border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:11px;flex-shrink:0; }
+  .ctx-card { background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:8px; }
+  .ctx-card .ctx-label { font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;font-weight:600; }
+  .ctx-card .ctx-title { font-size:13px;font-weight:700;color:var(--ink); }
+</style>
+</head>
+<body>
+<section class="page-section" id="page-agent">
+  <div class="page-meta">
+    <h2>⚡ 小职 Agent 能力 · 不只是 ChatBot，是会推理 + 调工具 + 主动出击的 Agent</h2>
+    <p><span class="tag">Multi-Agent</span><span class="tag">推理链可视化</span><span class="tag">主动推送</span>4 大维度：① 多步推理（拆任务） ② 工具调用（RAG / 简历 / JD / 市场 / 出题 / 评分） ③ 主动推送（不用你问） ④ 自我反思（评分后给改进）</p>
+  </div>
+
+  <!-- A. Agent 能力地图 -->
+  <div style="max-width:1600px;margin:0 auto 24px;">
+    <div class="view-label">A. 小职能力地图（一张图看懂 AI Agent 在做什么）</div>
+    <div style="background:linear-gradient(135deg,#0f172a,#1e1b4b);border:1px solid #312e81;border-radius:16px;padding:28px;color:#e2e8f0;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:18px;">
+        <!-- 多步推理 -->
+        <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.3);border-radius:14px;padding:18px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <div style="width:38px;height:38px;background:linear-gradient(135deg,#4f46e5,#8b5cf6);border-radius:10px;display:grid;place-items:center;font-size:20px;">🧠</div>
+            <div style="font-size:13px;font-weight:700;color:#a5b4fc;">多步推理</div>
+          </div>
+          <div style="font-size:11px;color:#cbd5e1;line-height:1.7;margin-bottom:10px;">把"准备腾讯 WXG"自动拆成 7 步执行 · 每步透明可见</div>
+          <div style="font-size:10px;color:#94a3b8;line-height:1.7;">
+            · 拆 JD 关键词<br>
+            · 查面经<br>
+            · 算简历匹配<br>
+            · 推荐定制方向<br>
+            · 出题<br>
+            · 评分复盘<br>
+            · 综合行动清单
+          </div>
+        </div>
+
+        <!-- 工具调用 -->
+        <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:14px;padding:18px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <div style="width:38px;height:38px;background:linear-gradient(135deg,#10b981,#34d399);border-radius:10px;display:grid;place-items:center;font-size:20px;">🛠</div>
+            <div style="font-size:13px;font-weight:700;color:#86efac;">工具调用</div>
+          </div>
+          <div style="font-size:11px;color:#cbd5e1;line-height:1.7;margin-bottom:10px;">能调 6 类工具 · 像真实顾问那样查资料</div>
+          <div style="font-size:10px;color:#94a3b8;line-height:1.7;">
+            📚 RAG 知识库（25k+）<br>
+            📋 JD 解析器<br>
+            📄 简历 ATS 分析<br>
+            📊 市场行情 API<br>
+            🤖 出题引擎<br>
+            📈 评分模型
+          </div>
+        </div>
+
+        <!-- 主动推送 -->
+        <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:14px;padding:18px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <div style="width:38px;height:38px;background:linear-gradient(135deg,#f59e0b,#fbbf24);border-radius:10px;display:grid;place-items:center;font-size:20px;">🎯</div>
+            <div style="font-size:13px;font-weight:700;color:#fbbf24;">主动推送</div>
+          </div>
+          <div style="font-size:11px;color:#cbd5e1;line-height:1.7;margin-bottom:10px;">不等你问 · 检测到机会就推</div>
+          <div style="font-size:10px;color:#94a3b8;line-height:1.7;">
+            · 新 JD 上线<br>
+            · 薄弱点遗忘曲线<br>
+            · 面试前一晚提醒<br>
+            · 行业薪资变化<br>
+            · 简历过时提醒<br>
+            · 目标公司 HC ↑
+          </div>
+        </div>
+
+        <!-- 自我反思 -->
+        <div style="background:rgba(236,72,153,.08);border:1px solid rgba(236,72,153,.3);border-radius:14px;padding:18px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <div style="width:38px;height:38px;background:linear-gradient(135deg,#ec4899,#f472b6);border-radius:10px;display:grid;place-items:center;font-size:20px;">🔄</div>
+            <div style="font-size:13px;font-weight:700;color:#f9a8d4;">自我反思</div>
+          </div>
+          <div style="font-size:11px;color:#cbd5e1;line-height:1.7;margin-bottom:10px;">看你的答案后反思如何更好教你</div>
+          <div style="font-size:10px;color:#94a3b8;line-height:1.7;">
+            · 评分后给改进<br>
+            · 记住你的薄弱<br>
+            · 下次出题避开已会<br>
+            · 简历改了几版自己迭代<br>
+            · 解释复杂概念<br>
+            · 用你能懂的方式
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部：Multi-Agent 架构示意 -->
+      <div style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:18px;margin-top:20px;">
+        <div style="font-size:12px;font-weight:700;color:#a5b4fc;margin-bottom:14px;">🤖 Multi-Agent 架构 · 小职背后有 4 个子 Agent 协作</div>
+        <div style="display:flex;align-items:center;gap:12px;justify-content:space-between;overflow-x:auto;">
+          <div style="background:#1e1b4b;border:1px solid #312e81;border-radius:10px;padding:12px;min-width:140px;text-align:center;">
+            <div style="font-size:24px;margin-bottom:4px;">📋</div>
+            <div style="font-size:11px;font-weight:700;color:#fff;">JD Agent</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">拆解关键词<br>识别考点</div>
+          </div>
+          <div style="color:#475569;font-size:20px;">→</div>
+          <div style="background:#1e1b4b;border:1px solid #312e81;border-radius:10px;padding:12px;min-width:140px;text-align:center;">
+            <div style="font-size:24px;margin-bottom:4px;">📄</div>
+            <div style="font-size:11px;font-weight:700;color:#fff;">简历 Agent</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">ATS 匹配<br>定制改写</div>
+          </div>
+          <div style="color:#475569;font-size:20px;">→</div>
+          <div style="background:#1e1b4b;border:1px solid #312e81;border-radius:10px;padding:12px;min-width:140px;text-align:center;">
+            <div style="font-size:24px;margin-bottom:4px;">🎯</div>
+            <div style="font-size:11px;font-weight:700;color:#fff;">出题 Agent</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">基于面经<br>个性化生成</div>
+          </div>
+          <div style="color:#475569;font-size:20px;">→</div>
+          <div style="background:#1e1b4b;border:1px solid #312e81;border-radius:10px;padding:12px;min-width:140px;text-align:center;">
+            <div style="font-size:24px;margin-bottom:4px;">📈</div>
+            <div style="font-size:11px;font-weight:700;color:#fff;">评分 Agent</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:2px;">多维度评<br>给改进建议</div>
+          </div>
+          <div style="color:#475569;font-size:20px;">→</div>
+          <div style="background:linear-gradient(135deg,#4f46e5,#8b5cf6);border:1px solid #8b5cf6;border-radius:10px;padding:12px;min-width:140px;text-align:center;color:#fff;">
+            <div style="font-size:24px;margin-bottom:4px;">职</div>
+            <div style="font-size:11px;font-weight:700;">小职 Supervisor</div>
+            <div style="font-size:9px;opacity:.85;margin-top:2px;">编排调度<br>统一面向用户</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- B. 推理链可视化 + 主动推送 双示例 -->
+  <div style="max-width:1600px;margin:0 auto 24px;display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+    <!-- B1 推理链 -->
+    <div>
+      <div class="view-label">B1. 推理链可视化（小职"边想边做"的过程透明）</div>
+      <div class="web-frame">
+        <div style="background:#f8fafc;padding:20px;">
+          <!-- 用户问 -->
+          <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+            <div class="user-bubble">帮我准备腾讯 WXG 二面，明天上午</div>
+          </div>
+
+          <!-- 小职推理链 -->
+          <div style="display:flex;gap:10px;">
+            <div class="ai-avatar">职</div>
+            <div style="flex:1;">
+              <div class="ai-bubble">
+                <b>明天上午的二面，我帮你拆成 7 步准备</b> · 全程透明，做完每一步告诉你
+              </div>
+
+              <!-- 推理步骤卡 -->
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-top:10px;">
+                <div style="font-size:11px;color:#64748b;font-weight:600;letter-spacing:.5px;margin-bottom:10px;">🧠 推理链 · 已执行 5/7</div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  <div style="display:flex;align-items:start;gap:10px;background:#f0fdf4;border-radius:8px;padding:9px 12px;">
+                    <div style="width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;display:grid;place-items:center;font-size:10px;font-weight:700;flex-shrink:0;">✓</div>
+                    <div style="font-size:12px;color:#166534;line-height:1.5;flex:1;"><b>① 拆 JD：</b>识别 7 个核心考点 → IM 中台 / Redis 集群 / TRpc / 直播弹幕 / 微信生态 / 安全 / 性能</div>
+                    <span style="font-size:10px;color:#64748b;">0.8s</span>
+                  </div>
+                  <div style="display:flex;align-items:start;gap:10px;background:#f0fdf4;border-radius:8px;padding:9px 12px;">
+                    <div style="width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;display:grid;place-items:center;font-size:10px;font-weight:700;flex-shrink:0;">✓</div>
+                    <div style="font-size:12px;color:#166534;line-height:1.5;flex:1;"><b>② 查面经：</b>检索 RAG → 24 篇 WXG 二面 + 18 篇微信生态后端记录</div>
+                    <span style="font-size:10px;color:#64748b;">1.2s</span>
+                  </div>
+                  <div style="display:flex;align-items:start;gap:10px;background:#f0fdf4;border-radius:8px;padding:9px 12px;">
+                    <div style="width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;display:grid;place-items:center;font-size:10px;font-weight:700;flex-shrink:0;">✓</div>
+                    <div style="font-size:12px;color:#166534;line-height:1.5;flex:1;"><b>③ 算匹配：</b>调简历 Agent → 简历 v3.2 与 JD 匹配 87/100，3 处可优化</div>
+                    <span style="font-size:10px;color:#64748b;">0.6s</span>
+                  </div>
+                  <div style="display:flex;align-items:start;gap:10px;background:#f0fdf4;border-radius:8px;padding:9px 12px;">
+                    <div style="width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;display:grid;place-items:center;font-size:10px;font-weight:700;flex-shrink:0;">✓</div>
+                    <div style="font-size:12px;color:#166534;line-height:1.5;flex:1;"><b>④ 生成定制简历：</b>调简历 Agent → v3.2-腾讯WXG（ATS 92→95）</div>
+                    <span style="font-size:10px;color:#64748b;">2.4s</span>
+                  </div>
+                  <div style="display:flex;align-items:start;gap:10px;background:#f0fdf4;border-radius:8px;padding:9px 12px;">
+                    <div style="width:20px;height:20px;border-radius:50%;background:#10b981;color:#fff;display:grid;place-items:center;font-size:10px;font-weight:700;flex-shrink:0;">✓</div>
+                    <div style="font-size:12px;color:#166534;line-height:1.5;flex:1;"><b>⑤ 出题：</b>调出题 Agent → 8 道针对题（4 个考点 × 2 难度）</div>
+                    <span style="font-size:10px;color:#64748b;">1.8s</span>
+                  </div>
+                  <!-- 进行中 -->
+                  <div style="display:flex;align-items:start;gap:10px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:9px 12px;">
+                    <div style="width:20px;height:20px;border-radius:50%;background:#4f46e5;color:#fff;display:grid;place-items:center;font-size:10px;font-weight:700;flex-shrink:0;animation:pulse 1.5s infinite;">6</div>
+                    <div style="font-size:12px;color:#3730a3;line-height:1.5;flex:1;"><b>⑥ 整理高频追问：</b>正在检索 WXG 面试官常追问的项目细节…</div>
+                    <span style="font-size:10px;color:#4f46e5;">运行中</span>
+                  </div>
+                  <div style="display:flex;align-items:start;gap:10px;background:#f8fafc;border-radius:8px;padding:9px 12px;opacity:.55;">
+                    <div style="width:20px;height:20px;border-radius:50%;background:#e2e8f0;color:#64748b;display:grid;place-items:center;font-size:10px;font-weight:700;flex-shrink:0;">7</div>
+                    <div style="font-size:12px;color:#64748b;line-height:1.5;flex:1;"><b>⑦ 综合行动清单：</b>今晚 → 明早的 5 件事</div>
+                    <span style="font-size:10px;color:#94a3b8;">排队中</span>
+                  </div>
+                </div>
+                <div style="font-size:10px;color:#64748b;margin-top:12px;text-align:center;border-top:1px solid #f1f5f9;padding-top:10px;">
+                  💡 这就是 Agent · 不是问一句答一句，是<b>自主完成多步任务</b>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- B2 主动推送 -->
+    <div>
+      <div class="view-label">B2. 主动推送（小职不等你问，看到机会就推）</div>
+      <div class="web-frame">
+        <div style="background:#f8fafc;padding:20px;">
+          <div style="font-size:12px;color:#64748b;font-weight:600;letter-spacing:.5px;margin-bottom:14px;">🔔 小职推送（5 条未读）</div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <!-- 推送 1 · 高匹配 JD -->
+            <div style="background:#fff;border:1px solid #c7d2fe;border-left:3px solid #4f46e5;border-radius:10px;padding:12px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <div style="width:24px;height:24px;background:linear-gradient(135deg,#4f46e5,#8b5cf6);border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:10px;">职</div>
+                <span style="font-size:11px;font-weight:700;color:#0f172a;">小职 · 1 分钟前</span>
+                <span style="background:#eef2ff;color:#4338ca;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">高匹配</span>
+              </div>
+              <div style="font-size:12px;color:#334155;line-height:1.6;">
+                腾讯 WXG 今天新发了 5 个 Java 后端 JD，<b style="color:#4f46e5;">2 个跟你简历匹配 90+</b>。要不要看下？
+              </div>
+              <div style="display:flex;gap:6px;margin-top:8px;">
+                <button class="btn-primary" style="padding:5px 12px;font-size:11px;">看 JD</button>
+                <button class="btn-ghost" style="padding:5px 12px;font-size:11px;">稍后</button>
+              </div>
+            </div>
+
+            <!-- 推送 2 · 遗忘曲线复习提醒 -->
+            <div style="background:#fff;border:1px solid #fde68a;border-left:3px solid #f59e0b;border-radius:10px;padding:12px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <div style="width:24px;height:24px;background:linear-gradient(135deg,#4f46e5,#8b5cf6);border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:10px;">职</div>
+                <span style="font-size:11px;font-weight:700;color:#0f172a;">小职 · 1 小时前</span>
+                <span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">遗忘曲线</span>
+              </div>
+              <div style="font-size:12px;color:#334155;line-height:1.6;">
+                你 7 天前练的 <b>分布式锁</b>（得 62 分）按遗忘曲线该复习了。我已经准备了 1 道变种题，<b>5 分钟搞定</b>。
+              </div>
+              <div style="display:flex;gap:6px;margin-top:8px;">
+                <button class="btn-primary" style="padding:5px 12px;font-size:11px;">来一道</button>
+                <button class="btn-ghost" style="padding:5px 12px;font-size:11px;">明天</button>
+              </div>
+            </div>
+
+            <!-- 推送 3 · 面试前提醒 -->
+            <div style="background:#fff;border:1px solid #fecaca;border-left:3px solid #ef4444;border-radius:10px;padding:12px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <div style="width:24px;height:24px;background:linear-gradient(135deg,#4f46e5,#8b5cf6);border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:10px;">职</div>
+                <span style="font-size:11px;font-weight:700;color:#0f172a;">小职 · 3 小时前</span>
+                <span style="background:#fee2e2;color:#b91c1c;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">面试前</span>
+              </div>
+              <div style="font-size:12px;color:#334155;line-height:1.6;">
+                <b>明早 10:00 字节飞书一面</b>。我帮你整理了 5 道高频题 + 公司近期项目动向，<b>今晚 20:00 一起过一遍？</b>
+              </div>
+              <div style="display:flex;gap:6px;margin-top:8px;">
+                <button class="btn-primary" style="padding:5px 12px;font-size:11px;">今晚约</button>
+                <button class="btn-ghost" style="padding:5px 12px;font-size:11px;">已准备好</button>
+              </div>
+            </div>
+
+            <!-- 推送 4 · 行业薪资变化 -->
+            <div style="background:#fff;border:1px solid #bbf7d0;border-left:3px solid #10b981;border-radius:10px;padding:12px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <div style="width:24px;height:24px;background:linear-gradient(135deg,#4f46e5,#8b5cf6);border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:10px;">职</div>
+                <span style="font-size:11px;font-weight:700;color:#0f172a;">小职 · 昨天</span>
+                <span style="background:#dcfce7;color:#15803d;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">市场</span>
+              </div>
+              <div style="font-size:12px;color:#334155;line-height:1.6;">
+                广州 Java 后端 P50 中位本月 <b style="color:#10b981;">+12% 上涨到 28K</b>。你的期望 25-35K 还在合理区间，<b>可以再激进一点</b>。
+              </div>
+            </div>
+
+            <!-- 推送 5 · HC 变化 -->
+            <div style="background:#fff;border:1px solid #e2e8f0;border-left:3px solid #94a3b8;border-radius:10px;padding:12px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <div style="width:24px;height:24px;background:linear-gradient(135deg,#4f46e5,#8b5cf6);border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:10px;">职</div>
+                <span style="font-size:11px;font-weight:700;color:#0f172a;">小职 · 昨天</span>
+                <span style="background:#f1f5f9;color:#475569;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">HC 动态</span>
+              </div>
+              <div style="font-size:12px;color:#334155;line-height:1.6;">
+                你关注的网易游戏 HC 从 8 增加到 19（<b style="color:#10b981;">+138%</b>）。简历贴合 91 分，<b>是好时机</b>。
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C. 各页面"小职体现" -->
+  <div style="max-width:1600px;margin:0 auto;">
+    <div class="view-label">C. 小职 ≠ 只在底部按钮 · 全站每个页面都有它的痕迹</div>
+    <div style="background:#0f172a;border:1px solid #312e81;border-radius:14px;padding:20px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:14px;color:#cbd5e1;">
+
+        <div style="background:#020617;border:1px solid #1e293b;border-radius:10px;padding:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <svg class="icon" style="color:#a5b4fc;width:18px;height:18px;"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/></svg>
+            <div style="font-size:12px;font-weight:700;color:#a5b4fc;">机会</div>
+          </div>
+          <div style="font-size:11px;line-height:1.7;">
+            · 每个 JD 卡有<b style="color:#fbbf24;">"小职解读"</b><br>
+            · 自动算匹配分（你简历 vs JD）<br>
+            · 主动推"AI 强推 TOP 1"<br>
+            · 点 JD = 进小职准备
+          </div>
+        </div>
+
+        <div style="background:#020617;border:1px solid #1e293b;border-radius:10px;padding:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <svg class="icon" style="color:#a5b4fc;width:18px;height:18px;"><polyline points="9 11 12 14 22 4"/></svg>
+            <div style="font-size:12px;font-weight:700;color:#a5b4fc;">面试题</div>
+          </div>
+          <div style="font-size:11px;line-height:1.7;">
+            · <b style="color:#fbbf24;">小职给你挑了一道</b>（基于薄弱）<br>
+            · 出题用你简历+目标 JD<br>
+            · 答完即评分 + 标答对比<br>
+            · 自动记录薄弱点
+          </div>
+        </div>
+
+        <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);border:1px solid #8b5cf6;border-radius:10px;padding:14px;color:#fff;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <div style="width:18px;height:18px;background:rgba(255,255,255,.25);border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:10px;">职</div>
+            <div style="font-size:12px;font-weight:700;">AI 小职（核心）</div>
+          </div>
+          <div style="font-size:11px;line-height:1.7;opacity:.92;">
+            · 对话式 + 推理链可见<br>
+            · 任意复杂任务自主执行<br>
+            · 可调 6 类工具<br>
+            · 一句话搞定多步
+          </div>
+        </div>
+
+        <div style="background:#020617;border:1px solid #1e293b;border-radius:10px;padding:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <svg class="icon" style="color:#a5b4fc;width:18px;height:18px;"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+            <div style="font-size:12px;font-weight:700;color:#a5b4fc;">市场</div>
+          </div>
+          <div style="font-size:11px;line-height:1.7;">
+            · 每张图表有<b style="color:#fbbf24;">"小职解读"</b><br>
+            · 薪资分析 + 决策建议<br>
+            · HC 变化主动监控<br>
+            · 一键带回小职聊谈薪
+          </div>
+        </div>
+
+        <div style="background:#020617;border:1px solid #1e293b;border-radius:10px;padding:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <svg class="icon" style="color:#a5b4fc;width:18px;height:18px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <div style="font-size:12px;font-weight:700;color:#a5b4fc;">我的</div>
+          </div>
+          <div style="font-size:11px;line-height:1.7;">
+            · 每份简历都是<b style="color:#fbbf24;">小职定制版</b><br>
+            · 训练记录 = 小职评的分<br>
+            · 薄弱点 = 小职分析的<br>
+            · 数据可一键导出
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 总结 -->
+      <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:10px;padding:16px;margin-top:18px;">
+        <div style="display:flex;align-items:start;gap:14px;">
+          <div style="width:48px;height:48px;background:linear-gradient(135deg,#4f46e5,#8b5cf6);border-radius:14px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:22px;flex-shrink:0;">职</div>
+          <div style="font-size:13px;color:#e2e8f0;line-height:1.8;">
+            <b style="color:#a5b4fc;">小职 = CareerMate 的灵魂</b>，每个页面都是它的"工具页面" —— 机会页是给它看 JD 的入口、面试题是它出题的舞台、市场页是它读数据的窗口、我的页是它产出的资产柜。<br>
+            <b style="color:#fbbf24;">底部凸起按钮 = 直接对话</b>；不想说话也行，每个 tab 里它都已经为你做了准备。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.5;} }
+  </style>
+</section>
+
+</body>
+</html>
