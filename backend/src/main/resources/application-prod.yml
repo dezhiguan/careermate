@@ -1,6 +1,10 @@
 careermate:
   debug:
     llm-api-enabled: false
+  security:
+    mode: ${SECURITY_MODE:single-user}
+    # 演示/内测期跳过 API 鉴权，所有请求以 local-user 访问；恢复登录时设 SECURITY_DEV_SKIP_AUTH=false
+    dev-skip-auth: ${SECURITY_DEV_SKIP_AUTH:true}
 
 spring:
   output:
