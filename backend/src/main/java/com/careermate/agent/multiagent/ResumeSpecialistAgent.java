@@ -49,7 +49,7 @@ public class ResumeSpecialistAgent {
         return "get_default_resume";
     }
 
-    static boolean shouldGenerateResumeFromJd(String message) {
+    public static boolean shouldGenerateResumeFromJd(String message) {
         if (message == null || message.isBlank()) {
             return false;
         }
