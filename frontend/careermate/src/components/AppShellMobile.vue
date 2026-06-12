@@ -102,7 +102,7 @@ function go(path) {
 
 .shell-mobile-main {
   flex: 1;
-  padding-bottom: 70px;
+  padding-bottom: 88px;
   min-height: 0;
 }
 
@@ -158,6 +158,14 @@ function go(path) {
   position: relative;
   color: #4f46e5;
   font-weight: 700;
+  /* 仅 FAB 圆钮可点，避免透明区域挡住页面内按钮（如「用 AI 准备」） */
+  pointer-events: none;
+}
+
+.nav-item.center-ai .ai-fab,
+.nav-item.center-ai .nav-ai-label {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .ai-fab {

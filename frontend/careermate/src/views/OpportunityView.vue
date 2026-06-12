@@ -87,8 +87,8 @@
           <button
             type="button"
             class="btn-primary"
-            :disabled="preparingId === item.jdId"
-            @click="handlePrepare(item)"
+            :disabled="!!preparingId"
+            @click.stop="handlePrepare(item)"
           >
             {{ preparingId === item.jdId ? '准备中...' : '用 AI 准备 →' }}
           </button>
@@ -157,13 +157,19 @@ async function fetchList() {
 }
 
 async function handlePrepare(item) {
+  if (!item?.jdId || preparingId.value) return
   preparingId.value = item.jdId
+  error.value = ''
   try {
     const resp = await prepareWithAi(item.jdId)
-    const path = resp?.redirectPath || `/chat/${resp?.workspaceId}`
-    router.push(path)
+    const wsId = resp?.workspaceId
+    const path = resp?.redirectPath || (wsId ? `/chat/${wsId}` : '')
+    if (!path) {
+      throw new Error('准备失败：未返回工作空间')
+    }
+    await router.push(path)
   } catch (e) {
-    error.value = e.message || '准备失败'
+    error.value = e?.message || '准备失败，请稍后重试'
   } finally {
     preparingId.value = ''
   }
@@ -201,7 +207,8 @@ onMounted(fetchList)
 .opportunity-page {
   min-height: 100%;
   background: #f8fafc;
-  padding-bottom: 16px;
+  /* 留出底部导航 + 中间 AI 悬浮钮的空间，避免挡住「用 AI 准备」 */
+  padding-bottom: 96px;
 }
 
 .page-header {
@@ -463,6 +470,8 @@ onMounted(fetchList)
 .card-actions {
   display: flex;
   gap: 8px;
+  position: relative;
+  z-index: 1;
 }
 
 .btn-primary {
