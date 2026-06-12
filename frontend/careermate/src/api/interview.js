@@ -29,3 +29,11 @@ export function completeInterviewSession(sessionId) {
 export function deleteInterviewSession(sessionId) {
   return request(`/interview-sessions/${sessionId}`, { method: 'DELETE' })
 }
+
+export function getKbQuestions(query) {
+  return request(`/interview/kb-questions?query=${encodeURIComponent(query)}`)
+}
+
+export function getCompanyPrep(company) {
+  return request(`/interview/company-prep?company=${encodeURIComponent(company)}`)
+}

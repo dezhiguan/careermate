@@ -39,7 +39,7 @@
             <polyline points="9 11 12 14 22 4" />
             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
           </svg>
-          <span>题库</span>
+          <span>面试准备</span>
         </button>
 
         <button
@@ -78,23 +78,23 @@
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <span class="search-placeholder">搜 JD / 公司 / 技能</span>
-          <span class="search-kbd">⌘K</span>
+          <input
+            v-model="searchQuery"
+            type="search"
+            class="search-input"
+            placeholder="搜 JD / 公司 / 技能"
+            aria-label="搜索"
+            @keydown.enter="handleSearch"
+          >
+          <button
+            type="button"
+            class="search-submit-btn"
+            :disabled="!searchQuery.trim()"
+            @click="handleSearch"
+          >
+            搜索
+          </button>
         </div>
-        <div class="user-bar-spacer" />
-        <button type="button" class="user-bar-icon-btn" aria-label="通知">
-          <svg class="bar-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-          </svg>
-          <span class="notify-badge">5</span>
-        </button>
-        <button type="button" class="user-bar-icon-btn" aria-label="设置">
-          <svg class="bar-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        </button>
       </header>
 
       <main class="main-content" :class="{ 'chat-layout': isChatActive }">
@@ -105,7 +105,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authStore } from '../stores/authStore'
 
@@ -115,6 +115,7 @@ const props = defineProps({
 
 const route = useRoute()
 const router = useRouter()
+const searchQuery = ref('广州')
 
 const pageTitle = computed(() => route.meta?.title || 'CareerMate')
 
@@ -136,6 +137,28 @@ function go(path) {
     router.push(path)
   }
 }
+
+function handleSearch() {
+  const q = searchQuery.value.trim()
+  if (!q) return
+  const t = String(Date.now())
+  if (route.path === '/market') {
+    router.push({ path: '/market', query: { q, t } })
+    return
+  }
+  router.push({ path: '/opportunity', query: { keyword: q, t } })
+}
+
+watch(
+  () => [route.path, route.query.q, route.query.keyword],
+  ([path, q, keyword]) => {
+    if (path === '/market' && q) {
+      searchQuery.value = String(q)
+    } else if (path === '/opportunity' && keyword) {
+      searchQuery.value = String(keyword)
+    }
+  }
+)
 </script>
 
 <style scoped>
@@ -301,15 +324,15 @@ function go(path) {
 }
 
 .user-bar-search {
-  flex: 0 1 360px;
-  max-width: 360px;
+  flex: 1;
+  min-width: 0;
   margin-left: 18px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
   color: #94a3b8;
   font-size: 12px;
@@ -326,56 +349,37 @@ function go(path) {
   flex-shrink: 0;
 }
 
-.search-placeholder {
+.search-input {
   flex: 1;
   min-width: 0;
-}
-
-.search-kbd {
-  margin-left: auto;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-}
-
-.user-bar-spacer {
-  flex: 1;
-}
-
-.user-bar-icon-btn {
-  position: relative;
   border: none;
   background: transparent;
-  color: #475569;
-  cursor: pointer;
-  padding: 4px;
-  display: grid;
-  place-items: center;
+  outline: none;
+  font-size: 12px;
+  color: #0f172a;
+  font-family: inherit;
 }
 
-.bar-icon {
-  width: 20px;
-  height: 20px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.search-input::placeholder {
+  color: #94a3b8;
 }
 
-.notify-badge {
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  background: #ef4444;
+.search-submit-btn {
+  flex-shrink: 0;
+  border: none;
+  background: #4f46e5;
   color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 8px;
-  line-height: 1.2;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.search-submit-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .main-content {

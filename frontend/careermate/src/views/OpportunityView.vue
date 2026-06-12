@@ -109,11 +109,12 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { listOpportunities, prepareWithAi } from '../api/opportunity'
 
 const router = useRouter()
+const route = useRoute()
 
 const searchInput = ref('')
 const items = ref([])
@@ -125,6 +126,16 @@ const preparingId = ref('')
 function handleSearch() {
   fetchList()
 }
+
+watch(
+  () => [route.query.keyword, route.query.t],
+  ([keyword]) => {
+    if (keyword !== undefined) {
+      searchInput.value = String(keyword)
+      fetchList()
+    }
+  }
+)
 
 async function fetchList() {
   loading.value = true

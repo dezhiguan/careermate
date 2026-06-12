@@ -148,6 +148,10 @@ public class MarketIntelligenceService {
     private <T> T parseLlmJson(String userPrompt, Class<T> type) {
         ChatResponse response = llmClient.chat(ChatRequest.builder()
                 .messages(List.of(
+                        ChatMessage.builder()
+                                .role("system")
+                                .content("你只输出合法 JSON，不输出任何其他文字或解释。")
+                                .build(),
                         ChatMessage.builder().role("user").content(userPrompt).build()
                 ))
                 .temperature(0.3)
