@@ -1,0 +1,8 @@
+mirrors:
+  docker.io:
+    endpoint:
+      - "https://docker.m.daocloud.io"
+      - "https://registry-1.docker.io"
+  rancher:
+    endpoint:
+      - "https://rancher-mirror.rancher.cn"

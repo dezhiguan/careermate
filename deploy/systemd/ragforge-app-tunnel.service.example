@@ -1,0 +1,22 @@
+[Unit]
+Description=RAGForge and CareerMate app tunnel to Server3
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ssh -NT -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new \
+  -L 172.19.40.32:19080:127.0.0.1:8080 \
+  -L 172.19.40.32:19081:127.0.0.1:8081 \
+  -L 172.19.40.32:19082:127.0.0.1:8082 \
+  -L 172.19.40.32:18080:127.0.0.1:18080 \
+  -L 172.19.40.32:18081:127.0.0.1:18081 \
+  -L 172.19.40.32:18082:127.0.0.1:18082 \
+  -L 172.19.40.32:31080:127.0.0.1:31080 \
+  -L 172.19.40.32:31000:127.0.0.1:31000 \
+  root@8.138.191.228
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
