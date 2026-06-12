@@ -39,7 +39,14 @@ public class ResumeVersionController {
 
     @GetMapping("/{versionId}/export/pdf")
     public void exportPdf(@PathVariable String versionId, HttpServletResponse response) {
-        resumeVersionService.exportPdf(versionId, response);
+        Long userId = CurrentUserContext.getUserId();
+        resumeVersionService.exportPdf(userId, versionId, response);
+    }
+
+    @GetMapping("/{versionId}/export/docx")
+    public void exportDocx(@PathVariable String versionId, HttpServletResponse response) {
+        Long userId = CurrentUserContext.getUserId();
+        resumeVersionService.exportDocx(userId, versionId, response);
     }
 
     @GetMapping("/{versionId}")

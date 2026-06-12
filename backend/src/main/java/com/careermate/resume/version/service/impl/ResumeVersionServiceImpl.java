@@ -6,6 +6,8 @@ import com.careermate.mapper.ResumeVersionMapper;
 import com.careermate.model.entity.ResumeVersionEntity;
 import com.careermate.resume.version.dto.ResumeVersionListItemVO;
 import com.careermate.resume.version.dto.ResumeVersionVO;
+import com.careermate.resume.version.export.ResumeExportResponseHeaders;
+import com.careermate.resume.version.export.ResumeVersionDocxRenderer;
 import com.careermate.resume.version.export.ResumeVersionPdfRenderer;
 import com.careermate.resume.version.service.ResumeVersionService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -32,15 +34,18 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     private final ResumeVersionMapper resumeVersionMapper;
     private final ObjectMapper objectMapper;
     private final ResumeVersionPdfRenderer pdfRenderer;
+    private final ResumeVersionDocxRenderer docxRenderer;
 
     public ResumeVersionServiceImpl(
             ResumeVersionMapper resumeVersionMapper,
             ObjectMapper objectMapper,
-            ResumeVersionPdfRenderer pdfRenderer
+            ResumeVersionPdfRenderer pdfRenderer,
+            ResumeVersionDocxRenderer docxRenderer
     ) {
         this.resumeVersionMapper = resumeVersionMapper;
         this.objectMapper = objectMapper;
         this.pdfRenderer = pdfRenderer;
+        this.docxRenderer = docxRenderer;
     }
 
     @Override
@@ -114,18 +119,10 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
 
     @Override
     @Transactional(readOnly = true)
-    public void exportPdf(String versionId, HttpServletResponse response) {
-        ResumeVersionEntity entity = resumeVersionMapper.selectOne(
-                new LambdaQueryWrapper<ResumeVersionEntity>()
-                        .eq(ResumeVersionEntity::getVersionId, versionId)
-                        .last("LIMIT 1")
-        );
-        if (entity == null) {
-            throw new BizException(404, "简历版本不存在");
-        }
+    public void exportPdf(Long userId, String versionId, HttpServletResponse response) {
+        ResumeVersionEntity entity = requireOwnedVersion(userId, versionId);
         try {
-            response.setContentType("application/pdf");
-            response.setHeader("Content-Disposition", "inline; filename=\"resume.pdf\"");
+            ResumeExportResponseHeaders.pdf(response, entity.getVersionName());
             pdfRenderer.render(entity.getContentMarkdown(), response.getOutputStream());
             response.flushBuffer();
         } catch (BizException e) {
@@ -133,6 +130,22 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
         } catch (Exception e) {
             log.error("PDF 导出失败, versionId={}", versionId, e);
             throw new BizException(500, "PDF 导出失败");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void exportDocx(Long userId, String versionId, HttpServletResponse response) {
+        ResumeVersionEntity entity = requireOwnedVersion(userId, versionId);
+        try {
+            ResumeExportResponseHeaders.docx(response, entity.getVersionName());
+            docxRenderer.render(entity.getContentMarkdown(), response.getOutputStream());
+            response.flushBuffer();
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Word 导出失败, versionId={}", versionId, e);
+            throw new BizException(500, "Word 导出失败");
         }
     }
 

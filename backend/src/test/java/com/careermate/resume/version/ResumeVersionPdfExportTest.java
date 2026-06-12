@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.careermate.common.exception.BizException;
 import com.careermate.mapper.ResumeVersionMapper;
 import com.careermate.model.entity.ResumeVersionEntity;
+import com.careermate.resume.version.export.ResumeVersionDocxRenderer;
 import com.careermate.resume.version.export.ResumeVersionPdfRenderer;
 import com.careermate.resume.version.service.impl.ResumeVersionServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,12 +32,14 @@ class ResumeVersionPdfExportTest {
     private ResumeVersionMapper resumeVersionMapper;
 
     private ResumeVersionPdfRenderer pdfRenderer;
+    private ResumeVersionDocxRenderer docxRenderer;
     private ResumeVersionServiceImpl service;
 
     @BeforeEach
     void setUp() {
         pdfRenderer = new ResumeVersionPdfRenderer();
-        service = new ResumeVersionServiceImpl(resumeVersionMapper, new ObjectMapper(), pdfRenderer);
+        docxRenderer = new ResumeVersionDocxRenderer();
+        service = new ResumeVersionServiceImpl(resumeVersionMapper, new ObjectMapper(), pdfRenderer, docxRenderer);
     }
 
     @Test
@@ -45,11 +48,11 @@ class ResumeVersionPdfExportTest {
         when(resumeVersionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
 
         MockHttpServletResponse response = new MockHttpServletResponse();
-        service.exportPdf("ver-ok", response);
+        service.exportPdf(1L, "ver-ok", response);
 
         assertEquals("application/pdf", response.getContentType());
         assertTrue(response.getContentAsByteArray().length > 0);
-        assertTrue(response.getHeader("Content-Disposition").contains("inline"));
+        assertTrue(response.getHeader("Content-Disposition").contains("attachment"));
     }
 
     @Test
@@ -57,8 +60,19 @@ class ResumeVersionPdfExportTest {
         when(resumeVersionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
 
         MockHttpServletResponse response = new MockHttpServletResponse();
-        BizException ex = assertThrows(BizException.class, () -> service.exportPdf("missing", response));
+        BizException ex = assertThrows(BizException.class, () -> service.exportPdf(1L, "missing", response));
         assertEquals(404, ex.getCode());
+    }
+
+    @Test
+    void exportPdfOtherUserThrows403() {
+        ResumeVersionEntity entity = sampleEntity("ver-other", "# test");
+        entity.setUserId(2L);
+        when(resumeVersionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        BizException ex = assertThrows(BizException.class, () -> service.exportPdf(1L, "ver-other", response));
+        assertEquals(403, ex.getCode());
     }
 
     @Test
@@ -67,10 +81,23 @@ class ResumeVersionPdfExportTest {
         when(resumeVersionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
 
         MockHttpServletResponse response = new MockHttpServletResponse();
-        service.exportPdf("ver-cn", response);
+        service.exportPdf(1L, "ver-cn", response);
 
         assertEquals("application/pdf", response.getContentType());
         assertTrue(response.getContentAsByteArray().length > 0);
+    }
+
+    @Test
+    void exportDocxReturnsWordStream() throws Exception {
+        ResumeVersionEntity entity = sampleEntity("ver-docx", "# 张三\n\n- Java\n- Spring Boot");
+        when(resumeVersionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        service.exportDocx(1L, "ver-docx", response);
+
+        assertEquals("application/vnd.openxmlformats-officedocument.wordprocessingml.document", response.getContentType());
+        assertTrue(response.getContentAsByteArray().length > 0);
+        assertTrue(response.getHeader("Content-Disposition").contains(".docx"));
     }
 
     @Test
@@ -83,11 +110,11 @@ class ResumeVersionPdfExportTest {
             throw new RuntimeException("render failed");
         }).when(failingRenderer).render(eq("# test"), any());
         ResumeVersionServiceImpl failingService = new ResumeVersionServiceImpl(
-                resumeVersionMapper, new ObjectMapper(), failingRenderer
+                resumeVersionMapper, new ObjectMapper(), failingRenderer, docxRenderer
         );
 
         MockHttpServletResponse response = new MockHttpServletResponse();
-        BizException ex = assertThrows(BizException.class, () -> failingService.exportPdf("ver-fail", response));
+        BizException ex = assertThrows(BizException.class, () -> failingService.exportPdf(1L, "ver-fail", response));
         assertEquals(500, ex.getCode());
     }
 

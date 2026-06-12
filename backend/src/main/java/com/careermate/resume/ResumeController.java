@@ -5,6 +5,7 @@ import com.careermate.resume.dto.ResumeCreateRequest;
 import com.careermate.resume.dto.ResumeDetailResponse;
 import com.careermate.resume.dto.ResumeListItemResponse;
 import com.careermate.resume.dto.ResumeUpdateRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,6 +49,16 @@ public class ResumeController {
     @GetMapping("/{id}")
     public ApiResponse<ResumeDetailResponse> get(@PathVariable Long id) {
         return ApiResponse.success(resumeService.getResume(id));
+    }
+
+    @GetMapping("/{id}/export/pdf")
+    public void exportPdf(@PathVariable Long id, HttpServletResponse response) {
+        resumeService.exportPdf(id, response);
+    }
+
+    @GetMapping("/{id}/export/docx")
+    public void exportDocx(@PathVariable Long id, HttpServletResponse response) {
+        resumeService.exportDocx(id, response);
     }
 
     @PutMapping("/{id}")
