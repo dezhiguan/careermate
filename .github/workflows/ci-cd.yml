@@ -233,6 +233,7 @@ jobs:
     timeout-minutes: 45
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
+      - backend-build
       - backend-unit-test
       - frontend-build
     environment:
@@ -240,6 +241,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download backend JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: careermate-backend-jar
 
       - name: Configure SSH (Server 3)
         env:
@@ -311,11 +317,25 @@ jobs:
             ./ \
             careermate-app:/opt/careermate/k8s-src/
 
+      - name: Upload backend JAR to Server 3
+        run: |
+          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          SCP_OPTS=(-F "${HOME}/.ssh/config" -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          JAR_FILE="$(find . -maxdepth 1 -name '*.jar' ! -name '*.original' | head -n 1)"
+          if [[ -z "${JAR_FILE}" ]]; then
+            echo "No backend JAR artifact found after download"
+            exit 1
+          fi
+          ssh "${SSH_OPTS[@]}" careermate-app \
+            "mkdir -p /opt/careermate/k8s-src/backend/target"
+          scp "${SCP_OPTS[@]}" "${JAR_FILE}" \
+            "careermate-app:/opt/careermate/k8s-src/backend/target/careermate-backend-0.1.0.jar"
+
       - name: Deploy CareerMate to k3s on Server 3
         run: |
           SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
           timeout 35m ssh "${SSH_OPTS[@]}" careermate-app \
-            "cd /opt/careermate/k8s-src && sudo bash deploy/scripts/deploy-careermate-k8s.sh"
+            "cd /opt/careermate/k8s-src && sudo env SKIP_BACKEND_BUILD=1 bash deploy/scripts/deploy-careermate-k8s.sh"
 
   smoke-test:
     name: smoke-test

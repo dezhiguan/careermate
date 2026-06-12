@@ -25,8 +25,16 @@ import_image() {
 }
 
 if [[ "${SKIP_BACKEND_BUILD:-0}" != "1" ]]; then
-  echo "[backend] mvn package"
-  (cd backend && mvn -DskipTests package)
+  if command -v mvn >/dev/null 2>&1; then
+    echo "[backend] mvn package"
+    (cd backend && mvn -DskipTests package)
+  elif [[ -f "${JAR_FILE}" ]]; then
+    echo "[backend] mvn not found; using existing JAR: ${JAR_FILE}"
+  else
+    echo "ERROR: mvn not found and backend JAR missing: ${JAR_FILE}" >&2
+    echo "Set SKIP_BACKEND_BUILD=1 after placing the JAR, or install Maven on the build host." >&2
+    exit 1
+  fi
 fi
 
 if [[ ! -f "${JAR_FILE}" ]]; then
