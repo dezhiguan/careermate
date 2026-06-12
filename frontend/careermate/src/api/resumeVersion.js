@@ -16,6 +16,10 @@ export async function updateVersion(versionId, payload) {
   })
 }
 
+export function deleteVersion(versionId) {
+  return request(`/resume-version/${encodeURIComponent(versionId)}`, { method: 'DELETE' })
+}
+
 /**
  * 下载简历版本 PDF，触发浏览器保存文件。
  * @param {string} versionId

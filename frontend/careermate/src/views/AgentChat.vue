@@ -1498,6 +1498,7 @@ onBeforeUnmount(() => {
 @media (max-width: 768px) {
   .chat-page {
     max-width: 100%;
+    width: 100%;
     margin: 0;
     height: 100dvh;
     min-height: 0;
@@ -1509,12 +1510,25 @@ onBeforeUnmount(() => {
     flex-direction: column;
     height: 100%;
     min-height: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .chat-main {
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .messages-area {
+    padding: 12px 6px 12px 4px;
+  }
+
+  .agent-row {
+    width: 100%;
+    padding-right: 0;
   }
 
   .input-area {
@@ -1526,8 +1540,13 @@ onBeforeUnmount(() => {
     max-width: 88%;
   }
 
+  .user-bubble {
+    max-width: 80%;
+  }
+
   .agent-bubble {
-    max-width: 90%;
+    max-width: 98%;
+    width: 100%;
   }
 
   .chat-input {
@@ -1593,8 +1612,12 @@ onBeforeUnmount(() => {
   }
 
   .msg-bubble {
-    max-width: 90%;
+    max-width: 92%;
     font-size: 13px;
+  }
+
+  .agent-bubble {
+    max-width: 98%;
   }
 }
 </style>

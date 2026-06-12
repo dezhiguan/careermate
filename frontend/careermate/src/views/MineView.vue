@@ -489,12 +489,15 @@ onMounted(async () => {
 <style scoped>
 .mine-page {
   padding: 16px;
-  padding-bottom: 88px;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 12px;
   background: #f8fafc;
   min-height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 /* 区块一：身份卡 */

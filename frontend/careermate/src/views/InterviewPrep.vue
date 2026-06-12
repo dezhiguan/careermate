@@ -490,8 +490,11 @@ onMounted(() => {
 <style scoped>
 .interview-page {
   min-height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   background: #f8fafc;
-  padding-bottom: 80px;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
   color: #0f172a;
 }
 

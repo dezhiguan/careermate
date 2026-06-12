@@ -8,6 +8,7 @@ import com.careermate.resume.version.service.ResumeVersionService;
 import com.careermate.security.CurrentUserContext;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -59,5 +60,12 @@ public class ResumeVersionController {
                 request.getVersionName(),
                 request.getContentMarkdown()
         ));
+    }
+
+    @DeleteMapping("/{versionId}")
+    public ApiResponse<Void> delete(@PathVariable String versionId) {
+        Long userId = CurrentUserContext.getUserId();
+        resumeVersionService.deleteVersion(userId, versionId);
+        return ApiResponse.success(null);
     }
 }

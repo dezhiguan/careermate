@@ -206,9 +206,12 @@ onMounted(fetchList)
 <style scoped>
 .opportunity-page {
   min-height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   background: #f8fafc;
   /* 留出底部导航 + 中间 AI 悬浮钮的空间，避免挡住「用 AI 准备」 */
-  padding-bottom: 96px;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
 
 .page-header {

@@ -68,11 +68,17 @@ body,
 #app {
   margin: 0;
   min-height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   background: var(--bg);
   color: var(--ink);
+  position: relative;
+  touch-action: pan-y pinch-zoom;
 }
 </style>

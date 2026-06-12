@@ -94,6 +94,10 @@ function go(path) {
 .shell-mobile {
   min-height: 100vh;
   min-height: 100dvh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
   display: flex;
   flex-direction: column;
   background: var(--bg, #f8fafc);
@@ -102,7 +106,10 @@ function go(path) {
 
 .shell-mobile-main {
   flex: 1;
-  padding-bottom: 88px;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
   min-height: 0;
 }
 
@@ -115,14 +122,24 @@ function go(path) {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 100;
-  height: 62px;
+  z-index: 200;
   display: flex;
   align-items: flex-end;
   justify-content: space-around;
-  padding: 6px 0 calc(8px + env(safe-area-inset-bottom));
+  padding: 28px 0 calc(10px + env(safe-area-inset-bottom));
   background: #fff;
   border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -4px 24px rgba(15, 23, 42, 0.08);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  backdrop-filter: saturate(180%) blur(12px);
+}
+
+.bottom-nav::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  z-index: -1;
 }
 
 .nav-item {

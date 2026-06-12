@@ -20,6 +20,7 @@
           <button type="button" class="action-btn" @click="openModal('default', defaultResume, 'preview')">预览</button>
           <button type="button" class="action-btn" @click="openModal('default', defaultResume, 'edit')">修改</button>
           <button type="button" class="action-btn" @click="triggerUpload">重新上传</button>
+          <button type="button" class="action-btn action-btn--danger" @click="handleDeleteDefault">删除</button>
         </div>
       </div>
 
@@ -85,6 +86,7 @@
             >
               {{ pdfDownloadingId === v.versionId ? '...' : 'PDF' }}
             </button>
+            <button type="button" class="action-btn action-btn--danger" @click="handleDeleteVersion(v)">删除</button>
           </div>
         </div>
       </div>
@@ -171,12 +173,13 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   createResume,
+  deleteResume,
   getResume,
   listResumes,
   updateResume,
   uploadResumeFile,
 } from '../api/resume'
-import { downloadVersionPdf, getVersion, listVersions, updateVersion } from '../api/resumeVersion'
+import { deleteVersion, downloadVersionPdf, getVersion, listVersions, updateVersion } from '../api/resumeVersion'
 
 const router = useRouter()
 
@@ -186,6 +189,7 @@ const uploading = ref(false)
 const uploadError = ref('')
 const fileInputRef = ref(null)
 const pdfDownloadingId = ref(null)
+const deleting = ref(false)
 
 const resumeModalOpen = ref(false)
 const resumeModalMode = ref('preview')
@@ -393,6 +397,36 @@ async function handleDownloadPdf(version) {
   }
 }
 
+async function handleDeleteDefault() {
+  if (!defaultResume.value?.id || deleting.value) return
+  if (!window.confirm('确定删除默认简历吗？删除后不可恢复。')) return
+  deleting.value = true
+  uploadError.value = ''
+  try {
+    await deleteResume(defaultResume.value.id)
+    await loadResumes()
+  } catch (e) {
+    uploadError.value = e?.message || '删除失败'
+  } finally {
+    deleting.value = false
+  }
+}
+
+async function handleDeleteVersion(v) {
+  if (!v?.versionId || deleting.value) return
+  if (!window.confirm(`确定删除「${v.versionName || '定制简历'}」吗？`)) return
+  deleting.value = true
+  uploadError.value = ''
+  try {
+    await deleteVersion(v.versionId)
+    await loadVersions()
+  } catch (e) {
+    uploadError.value = e?.message || '删除失败'
+  } finally {
+    deleting.value = false
+  }
+}
+
 async function loadResumes() {
   try {
     resumes.value = await listResumes() || []
@@ -419,9 +453,11 @@ onMounted(async () => {
   min-height: 100%;
   background: #f8fafc;
   padding: 16px;
-  padding-bottom: 88px;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
   max-width: 720px;
   margin: 0 auto;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .page-header {
@@ -603,6 +639,12 @@ onMounted(async () => {
   cursor: default;
 }
 
+.action-btn--danger {
+  color: #dc2626;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
 .empty-tip {
   font-size: 13px;
   color: #94a3b8;
@@ -653,7 +695,9 @@ onMounted(async () => {
 
 .version-row-right {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
   flex-shrink: 0;
 }

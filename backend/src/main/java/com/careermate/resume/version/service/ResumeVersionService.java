@@ -33,4 +33,6 @@ public interface ResumeVersionService {
      * @param response  HTTP 响应对象
      */
     void exportPdf(String versionId, HttpServletResponse response);
+
+    void deleteVersion(Long userId, String versionId);
 }

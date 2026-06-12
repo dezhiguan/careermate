@@ -62,6 +62,13 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     }
 
     @Override
+    @Transactional
+    public void deleteVersion(Long userId, String versionId) {
+        ResumeVersionEntity entity = requireOwnedVersion(userId, versionId);
+        resumeVersionMapper.deleteById(entity.getId());
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<ResumeVersionListItemVO> listBySession(Long userId, String sessionId) {
         LambdaQueryWrapper<ResumeVersionEntity> wrapper = new LambdaQueryWrapper<ResumeVersionEntity>()
