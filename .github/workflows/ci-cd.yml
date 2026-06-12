@@ -200,7 +200,6 @@ jobs:
         env:
           VITE_API_BASE_URL: /api
           VITE_BASE_PATH: /
-          VITE_SKIP_AUTH: "true"
         run: npm run build
 
       - name: Upload frontend dist artifact

@@ -39,7 +39,7 @@ logging:
 
 careermate:
   security:
-    mode: ${SECURITY_MODE:single-user}
+    mode: ${SECURITY_MODE:jwt}
     jwt:
       secret: ${JWT_SECRET:change-me-in-dev-only-change-me-in-dev-only}
       expiration-ms: ${JWT_EXPIRATION_MS:86400000}

@@ -46,15 +46,6 @@
 
         <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
         <p v-if="successMsg" class="success">{{ successMsg }}</p>
-
-        <div class="divider">— 其他方式 —</div>
-
-        <div class="single-user-tip">
-          <p>当前为本地单用户模式，可直接进入。</p>
-          <button class="btn-ghost" type="button" @click="enterSingleUser" :disabled="authStore.state.loading">
-            游客体验
-          </button>
-        </div>
       </section>
     </div>
   </div>
@@ -89,18 +80,6 @@ async function submit() {
     await router.replace('/opportunity')
   } catch (e) {
     errorMsg.value = e?.message || '操作失败'
-  }
-}
-
-async function enterSingleUser() {
-  errorMsg.value = ''
-  successMsg.value = ''
-  try {
-    await authStore.fetchCurrentUser()
-    successMsg.value = '已获取本地用户，正在进入...'
-    await router.replace('/opportunity')
-  } catch (e) {
-    errorMsg.value = e?.message || '当前模式不支持直接进入，请先登录'
   }
 }
 </script>
@@ -272,18 +251,6 @@ input {
   cursor: default;
 }
 
-.btn-ghost {
-  width: 100%;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 9px 12px;
-  font-size: 13px;
-  background: #fff;
-  color: #334155;
-  cursor: pointer;
-  font-family: inherit;
-}
-
 .error {
   margin: 12px 0 0;
   color: #ef4444;
@@ -293,19 +260,6 @@ input {
 .success {
   margin: 12px 0 0;
   color: #10b981;
-  font-size: 12px;
-}
-
-.divider {
-  text-align: center;
-  font-size: 12px;
-  color: #94a3b8;
-  margin: 20px 0 14px;
-}
-
-.single-user-tip p {
-  margin: 0 0 8px;
-  color: #64748b;
   font-size: 12px;
 }
 
@@ -339,7 +293,6 @@ input {
 
   input,
   .btn-primary,
-  .btn-ghost,
   .mode-toggle button {
     min-height: 44px;
     font-size: 16px;

@@ -20,7 +20,7 @@ const {
   printCreatedAccountsReport,
   gotoApp,
   TOKEN_KEY,
-  SINGLE_USER_TIP,
+  LOGIN_PAGE_TITLE,
   FATAL_AUTH_ERROR,
 } = require('./e2e-env');
 
@@ -61,11 +61,8 @@ test.describe('single-user 模式', () => {
   test('用例2：访问 /login', async ({ page }) => {
     await ensureLoginPage(page);
     await expect(page.getByText('CareerMate', { exact: true })).toBeVisible();
-    await expect(page.getByText(SINGLE_USER_TIP)).toBeVisible();
-    await page.getByRole('button', { name: '进入 CareerMate' }).click();
-    await expect(page).toHaveURL(/#\/$/);
-    await assertAgentDashboardWithUser(page, /local-user\s*\/\s*USER/);
-    await expect(page.locator('body')).not.toContainText(FATAL_AUTH_ERROR);
+    await expect(page.getByText(LOGIN_PAGE_TITLE)).toBeVisible();
+    await expect(page).toHaveURL(/#\/login/);
   });
 
   test('用例3：退出后可重新进入', async ({ page }) => {
@@ -133,7 +130,7 @@ test.describe('jwt 模式', () => {
     await expect(page).toHaveURL(/#\/login/);
     await page.getByLabel('用户名').fill(registeredAccount.username);
     await page.getByLabel('密码').fill('WrongPassword99!');
-    await page.locator('form .primary').click();
+    await page.locator('form .btn-primary').click();
     await expect(page).toHaveURL(/#\/login/);
     await expect(page.locator('.error')).toContainText(/用户名或密码错误|未认证|请求失败/i);
     await expect(page.getByText('Agent 对话台')).not.toBeVisible();

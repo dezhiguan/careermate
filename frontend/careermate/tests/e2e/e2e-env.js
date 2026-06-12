@@ -29,7 +29,7 @@ const mustUseUserFlow = isCloud || process.env.E2E_USER_FLOW === '1';
 
 const TOKEN_KEY = 'careermate_token';
 const USER_KEY = 'careermate_user';
-const SINGLE_USER_TIP = '当前为本地单用户模式，可直接进入';
+const LOGIN_PAGE_TITLE = '账号登录';
 const FATAL_AUTH_ERROR = /系统异常|登录失败|会话创建失败/;
 const FATAL_APP_ERROR = /系统异常|会话创建失败|流式请求失败/;
 const MOCK_REPLY =
@@ -239,10 +239,7 @@ async function clearAuthStorage(page) {
  * @param {import('@playwright/test').Page} page
  */
 async function enterFromLoginIfNeeded(page) {
-  const enterBtn = page.getByRole('button', { name: '进入 CareerMate' });
-  if (await enterBtn.isVisible({ timeout: 8_000 }).catch(() => false)) {
-    await enterBtn.click();
-  }
+  // 游客模式已移除，无需从登录页捷径进入
 }
 
 /**
@@ -363,7 +360,7 @@ async function ensureLoginPage(page) {
   await gotoApp(page, '/login');
   await waitStable(page);
   const onLogin = await page
-    .getByText(SINGLE_USER_TIP)
+    .getByText(LOGIN_PAGE_TITLE)
     .isVisible({ timeout: 4_000 })
     .catch(() => false);
   if (!onLogin) {
@@ -372,7 +369,7 @@ async function ensureLoginPage(page) {
     await expect(logoutBtn).toBeVisible({ timeout: 15_000 });
     await logoutBtn.click();
     await expect(page).toHaveURL(/#\/login/, { timeout: 15_000 });
-    await expect(page.getByText(SINGLE_USER_TIP)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(LOGIN_PAGE_TITLE)).toBeVisible({ timeout: 10_000 });
   }
 }
 
@@ -462,7 +459,7 @@ async function loginViaUi(page, account) {
   }
   await usernameField.fill(account.username);
   await page.getByLabel('密码').fill(account.password);
-  await page.locator('form .primary').click();
+  await page.locator('form .btn-primary').click();
   await expect(page.locator('body')).not.toContainText('系统异常', { timeout: 8_000 });
   await expect(page).toHaveURL(/#\/$/, { timeout: 25_000 });
   const token = await page.evaluate((key) => localStorage.getItem(key), TOKEN_KEY);
@@ -566,7 +563,7 @@ module.exports = {
   enterApplicationAsUser,
   TOKEN_KEY,
   USER_KEY,
-  SINGLE_USER_TIP,
+  LOGIN_PAGE_TITLE,
   FATAL_AUTH_ERROR,
   FATAL_APP_ERROR,
   MOCK_REPLY,

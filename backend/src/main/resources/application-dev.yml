@@ -22,7 +22,8 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
-# 开发期跳过 API 鉴权；恢复登录时设 SECURITY_DEV_SKIP_AUTH=false
+# 本地开发默认要求 JWT 登录；如需 single-user 调试可设 SECURITY_MODE=single-user
 careermate:
   security:
-    dev-skip-auth: ${SECURITY_DEV_SKIP_AUTH:true}
+    mode: ${SECURITY_MODE:jwt}
+    dev-skip-auth: ${SECURITY_DEV_SKIP_AUTH:false}

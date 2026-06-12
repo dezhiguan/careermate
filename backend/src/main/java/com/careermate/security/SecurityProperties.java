@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "careermate.security")
 public class SecurityProperties {
 
-    private String mode = "single-user";
+    private String mode = "jwt";
     /** 开发期临时跳过 API 鉴权，注入默认 single-user；生产务必 false */
     private boolean devSkipAuth = false;
     private Jwt jwt = new Jwt();

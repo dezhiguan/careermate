@@ -1,23 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { authStore } from '../stores/authStore'
 
-/** 开发期临时绕过登录；生产构建默认 false */
-const SKIP_AUTH = import.meta.env.VITE_SKIP_AUTH === 'true'
-
-const DEV_MOCK_USER = {
-  username: 'local-user',
-  role: 'user',
-  authenticated: true,
-}
-
-function ensureDevAuth() {
-  if (!authStore.state.initialized) {
-    authStore.state.currentUser = DEV_MOCK_USER
-    authStore.state.initialized = true
-    authStore.state.loading = false
-  }
-}
-
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
   { path: '/', redirect: '/opportunity' },
@@ -74,14 +57,6 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  if (SKIP_AUTH) {
-    ensureDevAuth()
-    if (to.path === '/login') {
-      return '/opportunity'
-    }
-    return true
-  }
-
   if (!authStore.state.initialized) {
     await authStore.init()
   }

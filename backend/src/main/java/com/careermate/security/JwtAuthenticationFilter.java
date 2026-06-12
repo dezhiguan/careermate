@@ -110,7 +110,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         String bearerToken = extractBearerToken(request);
         if (!StringUtils.hasText(bearerToken)) {
-            return true;
+            writeUnauthorized(response, ErrorCode.UNAUTHORIZED.getMessage());
+            return false;
         }
         if (!jwtTokenProvider.validateToken(bearerToken)) {
             writeUnauthorized(response, ErrorCode.UNAUTHORIZED.getMessage());

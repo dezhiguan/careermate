@@ -5,7 +5,6 @@ const API_BASE_URL =
   (import.meta.env.DEV ? '/api' : 'http://localhost:8080/api')
 const TOKEN_KEY = 'careermate_token'
 const USER_KEY = 'careermate_user'
-const SKIP_AUTH = import.meta.env.VITE_SKIP_AUTH === 'true'
 
 function clearAuthState() {
   localStorage.removeItem(TOKEN_KEY)
@@ -19,9 +18,6 @@ function redirectToLogin() {
 }
 
 function getAuthHeaders(extraHeaders = {}) {
-  if (SKIP_AUTH) {
-    return { ...extraHeaders }
-  }
   const token = localStorage.getItem(TOKEN_KEY)
   return {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -53,7 +49,7 @@ export async function request(path, options = {}) {
     payload = null
   }
 
-  if (!SKIP_AUTH && (response.status === 401 || payload?.code === 401)) {
+  if (response.status === 401 || payload?.code === 401) {
     handleUnauthorized(payload)
   }
 
