@@ -115,14 +115,23 @@ jobs:
           java-version: "17"
           cache: maven
 
-      - name: Run backend unit tests
+      - name: Run backend unit tests with coverage
         working-directory: backend
         env:
           SPRING_PROFILES_ACTIVE: test
           TEST_DB_URL: jdbc:postgresql://localhost:5432/careermate_test_db
           TEST_DB_USERNAME: careermate
           TEST_DB_PASSWORD: careermate
-        run: mvn -B test -Dtest=HealthControllerTest,ApiResponseTest
+        run: mvn -B clean verify
+
+      - name: Upload backend coverage report
+        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: backend-unit-test-coverage
+          path: backend/target/site/jacoco/
+          retention-days: 14
+          if-no-files-found: ignore
 
   backend-integration-test:
     name: backend-integration-test
