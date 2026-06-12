@@ -168,49 +168,27 @@
       <div v-if="sessionsLoadFailed" class="empty-hint">暂无数据</div>
       <div v-else-if="sessions.length === 0" class="empty-hint">暂无数据</div>
       <div v-else class="training-layout">
-        <div class="training-col">
-          <div class="col-label col-label-desktop">按 JD 分组</div>
-          <div class="training-scroll training-scroll--jd" tabindex="0">
-            <div class="training-scroll-list">
-              <div
-                v-for="session in sessions"
-                :key="session.id"
-                class="jd-group-card"
-              >
-                <div class="jd-group-head">
-                  <div class="jd-group-title">🏢 {{ session.title || '训练会话' }} · {{ session.totalQuestions || 0 }} 题</div>
-                  <span
-                    class="jd-group-score"
-                    :style="{ color: sessionScoreColor(session.averageScore) }"
-                  >
-                    均 {{ Math.round(session.averageScore || 0) }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-if="sessions.length > 3" class="scroll-hint">滑动查看更多</div>
-        </div>
-
-        <div class="training-col">
-          <div class="col-label">最近做过</div>
-          <div class="training-scroll training-scroll--recent" tabindex="0">
-            <div class="training-scroll-list">
-              <div
-                v-for="session in sortedSessionsByTime"
-                :key="`recent-${session.id}`"
-                class="recent-row"
-              >
-                <span class="recent-badge" :class="recentBadgeClass(session.averageScore)">
-                  {{ Math.round(session.averageScore || 0) }}
+        <div class="col-label">按 JD 分组</div>
+        <div class="training-scroll training-scroll--jd" tabindex="0">
+          <div class="training-scroll-list">
+            <div
+              v-for="session in sessions"
+              :key="session.id"
+              class="jd-group-card"
+            >
+              <div class="jd-group-head">
+                <div class="jd-group-title">🏢 {{ session.title || '训练会话' }} · {{ session.totalQuestions || 0 }} 题</div>
+                <span
+                  class="jd-group-score"
+                  :style="{ color: sessionScoreColor(session.averageScore) }"
+                >
+                  均 {{ Math.round(session.averageScore || 0) }}
                 </span>
-                <div class="recent-title">{{ session.title || '训练会话' }}</div>
-                <span class="recent-time">{{ formatRelativeTime(session.createdAt) }}</span>
               </div>
             </div>
           </div>
-          <div v-if="sortedSessionsByTime.length > 3" class="scroll-hint">滑动查看更多</div>
         </div>
+        <div v-if="sessions.length > 3" class="scroll-hint">滑动查看更多</div>
       </div>
     </section>
 
@@ -345,10 +323,6 @@ const avgScore = computed(() => {
   return Math.round(total / scored.length)
 })
 
-const sortedSessionsByTime = computed(() => (
-  [...sessions.value].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-))
-
 function formatRelativeTime(value) {
   if (!value) return ''
   const date = new Date(value)
@@ -370,13 +344,6 @@ function sessionScoreColor(score) {
   if (value >= 85) return '#10b981'
   if (value >= 70) return '#4f46e5'
   return '#64748b'
-}
-
-function recentBadgeClass(score) {
-  const value = Number(score) || 0
-  if (value >= 80) return 'badge-green'
-  if (value >= 60) return 'badge-yellow'
-  return 'badge-red'
 }
 
 function buildPreviewContent(type, detail) {
@@ -1004,21 +971,16 @@ onMounted(async () => {
 
 /* 训练记录 */
 .training-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .col-label {
   font-size: 11px;
   font-weight: 600;
   color: #64748b;
-  margin-bottom: 8px;
   letter-spacing: 0.5px;
-}
-
-.col-label-desktop {
-  display: block;
 }
 
 .training-scroll {
@@ -1032,11 +994,7 @@ onMounted(async () => {
 }
 
 .training-scroll--jd {
-  max-height: 155px;
-}
-
-.training-scroll--recent {
-  max-height: 143px;
+  max-height: 200px;
 }
 
 .training-scroll::-webkit-scrollbar {
@@ -1052,10 +1010,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.training-scroll--recent .training-scroll-list {
-  gap: 6px;
 }
 
 .scroll-hint {
@@ -1097,57 +1051,6 @@ onMounted(async () => {
   font-size: 10px;
   color: #64748b;
   line-height: 1.7;
-}
-
-.recent-row {
-  background: #fff;
-  border: 1px solid #f1f5f9;
-  border-radius: 8px;
-  padding: 10px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.recent-badge {
-  padding: 2px 8px;
-  border-radius: 5px;
-  font-size: 11px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.badge-green {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.badge-yellow {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.badge-red {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.recent-title {
-  flex: 1;
-  font-size: 12px;
-  font-weight: 600;
-  color: #0f172a;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.recent-time {
-  font-size: 10px;
-  color: #64748b;
-  flex-shrink: 0;
 }
 
 .logout-btn {
@@ -1428,21 +1331,8 @@ onMounted(async () => {
     padding-top: 10px;
   }
 
-  .training-layout {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .col-label-desktop {
-    display: none;
-  }
-
   .training-scroll--jd {
-    max-height: 119px;
-  }
-
-  .training-scroll--recent {
-    max-height: 113px;
+    max-height: 160px;
   }
 
   .jd-group-card {
