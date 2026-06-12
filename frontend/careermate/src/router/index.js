@@ -57,9 +57,15 @@ const routes = [
     component: () => import('../views/MineView.vue'),
     meta: { title: '我的' },
   },
+  {
+    path: '/mine/resume',
+    name: 'mine-resume',
+    component: () => import('../views/ResumeManage.vue'),
+    meta: { title: '简历管理' },
+  },
   { path: '/match', redirect: '/opportunity' },
   { path: '/dashboard', redirect: '/opportunity' },
-  { path: '/resume', redirect: '/opportunity' },
+  { path: '/resume', redirect: '/mine/resume' },
 ]
 
 const router = createRouter({

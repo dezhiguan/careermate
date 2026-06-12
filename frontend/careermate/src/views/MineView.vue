@@ -184,7 +184,16 @@
       <button type="button" class="btn-link" @click="router.push('/chat')">去小职完善画像 →</button>
     </section>
 
-    <!-- 区块五：求职活动 -->
+    <!-- 区块五：快捷入口 + 活动摘要 -->
+    <button type="button" class="entry-btn" @click="router.push('/mine/resume')">
+      <span class="entry-icon">📄</span>
+      <div class="entry-info">
+        <div class="entry-title">我的简历</div>
+        <div class="entry-sub">{{ resumeCount }} 份 · 上传、修改、下载 PDF</div>
+      </div>
+      <span class="entry-arrow">→</span>
+    </button>
+
     <section class="activity-row">
       <div class="activity-item">
         <div class="activity-num">{{ resumeCount }}</div>
@@ -882,6 +891,52 @@ onMounted(async () => {
   cursor: pointer;
   padding: 0;
   font-family: inherit;
+}
+
+.entry-btn {
+  width: 100%;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.entry-btn:hover {
+  background: #faf5ff;
+}
+
+.entry-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.entry-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.entry-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.entry-sub {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.entry-arrow {
+  color: #7c3aed;
+  font-size: 16px;
+  flex-shrink: 0;
 }
 
 .activity-row {
