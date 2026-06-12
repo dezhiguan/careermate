@@ -1,5 +1,6 @@
 <template>
-  <div class="interview-page">
+  <!-- 三区块首页 -->
+  <div v-if="!activeSession" class="interview-page">
     <div v-if="noDefaultResumeHint" class="banner warn">
       请先到简历页创建并设置默认简历。
       <router-link to="/mine" class="banner-link">前往我的 →</router-link>
@@ -48,7 +49,7 @@
         <template v-else-if="kbData">
           <p v-if="kbData.aiSummary" class="ai-summary">{{ kbData.aiSummary }}</p>
           <div v-if="kbData.questions?.length">
-            <div v-for="(item, i) in kbData.questions" :key="i" class="question-card">
+            <div v-for="(item, i) in kbData.questions" :key="i" class="kb-question-card">
               <div class="question-header" @click="toggleAnswer(i)">
                 <span class="q-index">Q{{ i + 1 }}</span>
                 <span class="q-category-tag" :class="categoryClass(item.category)">{{ item.category }}</span>
@@ -111,15 +112,15 @@
       <section class="card practice-section">
         <div class="section-header">
           <h2 class="section-title">模拟练习</h2>
-          <p class="section-desc">AI 根据你的简历生成专属面试题，实时评分反馈</p>
+          <p class="section-desc">AI 根据你的简历 + 目标 JD 出 5 道专属题，答完即评分</p>
         </div>
         <div class="start-card">
-          <div class="start-card-info">
-            <div class="start-title">开始新的模拟训练</div>
-            <div class="start-desc">约 5 题 · AI 评分 · 随时退出</div>
+          <div class="start-info">
+            <div class="start-title">开始新的模拟面试</div>
+            <div class="start-desc">项目经历 · 技术深度 · 技能缺口 · 系统设计 · 行为面试</div>
           </div>
           <button type="button" class="btn-start" :disabled="creating" @click="startNewSession">
-            {{ creating ? '生成中...' : '开始 →' }}
+            {{ creating ? '生成题目中...' : '开始 →' }}
           </button>
         </div>
         <div v-if="listLoading" class="list-hint">加载记录...</div>
@@ -130,26 +131,149 @@
             class="session-item"
             @click="goToSession(item.id)"
           >
-            <span v-if="item.averageScore != null" class="session-score">{{ Math.round(item.averageScore) }}分</span>
-            <span class="session-title">{{ item.title }}</span>
-            <span class="session-status">{{ item.status === 'COMPLETED' ? '已完成' : '进行中' }}</span>
-            <span class="session-progress">{{ item.answeredQuestions }}/{{ item.totalQuestions }}题</span>
+            <span v-if="item.averageScore != null" class="session-score">
+              {{ Math.round(item.averageScore) }}分
+            </span>
+            <div class="session-main">
+              <span class="session-title">{{ item.title }}</span>
+              <span class="session-progress">{{ item.answeredQuestions }}/{{ item.totalQuestions }} 题</span>
+            </div>
+            <span class="session-status" :class="item.status === 'COMPLETED' ? 'status-done' : 'status-active'">
+              {{ item.status === 'COMPLETED' ? '已完成' : '继续 →' }}
+            </span>
           </article>
         </div>
-        <div v-else class="empty-hint">暂无练习记录</div>
+        <div v-else class="empty-hint">暂无练习记录，点击「开始 →」生成第一套题</div>
       </section>
 
+    </div>
+  </div>
+
+  <!-- 答题视图 -->
+  <div v-else class="practice-view">
+    <header class="practice-header">
+      <button type="button" class="btn-exit" @click="exitPractice">← 退出</button>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" :style="{ width: (answeredCount / 5 * 100) + '%' }" />
+      </div>
+      <span class="progress-text">{{ answeredCount }}/5</span>
+    </header>
+
+    <div v-if="currentQuestion" class="question-body">
+      <div class="question-card">
+        <div class="question-meta">
+          <span class="type-badge">{{ typeLabel(currentQuestion.questionType) }}</span>
+          <span class="question-no">第 {{ currentQuestion.questionNo }} 题 / 共 5 题</span>
+        </div>
+        <p class="question-text">{{ currentQuestion.questionText }}</p>
+
+        <div v-if="currentQuestion.status !== 'ANSWERED' && currentQuestion.referencePoints?.length">
+          <button type="button" class="hint-toggle" @click="showHints = !showHints">
+            {{ showHints ? '收起提示 ▲' : '查看考点提示 ▼' }}
+          </button>
+          <ul v-if="showHints" class="hint-list">
+            <li v-for="(p, i) in currentQuestion.referencePoints" :key="i">{{ p }}</li>
+          </ul>
+        </div>
+      </div>
+
+      <template v-if="currentQuestion.status !== 'ANSWERED'">
+        <div class="answer-card">
+          <div class="answer-header">
+            <span class="answer-label">你的回答</span>
+            <span class="word-count">{{ answerText.length }} 字</span>
+          </div>
+          <textarea
+            v-model="answerText"
+            class="answer-textarea"
+            placeholder="输入你的回答，尽量展开说..."
+            maxlength="2000"
+          />
+          <div class="answer-actions">
+            <button
+              type="button"
+              class="btn-primary"
+              :disabled="!answerText.trim() || submitting"
+              @click="submitAnswer"
+            >
+              {{ submitting ? '评分中...' : '提交 · 看评分 →' }}
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="feedback-card">
+          <div class="score-row">
+            <div class="score-circle">{{ currentQuestion.score ?? '—' }}</div>
+            <div class="score-info">
+              <div class="score-title">本题得分</div>
+              <p v-if="currentQuestion.feedback" class="score-feedback">{{ currentQuestion.feedback }}</p>
+            </div>
+          </div>
+          <div class="feedback-cols">
+            <div v-if="currentQuestion.strengths?.length" class="fb-good">
+              <div class="fb-title">✓ 答得好</div>
+              <ul><li v-for="(s, i) in currentQuestion.strengths" :key="i">{{ s }}</li></ul>
+            </div>
+            <div v-if="currentQuestion.improvements?.length" class="fb-improve">
+              <div class="fb-title">⚠ 可补充</div>
+              <ul><li v-for="(s, i) in currentQuestion.improvements" :key="i">{{ s }}</li></ul>
+            </div>
+          </div>
+          <div v-if="currentQuestion.referencePoints?.length" class="reference-block">
+            <div class="ref-title">📖 参考要点</div>
+            <ul><li v-for="(p, i) in currentQuestion.referencePoints" :key="i">{{ p }}</li></ul>
+          </div>
+          <div class="next-actions">
+            <button
+              v-if="!allAnswered"
+              type="button"
+              class="btn-primary"
+              @click="nextQuestion"
+            >
+              下一题 →
+            </button>
+            <button
+              v-else
+              type="button"
+              class="btn-primary"
+              @click="completeSession"
+            >
+              完成 · 查看总结 ✓
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <div class="question-nav">
+        <button
+          v-for="(q, i) in activeSession.questions"
+          :key="q.id"
+          type="button"
+          class="nav-dot"
+          :class="{
+            'dot-current': i === currentQuestionIndex,
+            'dot-done': q.status === 'ANSWERED',
+            'dot-pending': q.status !== 'ANSWERED' && i !== currentQuestionIndex
+          }"
+          @click="goToQuestion(i)"
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
+  completeInterviewSession,
   createInterviewSession,
   getCompanyPrep,
+  getInterviewSession,
   getKbQuestions,
   listInterviewSessions,
+  submitInterviewAnswer,
 } from '../api/interview'
 
 const kbQuery = ref('')
@@ -166,7 +290,39 @@ const creating = ref(false)
 const pageError = ref('')
 const noDefaultResumeHint = ref(false)
 
+const activeSession = ref(null)
+const currentQuestionIndex = ref(0)
+const answerText = ref('')
+const submitting = ref(false)
+const showHints = ref(false)
+
 const kbQuickTags = ['Spring Boot', 'Redis', 'MySQL', 'JVM', '系统设计', '行为面试']
+
+const TYPE_LABEL = {
+  PROJECT: '项目经历',
+  SKILL: '技术深度',
+  GAP: '技能缺口',
+  SYSTEM_DESIGN: '系统设计',
+  BEHAVIOR: '行为面试',
+}
+
+function typeLabel(type) {
+  return TYPE_LABEL[type] ?? type
+}
+
+const currentQuestion = computed(() => {
+  if (!activeSession.value) return null
+  return activeSession.value.questions?.[currentQuestionIndex.value] ?? null
+})
+
+const allAnswered = computed(() => {
+  if (!activeSession.value?.questions) return false
+  return activeSession.value.questions.every((q) => q.status === 'ANSWERED')
+})
+
+const answeredCount = computed(() => {
+  return activeSession.value?.questions?.filter((q) => q.status === 'ANSWERED').length ?? 0
+})
 
 function toggleAnswer(index) {
   const next = new Set(expandedAnswers.value)
@@ -221,12 +377,6 @@ async function searchCompany() {
   }
 }
 
-function formatDefaultTitle() {
-  const d = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  return `面试训练 ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 async function loadSessions() {
   listLoading.value = true
   pageError.value = ''
@@ -244,10 +394,13 @@ async function startNewSession() {
   pageError.value = ''
   noDefaultResumeHint.value = false
   try {
-    await createInterviewSession({ title: formatDefaultTitle() })
-    await loadSessions()
-    window.alert('练习会话已创建，答题功能即将上线，请稍后再试。')
+    const session = await createInterviewSession({})
+    activeSession.value = session
+    currentQuestionIndex.value = 0
+    answerText.value = ''
+    showHints.value = false
   } catch (e) {
+    console.error('创建 session 失败', e)
     const msg = e?.message || '创建训练失败'
     if (msg.includes('默认简历')) {
       noDefaultResumeHint.value = true
@@ -258,8 +411,75 @@ async function startNewSession() {
   }
 }
 
-function goToSession() {
-  window.alert('答题功能即将上线，敬请期待。')
+async function goToSession(sessionId) {
+  try {
+    const session = await getInterviewSession(sessionId)
+    activeSession.value = session
+    const firstUnanswered = session.questions?.findIndex((q) => q.status !== 'ANSWERED') ?? 0
+    currentQuestionIndex.value = firstUnanswered >= 0 ? firstUnanswered : 0
+    answerText.value = ''
+    showHints.value = false
+  } catch (e) {
+    console.error('加载 session 失败', e)
+    pageError.value = e?.message || '加载练习失败'
+  }
+}
+
+function exitPractice() {
+  activeSession.value = null
+  currentQuestionIndex.value = 0
+  answerText.value = ''
+  showHints.value = false
+  loadSessions()
+}
+
+async function submitAnswer() {
+  if (!answerText.value.trim() || submitting.value) return
+  const session = activeSession.value
+  const question = currentQuestion.value
+  if (!session || !question) return
+  submitting.value = true
+  try {
+    const updated = await submitInterviewAnswer(session.id, question.id, {
+      answerText: answerText.value.trim(),
+    })
+    const idx = activeSession.value.questions.findIndex((q) => q.id === updated.id)
+    if (idx >= 0) {
+      activeSession.value.questions[idx] = updated
+    }
+    showHints.value = false
+  } catch (e) {
+    console.error('提交答案失败', e)
+    pageError.value = e?.message || '提交失败，请稍后重试'
+  } finally {
+    submitting.value = false
+  }
+}
+
+function nextQuestion() {
+  if (currentQuestionIndex.value < (activeSession.value?.questions?.length ?? 0) - 1) {
+    currentQuestionIndex.value++
+    answerText.value = ''
+    showHints.value = false
+  }
+}
+
+function goToQuestion(i) {
+  currentQuestionIndex.value = i
+  const q = activeSession.value?.questions?.[i]
+  answerText.value = q?.status === 'ANSWERED' ? '' : (q?.answerText || '')
+  showHints.value = false
+}
+
+async function completeSession() {
+  if (!activeSession.value) return
+  try {
+    await completeInterviewSession(activeSession.value.id)
+    exitPractice()
+  } catch (e) {
+    console.error('complete 失败', e)
+    pageError.value = e?.message || '结束练习失败'
+  }
 }
 
 onMounted(() => {
@@ -397,7 +617,7 @@ onMounted(() => {
   margin: 0 0 12px;
 }
 
-.question-card {
+.kb-question-card {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   margin-bottom: 8px;
@@ -563,22 +783,34 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.session-title {
+.session-main {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.session-title {
   font-size: 13px;
   font-weight: 600;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.session-status,
 .session-progress {
   font-size: 11px;
   color: #64748b;
+}
+
+.session-status {
+  font-size: 11px;
   flex-shrink: 0;
 }
+
+.status-done { color: #64748b; }
+.status-active { color: #7c3aed; font-weight: 600; }
 
 .skeleton-group { display: flex; flex-direction: column; }
 
@@ -602,4 +834,275 @@ onMounted(() => {
   font-size: 13px;
   padding: 16px 0;
 }
+
+/* ── 答题视图 ── */
+.practice-view {
+  min-height: 100%;
+  background: #f8fafc;
+  padding-bottom: 80px;
+  color: #1a1a2e;
+}
+
+.practice-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 16px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.btn-exit {
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px 0;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.progress-bar-wrap {
+  flex: 1;
+  height: 4px;
+  background: #eee;
+  border-radius: 2px;
+  margin: 0 12px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #7c3aed;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.question-body {
+  padding-bottom: 16px;
+}
+
+.question-card {
+  background: #fff;
+  padding: 20px;
+  margin: 16px;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.question-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.type-badge {
+  border-radius: 999px;
+  background: #f3e8ff;
+  color: #7c3aed;
+  font-size: 12px;
+  padding: 2px 8px;
+  font-weight: 600;
+}
+
+.question-no {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.question-text {
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 12px 0 0;
+  color: #1a1a2e;
+}
+
+.hint-toggle {
+  background: none;
+  border: none;
+  color: #7c3aed;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 8px 0 4px;
+  font-family: inherit;
+}
+
+.hint-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+.answer-card,
+.feedback-card {
+  background: #fff;
+  margin: 0 16px 16px;
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.answer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.answer-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.word-count {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.answer-textarea {
+  width: 100%;
+  min-height: 120px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 15px;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.answer-textarea:focus {
+  border-color: #7c3aed;
+}
+
+.answer-actions,
+.next-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-primary {
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.score-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.score-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.score-feedback {
+  margin: 0;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.feedback-cols {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.fb-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.fb-good ul,
+.fb-improve ul,
+.reference-block ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.7;
+}
+
+.fb-good .fb-title { color: #15803d; }
+.fb-improve .fb-title { color: #b45309; }
+
+.reference-block {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.ref-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.question-nav {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+}
+
+.nav-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.nav-dot.dot-done { background: #7c3aed; }
+.nav-dot.dot-current { background: #a855f7; transform: scale(1.3); }
+.nav-dot.dot-pending { background: #ddd; }
 </style>
