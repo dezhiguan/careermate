@@ -38,9 +38,8 @@
             >
               ☰
             </button>
-            <div class="ai-avatar-header">职</div>
             <div>
-              <div class="header-title">小职</div>
+              <div class="header-title">AI 对话</div>
               <div class="header-sub" :class="workspaceSubClass">
                 <template v-if="workspaceInfo">● {{ workspaceSubText }}</template>
                 <template v-else>● 在线</template>
@@ -76,17 +75,19 @@
             </div>
 
             <div v-else class="msg-row agent-row">
-              <div class="ai-avatar">职</div>
-              <div class="msg-bubble agent-bubble">
+              <div
+                class="msg-bubble agent-bubble"
+                :class="{ 'agent-bubble--waiting': isAgentWaiting(msg) }"
+              >
+                <div v-if="isAgentWaiting(msg)" class="thinking-flag" aria-label="正在思考">
+                  <span class="thinking-dot" /><span class="thinking-dot" /><span class="thinking-dot" />
+                </div>
                 <div v-if="msg.toolCalls?.length" class="tool-call-list">
                   <ToolCallCard
                     v-for="tc in msg.toolCalls"
                     :key="tc.id"
                     :tool="tc"
                   />
-                </div>
-                <div v-if="msg.streaming && !msg.text && !msg.toolCalls?.length" class="thinking-flag">
-                  <span class="thinking-dot" /><span class="thinking-dot" /><span class="thinking-dot" />
                 </div>
                 <div v-if="msg.text || msg.html" class="md-body">
                   <span v-if="msg.streaming || !msg.html" class="md-plain">{{ msg.text }}</span>
@@ -167,7 +168,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { marked } from 'marked'
 import { authStore } from '../stores/authStore'
@@ -302,14 +303,7 @@ const resumeChipLabel = computed(() => {
   return `📄 ${latest.versionName}`
 })
 
-const messages = ref([withMarkdown({
-  id: 'm_init',
-  role: 'agent',
-  text: '你好！我是 CareerMate 求职助手。你可以直接提问，比如“帮我分析简历”。',
-  streaming: false,
-  error: '',
-  toolCalls: [],
-})])
+const messages = ref([defaultWelcomeMessage()])
 
 const canSend = computed(() => (
   !!inputText.value.trim()
@@ -340,8 +334,13 @@ function navigateFromDrawer(path) {
 }
 
 function appendReactiveMessage(message) {
-  messages.value.push(message)
-  return messages.value[messages.value.length - 1]
+  const reactiveMsg = reactive(message)
+  messages.value.push(reactiveMsg)
+  return reactiveMsg
+}
+
+function isAgentWaiting(msg) {
+  return !!msg?.streaming && !msg.text && !msg.html
 }
 
 function ensureAgentMessageShape(msg) {
@@ -510,7 +509,7 @@ function defaultWelcomeMessage() {
   return withMarkdown({
     id: `m_welcome_${idSeed.value++}`,
     role: 'agent',
-    text: '你好！我是 CareerMate 求职助手。你可以直接提问，比如“帮我分析简历”。',
+    text: '你好！你可以直接提问，比如「帮我分析简历」。',
     streaming: false,
     error: '',
     toolCalls: [],
@@ -541,7 +540,7 @@ function mapWorkspaceMessage(m) {
     toolCalls: [],
   }
   if (role === 'agent') {
-    return { ...base, html: '' }
+    return withMarkdown(base)
   }
   return base
 }
@@ -861,7 +860,6 @@ async function sendMessage() {
           agentMessage.text = data.content
         }
         finalizeRunningToolCalls(agentMessage, true)
-        finishStreaming(agentMessage)
       },
       onDone(data) {
         clearStreamWatchdog()
@@ -1225,19 +1223,6 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.ai-avatar-header {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 800;
-  font-size: 13px;
-  flex-shrink: 0;
-}
-
 .header-title { font-weight: 700; font-size: 13px; color: #0f172a; }
 .header-sub { font-size: 10px; color: #10b981; }
 .header-sub--ready { color: #10b981; }
@@ -1251,11 +1236,11 @@ onBeforeUnmount(() => {
 }
 
 .header-action {
-  background: none; border: 1px solid var(--border); padding: 5px 12px;
-  border-radius: 6px; font-size: 11px; cursor: pointer; color: var(--text-muted);
+  background: none; border: 1px solid #e2e8f0; padding: 5px 12px;
+  border-radius: 6px; font-size: 11px; cursor: pointer; color: #64748b;
 }
 
-.header-action:hover { background: var(--light); }
+.header-action:hover { background: #f8fafc; }
 .header-action:disabled { opacity: .5; cursor: default; }
 
 .global-error {
@@ -1291,20 +1276,7 @@ onBeforeUnmount(() => {
 .msg-wrapper { margin-bottom: 6px; }
 .msg-row { display: flex; }
 .user-row { justify-content: flex-end; }
-.agent-row { gap: 8px; align-items: flex-start; }
-
-.ai-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-}
+.agent-row { align-items: flex-start; }
 
 .msg-bubble {
   max-width: 75%;
@@ -1320,12 +1292,19 @@ onBeforeUnmount(() => {
 }
 
 .agent-bubble {
-  max-width: 80%;
+  max-width: 85%;
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 4px 14px 14px 14px;
+  border-radius: 14px;
   padding: 12px 14px;
   color: #334155;
+}
+
+.agent-bubble--waiting {
+  min-width: 64px;
+  padding: 14px 16px;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
 .md-body {
@@ -1451,14 +1430,14 @@ onBeforeUnmount(() => {
   color: #0f172a;
 }
 
-.stream-flag { display: inline-block; color: var(--purple); font-size: 13px; line-height: 1; animation: blink 1s step-start infinite; margin-left: 1px; }
+.stream-flag { display: inline-block; color: #4f46e5; font-size: 13px; line-height: 1; animation: blink 1s step-start infinite; margin-left: 1px; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
 .thinking-flag { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
 
 .thinking-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--purple); opacity: 0.5;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #6366f1;
   animation: thinking-bounce 1.2s ease-in-out infinite;
 }
 
@@ -1471,7 +1450,7 @@ onBeforeUnmount(() => {
   40% { transform: translateY(-6px); opacity: 1; }
 }
 
-.stream-error { margin-top: 4px; color: var(--red); font-size: 11px; }
+.stream-error { margin-top: 4px; color: #dc2626; font-size: 11px; }
 
 .tool-call-list {
   display: flex;
@@ -1483,7 +1462,7 @@ onBeforeUnmount(() => {
 .input-area {
   flex-shrink: 0;
   position: relative;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid #e2e8f0;
   padding: 12px 16px;
   background: #fff;
   z-index: 10;
