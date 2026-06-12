@@ -1,4 +1,4 @@
-import { request } from './http'
+import { API_BASE_URL, getAuthHeaders, handleUnauthorized, request } from './http'
 
 export function listResumes() {
   return request('/resumes', { method: 'GET' })
@@ -31,7 +31,6 @@ export function setDefaultResume(id) {
 }
 
 export async function uploadResumeFile(file, title) {
-  const { API_BASE_URL, getAuthHeaders, handleUnauthorized } = await import('./http')
   const formData = new FormData()
   formData.append('file', file)
   if (title && title.trim()) {
@@ -57,4 +56,53 @@ export async function uploadResumeFile(file, title) {
     throw new Error(payload?.message || '上传失败')
   }
   return payload.data
+}
+
+async function downloadBinary(path, fallbackName) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: getAuthHeaders(),
+  })
+  if (response.status === 401) {
+    handleUnauthorized(null)
+  }
+  if (!response.ok) {
+    let message = `下载失败: ${response.status}`
+    try {
+      const payload = await response.json()
+      message = payload?.message || message
+    } catch {
+      try {
+        const text = await response.text()
+        if (text) message = text
+      } catch {
+        // keep default message
+      }
+    }
+    throw new Error(message)
+  }
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fallbackName
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function safeFileName(name, extension) {
+  const base = String(name || '简历')
+    .trim()
+    .replace(/[\\/:*?"<>|\r\n]+/g, '_')
+    .replace(/\s+/g, ' ')
+  return `${base || '简历'}.${extension}`
+}
+
+export function downloadResumePdf(id, title) {
+  return downloadBinary(`/resumes/${encodeURIComponent(id)}/export/pdf`, safeFileName(title, 'pdf'))
+}
+
+export function downloadResumeDocx(id, title) {
+  return downloadBinary(`/resumes/${encodeURIComponent(id)}/export/docx`, safeFileName(title, 'docx'))
 }

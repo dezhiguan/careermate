@@ -19,6 +19,22 @@
         <div class="resume-actions">
           <button type="button" class="action-btn" @click="openModal('default', defaultResume, 'preview')">预览</button>
           <button type="button" class="action-btn" @click="openModal('default', defaultResume, 'edit')">修改</button>
+          <button
+            type="button"
+            class="action-btn"
+            :disabled="downloadingKey === `resume-pdf-${defaultResume.id}`"
+            @click="handleDownloadDefault(defaultResume, 'pdf')"
+          >
+            {{ downloadingKey === `resume-pdf-${defaultResume.id}` ? '...' : 'PDF' }}
+          </button>
+          <button
+            type="button"
+            class="action-btn"
+            :disabled="downloadingKey === `resume-docx-${defaultResume.id}`"
+            @click="handleDownloadDefault(defaultResume, 'docx')"
+          >
+            {{ downloadingKey === `resume-docx-${defaultResume.id}` ? '...' : 'Word' }}
+          </button>
           <button type="button" class="action-btn" @click="triggerUpload">重新上传</button>
           <button type="button" class="action-btn action-btn--danger" @click="handleDeleteDefault">删除</button>
         </div>
@@ -59,7 +75,7 @@
     <!-- 区块二：AI 定制版本 -->
     <section class="resume-section">
       <div class="section-title">AI 定制版本（{{ versions.length }}）</div>
-      <p class="section-desc">由小职针对 JD 生成，可预览和下载 PDF</p>
+      <p class="section-desc">由小职针对 JD 生成，可预览和下载 PDF / Word</p>
 
       <div v-if="versions.length === 0" class="empty-tip">
         暂无定制版本，去小职对话生成 →
@@ -81,10 +97,18 @@
             <button
               type="button"
               class="action-btn"
-              :disabled="pdfDownloadingId === v.versionId"
-              @click="handleDownloadPdf(v)"
+              :disabled="downloadingKey === `version-pdf-${v.versionId}`"
+              @click="handleDownloadVersion(v, 'pdf')"
             >
-              {{ pdfDownloadingId === v.versionId ? '...' : 'PDF' }}
+              {{ downloadingKey === `version-pdf-${v.versionId}` ? '...' : 'PDF' }}
+            </button>
+            <button
+              type="button"
+              class="action-btn"
+              :disabled="downloadingKey === `version-docx-${v.versionId}`"
+              @click="handleDownloadVersion(v, 'docx')"
+            >
+              {{ downloadingKey === `version-docx-${v.versionId}` ? '...' : 'Word' }}
             </button>
             <button type="button" class="action-btn action-btn--danger" @click="handleDeleteVersion(v)">删除</button>
           </div>
@@ -174,12 +198,21 @@ import { useRouter } from 'vue-router'
 import {
   createResume,
   deleteResume,
+  downloadResumeDocx,
+  downloadResumePdf,
   getResume,
   listResumes,
   updateResume,
   uploadResumeFile,
 } from '../api/resume'
-import { deleteVersion, downloadVersionPdf, getVersion, listVersions, updateVersion } from '../api/resumeVersion'
+import {
+  deleteVersion,
+  downloadVersionDocx,
+  downloadVersionPdf,
+  getVersion,
+  listVersions,
+  updateVersion,
+} from '../api/resumeVersion'
 
 const router = useRouter()
 
@@ -188,7 +221,7 @@ const versions = ref([])
 const uploading = ref(false)
 const uploadError = ref('')
 const fileInputRef = ref(null)
-const pdfDownloadingId = ref(null)
+const downloadingKey = ref('')
 const deleting = ref(false)
 
 const resumeModalOpen = ref(false)
@@ -385,15 +418,37 @@ async function saveResume() {
   }
 }
 
-async function handleDownloadPdf(version) {
-  if (!version?.versionId || pdfDownloadingId.value) return
-  pdfDownloadingId.value = version.versionId
+async function handleDownloadDefault(resume, format) {
+  if (!resume?.id || downloadingKey.value) return
+  downloadingKey.value = `resume-${format}-${resume.id}`
+  uploadError.value = ''
   try {
-    await downloadVersionPdf(version.versionId, version.versionName)
-  } catch {
-    // 静默失败
+    if (format === 'docx') {
+      await downloadResumeDocx(resume.id, resume.title)
+    } else {
+      await downloadResumePdf(resume.id, resume.title)
+    }
+  } catch (e) {
+    uploadError.value = e?.message || '下载失败'
   } finally {
-    pdfDownloadingId.value = null
+    downloadingKey.value = ''
+  }
+}
+
+async function handleDownloadVersion(version, format) {
+  if (!version?.versionId || downloadingKey.value) return
+  downloadingKey.value = `version-${format}-${version.versionId}`
+  uploadError.value = ''
+  try {
+    if (format === 'docx') {
+      await downloadVersionDocx(version.versionId, version.versionName)
+    } else {
+      await downloadVersionPdf(version.versionId, version.versionName)
+    }
+  } catch (e) {
+    uploadError.value = e?.message || '下载失败'
+  } finally {
+    downloadingKey.value = ''
   }
 }
 

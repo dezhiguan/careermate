@@ -33,6 +33,7 @@ const props = defineProps({
   card: { type: Object, required: true },
   disabled: { type: Boolean, default: false },
   pdfDownloading: { type: Boolean, default: false },
+  wordDownloading: { type: Boolean, default: false },
 })
 
 defineEmits(['action'])
@@ -41,7 +42,8 @@ const cardType = computed(() => (props.card?.type || 'unknown').toLowerCase())
 const actions = computed(() => (Array.isArray(props.card?.actions) ? props.card.actions : []))
 
 function isActionLoading(act) {
-  return act?.action === 'DOWNLOAD_PDF' && props.pdfDownloading
+  return (act?.action === 'DOWNLOAD_PDF' && props.pdfDownloading)
+    || (act?.action === 'DOWNLOAD_WORD' && props.wordDownloading)
 }
 
 function actionLabel(act) {

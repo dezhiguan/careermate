@@ -283,6 +283,7 @@ public class GenerateResumeFromJdWorkflow {
                 Map.of("label", "查看完整简历", "action", "VIEW_RESUME", "payload", versionId),
                 Map.of("label", "复制 Markdown", "action", "COPY_MARKDOWN", "payload", versionId),
                 Map.of("label", "下载 PDF", "action", "DOWNLOAD_PDF", "payload", pdfPayload),
+                Map.of("label", "下载 Word", "action", "DOWNLOAD_WORD", "payload", pdfPayload),
                 Map.of("label", "去我的简历继续改", "action", "NAVIGATE", "payload", "/mine")
         ));
         return card;

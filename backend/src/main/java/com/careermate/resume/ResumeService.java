@@ -10,7 +10,12 @@ import com.careermate.resume.dto.ResumeCreateRequest;
 import com.careermate.resume.dto.ResumeDetailResponse;
 import com.careermate.resume.dto.ResumeListItemResponse;
 import com.careermate.resume.dto.ResumeUpdateRequest;
+import com.careermate.resume.version.export.ResumeExportResponseHeaders;
+import com.careermate.resume.version.export.ResumeVersionDocxRenderer;
+import com.careermate.resume.version.export.ResumeVersionPdfRenderer;
 import com.careermate.security.CurrentUserContext;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +25,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class ResumeService {
 
@@ -32,13 +38,19 @@ public class ResumeService {
     private final ResumeMapper resumeMapper;
     private final RagForgeClient ragForgeClient;
     private final ResumeFileParserService fileParserService;
+    private final ResumeVersionPdfRenderer pdfRenderer;
+    private final ResumeVersionDocxRenderer docxRenderer;
 
     public ResumeService(ResumeMapper resumeMapper,
                          RagForgeClient ragForgeClient,
-                         ResumeFileParserService fileParserService) {
+                         ResumeFileParserService fileParserService,
+                         ResumeVersionPdfRenderer pdfRenderer,
+                         ResumeVersionDocxRenderer docxRenderer) {
         this.resumeMapper = resumeMapper;
         this.ragForgeClient = ragForgeClient;
         this.fileParserService = fileParserService;
+        this.pdfRenderer = pdfRenderer;
+        this.docxRenderer = docxRenderer;
     }
 
     public Optional<ResumeEntity> getDefaultActiveResume(Long userId) {
@@ -99,6 +111,38 @@ public class ResumeService {
         Long userId = requireUserId();
         ResumeEntity entity = getActiveResumeOrThrow(userId, id);
         return toDetail(entity);
+    }
+
+    @Transactional(readOnly = true)
+    public void exportPdf(Long id, HttpServletResponse response) {
+        Long userId = requireUserId();
+        ResumeEntity entity = getActiveResumeOrThrow(userId, id);
+        try {
+            ResumeExportResponseHeaders.pdf(response, entity.getTitle());
+            pdfRenderer.render(entity.getContent(), response.getOutputStream());
+            response.flushBuffer();
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("默认简历 PDF 导出失败, resumeId={}", id, e);
+            throw new BizException(500, "PDF 导出失败");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public void exportDocx(Long id, HttpServletResponse response) {
+        Long userId = requireUserId();
+        ResumeEntity entity = getActiveResumeOrThrow(userId, id);
+        try {
+            ResumeExportResponseHeaders.docx(response, entity.getTitle());
+            docxRenderer.render(entity.getContent(), response.getOutputStream());
+            response.flushBuffer();
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("默认简历 Word 导出失败, resumeId={}", id, e);
+            throw new BizException(500, "Word 导出失败");
+        }
     }
 
     @Transactional

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.careermate.common.exception.BizException;
 import com.careermate.mapper.ResumeVersionMapper;
 import com.careermate.model.entity.ResumeVersionEntity;
+import com.careermate.resume.version.export.ResumeVersionDocxRenderer;
 import com.careermate.resume.version.export.ResumeVersionPdfRenderer;
 import com.careermate.resume.version.service.impl.ResumeVersionServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,7 +38,12 @@ class ResumeVersionServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new ResumeVersionServiceImpl(resumeVersionMapper, new ObjectMapper(), pdfRenderer);
+        service = new ResumeVersionServiceImpl(
+                resumeVersionMapper,
+                new ObjectMapper(),
+                pdfRenderer,
+                new ResumeVersionDocxRenderer()
+        );
     }
 
     @Test

@@ -98,6 +98,7 @@
                   :card="msg.card"
                   :disabled="resumeGenerating"
                   :pdf-downloading="pdfDownloading"
+                  :word-downloading="wordDownloading"
                   @action="handleCardAction"
                 />
                 <div v-if="msg.streaming && msg.text" class="stream-flag">▌</div>
@@ -179,7 +180,7 @@ import {
 } from '../api/agent'
 import { getWorkspace, getMessages, postAction, openResumeGenerateStream } from '../api/workspace'
 import { getOpportunityDetail } from '../api/opportunity'
-import { downloadVersionPdf, getVersion, listVersions } from '../api/resumeVersion'
+import { downloadVersionDocx, downloadVersionPdf, getVersion, listVersions } from '../api/resumeVersion'
 import { isCareerTaskToolName, notifyCareerTasksUpdated } from '../utils/agentToolDisplay'
 import ToolCallCard from '../components/agent/ToolCallCard.vue'
 import ChatCard from '../components/ChatCard.vue'
@@ -275,6 +276,7 @@ const resumeViewerContent = ref('')
 const versionsDrawerOpen = ref(false)
 const workspaceVersions = ref([])
 const pdfDownloading = ref(false)
+const wordDownloading = ref(false)
 
 const STREAM_UI_IDLE_NOTICE_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_IDLE_NOTICE_MS || 90000)
 
@@ -610,6 +612,20 @@ async function handleCardAction(actionItem) {
       globalError.value = e?.message || 'PDF 下载失败'
     } finally {
       pdfDownloading.value = false
+    }
+    return
+  }
+  if (action === 'DOWNLOAD_WORD') {
+    const pl = typeof payload === 'object' && payload !== null
+      ? payload
+      : { versionId: payload, versionName: '' }
+    wordDownloading.value = true
+    try {
+      await downloadVersionDocx(pl.versionId, pl.versionName)
+    } catch (e) {
+      globalError.value = e?.message || 'Word 下载失败'
+    } finally {
+      wordDownloading.value = false
     }
     return
   }
