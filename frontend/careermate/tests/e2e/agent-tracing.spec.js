@@ -7,29 +7,14 @@ const {
   logEnv,
   assertBackendReady,
   assertUserFlowEnvironment,
-  detectAuthMode,
-  enterFromLoginIfNeeded,
   enterApplicationAsUser,
   gotoApp,
   waitStable,
 } = require('./e2e-env');
 
-/** @type {'single-user' | 'jwt'} */
-let detectedAuthMode = 'jwt';
 
 async function ensureInApp(page) {
-  const { mustUseUserFlow } = require('./e2e-env');
-  if (mustUseUserFlow) {
-    await enterApplicationAsUser(page, null);
-    return;
-  }
-  await gotoApp(page, '/');
-  await waitStable(page);
-  if (detectedAuthMode === 'single-user') {
-    await enterFromLoginIfNeeded(page);
-    return;
-  }
-  await enterApplicationAsUser(page, null);
+  jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
 }
 
 async function gotoAgent(page) {

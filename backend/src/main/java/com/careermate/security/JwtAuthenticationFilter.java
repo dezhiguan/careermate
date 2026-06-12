@@ -26,21 +26,15 @@ import java.util.List;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final String MODE_SINGLE_USER = "single-user";
-    private static final String MODE_JWT = "jwt";
-
-    private final SecurityProperties securityProperties;
     private final JwtTokenProvider jwtTokenProvider;
     private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
 
     public JwtAuthenticationFilter(
-            SecurityProperties securityProperties,
             JwtTokenProvider jwtTokenProvider,
             UserMapper userMapper,
             ObjectMapper objectMapper
     ) {
-        this.securityProperties = securityProperties;
         this.jwtTokenProvider = jwtTokenProvider;
         this.userMapper = userMapper;
         this.objectMapper = objectMapper;
@@ -50,54 +44,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         try {
-            if (securityProperties.isDevSkipAuth() && request.getRequestURI().startsWith("/api/")) {
-                if (!isAnonymousPath(request.getRequestURI())) {
-                    applyConfiguredSingleUser();
-                }
-                filterChain.doFilter(request, response);
+            if (!applyJwtAuth(request, response)) {
                 return;
             }
-
-            String mode = securityProperties.getMode();
-            if (MODE_SINGLE_USER.equals(mode)) {
-                if (!applySingleUserAuth(request, response)) {
-                    return;
-                }
-                filterChain.doFilter(request, response);
-                return;
-            }
-            if (MODE_JWT.equals(mode)) {
-                if (!applyJwtAuth(request, response)) {
-                    return;
-                }
-                filterChain.doFilter(request, response);
-                return;
-            }
-            writeUnauthorized(response, "Unsupported SECURITY_MODE");
+            filterChain.doFilter(request, response);
         } finally {
             MDC.remove(MdcKeys.USER_ID);
             CurrentUserContext.clear();
             SecurityContextHolder.clearContext();
         }
-    }
-
-    /**
-     * single-user 模式：无 Token 时回落为 local-user；携带有效 JWT 时以 Token 对应用户为准（保证登录态刷新）。
-     */
-    private boolean applySingleUserAuth(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if (isAnonymousPath(request.getRequestURI())) {
-            return true;
-        }
-        String bearerToken = extractBearerToken(request);
-        if (StringUtils.hasText(bearerToken)) {
-            if (!jwtTokenProvider.validateToken(bearerToken)) {
-                applyConfiguredSingleUser();
-                return true;
-            }
-            return authenticateUserFromToken(bearerToken, response);
-        }
-        applyConfiguredSingleUser();
-        return true;
     }
 
     private boolean applyJwtAuth(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -118,19 +73,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return false;
         }
         return authenticateUserFromToken(bearerToken, response);
-    }
-
-    private void applyConfiguredSingleUser() {
-        Long userId = securityProperties.getSingleUser().getUserId();
-        String username = securityProperties.getSingleUser().getUsername();
-        setSecurityContext(
-                CurrentUser.builder()
-                        .userId(userId)
-                        .username(username)
-                        .role("USER")
-                        .authenticated(true)
-                        .build()
-        );
     }
 
     private boolean authenticateUserFromToken(String token, HttpServletResponse response) throws IOException {

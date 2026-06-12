@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * 云端完整用户场景 E2E（仅 E2E_TARGET=cloud）
- * - 强制注册/登录，不使用 single-user「进入 CareerMate」
+ * - 强制注册/登录
  * - 串行执行全部已实现功能，不 skip 步骤
  */
 const { test, expect } = require('@playwright/test');
@@ -17,7 +17,6 @@ const {
   createTestCredentials,
   registerViaUi,
   loginViaUi,
-  detectAuthMode,
   assertAgentDashboard,
   assertAgentDashboardForAccount,
   printCreatedAccountsReport,
@@ -31,15 +30,12 @@ test.describe.configure({ mode: 'serial' });
 
 /** @type {{ username: string; email: string; password: string } | null} */
 let userAccount = null;
-/** @type {'single-user' | 'jwt'} */
-let authMode = 'jwt';
 
 test.beforeAll(async ({ request }) => {
   test.skip(!isCloud, '仅 E2E_TARGET=cloud 时运行');
   logEnv();
   await assertBackendReady(request);
   await assertUserFlowEnvironment(request);
-  authMode = await detectAuthMode(request);
 });
 
 test.beforeEach(({ page }, testInfo) => {
@@ -62,24 +58,14 @@ test.describe('云端 · 桌面端完整用户旅程', () => {
     await gotoApp(page, '/');
     await waitStable(page);
 
-    const onAgent = await page
-      .getByText('Agent 对话台')
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
-    if (onAgent) {
-      console.log('[01] single-user 自动进入，先退出再验证登录页');
-      await page.getByRole('button', { name: '退出' }).click();
-      await expect(page).toHaveURL(/#\/login/, { timeout: 15_000 });
-    } else {
-      await expect(page).toHaveURL(/#\/login/);
-    }
+    await expect(page).toHaveURL(/#\/login/);
     await expect(page.getByText('Agent 对话台')).not.toBeVisible();
   });
 
   test('02 注册并进入应用', async ({ page, request }) => {
     userAccount = createTestCredentials();
     await registerViaUi(page, userAccount, request);
-    await assertAgentDashboardForAccount(page, userAccount, authMode);
+    await assertAgentDashboardForAccount(page, userAccount);
     await expect(page.locator('body')).not.toContainText(FATAL_AUTH_ERROR);
   });
 
@@ -87,7 +73,7 @@ test.describe('云端 · 桌面端完整用户旅程', () => {
     test.skip(!userAccount, '依赖 02 注册');
     await gotoApp(page, '/');
     await waitStable(page);
-    await assertAgentDashboardForAccount(page, userAccount, authMode);
+    await assertAgentDashboardForAccount(page, userAccount);
 
     await sendAgentMessageAndExpectMockReply(page);
     await expect(page.locator('body')).not.toContainText(FATAL_APP_ERROR);
@@ -170,28 +156,26 @@ test.describe('云端 · 桌面端完整用户旅程', () => {
     await page.getByRole('button', { name: '退出' }).click();
     await expect(page).toHaveURL(/#\/login/, { timeout: 15_000 });
     await loginViaUi(page, userAccount);
-    await assertAgentDashboardForAccount(page, userAccount, authMode);
+    await assertAgentDashboardForAccount(page, userAccount);
     await page.reload();
     await waitStable(page);
-    await assertAgentDashboardForAccount(page, userAccount, authMode);
+    await assertAgentDashboardForAccount(page, userAccount);
     expect(await page.evaluate((key) => localStorage.getItem(key), TOKEN_KEY)).toBeTruthy();
   });
 
   test('10 错误密码登录失败', async ({ page }) => {
-    test.skip(authMode === 'single-user', '需 SECURITY_MODE=jwt');
     test.skip(!userAccount, '依赖 02 注册');
     await page.getByRole('button', { name: '退出' }).click();
     await expect(page).toHaveURL(/#\/login/);
     await page.getByLabel('用户名').fill(userAccount.username);
     await page.getByLabel('密码').fill('WrongPassword99!');
-    await page.locator('form .primary').click();
+    await page.locator('form .btn-primary').click();
     await expect(page).toHaveURL(/#\/login/);
     await expect(page.locator('.error')).toContainText(/用户名或密码错误|未认证|请求失败/i);
     expect(await page.evaluate((key) => localStorage.getItem(key), TOKEN_KEY)).toBeFalsy();
   });
 
   test('11 无效 token 清理并跳转登录', async ({ page }) => {
-    test.skip(authMode === 'single-user', '需 SECURITY_MODE=jwt');
     await page.evaluate(
       ([tokenKey, bad]) => {
         localStorage.setItem(tokenKey, bad);
@@ -218,7 +202,7 @@ test.describe('云端 · 手机端完整用户旅程', () => {
       await clearAuthStorage(page);
       await loginViaUi(page, userAccount);
     }
-    await assertAgentDashboardForAccount(page, userAccount, authMode);
+    await assertAgentDashboardForAccount(page, userAccount);
 
     const hasHorizontalOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1

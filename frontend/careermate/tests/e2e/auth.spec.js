@@ -1,18 +1,13 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const {
-  isCloud,
-  mustUseUserFlow,
   logEnv,
   assertBackendReady,
   assertUserFlowEnvironment,
-  detectAuthMode,
   attachDiagnostics,
   waitStable,
   clearAuthStorage,
-  enterFromLoginIfNeeded,
   assertAgentDashboard,
-  assertAgentDashboardWithUser,
   ensureLoginPage,
   createTestCredentials,
   registerViaUi,
@@ -24,71 +19,21 @@ const {
   FATAL_AUTH_ERROR,
 } = require('./e2e-env');
 
-/** @type {'single-user' | 'jwt'} */
-let detectedAuthMode = 'jwt';
-
 test.beforeAll(async ({ request }) => {
   logEnv();
   await assertBackendReady(request);
   await assertUserFlowEnvironment(request);
-  detectedAuthMode = await detectAuthMode(request);
-  console.log(`[auth-mode] 当前认证模式: ${detectedAuthMode}`);
 });
 
 test.beforeEach(({ page }) => {
   attachDiagnostics(page);
 });
 
-test.describe('single-user 模式', () => {
-  test.describe.configure({ mode: 'serial' });
-
-  test.beforeEach(() => {
-    test.skip(mustUseUserFlow, '云端/用户流程模式不跑 single-user 用例');
-    test.skip(detectedAuthMode !== 'single-user', '当前后端不是 single-user 模式');
-  });
-
-  test('用例1：访问首页进入应用', async ({ page }) => {
-    await gotoApp(page, '/login');
-    await clearAuthStorage(page);
-    await page.reload();
-    await gotoApp(page, '/');
-    await waitStable(page);
-    await enterFromLoginIfNeeded(page);
-    await assertAgentDashboardWithUser(page, /local-user\s*\/\s*USER/);
-    await expect(page.locator('body')).not.toContainText(FATAL_AUTH_ERROR);
-  });
-
-  test('用例2：访问 /login', async ({ page }) => {
-    await ensureLoginPage(page);
-    await expect(page.getByText('CareerMate', { exact: true })).toBeVisible();
-    await expect(page.getByText(LOGIN_PAGE_TITLE)).toBeVisible();
-    await expect(page).toHaveURL(/#\/login/);
-  });
-
-  test('用例3：退出后可重新进入', async ({ page }) => {
-    await gotoApp(page, '/');
-    await waitStable(page);
-    await enterFromLoginIfNeeded(page);
-    await assertAgentDashboard(page);
-    await page.getByRole('button', { name: '退出' }).click();
-    await expect(page).toHaveURL(/#\/login/, { timeout: 15_000 });
-    await gotoApp(page, '/');
-    await waitStable(page);
-    await enterFromLoginIfNeeded(page);
-    await assertAgentDashboardWithUser(page, /local-user\s*\/\s*USER/);
-    await expect(page.locator('body')).not.toContainText(FATAL_AUTH_ERROR);
-  });
-});
-
-test.describe('jwt 模式', () => {
+test.describe('JWT 登录', () => {
   test.describe.configure({ mode: 'serial' });
 
   /** @type {{ username: string; email: string; password: string } | null} */
   let registeredAccount = null;
-
-  test.beforeEach(() => {
-    test.skip(!mustUseUserFlow && detectedAuthMode !== 'jwt', '当前后端不是 jwt 模式，跳过 jwt 登录注册测试');
-  });
 
   test('用例1：未登录访问首页跳转 /login', async ({ page }) => {
     await gotoApp(page, '/login');
@@ -152,9 +97,15 @@ test.describe('jwt 模式', () => {
     expect(token).toBeFalsy();
     await expect(page.getByText('Agent 对话台')).not.toBeVisible();
   });
+
+  test('用例6：访问 /login 展示登录页', async ({ page }) => {
+    await ensureLoginPage(page);
+    await expect(page.getByText('CareerMate', { exact: true })).toBeVisible();
+    await expect(page.getByText(LOGIN_PAGE_TITLE)).toBeVisible();
+    await expect(page).toHaveURL(/#\/login/);
+  });
 });
 
 test.afterAll(() => {
-  console.log(`[report] E2E_TARGET 认证模式: ${detectedAuthMode}`);
   printCreatedAccountsReport();
 });

@@ -9,12 +9,10 @@ const {
   e2ePrefix,
   assertBackendReady,
   assertUserFlowEnvironment,
-  detectAuthMode,
   attachDiagnostics,
   registerViaUi,
   gotoApp,
   waitStable,
-  enterFromLoginIfNeeded,
   printCreatedAccountsReport,
 } = require('./e2e-env');
 
@@ -25,8 +23,6 @@ const PARALLEL_USERS = process.env.AGENT_STRESS_PARALLEL !== '0';
 /** 1=只跑用户A（单会话压力）；2=双用户（默认） */
 const USER_COUNT = Number(process.env.AGENT_STRESS_USER_COUNT || 2);
 
-/** @type {'single-user' | 'jwt'} */
-let authMode = 'jwt';
 
 function createStressAccount(userLabel) {
   const ts = Date.now();
@@ -145,10 +141,7 @@ async function waitAgentRoundComplete(page, round) {
  * @param {string} userLabel
  */
 async function runUserStress(browser, request, userLabel) {
-  const account =
-    authMode === 'single-user'
-      ? { username: 'local-user', email: '', password: '' }
-      : createStressAccount(userLabel);
+  const account = createStressAccount(userLabel);
   const context = await browser.newContext();
   const page = await context.newPage();
   attachDiagnostics(page);
@@ -164,13 +157,7 @@ async function runUserStress(browser, request, userLabel) {
   };
 
   try {
-    if (authMode === 'single-user') {
-      await gotoApp(page, '/');
-      await waitStable(page);
-      await enterFromLoginIfNeeded(page);
-    } else {
-      await registerViaUi(page, account, request);
-    }
+    await registerViaUi(page, account, request);
     await page.getByRole('link', { name: '💬 对话台', exact: true }).click();
     await expect(page.getByText('Agent 对话台')).toBeVisible({ timeout: 20_000 });
     await waitAgentSessionReady(page);

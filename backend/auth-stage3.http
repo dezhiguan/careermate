@@ -26,7 +26,7 @@ echo "SCRIPT_PATH=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 echo "INPUT_PARAMS: BASE_URL=$BASE_URL USERNAME=$USERNAME PASSWORD=<hidden> EMAIL=$EMAIL"
 
 echo
-echo "1) single-user 模式当前用户（先确保后端以 SECURITY_MODE=single-user 启动）"
+echo "1) 未登录访问 /auth/me（预期 401）"
 echo "REQUEST_PATH: GET $BASE_URL/api/auth/me"
 echo "INPUT: token=<none>"
 RESP=$(curl -s -w '\nHTTP_STATUS:%{http_code}\n' "$BASE_URL/api/auth/me")
@@ -34,7 +34,7 @@ print_summary "$RESP"
 echo
 
 echo
-echo "2) jwt 模式注册（先重启后端为 SECURITY_MODE=jwt）"
+echo "2) 注册"
 echo "REQUEST_PATH: POST $BASE_URL/api/auth/register"
 echo "INPUT_BODY: {\"username\":\"$USERNAME\",\"password\":\"<hidden>\",\"email\":\"$EMAIL\"}"
 REGISTER_RESPONSE=$(curl -s -w '\nHTTP_STATUS:%{http_code}\n' \
@@ -56,7 +56,7 @@ PY
 )
 
 echo
-echo "3) jwt 模式登录"
+echo "3) 登录"
 echo "REQUEST_PATH: POST $BASE_URL/api/auth/login"
 echo "INPUT_BODY: {\"username\":\"$USERNAME\",\"password\":\"<hidden>\"}"
 LOGIN_RESPONSE=$(curl -s -w '\nHTTP_STATUS:%{http_code}\n' \
@@ -80,7 +80,7 @@ PY
 fi
 
 echo
-echo "4) jwt 模式无 token 访问 me（预期 401）"
+echo "4) 无 token 访问 me（预期 401）"
 echo "REQUEST_PATH: GET $BASE_URL/api/auth/me"
 echo "INPUT: token=<none>"
 RESP=$(curl -s -w '\nHTTP_STATUS:%{http_code}\n' "$BASE_URL/api/auth/me")
@@ -88,7 +88,7 @@ print_summary "$RESP"
 echo
 
 echo
-echo "5) jwt 模式带 token 访问 me（预期 200）"
+echo "5) 带 token 访问 me（预期 200）"
 echo "REQUEST_PATH: GET $BASE_URL/api/auth/me"
 echo "INPUT: Authorization=Bearer <token_from_register_or_login>"
 if [ -z "$TOKEN" ]; then

@@ -56,6 +56,10 @@ async function init() {
   if (state.initialized) return
   state.loading = true
   try {
+    if (!state.token) {
+      clearAuth()
+      return
+    }
     await fetchCurrentUser()
   } catch (e) {
     clearAuth()
@@ -91,6 +95,7 @@ async function register(username, password, email) {
 
 function logout() {
   clearAuth()
+  state.initialized = false
   window.location.hash = '/login'
 }
 
@@ -113,7 +118,7 @@ function applyUserProfile(user) {
   })
 }
 
-const isAuthenticated = computed(() => !!state.currentUser?.authenticated)
+const isAuthenticated = computed(() => !!state.token && !!state.currentUser?.authenticated)
 
 export const authStore = {
   state,

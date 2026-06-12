@@ -38,7 +38,7 @@ class MarketIntelligenceControllerTest {
     void setUpUser() {
         CurrentUserContext.set(CurrentUser.builder()
                 .userId(1L)
-                .username("local-user")
+                .username("test-user")
                 .role("user")
                 .authenticated(true)
                 .build());

@@ -8,10 +8,8 @@ const {
   e2ePrefix,
   assertBackendReady,
   assertUserFlowEnvironment,
-  detectAuthMode,
   attachDiagnostics,
   waitStable,
-  enterFromLoginIfNeeded,
   enterApplicationAsUser,
   gotoApp,
 } = require('./e2e-env');
@@ -19,22 +17,9 @@ const {
 const prefix = e2ePrefix();
 const TASK_TITLE = `${prefix}_llm_reg_补充 Java 后端项目指标`;
 
-/** @type {'single-user' | 'jwt'} */
-let detectedAuthMode = 'jwt';
 
 async function ensureInApp(page) {
-  const { mustUseUserFlow } = require('./e2e-env');
-  if (mustUseUserFlow) {
-    await enterApplicationAsUser(page, null);
-    return;
-  }
-  await gotoApp(page, '/');
-  await waitStable(page);
-  if (detectedAuthMode === 'single-user') {
-    await enterFromLoginIfNeeded(page);
-    return;
-  }
-  await enterApplicationAsUser(page, null);
+  jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
 }
 
 async function gotoAgent(page) {

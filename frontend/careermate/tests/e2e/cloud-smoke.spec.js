@@ -7,23 +7,18 @@ const { test, expect } = require('@playwright/test');
 const {
   logEnv,
   assertBackendReady,
-  detectAuthMode,
+  assertUserFlowEnvironment,
   attachDiagnostics,
   waitStable,
-  enterFromLoginIfNeeded,
   enterApplicationAsUser,
   gotoApp,
   FATAL_APP_ERROR,
 } = require('./e2e-env');
 
-/** @type {'single-user' | 'jwt'} */
-let authMode = 'jwt';
-
 test.beforeAll(async ({ request }) => {
   logEnv();
   await assertBackendReady(request);
-  authMode = await detectAuthMode(request);
-  console.log(`[cloud-smoke] 认证模式: ${authMode}`);
+  await assertUserFlowEnvironment(request);
 });
 
 test.beforeEach(({ page }) => {
@@ -43,12 +38,7 @@ test.describe('云端部署后 smoke', () => {
   test('打开前端、进入 Agent 对话台并收到回复', async ({ page }) => {
     await gotoApp(page, '/');
     await waitStable(page);
-
-    if (authMode === 'single-user') {
-      await enterFromLoginIfNeeded(page);
-    } else {
-      await enterApplicationAsUser(page, null);
-    }
+    await enterApplicationAsUser(page, null);
 
     await expect(page.getByText('Agent 对话台')).toBeVisible({ timeout: 25_000 });
     await expect(page.locator('.user-badge')).toBeVisible();
@@ -67,7 +57,6 @@ test.describe('云端部署后 smoke', () => {
 
     const agentBubble = page.locator('.agent-bubble').last();
 
-    // 等待流式结束（光标消失）且气泡有实质回复或明确错误提示
     await expect(page.locator('.stream-flag')).toHaveCount(0, { timeout: 120_000 });
     await expect.poll(
       async () => (await agentBubble.innerText()).trim().length,

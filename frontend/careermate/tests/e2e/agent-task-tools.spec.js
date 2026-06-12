@@ -8,10 +8,8 @@ const {
   e2ePrefix,
   assertBackendReady,
   assertUserFlowEnvironment,
-  detectAuthMode,
   attachDiagnostics,
   waitStable,
-  enterFromLoginIfNeeded,
   enterApplicationAsUser,
   gotoApp,
 } = require('./e2e-env');
@@ -19,23 +17,10 @@ const {
 const prefix = e2ePrefix();
 const TASK_TITLE = `${prefix}_补充 Java 后端项目指标`;
 
-/** @type {'single-user' | 'jwt'} */
-let detectedAuthMode = 'jwt';
 /** @type {{ username: string; email: string; password: string } | null} */
 let jwtTestAccount = null;
 
 async function ensureInApp(page) {
-  const { mustUseUserFlow } = require('./e2e-env');
-  if (mustUseUserFlow) {
-    jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
-    return;
-  }
-  await gotoApp(page, '/');
-  await waitStable(page);
-  if (detectedAuthMode === 'single-user') {
-    await enterFromLoginIfNeeded(page);
-    return;
-  }
   jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
 }
 
@@ -93,7 +78,6 @@ test.beforeAll(async ({ request }) => {
   logEnv();
   await assertBackendReady(request);
   await assertUserFlowEnvironment(request);
-  detectedAuthMode = await detectAuthMode(request);
   await cleanupPrefixedTasks(request);
 });
 

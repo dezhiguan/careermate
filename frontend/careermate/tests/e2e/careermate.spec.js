@@ -5,11 +5,9 @@ const {
   logEnv,
   assertBackendReady,
   assertUserFlowEnvironment,
-  detectAuthMode,
   attachDiagnostics,
   waitStable,
   clearAuthStorage,
-  enterFromLoginIfNeeded,
   enterApplicationAsUser,
   assertAgentDashboard,
   assertAgentDashboardWithUser,
@@ -20,8 +18,6 @@ const {
   ensureResumeIsDefault,
 } = require('./e2e-env');
 
-/** @type {'single-user' | 'jwt'} */
-let detectedAuthMode = 'jwt';
 /** @type {{ username: string; email: string; password: string } | null} */
 let jwtTestAccount = null;
 
@@ -29,20 +25,6 @@ let jwtTestAccount = null;
  * @param {import('@playwright/test').Page} page
  */
 async function ensureInApp(page) {
-  if (mustUseUserFlow) {
-    jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
-    return;
-  }
-
-  await gotoApp(page, '/');
-  await waitStable(page);
-
-  if (detectedAuthMode === 'single-user') {
-    await enterFromLoginIfNeeded(page);
-    await assertAgentDashboardWithUser(page, /local-user\s*\/\s*USER/);
-    return;
-  }
-
   jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
 }
 
@@ -67,8 +49,6 @@ test.beforeAll(async ({ request }) => {
   logEnv();
   await assertBackendReady(request);
   await assertUserFlowEnvironment(request);
-  detectedAuthMode = await detectAuthMode(request);
-  console.log(`[careermate] 认证模式: ${detectedAuthMode}`);
 });
 
 test.beforeEach(({ page }) => {

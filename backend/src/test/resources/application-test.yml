@@ -24,10 +24,5 @@ management:
     enabled: false
 
 careermate:
-  security:
-    mode: single-user
-    single-user:
-      user-id: 1
-      username: local-user
   llm:
     provider: mock

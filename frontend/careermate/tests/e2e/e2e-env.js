@@ -24,7 +24,7 @@ const baseURL = current.baseURL.replace(/\/$/, '');
 const apiBaseURL = current.apiBaseURL.replace(/\/$/, '');
 const isCloud = target === 'cloud';
 const isLocal = target === 'local';
-/** 云端或 E2E_USER_FLOW=1 时强制真实用户流程（注册/登录），禁止 single-user 捷径 */
+/** 云端或 E2E_USER_FLOW=1 时标记用户流程场景（历史兼容） */
 const mustUseUserFlow = isCloud || process.env.E2E_USER_FLOW === '1';
 
 const TOKEN_KEY = 'careermate_token';
@@ -50,47 +50,31 @@ function logEnv() {
 }
 
 /**
- * 云端/用户流程模式：要求后端为 jwt（未登录 /auth/me 不能返回 local-user）。
+ * 要求后端强制 JWT：未登录 /auth/me 必须返回 401。
+ * @param {import('@playwright/test').APIRequestContext} request
+ */
+async function assertJwtAuthEnforced(request) {
+  const meUrl = `${apiBaseURL}/auth/me`;
+  const response = await request.get(meUrl, { timeout: 20_000 });
+  const body = await response.json().catch(() => null);
+  console.log(`[auth] GET ${meUrl} without token -> HTTP ${response.status()}`, JSON.stringify(body));
+
+  if (response.ok() && body?.code === 0) {
+    throw new Error(
+      `后端未强制 JWT 登录（/auth/me 无 Token 仍返回用户 ${body?.data?.username}）。请重启后端。`
+    );
+  }
+  if (response.status() !== 401) {
+    throw new Error(`期望 /auth/me 无 Token 返回 401，实际 HTTP ${response.status()}`);
+  }
+}
+
+/**
  * @param {import('@playwright/test').APIRequestContext} request
  */
 async function assertUserFlowEnvironment(request) {
-  if (!mustUseUserFlow) return;
-
-  const mode = await detectAuthMode(request);
-  if (mode === 'jwt') {
-    console.log('[user-flow] 后端为 jwt 模式，将执行完整注册/登录流程');
-    return;
-  }
-
-  const probeUser = `${e2ePrefix()}_probe_${Date.now()}`;
-  const registerRes = await request.post(`${apiBaseURL}/auth/register`, {
-    data: {
-      username: probeUser,
-      password: 'Test123456!',
-      email: `${probeUser}@careermate.test`,
-    },
-    timeout: 20_000,
-  });
-  const registerBody = await registerRes.json().catch(() => null);
-  console.log(
-    `[user-flow] single-user 模式，注册 API 探测 HTTP ${registerRes.status()}`,
-    JSON.stringify(registerBody)
-  );
-
-  if (registerRes.ok() && registerBody?.code === 0) {
-    console.warn(
-      '[user-flow] 警告：SECURITY_MODE 仍为 single-user，将按注册/登录 UI 流程测试；建议改为 jwt 以获得一致的未登录跳转行为。'
-    );
-    return;
-  }
-
-  throw new Error(
-    [
-      '云端用户场景测试无法继续：既非 jwt，注册 API 也不可用。',
-      `注册探测 HTTP ${registerRes.status()} message=${registerBody?.message || ''}`,
-      '请检查 JWT_SECRET（≥32 字节）、数据库与 careermate-backend 日志。',
-    ].join('\n')
-  );
+  await assertJwtAuthEnforced(request);
+  console.log('[user-flow] 后端 JWT 鉴权已启用，将执行注册/登录流程');
 }
 
 /**
@@ -158,17 +142,10 @@ async function assertBackendReady(request) {
 
 /**
  * @param {import('@playwright/test').APIRequestContext} request
- * @returns {Promise<'single-user' | 'jwt'>}
+ * @deprecated 使用 assertJwtAuthEnforced
  */
 async function detectAuthMode(request) {
-  const meUrl = `${apiBaseURL}/auth/me`;
-  const response = await request.get(meUrl, { timeout: 20_000 });
-  const body = await response.json().catch(() => null);
-  console.log(`[detect] GET ${meUrl} -> HTTP ${response.status()}`, JSON.stringify(body));
-
-  if (response.ok() && body?.code === 0 && body?.data?.username === 'local-user') {
-    return 'single-user';
-  }
+  await assertJwtAuthEnforced(request);
   return 'jwt';
 }
 
@@ -239,7 +216,7 @@ async function clearAuthStorage(page) {
  * @param {import('@playwright/test').Page} page
  */
 async function enterFromLoginIfNeeded(page) {
-  // 游客模式已移除，无需从登录页捷径进入
+  // 已废弃：所有测试须通过注册/登录进入
 }
 
 /**
@@ -262,19 +239,17 @@ async function assertAgentDashboardWithUser(page, userPattern) {
   }
 }
 
-const LOCAL_USER_BADGE = /local-user\s*\/\s*USER/;
+/**
+ * @param {import('@playwright/test').Page} page
+ * @param {{ username: string }} account
+ */
+async function assertAgentDashboardForAccount(page, account) {
+  await assertAgentDashboard(page);
+  await expect(page.locator('.user-badge')).toContainText(account.username);
+}
+
 const AGENT_NETWORK_ERROR = /network error|暂未收到回复/i;
 
-/**
- * 发送 Agent 消息并等待 Mock 回复；云端 SSE 偶发中断时重试一次。
- * @param {import('@playwright/test').Page} page
- * @param {string} [message]
- */
-/**
- * 若简历尚未是默认，则点击「设为默认」并等待角标出现。
- * @param {import('@playwright/test').Page} page
- * @param {import('@playwright/test').Locator} card
- */
 /**
  * @param {import('@playwright/test').Page} page
  */
@@ -335,25 +310,6 @@ async function sendAgentMessageAndExpectMockReply(page, message = '帮我分析�
 }
 
 /**
- * 按后端认证模式断言角标：jwt 显示注册用户；single-user 固定为 local-user。
- * @param {import('@playwright/test').Page} page
- * @param {{ username: string }} account
- * @param {'single-user' | 'jwt'} authMode
- */
-async function assertAgentDashboardForAccount(page, account, authMode) {
-  await assertAgentDashboard(page);
-  if (authMode === 'single-user') {
-    const badge = page.locator('.user-badge');
-    const text = (await badge.innerText()).trim();
-    const ok = LOCAL_USER_BADGE.test(text) || text.includes(account.username);
-    expect(ok, `single-user 角标应为 local-user 或 ${account.username}，实际: ${text}`).toBeTruthy();
-    console.log(`[badge] single-user 角标: ${text}`);
-    return;
-  }
-  await expect(page.locator('.user-badge')).toContainText(account.username);
-}
-
-/**
  * @param {import('@playwright/test').Page} page
  */
 async function ensureLoginPage(page) {
@@ -389,9 +345,7 @@ async function registerViaUi(page, account, request) {
 
   if (!onLoginForm) {
     if (!request) {
-      throw new Error(
-        '无法显示登录/注册页（常见于 single-user 自动登录）。请设置 SECURITY_MODE=jwt，或传入 request 使用 API 注册。'
-      );
+      throw new Error('无法显示登录/注册页，请确认前端路由守卫与后端 JWT 鉴权已启用');
     }
     console.log('[register] 登录页不可用，使用 API 注册并写入 token（后端真实注册）');
     const res = await request.post(`${apiBaseURL}/auth/register`, {
@@ -505,38 +459,10 @@ async function enterApplicationAsUser(page, existingAccount = null) {
 
 /**
  * @param {import('@playwright/test').Page} page
- * @param {'single-user' | 'jwt'} mode
  * @param {{ username: string; email: string; password: string } | null} [jwtAccount]
  */
-async function enterApplication(page, mode, jwtAccount = null) {
-  await gotoApp(page, '/');
-  await waitStable(page);
-
-  if (mode === 'single-user') {
-    await enterFromLoginIfNeeded(page);
-    await assertAgentDashboardWithUser(page, /local-user\s*\/\s*USER/);
-    return;
-  }
-
-  const onLogin = await page
-    .getByRole('button', { name: '进入 CareerMate' })
-    .isVisible({ timeout: 3_000 })
-    .catch(() => false);
-  const needsAuth =
-    onLogin ||
-    (await page.getByText('CareerMate', { exact: true }).isVisible({ timeout: 3_000 }).catch(() => false));
-
-  if (needsAuth) {
-    const account = jwtAccount || createTestCredentials();
-    if (!jwtAccount) {
-      await registerViaUi(page, account);
-    } else {
-      await loginViaUi(page, account);
-    }
-    await assertAgentDashboardWithUser(page, account.username);
-  } else {
-    await assertAgentDashboard(page);
-  }
+async function enterApplication(page, jwtAccount = null) {
+  return enterApplicationAsUser(page, jwtAccount);
 }
 
 // Playwright expect is injected by spec files
@@ -572,6 +498,7 @@ module.exports = {
   e2ePrefix,
   createTestCredentials,
   assertBackendReady,
+  assertJwtAuthEnforced,
   detectAuthMode,
   attachDiagnostics,
   waitStable,
@@ -580,7 +507,6 @@ module.exports = {
   assertAgentDashboard,
   assertAgentDashboardWithUser,
   assertAgentDashboardForAccount,
-  LOCAL_USER_BADGE,
   ensureLoginPage,
   registerViaUi,
   loginViaUi,

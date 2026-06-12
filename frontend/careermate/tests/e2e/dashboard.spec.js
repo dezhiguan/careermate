@@ -4,10 +4,8 @@ const {
   logEnv,
   assertBackendReady,
   assertUserFlowEnvironment,
-  detectAuthMode,
   attachDiagnostics,
   waitStable,
-  enterFromLoginIfNeeded,
   enterApplicationAsUser,
   gotoApp,
   ensureResumeIsDefault,
@@ -22,22 +20,9 @@ const LONG_ANSWER =
   '并针对 Elasticsearch 与 Docker 相关能力做了学习与 PoC 验证，在压测中将接口 P99 延迟降低约 25%，' +
   '同时通过监控告警与灰度发布保障了上线稳定性，团队协作中我负责方案评审与关键模块交付。';
 
-/** @type {'single-user' | 'jwt'} */
-let detectedAuthMode = 'jwt';
 let jwtTestAccount = null;
 
 async function ensureInApp(page) {
-  const { mustUseUserFlow } = require('./e2e-env');
-  if (mustUseUserFlow) {
-    jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
-    return;
-  }
-  await gotoApp(page, '/');
-  await waitStable(page);
-  if (detectedAuthMode === 'single-user') {
-    await enterFromLoginIfNeeded(page);
-    return;
-  }
   jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
 }
 
@@ -149,7 +134,6 @@ test.beforeAll(async ({ request }) => {
   logEnv();
   await assertBackendReady(request);
   await assertUserFlowEnvironment(request);
-  detectedAuthMode = await detectAuthMode(request);
 });
 
 test.beforeEach(({ page }) => {

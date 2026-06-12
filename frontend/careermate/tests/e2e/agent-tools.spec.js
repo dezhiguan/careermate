@@ -9,10 +9,8 @@ const {
   e2ePrefix,
   assertBackendReady,
   assertUserFlowEnvironment,
-  detectAuthMode,
   attachDiagnostics,
   waitStable,
-  enterFromLoginIfNeeded,
   enterApplicationAsUser,
   gotoApp,
   ensureResumeIsDefault,
@@ -33,23 +31,10 @@ const JD_FOR_AGENT_MATCH = [
   '微服务架构 分布式系统 缓存设计 消息队列 性能优化 持续集成 单元测试 代码评审',
 ].join('\n');
 
-/** @type {'single-user' | 'jwt'} */
-let detectedAuthMode = 'jwt';
 /** @type {{ username: string; email: string; password: string } | null} */
 let jwtTestAccount = null;
 
 async function ensureInApp(page) {
-  const { mustUseUserFlow } = require('./e2e-env');
-  if (mustUseUserFlow) {
-    jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
-    return;
-  }
-  await gotoApp(page, '/');
-  await waitStable(page);
-  if (detectedAuthMode === 'single-user') {
-    await enterFromLoginIfNeeded(page);
-    return;
-  }
   jwtTestAccount = await enterApplicationAsUser(page, jwtTestAccount);
 }
 
@@ -206,7 +191,6 @@ test.beforeAll(async ({ request }) => {
   logEnv();
   await assertBackendReady(request);
   await assertUserFlowEnvironment(request);
-  detectedAuthMode = await detectAuthMode(request);
 });
 
 test.beforeEach(({ page }, testInfo) => {

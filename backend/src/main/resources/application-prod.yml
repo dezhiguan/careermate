@@ -1,9 +1,6 @@
 careermate:
   debug:
     llm-api-enabled: false
-  security:
-    mode: ${SECURITY_MODE:jwt}
-    dev-skip-auth: ${SECURITY_DEV_SKIP_AUTH:false}
 
 spring:
   output:
