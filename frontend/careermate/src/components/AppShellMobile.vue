@@ -102,6 +102,7 @@ function go(path) {
   flex-direction: column;
   background: var(--bg, #f8fafc);
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --mobile-bottom-nav-space: calc(68px + env(safe-area-inset-bottom));
 }
 
 .shell-mobile-main {
@@ -109,7 +110,7 @@ function go(path) {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
-  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  padding-bottom: var(--mobile-bottom-nav-space);
   min-height: 0;
 }
 
@@ -126,7 +127,7 @@ function go(path) {
   display: flex;
   align-items: flex-end;
   justify-content: space-around;
-  padding: 28px 0 calc(10px + env(safe-area-inset-bottom));
+  padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
   background: #fff;
   border-top: 1px solid #e2e8f0;
   box-shadow: 0 -4px 24px rgba(15, 23, 42, 0.08);
@@ -187,11 +188,11 @@ function go(path) {
 
 .ai-fab {
   position: absolute;
-  top: -22px;
+  top: -18px;
   left: 50%;
   transform: translateX(-50%);
-  width: 54px;
-  height: 54px;
+  width: 50px;
+  height: 50px;
   background: linear-gradient(135deg, #4f46e5, #8b5cf6);
   border-radius: 50%;
   display: grid;
@@ -205,7 +206,7 @@ function go(path) {
 }
 
 .nav-ai-label {
-  margin-top: 34px;
+  margin-top: 28px;
   font-size: 10px;
   color: #94a3b8;
   font-weight: 700;

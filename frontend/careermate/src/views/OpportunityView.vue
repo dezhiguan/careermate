@@ -210,8 +210,7 @@ onMounted(fetchList)
   max-width: 100%;
   overflow-x: hidden;
   background: #f8fafc;
-  /* 留出底部导航 + 中间 AI 悬浮钮的空间，避免挡住「用 AI 准备」 */
-  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  /* 底部留白由 AppShellMobile 统一处理 */
 }
 
 .page-header {

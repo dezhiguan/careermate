@@ -489,7 +489,6 @@ onMounted(async () => {
 <style scoped>
 .mine-page {
   padding: 16px;
-  padding-bottom: calc(96px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 12px;

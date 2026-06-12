@@ -453,7 +453,6 @@ onMounted(async () => {
   min-height: 100%;
   background: #f8fafc;
   padding: 16px;
-  padding-bottom: calc(96px + env(safe-area-inset-bottom));
   max-width: 720px;
   margin: 0 auto;
   width: 100%;

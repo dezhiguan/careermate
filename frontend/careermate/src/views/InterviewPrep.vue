@@ -494,7 +494,6 @@ onMounted(() => {
   max-width: 100%;
   overflow-x: hidden;
   background: #f8fafc;
-  padding-bottom: calc(96px + env(safe-area-inset-bottom));
   color: #0f172a;
 }
 
@@ -842,7 +841,7 @@ onMounted(() => {
 .practice-view {
   min-height: 100%;
   background: #f8fafc;
-  padding-bottom: 80px;
+  padding-bottom: 16px;
   color: #1a1a2e;
 }
 

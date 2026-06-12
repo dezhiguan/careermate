@@ -311,7 +311,7 @@ function growthClass(growth) {
 </script>
 
 <style scoped>
-.market-page { min-height: 100%; width: 100%; max-width: 100%; overflow-x: hidden; background: #f8fafc; padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+.market-page { min-height: 100%; width: 100%; max-width: 100%; overflow-x: hidden; background: #f8fafc; }
 .filter-bar { padding: 14px 16px 10px; background: #fff; border-bottom: 1px solid #e2e8f0; }
 .filter-title { font-size: 16px; font-weight: 700; color: #0f172a; margin: 0 0 10px; }
 .filter-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
