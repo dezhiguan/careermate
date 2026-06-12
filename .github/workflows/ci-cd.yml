@@ -216,8 +216,8 @@ jobs:
       - name: Build frontend
         working-directory: frontend/careermate
         env:
-          VITE_API_BASE_URL: /api
-          VITE_BASE_PATH: /
+          VITE_API_BASE_URL: /careermate-api
+          VITE_BASE_PATH: /careermate/
         run: npm run build
 
       - name: Upload frontend dist artifact
@@ -227,23 +227,19 @@ jobs:
           path: frontend/careermate/dist
           if-no-files-found: error
 
-  deploy-app:
-    name: deploy-app-server3
+  deploy-k3s-server3:
+    name: deploy-k3s-server3
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
       - backend-unit-test
+      - frontend-build
     environment:
       name: production
     steps:
-      - name: Checkout deploy scripts
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Download backend JAR artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: careermate-backend-jar
 
       - name: Configure SSH (Server 3)
         env:
@@ -299,100 +295,27 @@ jobs:
           } > ~/.ssh/config
           chmod 600 ~/.ssh/config
 
-      - name: Upload backend to Server 3
-        run: |
-          RELEASE_DIR="/opt/careermate/releases/${GITHUB_SHA}"
-          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
-          SCP_OPTS=(-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
-
-          ssh "${SSH_OPTS[@]}" careermate-app \
-            "mkdir -p '${RELEASE_DIR}/backend' /opt/careermate/scripts /opt/careermate/deploy/scripts /opt/careermate/deploy/skywalking /opt/careermate/deploy/nginx"
-
-          scp "${SCP_OPTS[@]}" "$(find . -maxdepth 1 -name '*.jar' ! -name '*.original' | head -n 1)" \
-            "careermate-app:${RELEASE_DIR}/backend/app.jar"
-
-          scp "${SCP_OPTS[@]}" backend/Dockerfile \
-            "careermate-app:${RELEASE_DIR}/backend/Dockerfile"
-
-          scp "${SCP_OPTS[@]}" docker-compose-backend.yml \
-            "careermate-app:/opt/careermate/docker-compose-backend.yml"
-
-          scp "${SCP_OPTS[@]}" deploy/scripts/deploy-from-github.sh deploy/scripts/rollback-careermate.sh \
-            "careermate-app:/opt/careermate/scripts/"
-
-          scp "${SCP_OPTS[@]}" deploy/scripts/start-skywalking.sh deploy/scripts/install-skywalking-agent.sh \
-            "careermate-app:/opt/careermate/deploy/scripts/"
-
-          scp "${SCP_OPTS[@]}" deploy/skywalking/docker-compose.skywalking.yml \
-            "careermate-app:/opt/careermate/deploy/skywalking/"
-
-          scp "${SCP_OPTS[@]}" deploy/nginx/skywalking.locations.example \
-            "careermate-app:/opt/careermate/deploy/nginx/"
-
-          ssh "${SSH_OPTS[@]}" careermate-app \
-            "chmod +x /opt/careermate/scripts/deploy-from-github.sh /opt/careermate/scripts/rollback-careermate.sh /opt/careermate/deploy/scripts/start-skywalking.sh /opt/careermate/deploy/scripts/install-skywalking-agent.sh"
-
-      - name: Activate release on Server 3
+      - name: Sync repository to Server 3
         run: |
           SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
-          timeout 20m ssh "${SSH_OPTS[@]}" careermate-app \
-            "sudo -n env HEALTH_MAX_ATTEMPTS=60 HEALTH_SLEEP_SECS=3 bash /opt/careermate/scripts/deploy-from-github.sh '${GITHUB_SHA}'"
+          RSYNC_SSH="ssh -F ${HOME}/.ssh/config -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3"
 
-  deploy-ingress:
-    name: deploy-ingress-server2
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
-    needs:
-      - frontend-build
-      - deploy-app
-    environment:
-      name: production
-    steps:
-      - name: Download frontend dist artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: careermate-frontend-dist
-          path: frontend-dist
+          ssh "${SSH_OPTS[@]}" careermate-app "mkdir -p /opt/careermate/k8s-src"
 
-      - name: Configure SSH (Server 2)
-        env:
-          SSH_KEY: ${{ secrets.CAREERMATE_INGRESS_SSH_KEY }}
-          DEPLOY_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
-          DEPLOY_USER: ${{ secrets.CAREERMATE_INGRESS_USER }}
-          DEPLOY_PORT: ${{ secrets.CAREERMATE_INGRESS_PORT }}
+          timeout 15m rsync -avz --delete \
+            --exclude '.git' \
+            --exclude 'backend/target' \
+            --exclude 'frontend/careermate/node_modules' \
+            --exclude 'frontend/careermate/dist' \
+            -e "${RSYNC_SSH}" \
+            ./ \
+            careermate-app:/opt/careermate/k8s-src/
+
+      - name: Deploy CareerMate to k3s on Server 3
         run: |
-          if [[ -z "${SSH_KEY}" || -z "${DEPLOY_HOST}" ]]; then
-            echo "CAREERMATE_INGRESS_SSH_KEY and CAREERMATE_INGRESS_HOST must be set"
-            exit 1
-          fi
-          if [[ -z "${DEPLOY_USER}" ]]; then
-            echo "CAREERMATE_INGRESS_USER must be set"
-            exit 1
-          fi
-          mkdir -p ~/.ssh
-          printf '%s\n' "${SSH_KEY}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          PORT="${DEPLOY_PORT:-22}"
-          ssh-keyscan -p "${PORT}" "${DEPLOY_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
-
-      - name: Upload frontend to Server 2
-        env:
-          DEPLOY_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
-          DEPLOY_USER: ${{ secrets.CAREERMATE_INGRESS_USER }}
-          DEPLOY_PORT: ${{ secrets.CAREERMATE_INGRESS_PORT }}
-        run: |
-          PORT="${DEPLOY_PORT:-22}"
-          SSH_OPTS=(-i ~/.ssh/deploy_key -p "${PORT}" -T -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
-          RSYNC_SSH="ssh -i ~/.ssh/deploy_key -p ${PORT} -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3"
-          FRONTEND_TARGET="/opt/rag-forge/frontend/dist/careerforge"
-
-          ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "mkdir -p '${FRONTEND_TARGET}'"
-
-          timeout 10m rsync -avz --delete -e "${RSYNC_SSH}" \
-            frontend-dist/ \
-            "${DEPLOY_USER}@${DEPLOY_HOST}:${FRONTEND_TARGET}/"
+          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          timeout 35m ssh "${SSH_OPTS[@]}" careermate-app \
+            "cd /opt/careermate/k8s-src && sudo bash deploy/scripts/deploy-careermate-k8s.sh"
 
   smoke-test:
     name: smoke-test
@@ -400,20 +323,16 @@ jobs:
     timeout-minutes: 5
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
-      - deploy-ingress
+      - deploy-k3s-server3
     steps:
       - name: API health check
         run: |
+          BASE="${{ vars.CAREERFORGE_BASE_URL || 'https://careerforge.cn' }}"
           curl --fail --silent --show-error --max-time 10 --retry 6 --retry-delay 5 \
-            "${{ vars.CAREERFORGE_API_BASE_URL || 'https://careerforge.cn/api' }}/health"
+            "${BASE}/careermate-api/health" | grep -q '"status":"UP"'
 
       - name: Frontend entry check
         run: |
           BASE="${{ vars.CAREERFORGE_BASE_URL || 'https://careerforge.cn' }}"
-          if curl --fail --silent --show-error --max-time 10 --retry 6 --retry-delay 5 \
-            "${BASE}/careerforge/" | grep -q 'CareerMate'; then
-            echo "Frontend entry OK: ${BASE}/careerforge/"
-            exit 0
-          fi
           curl --fail --silent --show-error --max-time 10 --retry 6 --retry-delay 5 \
-            "${BASE}/" | grep -q 'CareerMate'
+            "${BASE}/careermate/" | grep -q '<html'
