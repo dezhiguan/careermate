@@ -36,7 +36,9 @@ echo "[3/6] Create backend secret from /opt/shared/env"
 bash "${SCRIPT_DIR}/create-careermate-k8s-secret.sh"
 
 echo "[4/6] Apply manifests"
-k3s kubectl apply -f "${K8S_DIR}/"
+for manifest in namespace.yaml backend-deployment.yaml backend-service.yaml frontend-deployment.yaml frontend-service.yaml; do
+  k3s kubectl apply -f "${K8S_DIR}/${manifest}"
+done
 
 echo "[5/6] Wait for rollouts"
 k3s kubectl -n "${NAMESPACE}" rollout status deployment/careermate-backend --timeout=300s

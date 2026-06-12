@@ -30,9 +30,9 @@ fi
 
 REGISTRY_FILE="/etc/rancher/k3s/registries.yaml"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "${SCRIPT_DIR}/../k8s/careermate/k3s-registries.yaml" ]]; then
+if [[ -f "${SCRIPT_DIR}/../k3s/registries.yaml" ]]; then
   mkdir -p /etc/rancher/k3s
-  cp "${SCRIPT_DIR}/../k8s/careermate/k3s-registries.yaml" "${REGISTRY_FILE}"
+  cp "${SCRIPT_DIR}/../k3s/registries.yaml" "${REGISTRY_FILE}"
   systemctl restart k3s || true
   sleep 10
 fi
