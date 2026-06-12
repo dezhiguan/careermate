@@ -24,7 +24,7 @@
           </select>
         </label>
       </div>
-      <p class="filter-sub">数据来源：知识库 AI 分析 · 切换筛选自动刷新 · 顶部搜索查公司</p>
+      <p class="filter-sub">数据来源：知识库 AI 分析 · 基于你的职业画像，可在下方切换筛选</p>
     </header>
 
     <div class="market-content">
@@ -157,40 +157,14 @@
         <div v-else class="empty-tip">请先上传简历以获取 Gap 分析</div>
       </section>
 
-      <!-- 公司情报（联动顶部搜索） -->
-      <section class="card">
-        <div class="card-title">
-          公司情报
-          <span v-if="companyKeyword" class="card-context">· {{ companyKeyword }}</span>
-        </div>
-        <div v-if="companyLoading" class="skeleton-group">
-          <div class="skeleton" style="height:16px;width:40%;margin-bottom:8px" />
-          <div class="skeleton" style="height:12px;width:90%;margin-bottom:6px" />
-          <div class="skeleton" style="height:12px;width:70%" />
-        </div>
-        <div v-else-if="companyData" class="company-result">
-          <div class="company-name">{{ companyData.companyName }}</div>
-          <div class="company-meta">{{ companyData.scale }} · {{ companyData.stage }}</div>
-          <div v-if="companyData.techStack?.length" class="chip-row" style="margin:8px 0">
-            <span v-for="t in companyData.techStack" :key="t" class="chip chip-tech">{{ t }}</span>
-          </div>
-          <div v-if="companyData.currentJds?.length" class="company-jds">
-            在招：{{ companyData.currentJds.join(' · ') }}
-          </div>
-          <p v-if="companyData.aiSummary" class="company-summary">{{ companyData.aiSummary }}</p>
-        </div>
-        <div v-else-if="companySearched" class="empty-tip">未找到「{{ companyKeyword }}」相关数据</div>
-        <div v-else class="empty-tip">在顶部搜索框输入公司名查询</div>
-      </section>
-
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getSalaryInsight, getSkillTrends, getResumeGap, getCompanyInsight } from '../api/market'
+import { getSalaryInsight, getSkillTrends, getResumeGap } from '../api/market'
 import { getCareerProfile } from '../api/profile'
 
 const router = useRouter()
@@ -215,14 +189,10 @@ const years = ref('')
 const salaryLoading = ref(true)
 const skillsLoading = ref(true)
 const gapLoading = ref(true)
-const companyLoading = ref(false)
-const companySearched = ref(false)
 
 const salaryData = ref(null)
 const skillsData = ref(null)
 const gapData = ref(null)
-const companyData = ref(null)
-const companyKeyword = ref('')
 
 const filterTitle = computed(() => {
   const parts = [city.value, role.value, years.value].filter(Boolean)
@@ -245,14 +215,7 @@ const roleOptions = computed(() => {
 
 const gapContext = computed(() => [city.value, role.value].filter(Boolean).join(' · '))
 
-function isRoleKeyword(q) {
-  return /(后端|前端|算法|测试|开发|工程师|架构|产品|运营|Java|Python|Go|C\+\+)/i.test(q)
-}
-
 function applyFilters() {
-  companyKeyword.value = ''
-  companyData.value = null
-  companySearched.value = false
   router.replace({
     query: {
       city: city.value,
@@ -260,7 +223,7 @@ function applyFilters() {
       years: years.value,
     },
   })
-  runMarketSearch('')
+  loadMarketData()
 }
 
 function syncFiltersFromRoute() {
@@ -272,40 +235,13 @@ function syncFiltersFromRoute() {
   if (qYears && MARKET_YEARS.includes(String(qYears))) years.value = String(qYears)
 }
 
-async function runMarketSearch(keyword) {
-  const q = typeof keyword === 'string' ? keyword.trim() : ''
-  let searchType = null
-
-  if (q) {
-    if (MARKET_CITIES.includes(q)) {
-      searchType = 'city'
-      city.value = q
-    } else if (isRoleKeyword(q)) {
-      searchType = 'role'
-      role.value = q
-    } else {
-      searchType = 'company'
-      companyKeyword.value = q
-    }
-  }
-
+async function loadMarketData() {
   salaryLoading.value = true
   skillsLoading.value = true
   gapLoading.value = true
   salaryData.value = null
   skillsData.value = null
   gapData.value = null
-
-  if (searchType === 'company') {
-    companyLoading.value = true
-    companyData.value = null
-    companySearched.value = false
-  } else if (searchType === 'city' || searchType === 'role') {
-    companyLoading.value = false
-    companyData.value = null
-    companyKeyword.value = ''
-    companySearched.value = false
-  }
 
   const tasks = []
 
@@ -338,27 +274,8 @@ async function runMarketSearch(keyword) {
       .finally(() => { gapLoading.value = false })
   )
 
-  if (searchType === 'company' && q) {
-    tasks.push(
-      getCompanyInsight(q)
-        .then((r) => { companyData.value = r })
-        .catch(() => { companyData.value = null })
-        .finally(() => {
-          companyLoading.value = false
-          companySearched.value = true
-        })
-    )
-  }
-
   await Promise.allSettled(tasks)
 }
-
-watch(
-  () => [route.query.q, route.query.t],
-  ([q]) => {
-    if (q) runMarketSearch(String(q))
-  }
-)
 
 onMounted(async () => {
   try {
@@ -367,17 +284,13 @@ onMounted(async () => {
     if (profile?.targetRole?.trim()) role.value = profile.targetRole.trim()
     if (profile?.seniority?.trim()) years.value = profile.seniority.trim()
   } catch {
-    // 画像加载失败时保持空，由空态提示
+    // 画像加载失败时使用默认值
   }
   if (!city.value) city.value = '广州'
   if (!role.value) role.value = 'Java后端'
   if (!years.value) years.value = '3-5年'
   syncFiltersFromRoute()
-  if (route.query.q) {
-    await runMarketSearch(String(route.query.q))
-  } else {
-    await runMarketSearch('')
-  }
+  await loadMarketData()
 })
 
 const hasSkillSet = computed(() =>
@@ -481,13 +394,6 @@ function growthClass(growth) {
 .chip { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 500; }
 .chip-tech { background: #eef2ff; color: #4338ca; }
 .suggest-box { background: linear-gradient(135deg,#fef3c7,#fde68a); border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #78350f; line-height: 1.6; margin-top: 4px; }
-
-/* 公司情报 */
-.company-result { margin-top: 0; }
-.company-name { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 3px; }
-.company-meta { font-size: 11px; color: #64748b; margin-bottom: 6px; }
-.company-jds { font-size: 11px; color: #334155; margin-bottom: 6px; }
-.company-summary { font-size: 12px; color: #475569; line-height: 1.6; margin: 0; }
 
 /* 骨架屏 */
 .skeleton-group { display: flex; flex-direction: column; }

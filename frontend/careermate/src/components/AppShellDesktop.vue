@@ -73,7 +73,7 @@
     <div class="main-column">
       <header v-if="showUserBar" class="user-bar">
         <div class="user-bar-title">{{ pageTitle }}</div>
-        <div class="user-bar-search">
+        <div v-if="showTopSearch" class="user-bar-search">
           <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -115,9 +115,11 @@ const props = defineProps({
 
 const route = useRoute()
 const router = useRouter()
-const searchQuery = ref('广州')
+const searchQuery = ref('')
 
 const pageTitle = computed(() => route.meta?.title || 'CareerMate')
+
+const showTopSearch = computed(() => route.path !== '/market')
 
 const avatarInitial = computed(() => {
   const name = authStore.state.currentUser?.username || '用'
@@ -141,20 +143,13 @@ function go(path) {
 function handleSearch() {
   const q = searchQuery.value.trim()
   if (!q) return
-  const t = String(Date.now())
-  if (route.path === '/market') {
-    router.push({ path: '/market', query: { q, t } })
-    return
-  }
-  router.push({ path: '/opportunity', query: { keyword: q, t } })
+  router.push({ path: '/opportunity', query: { keyword: q, t: String(Date.now()) } })
 }
 
 watch(
-  () => [route.path, route.query.q, route.query.keyword],
-  ([path, q, keyword]) => {
-    if (path === '/market' && q) {
-      searchQuery.value = String(q)
-    } else if (path === '/opportunity' && keyword) {
+  () => [route.path, route.query.keyword],
+  ([path, keyword]) => {
+    if (path === '/opportunity' && keyword) {
       searchQuery.value = String(keyword)
     }
   }
