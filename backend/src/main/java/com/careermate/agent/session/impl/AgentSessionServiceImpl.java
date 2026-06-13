@@ -1,4 +1,4 @@
-package com.careermate.agent.session;
+package com.careermate.agent.session.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -7,6 +7,7 @@ import com.careermate.agent.dto.AgentSessionCreateResponse;
 import com.careermate.agent.dto.AgentSessionListItemResponse;
 import com.careermate.agent.dto.AgentSessionResponse;
 import com.careermate.agent.dto.AgentTraceResponse;
+import com.careermate.agent.session.AgentSessionService;
 import com.careermate.agent.sse.AgentTaskRegistry;
 import com.careermate.common.exception.BizException;
 import com.careermate.mapper.AgentMessageMapper;
