@@ -150,6 +150,9 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     }
 
     private ResumeVersionEntity requireOwnedVersion(Long userId, String versionId) {
+        if (userId == null) {
+            throw new BizException(401, "未认证");
+        }
         ResumeVersionEntity entity = resumeVersionMapper.selectOne(
                 new LambdaQueryWrapper<ResumeVersionEntity>()
                         .eq(ResumeVersionEntity::getVersionId, versionId)
