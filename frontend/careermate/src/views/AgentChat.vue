@@ -1308,6 +1308,7 @@ onBeforeUnmount(() => {
 }
 
 .agent-bubble {
+  width: fit-content;
   max-width: 85%;
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -1317,6 +1318,7 @@ onBeforeUnmount(() => {
 }
 
 .agent-bubble--waiting {
+  width: fit-content;
   min-width: 64px;
   padding: 14px 16px;
   background: #f1f5f9;
@@ -1561,8 +1563,8 @@ onBeforeUnmount(() => {
   }
 
   .agent-bubble {
-    max-width: 98%;
-    width: 100%;
+    max-width: 88%;
+    width: fit-content;
   }
 
   .chat-input {
@@ -1633,7 +1635,8 @@ onBeforeUnmount(() => {
   }
 
   .agent-bubble {
-    max-width: 98%;
+    max-width: 88%;
+    width: fit-content;
   }
 }
 </style>
