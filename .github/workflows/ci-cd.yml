@@ -281,6 +281,12 @@ jobs:
           scp "${SCP_OPTS[@]}" "${JAR_FILE}" \
             "careermate-app:/opt/careermate/k8s-src/backend/target/careermate-backend-0.1.0.jar"
 
+      - name: Ensure SkyWalking OAP + UI on Server 3
+        run: |
+          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          timeout 25m ssh "${SSH_OPTS[@]}" careermate-app \
+            "cd /opt/careermate/k8s-src && sudo env SKYWALKING_BIND_IP=172.25.90.184 bash deploy/scripts/ensure-skywalking-stack.sh"
+
       - name: Deploy CareerMate to k3s on Server 3
         run: |
           SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
@@ -290,7 +296,7 @@ jobs:
   smoke-test:
     name: smoke-test
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
       - deploy-k3s-server3

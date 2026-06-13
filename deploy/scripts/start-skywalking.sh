@@ -8,8 +8,19 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPOSE_FILE="${ROOT_DIR}/deploy/skywalking/docker-compose.skywalking.yml"
 export SKYWALKING_BIND_IP="${SKYWALKING_BIND_IP:-127.0.0.1}"
 
-docker compose -f "${COMPOSE_FILE}" up -d
-docker compose -f "${COMPOSE_FILE}" ps
+compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    docker-compose "$@"
+  else
+    echo "ERROR: docker compose / docker-compose not found" >&2
+    exit 1
+  fi
+}
+
+compose -f "${COMPOSE_FILE}" up -d
+compose -f "${COMPOSE_FILE}" ps
 
 echo "OAP gRPC (localhost): 127.0.0.1:11800"
 echo "OAP gRPC (bind IP):     ${SKYWALKING_BIND_IP}:11800"

@@ -25,10 +25,6 @@ fi
 echo "[1/6] Ensure k3s is installed"
 bash "${SCRIPT_DIR}/install-k3s-server3.sh"
 
-echo "[1.5/6] Ensure SkyWalking OAP + UI"
-export SKYWALKING_BIND_IP="${SKYWALKING_BIND_IP:-172.25.90.184}"
-bash "${SCRIPT_DIR}/ensure-skywalking-stack.sh"
-
 IMAGES_REBUILT=0
 if [[ "${SKIP_IMAGE_BUILD:-0}" != "1" ]]; then
   echo "[2/6] Build and import images"
