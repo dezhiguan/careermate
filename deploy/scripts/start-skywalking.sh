@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
-# Start SkyWalking OAP + UI via Docker Compose (localhost bindings only).
+# Start SkyWalking OAP + UI via Docker Compose.
+# On Server 3 (k8s app layer), bind private IP so ingress Nginx and k8s pods can reach OAP/UI:
+#   SKYWALKING_BIND_IP=172.25.90.184 bash deploy/scripts/start-skywalking.sh
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPOSE_FILE="${ROOT_DIR}/deploy/skywalking/docker-compose.skywalking.yml"
+export SKYWALKING_BIND_IP="${SKYWALKING_BIND_IP:-127.0.0.1}"
 
 docker compose -f "${COMPOSE_FILE}" up -d
 docker compose -f "${COMPOSE_FILE}" ps
 
-echo "OAP gRPC: 127.0.0.1:11800"
-echo "UI local: http://127.0.0.1:18088/"
-echo "After Nginx: http://<ingress>/skywalking/"
+echo "OAP gRPC (localhost): 127.0.0.1:11800"
+echo "OAP gRPC (bind IP):     ${SKYWALKING_BIND_IP}:11800"
+echo "UI local:               http://127.0.0.1:18088/skywalking/"
+echo "UI private:             http://${SKYWALKING_BIND_IP}:18088/skywalking/"
+echo "Ingress (after Nginx):  http://<ingress>/skywalking/"
