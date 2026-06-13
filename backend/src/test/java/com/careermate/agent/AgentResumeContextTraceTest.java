@@ -8,7 +8,7 @@ import com.careermate.mapper.UserMapper;
 import com.careermate.mapper.UserProfileMapper;
 import com.careermate.resume.ResumeContext;
 import com.careermate.resume.ResumeContextProvider;
-import com.careermate.resume.ResumeService;
+import com.careermate.resume.service.ResumeService;
 import com.careermate.resume.dto.ResumeCreateRequest;
 import com.careermate.security.CurrentUser;
 import com.careermate.security.CurrentUserContext;

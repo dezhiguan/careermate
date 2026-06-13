@@ -1,6 +1,7 @@
 package com.careermate.resume;
 
 import com.careermate.model.entity.ResumeEntity;
+import com.careermate.resume.service.ResumeService;
 import com.careermate.security.CurrentUserContext;
 import org.springframework.stereotype.Component;
 

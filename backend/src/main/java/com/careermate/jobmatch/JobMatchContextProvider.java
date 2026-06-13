@@ -1,6 +1,7 @@
 package com.careermate.jobmatch;
 
 import com.careermate.model.entity.JobMatchEntity;
+import com.careermate.jobmatch.service.JobMatchService;
 import com.careermate.security.CurrentUserContext;
 import org.springframework.stereotype.Component;
 

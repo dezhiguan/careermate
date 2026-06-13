@@ -7,7 +7,7 @@ import com.careermate.agent.context.AgentConversationContextProvider;
 import com.careermate.agent.context.CareerProfileContextProvider;
 import com.careermate.agent.context.CareerProfileContextResult;
 import com.careermate.agent.context.ConversationContextResult;
-import com.careermate.profile.CareerProfileAutoUpdateService;
+import com.careermate.profile.service.CareerProfileAutoUpdateService;
 import com.careermate.profile.CareerProfileUpdateResult;
 import com.careermate.agent.tool.AgentToolContext;
 import com.careermate.agent.tool.AgentToolExecutionService;

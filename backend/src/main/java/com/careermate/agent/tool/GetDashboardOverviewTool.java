@@ -1,6 +1,6 @@
 package com.careermate.agent.tool;
 
-import com.careermate.dashboard.DashboardService;
+import com.careermate.dashboard.service.DashboardService;
 import com.careermate.dashboard.dto.DashboardOverviewResponse;
 import com.careermate.dashboard.dto.DashboardSuggestionResponse;
 import org.springframework.stereotype.Component;

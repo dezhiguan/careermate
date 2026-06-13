@@ -1,7 +1,7 @@
 package com.careermate.agent.tool;
 
 import com.careermate.model.entity.ResumeEntity;
-import com.careermate.resume.ResumeService;
+import com.careermate.resume.service.ResumeService;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
