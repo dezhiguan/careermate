@@ -25,9 +25,11 @@ fi
 echo "[1/6] Ensure k3s is installed"
 bash "${SCRIPT_DIR}/install-k3s-server3.sh"
 
+IMAGES_REBUILT=0
 if [[ "${SKIP_IMAGE_BUILD:-0}" != "1" ]]; then
   echo "[2/6] Build and import images"
   bash "${SCRIPT_DIR}/build-careermate-k8s-images.sh"
+  IMAGES_REBUILT=1
 else
   echo "[2/6] Skip image build (SKIP_IMAGE_BUILD=1)"
 fi
@@ -39,6 +41,13 @@ echo "[4/6] Apply manifests"
 for manifest in namespace.yaml backend-deployment.yaml backend-service.yaml frontend-deployment.yaml frontend-service.yaml; do
   k3s kubectl apply -f "${K8S_DIR}/${manifest}"
 done
+
+# Rebuilt images keep :latest tag; without a pod restart, k3s keeps running the old container layers.
+if [[ "${IMAGES_REBUILT}" -eq 1 ]]; then
+  echo "[4.5/6] Restart deployments to pick up rebuilt :latest images"
+  k3s kubectl -n "${NAMESPACE}" rollout restart deployment/careermate-backend
+  k3s kubectl -n "${NAMESPACE}" rollout restart deployment/careermate-frontend
+fi
 
 echo "[5/6] Wait for rollouts"
 k3s kubectl -n "${NAMESPACE}" rollout status deployment/careermate-backend --timeout=300s
