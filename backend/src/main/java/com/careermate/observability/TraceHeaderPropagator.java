@@ -74,7 +74,14 @@ public class TraceHeaderPropagator {
             return resolved;
         }
         TraceContext context = currentTraceContext();
-        return context == null ? null : context.traceId();
+        if (context != null && StringUtils.hasText(context.traceId())) {
+            return context.traceId();
+        }
+        String mdcTraceId = MDC.get(MdcKeys.TRACE_ID);
+        if (StringUtils.hasText(mdcTraceId)) {
+            return mdcTraceId;
+        }
+        return MDC.get(MdcKeys.REQUEST_ID);
     }
 
     private TraceContext currentTraceContext() {

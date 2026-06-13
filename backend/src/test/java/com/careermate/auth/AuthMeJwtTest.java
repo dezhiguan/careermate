@@ -1,6 +1,7 @@
 package com.careermate.auth;
 
 import com.careermate.auth.dto.RegisterRequest;
+import com.careermate.observability.MdcKeys;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -32,7 +34,10 @@ class AuthMeJwtTest {
     void authMeRequiresBearerToken() throws Exception {
         mockMvc.perform(get("/api/auth/me"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value(401));
+                .andExpect(jsonPath("$.code").value(401))
+                .andExpect(jsonPath("$.traceId").isNotEmpty())
+                .andExpect(header().exists(MdcKeys.HEADER_TRACE_ID))
+                .andExpect(header().exists(MdcKeys.HEADER_REQUEST_ID));
     }
 
     @Test
@@ -55,6 +60,8 @@ class AuthMeJwtTest {
 
         mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.username").value(username));
+                .andExpect(jsonPath("$.data.username").value(username))
+                .andExpect(jsonPath("$.traceId").isNotEmpty())
+                .andExpect(header().exists(MdcKeys.HEADER_TRACE_ID));
     }
 }

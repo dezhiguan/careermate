@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -28,7 +29,8 @@ class TracingHeadersIntegrationTest {
         mockMvc.perform(get("/api/health"))
                 .andExpect(status().isOk())
                 .andExpect(header().exists(MdcKeys.HEADER_REQUEST_ID))
-                .andExpect(header().exists(MdcKeys.HEADER_TRACE_ID));
+                .andExpect(header().exists(MdcKeys.HEADER_TRACE_ID))
+                .andExpect(jsonPath("$.traceId").isNotEmpty());
     }
 
     @Test

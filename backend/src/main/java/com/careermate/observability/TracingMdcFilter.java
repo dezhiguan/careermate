@@ -16,11 +16,9 @@ import java.util.UUID;
 public class TracingMdcFilter extends OncePerRequestFilter {
 
     private final TraceIdResolver traceIdResolver;
-    private final TraceHeaderPropagator traceHeaderPropagator;
 
-    public TracingMdcFilter(TraceIdResolver traceIdResolver, TraceHeaderPropagator traceHeaderPropagator) {
+    public TracingMdcFilter(TraceIdResolver traceIdResolver) {
         this.traceIdResolver = traceIdResolver;
-        this.traceHeaderPropagator = traceHeaderPropagator;
     }
 
     @Override
@@ -76,10 +74,11 @@ public class TracingMdcFilter extends OncePerRequestFilter {
 
     private void writeTraceHeaders(HttpServletResponse response, String requestId) {
         response.setHeader(MdcKeys.HEADER_REQUEST_ID, requestId);
-        String traceId = traceHeaderPropagator.currentTraceId();
-        if (StringUtils.hasText(traceId)) {
-            response.setHeader(MdcKeys.HEADER_TRACE_ID, traceId);
+        String traceId = MDC.get(MdcKeys.TRACE_ID);
+        if (!StringUtils.hasText(traceId)) {
+            traceId = requestId;
         }
+        response.setHeader(MdcKeys.HEADER_TRACE_ID, traceId);
     }
 
     private static void restoreMdc(Map<String, String> previousMdc) {
@@ -100,9 +99,14 @@ public class TracingMdcFilter extends OncePerRequestFilter {
 
     private void syncTraceMdc() {
         String traceId = traceIdResolver.resolveTraceId();
-        if (StringUtils.hasText(traceId)) {
-            MDC.put(MdcKeys.TRACE_ID, traceId);
+        if (!StringUtils.hasText(traceId)) {
+            traceId = MDC.get(MdcKeys.TRACE_ID);
         }
+        if (!StringUtils.hasText(traceId)) {
+            String requestId = MDC.get(MdcKeys.REQUEST_ID);
+            traceId = StringUtils.hasText(requestId) ? requestId : UUID.randomUUID().toString();
+        }
+        MDC.put(MdcKeys.TRACE_ID, traceId);
         String spanId = traceIdResolver.resolveSpanId();
         if (StringUtils.hasText(spanId)) {
             MDC.put(MdcKeys.SPAN_ID, spanId);

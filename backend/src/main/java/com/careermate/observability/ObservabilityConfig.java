@@ -12,14 +12,14 @@ import org.springframework.core.Ordered;
 public class ObservabilityConfig {
 
     @Bean
-    public TracingMdcFilter tracingMdcFilter(TraceIdResolver traceIdResolver, TraceHeaderPropagator traceHeaderPropagator) {
-        return new TracingMdcFilter(traceIdResolver, traceHeaderPropagator);
+    public TracingMdcFilter tracingMdcFilter(TraceIdResolver traceIdResolver) {
+        return new TracingMdcFilter(traceIdResolver);
     }
 
     @Bean
     public FilterRegistrationBean<TracingMdcFilter> tracingMdcFilterRegistration(TracingMdcFilter filter) {
         FilterRegistrationBean<TracingMdcFilter> registration = new FilterRegistrationBean<>(filter);
-        registration.setOrder(Ordered.LOWEST_PRECEDENCE);
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
         registration.addUrlPatterns("/*");
         return registration;
     }

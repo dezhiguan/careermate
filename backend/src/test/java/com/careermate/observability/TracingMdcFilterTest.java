@@ -29,16 +29,13 @@ class TracingMdcFilterTest {
     private TraceIdResolver traceIdResolver;
 
     @Mock
-    private TraceHeaderPropagator traceHeaderPropagator;
-
-    @Mock
     private FilterChain filterChain;
 
     private TracingMdcFilter filter;
 
     @BeforeEach
     void setUp() {
-        filter = new TracingMdcFilter(traceIdResolver, traceHeaderPropagator);
+        filter = new TracingMdcFilter(traceIdResolver);
         MDC.clear();
     }
 
@@ -48,10 +45,23 @@ class TracingMdcFilterTest {
     }
 
     @Test
+    void fallsBackToRequestIdWhenTraceResolverReturnsNull() throws ServletException, IOException {
+        when(traceIdResolver.resolveTraceId()).thenReturn(null);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/health");
+        request.addHeader(MdcKeys.HEADER_REQUEST_ID, "fallback-req-id");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertThat(response.getHeader(MdcKeys.HEADER_TRACE_ID)).isEqualTo("fallback-req-id");
+        assertThat(response.getHeader(MdcKeys.HEADER_REQUEST_ID)).isEqualTo("fallback-req-id");
+    }
+
+    @Test
     void restoresPreviousMdcAfterRequest() throws ServletException, IOException {
         MDC.put("upstreamKey", "upstreamValue");
         when(traceIdResolver.resolveTraceId()).thenReturn("trace-123");
-        when(traceHeaderPropagator.currentTraceId()).thenReturn("trace-123");
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/health");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -66,7 +76,6 @@ class TracingMdcFilterTest {
     @Test
     void sseRequestDoesNotWrapResponse() throws ServletException, IOException {
         when(traceIdResolver.resolveTraceId()).thenReturn("trace-sse");
-        when(traceHeaderPropagator.currentTraceId()).thenReturn("trace-sse");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/agent/sessions/s1/messages/stream");
         request.addHeader("Accept", "text/event-stream");
@@ -83,7 +92,6 @@ class TracingMdcFilterTest {
     @Test
     void nonStreamingRequestUsesCachingWrapper() throws ServletException, IOException {
         when(traceIdResolver.resolveTraceId()).thenReturn("trace-rest");
-        when(traceHeaderPropagator.currentTraceId()).thenReturn("trace-rest");
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/health");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -101,7 +109,6 @@ class TracingMdcFilterTest {
     @Test
     void echoesIncomingRequestId() throws ServletException, IOException {
         when(traceIdResolver.resolveTraceId()).thenReturn("trace-echo");
-        when(traceHeaderPropagator.currentTraceId()).thenReturn("trace-echo");
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/health");
         request.addHeader(MdcKeys.HEADER_REQUEST_ID, "client-req-42");

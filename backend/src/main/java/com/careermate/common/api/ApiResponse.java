@@ -1,9 +1,14 @@
 package com.careermate.common.api;
 
+import com.careermate.observability.MdcKeys;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.slf4j.MDC;
+import org.springframework.util.StringUtils;
+
+import java.util.UUID;
 
 @Data
 @Builder
@@ -26,7 +31,7 @@ public class ApiResponse<T> {
                 .code(ErrorCode.SUCCESS.getCode())
                 .message(ErrorCode.SUCCESS.getMessage())
                 .data(data)
-                .traceId(null)
+                .traceId(resolveCurrentTraceId())
                 .timestamp(System.currentTimeMillis())
                 .build();
     }
@@ -40,8 +45,20 @@ public class ApiResponse<T> {
                 .code(code)
                 .message(message)
                 .data(null)
-                .traceId(traceId)
+                .traceId(StringUtils.hasText(traceId) ? traceId : resolveCurrentTraceId())
                 .timestamp(System.currentTimeMillis())
                 .build();
+    }
+
+    static String resolveCurrentTraceId() {
+        String traceId = MDC.get(MdcKeys.TRACE_ID);
+        if (StringUtils.hasText(traceId)) {
+            return traceId;
+        }
+        String requestId = MDC.get(MdcKeys.REQUEST_ID);
+        if (StringUtils.hasText(requestId)) {
+            return requestId;
+        }
+        return UUID.randomUUID().toString();
     }
 }
