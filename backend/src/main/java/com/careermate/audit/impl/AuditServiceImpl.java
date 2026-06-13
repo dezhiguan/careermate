@@ -1,5 +1,7 @@
-package com.careermate.audit;
+package com.careermate.audit.impl;
 
+import com.careermate.audit.AuditActionType;
+import com.careermate.audit.AuditService;
 import com.careermate.mapper.SecurityAuditLogMapper;
 import com.careermate.model.entity.SecurityAuditLogEntity;
 import jakarta.servlet.http.HttpServletRequest;

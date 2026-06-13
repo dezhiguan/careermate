@@ -1,8 +1,9 @@
-package com.careermate.auth;
+package com.careermate.auth.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.careermate.audit.AuditActionType;
 import com.careermate.audit.AuditService;
+import com.careermate.auth.AuthService;
 import com.careermate.auth.dto.AuthTokenResponse;
 import com.careermate.auth.dto.CurrentUserResponse;
 import com.careermate.auth.dto.LoginRequest;
