@@ -47,6 +47,11 @@
             </div>
           </div>
           <div class="header-actions">
+            <div v-if="currentTraceId" class="trace-id-chip" title="SkyWalking Trace ID">
+              <span class="trace-id-label">Trace ID</span>
+              <code class="trace-id-value">{{ currentTraceId }}</code>
+              <button type="button" class="trace-id-copy" @click="copyTraceId">复制</button>
+            </div>
             <button
               type="button"
               class="header-action secondary"
@@ -277,6 +282,7 @@ const versionsDrawerOpen = ref(false)
 const workspaceVersions = ref([])
 const pdfDownloading = ref(false)
 const wordDownloading = ref(false)
+const currentTraceId = ref('')
 
 const STREAM_UI_IDLE_NOTICE_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_IDLE_NOTICE_MS || 90000)
 
@@ -500,6 +506,15 @@ function scrollBottom() {
       msgContainer.value.scrollTop = msgContainer.value.scrollHeight
     }
   })
+}
+
+async function copyTraceId() {
+  if (!currentTraceId.value) return
+  try {
+    await navigator.clipboard.writeText(currentTraceId.value)
+  } catch {
+    // clipboard unavailable
+  }
 }
 
 function openContext() {
@@ -810,6 +825,7 @@ async function sendMessage() {
     if (!sessionId.value) return
   }
   globalError.value = ''
+  currentTraceId.value = ''
 
   messages.value.push({
     id: `m_${Date.now()}_u`,
@@ -841,6 +857,11 @@ async function sendMessage() {
 
   try {
     await sendAgentMessageStream(sessionId.value, text, {
+      onTraceHeader({ traceId }) {
+        if (traceId) {
+          currentTraceId.value = traceId
+        }
+      },
       onPlan() {},
       onToolStart(data) {
         handleToolStart(agentMessage, data)
@@ -1249,6 +1270,47 @@ onBeforeUnmount(() => {
   gap: 6px;
   align-items: center;
   flex-shrink: 0;
+}
+
+.trace-id-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(280px, 42vw);
+  padding: 4px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  font-size: 10px;
+  color: #475569;
+}
+
+.trace-id-label {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.trace-id-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: #334155;
+}
+
+.trace-id-copy {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #4f46e5;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
 }
 
 .header-action {

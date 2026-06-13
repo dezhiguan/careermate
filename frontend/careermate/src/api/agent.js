@@ -109,6 +109,11 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
       }
       throw new Error(errBody?.message || `流式请求失败: ${response.status}`)
     }
+
+    const traceId = response.headers.get('X-Trace-Id')
+    const requestId = response.headers.get('X-Request-Id')
+    handlers.onTraceHeader?.({ traceId, requestId })
+
     if (!response.body) {
       throw new Error('SSE 响应流为空')
     }

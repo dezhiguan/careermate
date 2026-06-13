@@ -10,6 +10,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.UUID;
 
 public class TracingMdcFilter extends OncePerRequestFilter {
@@ -28,6 +29,7 @@ public class TracingMdcFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
+        Map<String, String> previousMdc = MDC.getCopyOfContextMap();
         String requestId = resolveRequestId(request);
         String sessionId = request.getHeader(MdcKeys.HEADER_SESSION_ID);
 
@@ -42,14 +44,12 @@ public class TracingMdcFilter extends OncePerRequestFilter {
         // token/message/done，只能刷新后从落库数据里读取。这类请求直接透传原始响应实时 flush。
         if (isStreamingRequest(request)) {
             try {
-                response.setHeader(MdcKeys.HEADER_REQUEST_ID, requestId);
-                String traceId = traceHeaderPropagator.currentTraceId();
-                if (StringUtils.hasText(traceId)) {
-                    response.setHeader(MdcKeys.HEADER_TRACE_ID, traceId);
-                }
+                // 响应头必须在 body 写出前设置，fetch 才能在读流前拿到 X-Trace-Id
+                writeTraceHeaders(response, requestId);
                 filterChain.doFilter(request, response);
             } finally {
-                clearMdc();
+                syncTraceMdc();
+                restoreMdc(previousMdc);
             }
             return;
         }
@@ -59,13 +59,9 @@ public class TracingMdcFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, responseWrapper);
         } finally {
             syncTraceMdc();
-            responseWrapper.setHeader(MdcKeys.HEADER_REQUEST_ID, requestId);
-            String traceId = traceHeaderPropagator.currentTraceId();
-            if (StringUtils.hasText(traceId)) {
-                responseWrapper.setHeader(MdcKeys.HEADER_TRACE_ID, traceId);
-            }
+            writeTraceHeaders(responseWrapper, requestId);
             responseWrapper.copyBodyToResponse();
-            clearMdc();
+            restoreMdc(previousMdc);
         }
     }
 
@@ -78,12 +74,20 @@ public class TracingMdcFilter extends OncePerRequestFilter {
         return uri != null && uri.endsWith("/messages/stream");
     }
 
-    private void clearMdc() {
-        MDC.remove(MdcKeys.REQUEST_ID);
-        MDC.remove(MdcKeys.USER_ID);
-        MDC.remove(MdcKeys.SESSION_ID);
-        MDC.remove(MdcKeys.TRACE_ID);
-        MDC.remove(MdcKeys.SPAN_ID);
+    private void writeTraceHeaders(HttpServletResponse response, String requestId) {
+        response.setHeader(MdcKeys.HEADER_REQUEST_ID, requestId);
+        String traceId = traceHeaderPropagator.currentTraceId();
+        if (StringUtils.hasText(traceId)) {
+            response.setHeader(MdcKeys.HEADER_TRACE_ID, traceId);
+        }
+    }
+
+    private static void restoreMdc(Map<String, String> previousMdc) {
+        if (previousMdc == null) {
+            MDC.clear();
+        } else {
+            MDC.setContextMap(previousMdc);
+        }
     }
 
     private String resolveRequestId(HttpServletRequest request) {
