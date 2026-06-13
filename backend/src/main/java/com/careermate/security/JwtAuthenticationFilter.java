@@ -124,12 +124,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return "/api/health".equals(path)
                 || "/api/auth/register".equals(path)
                 || "/api/auth/login".equals(path)
-                || "/actuator/health".equals(path)
-                || isResumeVersionPdfExport(path);
-    }
-
-    private static boolean isResumeVersionPdfExport(String path) {
-        return path != null && path.matches("/api/resume-version/[^/]+/export/pdf");
+                || "/actuator/health".equals(path);
     }
 
     private void writeUnauthorized(HttpServletResponse response, String message) throws IOException {

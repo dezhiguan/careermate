@@ -14,6 +14,7 @@ import com.careermate.ragforge.RagForgeClient;
 import com.careermate.resume.ResumeContext;
 import com.careermate.resume.ResumeContextProvider;
 import com.careermate.resume.version.dto.ResumeVersionVO;
+import com.careermate.resume.version.export.MarkdownExportSupport;
 import com.careermate.resume.version.service.ResumeVersionService;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -301,6 +302,8 @@ public class GenerateResumeFromJdWorkflow {
             String json = matcher.group(1).trim();
             changes = parseChangesJson(json);
         }
+        // LLM 常把整段简历包在 ```markdown ... ``` 里，入库前剥离，避免导出空白
+        markdown = MarkdownExportSupport.stripWrappingFence(markdown);
         return new MetaParseResult(markdown, changes);
     }
 
