@@ -2,7 +2,7 @@ package com.careermate.agent.tool;
 
 import com.careermate.common.exception.BizException;
 import com.careermate.task.CareerTaskConstants;
-import com.careermate.task.CareerTaskService;
+import com.careermate.task.service.CareerTaskService;
 import com.careermate.task.dto.CareerTaskCreateRequest;
 import com.careermate.task.dto.CareerTaskResponse;
 import org.springframework.stereotype.Component;

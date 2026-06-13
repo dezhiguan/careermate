@@ -5,6 +5,7 @@ import com.careermate.mapper.ResumeMapper;
 import com.careermate.mapper.UserMapper;
 import com.careermate.mapper.UserProfileMapper;
 import com.careermate.resume.dto.ResumeCreateRequest;
+import com.careermate.resume.service.ResumeService;
 import com.careermate.security.CurrentUser;
 import com.careermate.security.CurrentUserContext;
 import com.careermate.testsupport.TestUserSupport;

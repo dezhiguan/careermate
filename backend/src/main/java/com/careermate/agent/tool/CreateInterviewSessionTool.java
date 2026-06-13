@@ -1,7 +1,7 @@
 package com.careermate.agent.tool;
 
 import com.careermate.common.exception.BizException;
-import com.careermate.interview.InterviewPracticeService;
+import com.careermate.interview.service.InterviewPracticeService;
 import com.careermate.interview.dto.InterviewSessionCreateRequest;
 import com.careermate.interview.dto.InterviewSessionDetailResponse;
 import org.springframework.stereotype.Component;

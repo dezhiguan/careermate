@@ -2,7 +2,7 @@ package com.careermate.agent.context;
 
 import com.careermate.jobmatch.JobMatchJsonSupport;
 import com.careermate.model.entity.CareerProfileEntity;
-import com.careermate.profile.CareerProfileService;
+import com.careermate.profile.service.CareerProfileService;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

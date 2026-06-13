@@ -5,7 +5,7 @@ import com.careermate.agent.session.AgentSessionService;
 import com.careermate.jobmatch.JobMatchContext;
 import com.careermate.jobmatch.JobMatchContextProvider;
 import com.careermate.jobmatch.JobMatchJsonSupport;
-import com.careermate.jobmatch.JobMatchService;
+import com.careermate.jobmatch.service.JobMatchService;
 import com.careermate.mapper.JobMatchMapper;
 import com.careermate.mapper.ResumeMapper;
 import com.careermate.mapper.UserMapper;

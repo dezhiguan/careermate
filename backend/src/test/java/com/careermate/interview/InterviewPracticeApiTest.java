@@ -1,7 +1,7 @@
 package com.careermate.interview;
 
 import com.careermate.jobmatch.JobMatchJsonSupport;
-import com.careermate.jobmatch.JobMatchService;
+import com.careermate.jobmatch.service.JobMatchService;
 import com.careermate.mapper.InterviewQuestionMapper;
 import com.careermate.mapper.InterviewSessionMapper;
 import com.careermate.mapper.JobMatchMapper;
@@ -10,7 +10,7 @@ import com.careermate.mapper.UserMapper;
 import com.careermate.mapper.UserProfileMapper;
 import com.careermate.model.entity.JobMatchEntity;
 import com.careermate.model.entity.ResumeEntity;
-import com.careermate.resume.ResumeService;
+import com.careermate.resume.service.ResumeService;
 import com.careermate.security.CurrentUser;
 import com.careermate.security.CurrentUserContext;
 import com.careermate.testsupport.TestUserSupport;

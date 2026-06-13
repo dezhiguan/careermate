@@ -7,6 +7,7 @@ import com.careermate.market.dto.CompanyInsightVO;
 import com.careermate.market.dto.ResumeGapVO;
 import com.careermate.market.dto.SalaryInsightVO;
 import com.careermate.market.dto.SkillTrendsVO;
+import com.careermate.market.service.MarketIntelligenceService;
 import com.careermate.ragforge.RagForgeChunk;
 import com.careermate.ragforge.RagForgeClient;
 import com.careermate.resume.ResumeContext;

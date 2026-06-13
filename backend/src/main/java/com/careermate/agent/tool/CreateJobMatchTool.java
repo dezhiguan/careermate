@@ -1,7 +1,7 @@
 package com.careermate.agent.tool;
 
 import com.careermate.common.exception.BizException;
-import com.careermate.jobmatch.JobMatchService;
+import com.careermate.jobmatch.service.JobMatchService;
 import com.careermate.jobmatch.dto.JobMatchAnalyzeRequest;
 import com.careermate.jobmatch.dto.JobMatchDetailResponse;
 import org.springframework.stereotype.Component;

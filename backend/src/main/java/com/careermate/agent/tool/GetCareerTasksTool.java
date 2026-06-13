@@ -1,6 +1,6 @@
 package com.careermate.agent.tool;
 
-import com.careermate.task.CareerTaskService;
+import com.careermate.task.service.CareerTaskService;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;

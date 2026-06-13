@@ -7,6 +7,7 @@ import com.careermate.mapper.ResumeMapper;
 import com.careermate.mapper.UserMapper;
 import com.careermate.mapper.UserProfileMapper;
 import com.careermate.model.entity.CareerProfileEntity;
+import com.careermate.profile.service.CareerProfileAutoUpdateService;
 import com.careermate.testsupport.TestUserSupport;
 import com.careermate.testsupport.TestUsers;
 import org.junit.jupiter.api.BeforeEach;
