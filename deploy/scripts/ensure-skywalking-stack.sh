@@ -48,9 +48,16 @@ else
   echo "[skywalking] Java agent already installed"
 fi
 
-pull_image apache/skywalking-banyandb:0.8.0
-pull_image apache/skywalking-oap-server:10.2.0
-pull_image apache/skywalking-ui:10.2.0
+if [[ "${SKIP_PULL:-0}" != "1" ]]; then
+  pull_image apache/skywalking-banyandb:0.8.0
+  pull_image apache/skywalking-oap-server:10.2.0
+  pull_image apache/skywalking-ui:10.2.0
+else
+  echo "[skywalking] skip image pull (SKIP_PULL=1)"
+  for image in apache/skywalking-banyandb:0.8.0 apache/skywalking-oap-server:10.2.0 apache/skywalking-ui:10.2.0; do
+    docker image inspect "${image}" >/dev/null || { echo "missing image: ${image}" >&2; exit 1; }
+  done
+fi
 
 bash "${SCRIPT_DIR}/start-skywalking.sh"
 

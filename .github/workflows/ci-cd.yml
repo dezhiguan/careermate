@@ -180,7 +180,7 @@ jobs:
   deploy-k3s-server3:
     name: deploy-k3s-server3
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
       - backend-build
@@ -281,11 +281,28 @@ jobs:
           scp "${SCP_OPTS[@]}" "${JAR_FILE}" \
             "careermate-app:/opt/careermate/k8s-src/backend/target/careermate-backend-0.1.0.jar"
 
+      - name: Transfer SkyWalking images to Server 3
+        run: |
+          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          SCP_OPTS=(-F "${HOME}/.ssh/config" -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          IMAGES=(
+            apache/skywalking-banyandb:0.8.0
+            apache/skywalking-oap-server:10.2.0
+            apache/skywalking-ui:10.2.0
+          )
+          for image in "${IMAGES[@]}"; do
+            docker pull "${image}"
+          done
+          docker save "${IMAGES[@]}" | gzip > /tmp/skywalking-images.tar.gz
+          scp "${SCP_OPTS[@]}" /tmp/skywalking-images.tar.gz careermate-app:/tmp/skywalking-images.tar.gz
+          ssh "${SSH_OPTS[@]}" careermate-app \
+            "gunzip -c /tmp/skywalking-images.tar.gz | sudo docker load && rm -f /tmp/skywalking-images.tar.gz"
+
       - name: Ensure SkyWalking OAP + UI on Server 3
         run: |
           SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
-          timeout 25m ssh "${SSH_OPTS[@]}" careermate-app \
-            "cd /opt/careermate/k8s-src && sudo env SKYWALKING_BIND_IP=172.25.90.184 bash deploy/scripts/ensure-skywalking-stack.sh"
+          timeout 15m ssh "${SSH_OPTS[@]}" careermate-app \
+            "cd /opt/careermate/k8s-src && sudo env SKYWALKING_BIND_IP=172.25.90.184 SKIP_PULL=1 bash deploy/scripts/ensure-skywalking-stack.sh"
 
       - name: Deploy CareerMate to k3s on Server 3
         run: |
