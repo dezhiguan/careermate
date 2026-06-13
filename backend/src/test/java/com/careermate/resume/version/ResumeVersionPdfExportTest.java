@@ -56,6 +56,13 @@ class ResumeVersionPdfExportTest {
     }
 
     @Test
+    void exportPdfNullUserThrows401() {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        BizException ex = assertThrows(BizException.class, () -> service.exportPdf(null, "any", response));
+        assertEquals(401, ex.getCode());
+    }
+
+    @Test
     void exportPdfVersionNotFoundThrows404() {
         when(resumeVersionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
 

@@ -171,6 +171,15 @@ class GenerateResumeFromJdWorkflowTest {
         assertEquals(1, result.changes().size());
     }
 
+    @Test
+    void parseMetaBlockStripsWrappingMarkdownFence() {
+        GenerateResumeFromJdWorkflow.MetaParseResult result = GenerateResumeFromJdWorkflow.parseMetaBlock(
+                "```markdown\n# 简历正文\n## 工作经历\n```\n\n```meta\n{\"changes\":[{\"x\":1}]}\n```"
+        );
+        assertEquals("# 简历正文\n## 工作经历", result.markdown());
+        assertEquals(1, result.changes().size());
+    }
+
     private void stubHappyPath() {
         AgentSessionEntity session = jdSession();
         when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
