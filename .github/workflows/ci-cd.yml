@@ -326,6 +326,18 @@ jobs:
           assert trace_id, f"traceId must be non-null, got: {trace_id!r}"
           PY
 
+      - name: SkyWalking UI check
+        run: |
+          BASE="${{ vars.CAREERFORGE_BASE_URL || 'https://careerforge.cn' }}"
+          RESP="$(curl --silent --show-error --max-time 10 --retry 12 --retry-delay 10 -i \
+            "${BASE%/}/skywalking/")"
+          python3 - <<'PY' "${RESP}"
+          import sys
+          raw = sys.argv[1]
+          status_line = raw.split("\n", 1)[0]
+          assert " 200 " in status_line or " 302 " in status_line, status_line
+          PY
+
       - name: Frontend entry check
         run: |
           BASE="${{ vars.CAREERFORGE_BASE_URL || 'https://careerforge.cn' }}"
