@@ -6,6 +6,8 @@ const API_BASE_URL =
 const TOKEN_KEY = 'careermate_token'
 const USER_KEY = 'careermate_user'
 
+let lastTraceMeta = { traceId: null, requestId: null }
+
 function clearAuthState() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
@@ -31,7 +33,20 @@ function handleUnauthorized(payload) {
   throw new Error(payload?.message || '未认证')
 }
 
-export async function request(path, options = {}) {
+function readTraceHeaders(response) {
+  const traceId = response.headers.get('X-Trace-Id')
+  const requestId = response.headers.get('X-Request-Id')
+  if (traceId || requestId) {
+    lastTraceMeta = { traceId, requestId }
+  }
+  return { traceId, requestId }
+}
+
+export function getLastTraceMeta() {
+  return { ...lastTraceMeta }
+}
+
+export async function requestWithMeta(path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
     ...getAuthHeaders(options.headers || {}),
@@ -41,6 +56,8 @@ export async function request(path, options = {}) {
     ...options,
     headers,
   })
+
+  const { traceId, requestId } = readTraceHeaders(response)
 
   let payload = null
   try {
@@ -65,7 +82,16 @@ export async function request(path, options = {}) {
     throw new Error(payload.message || '请求失败')
   }
 
-  return payload.data
+  return {
+    data: payload.data,
+    traceId,
+    requestId,
+  }
+}
+
+export async function request(path, options = {}) {
+  const { data } = await requestWithMeta(path, options)
+  return data
 }
 
 export { API_BASE_URL, TOKEN_KEY, USER_KEY, getAuthHeaders, handleUnauthorized }

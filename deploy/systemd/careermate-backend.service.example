@@ -11,6 +11,8 @@ EnvironmentFile=/opt/careermate/backend/.env.app
 # JAVA_TOOL_OPTIONS is read automatically by the java launcher.
 # JVM heap (-Xms/-Xmx) is merged here with the SkyWalking javaagent — do not override in ExecStart.
 Environment=JAVA_TOOL_OPTIONS=-Xms512m -Xmx2g -javaagent:/opt/skywalking-agent/skywalking-agent.jar -Dskywalking.agent.service_name=careermate-backend -Dskywalking.collector.backend_service=127.0.0.1:11800
+# When SkyWalking UI is the primary trace backend, set TRACING_ENABLED=false in .env.app
+# to avoid OTLP exporter errors when no collector is running.
 ExecStart=/usr/bin/java -jar /opt/careermate/current/backend/app.jar
 Restart=always
 RestartSec=5
