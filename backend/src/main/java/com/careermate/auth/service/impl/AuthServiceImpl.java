@@ -97,7 +97,8 @@ public class AuthServiceImpl implements AuthService {
             auditService.recordFailure(user.getId(), AuditActionType.LOGIN, "USER", String.valueOf(user.getId()), "user inactive");
             throw new BizException(ErrorCode.FORBIDDEN.getCode(), "用户不可用");
         }
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+        if (!StringUtils.hasText(user.getPasswordHash())
+                || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             auditService.recordFailure(user.getId(), AuditActionType.LOGIN, "USER", String.valueOf(user.getId()), "password mismatch");
             throw new BizException(ErrorCode.UNAUTHORIZED.getCode(), "用户名或密码错误");
         }

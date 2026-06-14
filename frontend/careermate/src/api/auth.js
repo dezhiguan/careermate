@@ -26,3 +26,17 @@ export function updateProfile(payload) {
     body: JSON.stringify(payload),
   })
 }
+
+export function sendSmsCode(phone, scene = 'mobile_login') {
+  return request('/auth/sms/send', {
+    method: 'POST',
+    body: JSON.stringify({ phone, scene }),
+  })
+}
+
+export function mobileLogin(phone, verifyCode, outId = null, scene = 'mobile_login') {
+  return request('/auth/mobile/login', {
+    method: 'POST',
+    body: JSON.stringify({ phone, verifyCode, outId, scene }),
+  })
+}

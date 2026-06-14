@@ -3,6 +3,8 @@ package com.careermate.audit;
 public enum AuditActionType {
     REGISTER,
     LOGIN,
+    SMS_SEND,
+    MOBILE_LOGIN,
     LOGOUT,
     UPLOAD_RESUME,
     DELETE_RESUME,

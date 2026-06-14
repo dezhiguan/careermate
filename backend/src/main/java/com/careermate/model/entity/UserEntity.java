@@ -24,6 +24,12 @@ public class UserEntity {
 
     private String email;
 
+    private String phone;
+
+    private Boolean phoneVerified;
+
+    private OffsetDateTime phoneVerifiedAt;
+
     private String role;
 
     private String status;

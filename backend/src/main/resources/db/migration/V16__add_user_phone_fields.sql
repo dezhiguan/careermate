@@ -1,0 +1,11 @@
+ALTER TABLE users
+    ALTER COLUMN password_hash DROP NOT NULL;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS phone VARCHAR(20),
+    ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_users_phone ON users (phone) WHERE phone IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_users_phone ON users (phone);

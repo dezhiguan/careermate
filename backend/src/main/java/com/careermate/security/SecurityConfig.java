@@ -30,7 +30,14 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
-                        .requestMatchers("/api/health", "/api/auth/register", "/api/auth/login", "/actuator/health").permitAll()
+                        .requestMatchers(
+                                "/api/health",
+                                "/api/auth/register",
+                                "/api/auth/login",
+                                "/api/auth/sms/send",
+                                "/api/auth/mobile/login",
+                                "/actuator/health"
+                        ).permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()
                 )

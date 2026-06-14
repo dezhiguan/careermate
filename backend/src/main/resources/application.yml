@@ -20,6 +20,12 @@ spring:
       enabled: true
       max-file-size: 10MB
       max-request-size: 10MB
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:2000ms}
 
 management:
   endpoints:
@@ -42,6 +48,9 @@ careermate:
     jwt:
       secret: ${JWT_SECRET:change-me-in-dev-only-change-me-in-dev-only}
       expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    client-ip:
+      # 生产环境置于 Nginx/Ingress 后时设为 true；网关须覆盖 X-Real-IP 并清洗 X-Forwarded-For，勿信任客户端直传
+      trust-proxy-headers: ${TRUST_PROXY_HEADERS:false}
   llm:
     provider: ${LLM_PROVIDER:mock} # mock | deepseek | qwen | openai-compatible
     model: ${LLM_MODEL:mock-chat}
@@ -71,3 +80,17 @@ careermate:
     jd-kb-id: ${RAGFORGE_JD_KB_ID:}            # RAGForge 里存放 JD 的知识库 ID
     interview-kb-id: ${RAGFORGE_INTERVIEW_KB_ID:}   # RAGForge 里存放面试题问答的知识库 ID（dev=18）
     personal-kb-id: ${RAGFORGE_PERSONAL_KB_ID:}    # RAGForge 里存放个人简历的知识库 ID（dev=15）
+
+aliyun:
+  sms:
+    enabled: ${ALIYUN_SMS_ENABLED:false}
+    mock-enabled: ${ALIYUN_SMS_MOCK_ENABLED:true}
+    access-key-id: ${ALIYUN_SMS_ACCESS_KEY_ID:}
+    access-key-secret: ${ALIYUN_SMS_ACCESS_KEY_SECRET:}
+    sign-name: ${ALIYUN_SMS_SIGN_NAME:}
+    region: ${ALIYUN_SMS_REGION:cn-hangzhou}
+    endpoint: ${ALIYUN_SMS_ENDPOINT:dypnsapi.aliyuncs.com}
+    phone-hash-pepper: ${ALIYUN_SMS_PHONE_HASH_PEPPER:}
+    template:
+      login: ${ALIYUN_SMS_TEMPLATE_CODE_LOGIN:}
+      valid-minutes: ${ALIYUN_SMS_TEMPLATE_VALID_MINUTES:5}

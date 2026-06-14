@@ -30,6 +30,7 @@ public class GlobalExceptionHandler {
             case 403 -> HttpStatus.FORBIDDEN;
             case 404 -> HttpStatus.NOT_FOUND;
             case 429 -> HttpStatus.TOO_MANY_REQUESTS;
+            case 500 -> HttpStatus.INTERNAL_SERVER_ERROR;
             default -> HttpStatus.BAD_REQUEST;
         };
         return ResponseEntity.status(status).body(ApiResponse.fail(e.getCode(), e.getMessage()));
