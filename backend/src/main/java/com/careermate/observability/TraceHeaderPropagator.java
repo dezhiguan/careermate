@@ -5,6 +5,7 @@ import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.propagation.Propagator;
 import org.slf4j.MDC;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -66,6 +67,17 @@ public class TraceHeaderPropagator {
         Map<String, String> carrier = new LinkedHashMap<>();
         inject(carrier);
         carrier.forEach(headerSetter);
+    }
+
+    /**
+     * Business trace headers for outbound HTTP (W3C traceparent, X-Request-Id, session).
+     * SkyWalking {@code sw8} is injected by the Java Agent HTTP client plugin, not here.
+     */
+    public ClientHttpRequestInterceptor clientHttpRequestInterceptor() {
+        return (request, body, execution) -> {
+            inject((name, value) -> request.getHeaders().set(name, value));
+            return execution.execute(request, body);
+        };
     }
 
     public String currentTraceId() {

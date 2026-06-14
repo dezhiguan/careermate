@@ -16,6 +16,8 @@ import java.util.UUID;
 @AllArgsConstructor
 public class ApiResponse<T> {
 
+    private static final String SKYWALKING_IGNORED_TRACE = "Ignored_Trace";
+
     private Integer code;
     private String message;
     private T data;
@@ -51,14 +53,24 @@ public class ApiResponse<T> {
     }
 
     static String resolveCurrentTraceId() {
+        String skyWalkingTraceId = org.apache.skywalking.apm.toolkit.trace.TraceContext.traceId();
+        if (isUsableTraceId(skyWalkingTraceId)) {
+            return skyWalkingTraceId;
+        }
         String traceId = MDC.get(MdcKeys.TRACE_ID);
-        if (StringUtils.hasText(traceId)) {
+        if (isUsableTraceId(traceId)) {
             return traceId;
         }
         String requestId = MDC.get(MdcKeys.REQUEST_ID);
-        if (StringUtils.hasText(requestId)) {
+        if (isUsableTraceId(requestId)) {
             return requestId;
         }
         return UUID.randomUUID().toString();
+    }
+
+    private static boolean isUsableTraceId(String traceId) {
+        return StringUtils.hasText(traceId)
+                && !SKYWALKING_IGNORED_TRACE.equals(traceId)
+                && !"N/A".equalsIgnoreCase(traceId);
     }
 }

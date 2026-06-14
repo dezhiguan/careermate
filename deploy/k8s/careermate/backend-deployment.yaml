@@ -34,6 +34,8 @@ spec:
                 -javaagent:/opt/skywalking-agent/skywalking-agent.jar
                 -Dskywalking.agent.service_name=careermate-backend
                 -Dskywalking.collector.backend_service=172.25.90.184:11800
+            - name: SW_LOGGING_OUTPUT
+              value: CONSOLE
           readinessProbe:
             httpGet:
               path: /api/health

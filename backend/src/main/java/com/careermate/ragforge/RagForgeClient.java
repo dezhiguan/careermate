@@ -1,36 +1,69 @@
 package com.careermate.ragforge;
 
+import com.careermate.observability.MdcKeys;
+import com.careermate.observability.TraceHeaderPropagator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestTemplate;
 
+/**
+ * RAGForge HTTP client. Uses {@link RestTemplate} so SkyWalking Java Agent
+ * ({@code apm-resttemplate-6.x-plugin}) can inject {@code sw8} on outbound calls.
+ * Business headers (traceparent, X-Request-Id) are added via {@link TraceHeaderPropagator}.
+ */
 @Slf4j
 @Service("careermateRagForgeClient")
 public class RagForgeClient {
 
     private final RagForgeProperties properties;
-    private final RestClient restClient;
+    private final TraceHeaderPropagator traceHeaderPropagator;
+    private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Autowired
+    public RagForgeClient(RagForgeProperties properties, TraceHeaderPropagator traceHeaderPropagator) {
+        this(properties, traceHeaderPropagator, null);
+    }
+
+    /** For unit tests without trace propagation. */
     public RagForgeClient(RagForgeProperties properties) {
+        this(properties, null, null);
+    }
+
+    /** For tests that supply a custom {@link RestTemplate} (e.g. sw8 simulation). */
+    public RagForgeClient(
+            RagForgeProperties properties,
+            TraceHeaderPropagator traceHeaderPropagator,
+            RestTemplate restTemplateOverride
+    ) {
         this.properties = properties;
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(properties.getTimeoutMs());
-        factory.setReadTimeout(properties.getTimeoutMs());
-        this.restClient = RestClient.builder()
-            .baseUrl(properties.getUrl())
-            .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-            .defaultHeader("X-API-Key", properties.getApiKey())
-            .requestFactory(factory)
-            .build();
+        this.traceHeaderPropagator = traceHeaderPropagator;
+        if (restTemplateOverride != null) {
+            this.restTemplate = restTemplateOverride;
+        } else {
+            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+            factory.setConnectTimeout(properties.getTimeoutMs());
+            factory.setReadTimeout(properties.getTimeoutMs());
+            RestTemplate template = new RestTemplate(factory);
+            if (traceHeaderPropagator != null) {
+                template.getInterceptors().add(traceHeaderPropagator.clientHttpRequestInterceptor());
+            }
+            template.getInterceptors().add(this::logOutboundTraceHeaders);
+            this.restTemplate = template;
+        }
     }
 
     public RagForgeProperties getProperties() {
@@ -42,15 +75,44 @@ public class RagForgeClient {
         return code == 0 || code == 200;
     }
 
-    private Long parsePersonalKbId() {
-        String raw = properties.getPersonalKbId();
-        if (raw == null || raw.isBlank()) return null;
-        try {
-            return Long.parseLong(raw.trim());
-        } catch (NumberFormatException e) {
-            log.warn("ragforge.personalKbId 配置非数字: {}", raw);
-            return null;
+    private ResponseEntity<String> exchange(String path, HttpMethod method, Object body, Object... uriVars) {
+        HttpHeaders headers = defaultHeaders();
+        HttpEntity<Object> entity = body == null ? new HttpEntity<>(headers) : new HttpEntity<>(body, headers);
+        String url = properties.getUrl() + path;
+        return restTemplate.exchange(url, method, entity, String.class, uriVars);
+    }
+
+    private HttpHeaders defaultHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        if (StringUtils.hasText(properties.getApiKey())) {
+            headers.set("X-API-Key", properties.getApiKey());
         }
+        return headers;
+    }
+
+    private org.springframework.http.client.ClientHttpResponse logOutboundTraceHeaders(
+            org.springframework.http.HttpRequest request,
+            byte[] body,
+            org.springframework.http.client.ClientHttpRequestExecution execution
+    ) throws java.io.IOException {
+        org.springframework.http.client.ClientHttpResponse response = execution.execute(request, body);
+        String sw8 = request.getHeaders().getFirst("sw8");
+        String traceparent = request.getHeaders().getFirst("traceparent");
+        String requestId = request.getHeaders().getFirst(MdcKeys.HEADER_REQUEST_ID);
+        String careerMateTraceId = traceHeaderPropagator != null ? traceHeaderPropagator.currentTraceId() : null;
+        String ragTraceId = response.getHeaders().getFirst(MdcKeys.HEADER_TRACE_ID);
+        log.info(
+                "ragforge.http {} {} sw8Present={} traceparentPresent={} requestId={} careerMateTraceId={} ragTraceId={}",
+                request.getMethod(),
+                request.getURI().getPath(),
+                StringUtils.hasText(sw8),
+                StringUtils.hasText(traceparent),
+                requestId,
+                careerMateTraceId,
+                ragTraceId
+        );
+        return response;
     }
 
     /**
@@ -66,10 +128,15 @@ public class RagForgeClient {
             int page = 1;
             int size = 100;
             while (true) {
-                String responseBody = restClient.get()
-                        .uri("/api/v1/documents/{id}/chunks?page={page}&size={size}", docId, page, size)
-                        .retrieve()
-                        .body(String.class);
+                ResponseEntity<String> response = exchange(
+                        "/api/v1/documents/{id}/chunks?page={page}&size={size}",
+                        HttpMethod.GET,
+                        null,
+                        docId,
+                        page,
+                        size
+                );
+                String responseBody = response.getBody();
                 if (responseBody == null || responseBody.isBlank()) {
                     break;
                 }
@@ -165,22 +232,24 @@ public class RagForgeClient {
             body.put("kbId", kbId);
             body.put("title", title == null ? "简历" : title);
             body.put("content", content);
-            if (chunkType != null) body.put("chunkType", chunkType);
+            if (chunkType != null) {
+                body.put("chunkType", chunkType);
+            }
 
-            String responseBody = restClient.post()
-                .uri("/api/v1/documents/text")
-                .body(body)
-                .retrieve()
-                .body(String.class);
-
-            if (responseBody == null) return Optional.empty();
+            ResponseEntity<String> response = exchange("/api/v1/documents/text", HttpMethod.POST, body);
+            String responseBody = response.getBody();
+            if (responseBody == null) {
+                return Optional.empty();
+            }
             JsonNode root = objectMapper.readTree(responseBody);
             if (!isSuccessCode(root.path("code").asInt(-1))) {
                 log.warn("RAGForge syncText 返回失败 code: {}", responseBody);
                 return Optional.empty();
             }
             long docId = root.path("data").path("docId").asLong(-1);
-            if (docId <= 0) return Optional.empty();
+            if (docId <= 0) {
+                return Optional.empty();
+            }
             return Optional.of(docId);
         } catch (Exception e) {
             log.warn("RAGForge syncText 失败（已降级）: title={} err={}", title, e.getMessage());
@@ -196,10 +265,7 @@ public class RagForgeClient {
             return;
         }
         try {
-            restClient.delete()
-                .uri("/api/v1/documents/{id}", docId)
-                .retrieve()
-                .toBodilessEntity();
+            exchange("/api/v1/documents/{id}", HttpMethod.DELETE, null, docId);
         } catch (Exception e) {
             log.warn("RAGForge deleteDocument 失败（忽略）: docId={} err={}", docId, e.getMessage());
         }
@@ -222,12 +288,8 @@ public class RagForgeClient {
                 query, List.of(kbId), "hybrid", topK, 3, 0.55, filter
             );
 
-            String responseBody = restClient.post()
-                .uri("/api/v1/search")
-                .body(body)
-                .retrieve()
-                .body(String.class);
-
+            ResponseEntity<String> response = exchange("/api/v1/search", HttpMethod.POST, body);
+            String responseBody = response.getBody();
             if (responseBody == null || responseBody.isBlank()) {
                 return List.of();
             }

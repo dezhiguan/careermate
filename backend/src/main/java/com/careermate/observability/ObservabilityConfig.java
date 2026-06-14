@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 
 @Configuration
-@EnableConfigurationProperties({CareerMateTracingProperties.class, RagForgeProperties.class})
+@EnableConfigurationProperties(CareerMateTracingProperties.class)
 public class ObservabilityConfig {
 
     @Bean
