@@ -120,6 +120,22 @@ sudo systemctl restart careermate-backend
 - 日志行含 `traceId=... requestId=... userId=... sessionId=...`
 - 与 UI 中 Trace ID 一致（挂 Agent 时优先 SkyWalking TraceContext）
 
+### 6.1 业务日志查询（OAP Logs）
+
+`logback-spring.xml` 仅将 **`com.careermate`** 业务包日志上报 SkyWalking；框架日志（Spring、Tomcat、Hikari、MyBatis 等）仍在控制台可见，默认 `FRAMEWORK_LOG_LEVEL=WARN`，**不会**进入 SkyWalking Logs。
+
+| 过滤维度 | 示例 |
+|----------|------|
+| 服务 | `careermate-backend` |
+| 业务标识 | `logType=business`（推荐） |
+| 级别 | `level=ERROR` / `WARN` / `INFO` |
+| Logger | 包名前缀 `com.careermate` |
+| 链路 | Trace 详情中的 `traceId` |
+
+环境变量：`APP_LOG_LEVEL=INFO`（业务）、`FRAMEWORK_LOG_LEVEL=WARN`（框架）。生产 profile 需含 `prod,skywalking-log`。
+
+RAGForge 侧见 RAGForge 仓库 `docs/skywalking-business-logs.md`。
+
 LLM 耗时：
 
 - 日志关键字：`llm.chat provider=... model=... latencyMs=...`
