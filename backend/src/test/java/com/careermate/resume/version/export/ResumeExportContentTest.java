@@ -93,4 +93,63 @@ class ResumeExportContentTest {
         assertEquals("%PDF", new String(bytes, 0, 4));
         assertTrue(bytes.length > 800);
     }
+
+    @Test
+    void pdfResumeFormatIsValidAndSubstantial() throws Exception {
+        String resume = """
+                # 张三
+                13800000000 | zhangsan@example.com | 北京 | 期望职位：Java 后端工程师
+
+                ## 个人优势
+                - 5 年后端开发经验
+                - 熟悉 **Spring Boot** 微服务
+
+                ## 专业技能
+                | 技能 | 年限 |
+                |---|---|
+                | Java | 5 |
+                | MySQL | 4 |
+
+                ## 工作经历
+                ### 某科技公司 | 高级后端工程师 | 2020-至今
+                - 负责订单系统核心模块开发
+                - 主导服务拆分与性能优化
+
+                ## 项目经历
+                1. 支付中台重构
+                2. 监控平台建设
+
+                ## 教育经历
+                某某大学 | 计算机科学 | 本科 | 2016-2020
+                """;
+        byte[] bytes = pdfBytes(resume);
+        byte[] empty = pdfBytes("");
+        assertEquals("%PDF", new String(bytes, 0, 4), "应为合法 PDF");
+        assertTrue(bytes.length > empty.length + 500,
+                "简历内容应明显大于空 PDF: resume=" + bytes.length + " empty=" + empty.length);
+    }
+
+    @Test
+    void pdfFenceWrappedChineseResumeIsValid() throws Exception {
+        String wrapped = """
+                ```markdown
+                # 李四
+                13900000000 / lisi@example.com / 上海
+
+                ## 工作经历
+                - 负责后端 API 设计与开发
+                - 参与数据库优化
+                ```
+                """;
+        byte[] bytes = pdfBytes(wrapped);
+        assertEquals("%PDF", new String(bytes, 0, 4));
+        assertTrue(bytes.length > 1000, "中文围栏简历应生成有内容的 PDF");
+    }
+
+    @Test
+    void pdfPlainTextFallbackIsValid() throws Exception {
+        byte[] bytes = pdfBytes("王五\n后端工程师\n电话 13700000000\n熟悉 Java 开发");
+        assertEquals("%PDF", new String(bytes, 0, 4));
+        assertTrue(bytes.length > 800);
+    }
 }

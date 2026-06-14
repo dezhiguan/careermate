@@ -39,7 +39,15 @@ public class GenerateResumeFromJdWorkflow {
     private static final String SYSTEM_PROMPT = """
             你是简历操盘手小职。基于目标 JD 优化用户简历。
             规则:① 关键词对齐 JD ② 不许虚构经历 ③ 突出匹配项弱化无关项
-                 ④ 输出纯 Markdown ⑤ 末尾 JSON 块 ```meta 包含 changes 数组""";
+                 ④ 输出纯 Markdown，结构固定为：
+                   # 姓名
+                   电话/邮箱/城市/求职岗位（仅写用户原文有的信息，没有的不要编造）
+                   ## 个人优势
+                   ## 专业技能
+                   ## 工作经历
+                   ## 项目经历
+                   ## 教育经历
+                 ⑤ 末尾 JSON 块 ```meta 包含 changes 数组""";
 
     private static final Pattern META_BLOCK_PATTERN = Pattern.compile(
             "```meta\\s*([\\s\\S]*?)```",
