@@ -1,9 +1,11 @@
 import { reactive, computed } from 'vue'
 import {
+  confirmPasswordReset as confirmPasswordResetApi,
   getCurrentUser,
   login as loginApi,
   mobileLogin as mobileLoginApi,
   register as registerApi,
+  sendPasswordResetSms as sendPasswordResetSmsApi,
   sendSmsCode,
   updateProfile as updateProfileApi,
 } from '../api/auth'
@@ -104,6 +106,19 @@ async function sendMobileSmsCode(phone) {
   return sendSmsCode(phone)
 }
 
+async function sendPasswordResetSms(phone) {
+  return sendPasswordResetSmsApi(phone)
+}
+
+async function resetPassword(payload) {
+  state.loading = true
+  try {
+    return await confirmPasswordResetApi(payload)
+  } finally {
+    state.loading = false
+  }
+}
+
 async function mobileLogin(phone, verifyCode, challengeId) {
   state.loading = true
   try {
@@ -149,6 +164,8 @@ export const authStore = {
   login,
   register,
   sendMobileSmsCode,
+  sendPasswordResetSms,
+  resetPassword,
   mobileLogin,
   logout,
   updateProfile,

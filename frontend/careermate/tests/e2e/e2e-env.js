@@ -32,6 +32,7 @@ const USER_KEY = 'careermate_user';
 const LOGIN_PAGE_TITLE = '账号登录';
 const SMS_LOGIN_PAGE_TITLE = '手机号登录';
 const REGISTER_PAGE_TITLE = '创建账号';
+const FORGOT_PASSWORD_PAGE_TITLE = '找回密码';
 const POST_LOGIN_TITLE = '今天的机会';
 const POST_LOGIN_URL = /#\/opportunity/;
 const MOCK_SMS_CODE = '123456';
@@ -186,7 +187,7 @@ function attachDiagnostics(page) {
   });
   page.on('response', async (response) => {
     const url = response.url();
-    if (!/\/auth\/(me|login|register|sms\/send|mobile\/login)/.test(url)) return;
+    if (!/\/auth\/(me|login|register|sms\/send|mobile\/login|password-reset)/.test(url)) return;
     let snippet = '';
     try {
       const json = await response.json();
@@ -376,6 +377,113 @@ async function ensureSmsLoginForm(page) {
     await page.getByRole('button', { name: '使用手机验证码登录' }).click();
   }
   await expect(page.getByRole('heading', { name: SMS_LOGIN_PAGE_TITLE })).toBeVisible({ timeout: 10_000 });
+}
+
+async function ensureForgotPasswordForm(page) {
+  await ensurePasswordLoginForm(page);
+  await page.getByRole('button', { name: '忘记密码？' }).click();
+  await expect(page.getByRole('heading', { name: FORGOT_PASSWORD_PAGE_TITLE })).toBeVisible({
+    timeout: 10_000,
+  });
+}
+
+/**
+ * @param {import('@playwright/test').Page} page
+ * @param {string} phone
+ */
+async function sendPasswordResetSmsViaUi(page, phone) {
+  await page.getByLabel('手机号').fill(phone);
+  const smsBtn = page.getByRole('button', { name: /\d+s|发送验证码/ });
+  const successLocator = page.locator('.success');
+  const successText = '如果该手机号已绑定账号，验证码将发送到手机';
+
+  await smsBtn.click();
+
+  try {
+    await expect(successLocator).toContainText(successText, { timeout: 15_000 });
+  } catch {
+    await expect(smsBtn).toContainText(/\d+s/, { timeout: 5_000 });
+  }
+
+  await expect(smsBtn).toBeDisabled();
+  await expect(smsBtn).toContainText(/\d+s/);
+}
+
+/**
+ * @param {import('@playwright/test').APIRequestContext} request
+ * @param {string} phone
+ * @param {string} [verifyCode]
+ */
+async function mobileLoginViaApi(request, phone, verifyCode = MOCK_SMS_CODE) {
+  const sendRes = await request.post(`${apiBaseURL}/auth/sms/send`, {
+    data: { phone, scene: 'mobile_login' },
+    timeout: 20_000,
+  });
+  const sendBody = await sendRes.json().catch(() => null);
+  expect(sendRes.ok(), `发送验证码 API 失败: ${JSON.stringify(sendBody)}`).toBeTruthy();
+  expect(sendBody?.code).toBe(0);
+  const challengeId = sendBody?.data?.challengeId;
+  expect(challengeId).toBeTruthy();
+
+  const loginRes = await request.post(`${apiBaseURL}/auth/mobile/login`, {
+    data: { phone, verifyCode, challengeId, scene: 'mobile_login' },
+    timeout: 20_000,
+  });
+  const loginBody = await loginRes.json().catch(() => null);
+  expect(loginRes.ok(), `手机号登录 API 失败: ${JSON.stringify(loginBody)}`).toBeTruthy();
+  expect(loginBody?.code).toBe(0);
+  return {
+    phone,
+    username: loginBody?.data?.user?.username,
+    token: loginBody?.data?.token,
+  };
+}
+
+/**
+ * 通过 API 创建仅绑定手机号的账号（无密码）。
+ * @param {import('@playwright/test').APIRequestContext} request
+ */
+async function createPhoneOnlyAccount(request) {
+  const phone = createTestPhone();
+  const mobileUser = await mobileLoginViaApi(request, phone);
+  const account = { phone, username: mobileUser.username };
+  createdTestAccounts.push({ username: account.username, email: `${account.username}@careermate.test` });
+  console.log('[e2e-account] phone-only', account.username, account.phone);
+  return account;
+}
+
+/**
+ * 通过 API 创建带手机号的账号，供 UI 找回密码流程使用。
+ * @param {import('@playwright/test').APIRequestContext} request
+ */
+async function createAccountWithPhoneAndPassword(request) {
+  const account = await createPhoneOnlyAccount(request);
+  return {
+    ...account,
+    newPassword: 'NewPass456!',
+    wrongPassword: 'WrongPass999!',
+  };
+}
+
+/**
+ * @param {import('@playwright/test').Page} page
+ * @param {{ phone: string; newPassword: string }} account
+ */
+async function resetPasswordViaUi(page, account) {
+  await sendPasswordResetSmsViaUi(page, account.phone);
+  await page.getByLabel('验证码').fill(MOCK_SMS_CODE);
+  await page.getByLabel('新密码', { exact: true }).fill(account.newPassword);
+  await page.getByLabel('确认新密码', { exact: true }).fill(account.newPassword);
+  const confirmResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes('/auth/password-reset/confirm') && response.request().method() === 'POST',
+    { timeout: 20_000 }
+  );
+  await page.getByRole('button', { name: '重置密码' }).click();
+  const response = await confirmResponse;
+  expect(response.ok(), `找回密码确认 API 失败: HTTP ${response.status()}`).toBeTruthy();
+  await expect(page.locator('.success')).toContainText('密码已重置，请使用新密码登录', { timeout: 10_000 });
+  await expect(page.getByRole('heading', { name: LOGIN_PAGE_TITLE })).toBeVisible({ timeout: 10_000 });
 }
 
 /**
@@ -605,6 +713,7 @@ module.exports = {
   LOGIN_PAGE_TITLE,
   SMS_LOGIN_PAGE_TITLE,
   REGISTER_PAGE_TITLE,
+  FORGOT_PASSWORD_PAGE_TITLE,
   POST_LOGIN_TITLE,
   POST_LOGIN_URL,
   MOCK_SMS_CODE,
@@ -621,6 +730,7 @@ module.exports = {
   logoutViaUi,
   ensurePasswordLoginForm,
   ensureSmsLoginForm,
+  ensureForgotPasswordForm,
   ensureRegisterForm,
   assertJwtAuthEnforced,
   detectAuthMode,
@@ -635,6 +745,11 @@ module.exports = {
   registerViaUi,
   loginViaUi,
   sendSmsCodeViaUi,
+  sendPasswordResetSmsViaUi,
+  resetPasswordViaUi,
+  mobileLoginViaApi,
+  createPhoneOnlyAccount,
+  createAccountWithPhoneAndPassword,
   loginViaSmsUi,
   enterApplication,
   printCreatedAccountsReport,

@@ -40,3 +40,17 @@ export function mobileLogin(phone, verifyCode, challengeId, scene = 'mobile_logi
     body: JSON.stringify({ phone, verifyCode, challengeId, scene }),
   })
 }
+
+export function sendPasswordResetSms(phone) {
+  return request('/auth/password-reset/sms/send', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  })
+}
+
+export function confirmPasswordReset({ phone, verifyCode, challengeId, newPassword }) {
+  return request('/auth/password-reset/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ phone, verifyCode, challengeId, newPassword }),
+  })
+}

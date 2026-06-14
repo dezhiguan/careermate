@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -26,6 +27,7 @@ public class AliyunPnvsSmsAuthProvider implements MobileSmsAuthProvider {
     private static final int CODE_VALID_SECONDS = 300;
     private static final int CODE_LENGTH = 6;
     private static final String VERIFY_PASS = "PASS";
+    private static final String MOCK_CODE = "123456";
 
     private final AliyunSmsProperties properties;
     private final ObjectMapper objectMapper;
@@ -41,7 +43,7 @@ public class AliyunPnvsSmsAuthProvider implements MobileSmsAuthProvider {
             log.info("Aliyun PNVS mock send, phone={}", PhoneSupport.maskPhone(request.getPhone()));
             return SendResult.builder()
                     .success(true)
-                    .outId("mock-out-id")
+                    .outId("mock-" + UUID.randomUUID())
                     .providerRequestId("mock-send-request-id")
                     .providerCode("OK")
                     .build();
@@ -77,10 +79,11 @@ public class AliyunPnvsSmsAuthProvider implements MobileSmsAuthProvider {
     public VerifyResult checkVerifyCode(VerifyRequest request) {
         if (properties.isMockEnabled()) {
             log.info("Aliyun PNVS mock verify, phone={}", PhoneSupport.maskPhone(request.getPhone()));
+            boolean passed = MOCK_CODE.equals(request.getVerifyCode());
             return VerifyResult.builder()
-                    .success(true)
+                    .success(passed)
                     .phone(request.getPhone())
-                    .verifyResult(VERIFY_PASS)
+                    .verifyResult(passed ? VERIFY_PASS : "UNKNOWN")
                     .providerRequestId("mock-verify-request-id")
                     .providerCode("OK")
                     .build();

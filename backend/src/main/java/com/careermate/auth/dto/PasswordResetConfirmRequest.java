@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
-public class MobileLoginRequest {
+public class PasswordResetConfirmRequest {
 
     @NotBlank(message = "请输入手机号")
     @Pattern(regexp = "^1[3-9]\\d{9}$", message = "请输入正确的手机号")
@@ -16,20 +16,10 @@ public class MobileLoginRequest {
     @Size(min = 4, max = 8, message = "请输入4-8位验证码")
     private String verifyCode;
 
-    /** From send response; required on login. Alias: outId when provider returns outId. */
+    @NotBlank(message = "请先获取验证码")
     private String challengeId;
 
-    private String outId;
-
-    private String scene = "mobile_login";
-
-    public String resolveChallengeId() {
-        if (org.springframework.util.StringUtils.hasText(challengeId)) {
-            return challengeId.trim();
-        }
-        if (org.springframework.util.StringUtils.hasText(outId)) {
-            return outId.trim();
-        }
-        return null;
-    }
+    @NotBlank(message = "请输入新密码")
+    @Size(min = 8, max = 64, message = "密码长度需在8-64位之间")
+    private String newPassword;
 }

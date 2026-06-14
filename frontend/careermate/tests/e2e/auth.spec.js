@@ -196,7 +196,24 @@ test.describe('手机号验证码登录', () => {
     await page.getByLabel('验证码').fill(MOCK_SMS_CODE);
     await page.getByRole('button', { name: '手机号登录' }).click();
     await expect(page).toHaveURL(/#\/login/);
-    await expect(page.locator('.error')).toContainText('请先发送验证码');
+    await expect(page.locator('.error')).toContainText('请先获取验证码');
+  });
+
+  test('手机号格式错误时提示', async ({ page }) => {
+    await ensureSmsLoginForm(page);
+    await page.getByLabel('手机号').fill('12345');
+    await page.getByRole('button', { name: '发送验证码' }).click();
+    await expect(page.locator('.error')).toContainText('请输入正确的手机号');
+  });
+
+  test('验证码错误时提示重新输入', async ({ page }) => {
+    await ensureSmsLoginForm(page);
+    const phone = createTestPhone();
+    await sendSmsCodeViaUi(page, phone);
+    await page.getByLabel('验证码').fill('000000');
+    await page.getByRole('button', { name: '手机号登录' }).click();
+    await expect(page).toHaveURL(/#\/login/);
+    await expect(page.locator('.error')).toContainText('验证码错误，请重新输入');
   });
 
   test('切换手机号后需重新发送验证码', async ({ page }) => {
@@ -208,7 +225,7 @@ test.describe('手机号验证码登录', () => {
     await page.getByLabel('验证码').fill(MOCK_SMS_CODE);
     await page.getByRole('button', { name: '手机号登录' }).click();
     await expect(page).toHaveURL(/#\/login/);
-    await expect(page.locator('.error')).toContainText('请先发送验证码');
+    await expect(page.locator('.error')).toContainText('请先获取验证码');
   });
 });
 

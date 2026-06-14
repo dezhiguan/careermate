@@ -64,7 +64,7 @@
         <template v-else>
           <h2 class="card-title">{{ cardTitle }}</h2>
 
-          <div class="mode-toggle">
+          <div v-if="mode !== 'register' && loginMethod !== 'forgotPassword'" class="mode-toggle">
             <button type="button" :class="{ active: mode === 'login' }" @click="switchMode('login')">登录</button>
             <button type="button" :class="{ active: mode === 'register' }" @click="switchMode('register')">注册</button>
           </div>
@@ -82,6 +82,11 @@
             <label>
               <span class="field-label">密码</span>
               <input v-model="form.password" type="password" required minlength="8" maxlength="64" />
+              <div class="forgot-password-row">
+                <button type="button" class="forgot-password-btn" @click="switchLoginMethod('forgotPassword')">
+                  忘记密码？
+                </button>
+              </div>
             </label>
 
             <button class="btn-primary" type="submit" :disabled="authStore.state.loading">
@@ -91,6 +96,80 @@
             <p class="method-switch">
               <button type="button" class="method-switch-btn" @click="switchLoginMethod('sms')">
                 使用手机验证码登录
+              </button>
+            </p>
+          </form>
+
+          <form
+            v-else-if="mode === 'login' && loginMethod === 'forgotPassword'"
+            class="form"
+            @submit.prevent="submitPasswordReset"
+          >
+            <label>
+              <span class="field-label">手机号</span>
+              <input
+                v-model.trim="resetForm.phone"
+                type="tel"
+                inputmode="numeric"
+                maxlength="11"
+                placeholder="请输入手机号"
+                required
+              />
+            </label>
+
+            <label>
+              <span class="field-label">验证码</span>
+              <div class="sms-row">
+                <input
+                  v-model.trim="resetForm.verifyCode"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="8"
+                  placeholder="请输入验证码"
+                  required
+                />
+                <button
+                  type="button"
+                  class="btn-sms"
+                  :disabled="resetSmsSending || resetCooldown > 0"
+                  @click="sendResetCode"
+                >
+                  {{ resetSmsSending ? '发送中...' : resetCooldown > 0 ? `${resetCooldown}s` : '发送验证码' }}
+                </button>
+              </div>
+            </label>
+
+            <label>
+              <span class="field-label">新密码</span>
+              <input
+                v-model="resetForm.newPassword"
+                type="password"
+                required
+                minlength="8"
+                maxlength="64"
+                placeholder="8-64位密码"
+              />
+            </label>
+
+            <label>
+              <span class="field-label">确认新密码</span>
+              <input
+                v-model="resetForm.confirmPassword"
+                type="password"
+                required
+                minlength="8"
+                maxlength="64"
+                placeholder="再次输入新密码"
+              />
+            </label>
+
+            <button class="btn-primary" type="submit" :disabled="authStore.state.loading">
+              {{ authStore.state.loading ? '处理中...' : '重置密码' }}
+            </button>
+
+            <p class="method-switch">
+              <button type="button" class="method-switch-btn" @click="switchLoginMethod('password')">
+                返回登录
               </button>
             </p>
           </form>
@@ -198,12 +277,23 @@ const smsForm = reactive({
   verifyCode: '',
   challengeId: '',
 })
+const resetForm = reactive({
+  phone: '',
+  verifyCode: '',
+  challengeId: '',
+  newPassword: '',
+  confirmPassword: '',
+})
 const smsSending = ref(false)
+const resetSmsSending = ref(false)
 const cooldown = ref(0)
+const resetCooldown = ref(0)
 let cooldownTimer = null
+let resetCooldownTimer = null
 
 const cardTitle = computed(() => {
   if (mode.value === 'register') return '创建账号'
+  if (loginMethod.value === 'forgotPassword') return '找回密码'
   return loginMethod.value === 'sms' ? '手机号登录' : '账号登录'
 })
 
@@ -225,12 +315,28 @@ function switchLoginMethod(nextMethod) {
   if (loginMethod.value === nextMethod) return
   loginMethod.value = nextMethod
   resetSmsChallenge()
+  if (nextMethod !== 'forgotPassword') {
+    clearResetForm()
+  }
   clearMessages()
 }
 
 function resetSmsChallenge() {
   smsForm.verifyCode = ''
   smsForm.challengeId = ''
+}
+
+function clearResetForm() {
+  resetForm.phone = ''
+  resetForm.verifyCode = ''
+  resetForm.challengeId = ''
+  resetForm.newPassword = ''
+  resetForm.confirmPassword = ''
+}
+
+function resetResetChallenge() {
+  resetForm.verifyCode = ''
+  resetForm.challengeId = ''
 }
 
 function startCooldown(seconds) {
@@ -250,6 +356,23 @@ function startCooldown(seconds) {
   }, 1000)
 }
 
+function startResetCooldown(seconds) {
+  const duration = Math.max(0, Number(seconds) || 60)
+  resetCooldown.value = duration
+  if (resetCooldownTimer) {
+    clearInterval(resetCooldownTimer)
+    resetCooldownTimer = null
+  }
+  if (duration <= 0) return
+  resetCooldownTimer = setInterval(() => {
+    resetCooldown.value -= 1
+    if (resetCooldown.value <= 0) {
+      clearInterval(resetCooldownTimer)
+      resetCooldownTimer = null
+    }
+  }, 1000)
+}
+
 watch(
   () => smsForm.phone,
   (phone, prevPhone) => {
@@ -258,6 +381,74 @@ watch(
     }
   },
 )
+
+watch(
+  () => resetForm.phone,
+  (phone, prevPhone) => {
+    if (phone !== prevPhone) {
+      resetResetChallenge()
+    }
+  },
+)
+
+async function sendResetCode() {
+  clearMessages()
+  if (!PHONE_PATTERN.test(resetForm.phone)) {
+    errorMsg.value = '请输入正确的手机号'
+    return
+  }
+  resetSmsSending.value = true
+  try {
+    const data = await authStore.sendPasswordResetSms(resetForm.phone)
+    if (!data?.challengeId) {
+      throw new Error('验证码发送失败，请重试')
+    }
+    resetForm.challengeId = data.challengeId
+    successMsg.value = '如果该手机号已绑定账号，验证码将发送到手机'
+    startResetCooldown(data.cooldownSeconds)
+  } catch (e) {
+    errorMsg.value = e?.message || '验证码发送失败，请稍后再试'
+  } finally {
+    resetSmsSending.value = false
+  }
+}
+
+async function submitPasswordReset() {
+  clearMessages()
+  if (!PHONE_PATTERN.test(resetForm.phone)) {
+    errorMsg.value = '请输入正确的手机号'
+    return
+  }
+  if (!VERIFY_CODE_PATTERN.test(resetForm.verifyCode)) {
+    errorMsg.value = '请输入4-8位验证码'
+    return
+  }
+  if (!resetForm.challengeId) {
+    errorMsg.value = '请先获取验证码'
+    return
+  }
+  if (resetForm.newPassword.length < 8 || resetForm.newPassword.length > 64) {
+    errorMsg.value = '密码长度需在8-64位之间'
+    return
+  }
+  if (resetForm.newPassword !== resetForm.confirmPassword) {
+    errorMsg.value = '两次输入的密码不一致'
+    return
+  }
+  try {
+    await authStore.resetPassword({
+      phone: resetForm.phone,
+      verifyCode: resetForm.verifyCode,
+      challengeId: resetForm.challengeId,
+      newPassword: resetForm.newPassword,
+    })
+    successMsg.value = '密码已重置，请使用新密码登录'
+    clearResetForm()
+    loginMethod.value = 'password'
+  } catch (e) {
+    errorMsg.value = e?.message || '重置密码失败，请重试'
+  }
+}
 
 async function sendCode() {
   clearMessages()
@@ -275,7 +466,7 @@ async function sendCode() {
     successMsg.value = '验证码已发送'
     startCooldown(data.cooldownSeconds)
   } catch (e) {
-    errorMsg.value = e?.message || '发送验证码失败'
+    errorMsg.value = e?.message || '验证码发送失败，请稍后再试'
   } finally {
     smsSending.value = false
   }
@@ -292,7 +483,7 @@ async function submitSmsLogin() {
     return
   }
   if (!smsForm.challengeId) {
-    errorMsg.value = '请先发送验证码'
+    errorMsg.value = '请先获取验证码'
     return
   }
   try {
@@ -334,6 +525,10 @@ onUnmounted(() => {
   if (cooldownTimer) {
     clearInterval(cooldownTimer)
     cooldownTimer = null
+  }
+  if (resetCooldownTimer) {
+    clearInterval(resetCooldownTimer)
+    resetCooldownTimer = null
   }
 })
 </script>
@@ -544,6 +739,26 @@ input {
 }
 
 .method-switch-btn:hover {
+  text-decoration: underline;
+}
+
+.forgot-password-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.forgot-password-btn {
+  border: 0;
+  background: none;
+  color: #4f46e5;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 0;
+}
+
+.forgot-password-btn:hover {
   text-decoration: underline;
 }
 
