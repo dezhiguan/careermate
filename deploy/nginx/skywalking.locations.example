@@ -2,7 +2,15 @@
 # Merge into the existing ingress server block (same server as RAGForge/CareerMate).
 # Do NOT expose 0.0.0.0:8088 publicly; bind UI to 127.0.0.1:18088 on host only.
 #
+# SkyWalking UI 10.x HTML lives under /skywalking/ but loads /static/, /graphql, and
+# /monacoeditorwork/ from the site root. Proxy all of them to the UI upstream.
+# Do NOT alias individual hashed JS files — hashes change on every UI upgrade.
+#
 # --- Case A: Nginx on host (systemd / host install) ---
+location = /skywalking {
+    return 301 /skywalking/;
+}
+
 location /skywalking/ {
     proxy_pass http://172.25.90.184:18088/skywalking/;
     proxy_http_version 1.1;
@@ -13,6 +21,34 @@ location /skywalking/ {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
+    proxy_read_timeout 300s;
+}
+
+location ^~ /static/ {
+    proxy_pass http://172.25.90.184:18088/static/;
+    proxy_set_header Host 172.25.90.184;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store";
+    proxy_read_timeout 300s;
+}
+
+location ^~ /monacoeditorwork/ {
+    proxy_pass http://172.25.90.184:18088/monacoeditorwork/;
+    proxy_set_header Host 172.25.90.184;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 300s;
+}
+
+location = /graphql {
+    proxy_pass http://172.25.90.184:18088/graphql;
+    proxy_set_header Host 172.25.90.184;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
     proxy_read_timeout 300s;
 }
 
