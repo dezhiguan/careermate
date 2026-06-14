@@ -31,14 +31,7 @@ rm -rf "${INSTALL_DIR}.bak"
 mv "${src_dir}" "${INSTALL_DIR}"
 chown -R root:root "${INSTALL_DIR}"
 
-# Spring 6 / RestTemplate 6.x plugin (required for sw8 on CareerMate → RAGForge RestTemplate calls).
-optional_plugin="optional-plugins/apm-resttemplate-6.x-plugin-${AGENT_VERSION}.jar"
-if [[ -f "${INSTALL_DIR}/${optional_plugin}" ]]; then
-  cp -f "${INSTALL_DIR}/${optional_plugin}" "${INSTALL_DIR}/plugins/"
-  echo "Enabled optional plugin: apm-resttemplate-6.x-plugin"
-else
-  echo "WARN: ${optional_plugin} not found; copy manually for RestTemplate sw8 propagation" >&2
-fi
+bash "${SCRIPT_DIR}/ensure-skywalking-optional-plugins.sh"
 
 echo "Installed: ${INSTALL_DIR}/skywalking-agent.jar"
 echo "Set JAVA_TOOL_OPTIONS or -javaagent in systemd (see deploy/systemd/careermate-backend.service.example)"

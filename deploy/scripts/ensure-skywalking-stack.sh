@@ -48,6 +48,8 @@ else
   echo "[skywalking] Java agent already installed"
 fi
 
+bash "${SCRIPT_DIR}/ensure-skywalking-optional-plugins.sh"
+
 if [[ "${SKIP_PULL:-0}" != "1" ]]; then
   pull_image apache/skywalking-banyandb:0.8.0
   pull_image apache/skywalking-oap-server:10.2.0
