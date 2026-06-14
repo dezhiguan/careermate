@@ -7,6 +7,7 @@ public final class MdcKeys {
     public static final String SESSION_ID = "sessionId";
     public static final String TRACE_ID = "traceId";
     public static final String SPAN_ID = "spanId";
+    public static final String SERVICE = "service";
 
     public static final String HEADER_REQUEST_ID = "X-Request-Id";
     public static final String HEADER_TRACE_ID = "X-Trace-Id";

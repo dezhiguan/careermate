@@ -3,6 +3,7 @@ package com.careermate.resume.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.careermate.common.exception.BizException;
+import com.careermate.observability.MdcContext;
 import com.careermate.mapper.ResumeMapper;
 import com.careermate.model.entity.ResumeEntity;
 import com.careermate.ragforge.RagForgeClient;
@@ -185,8 +186,8 @@ public class ResumeService {
         // 异步删除 RAGForge 里对应的文档
         Long ragDocId = entity.getRagDocId();
         if (ragDocId != null) {
-            java.util.concurrent.CompletableFuture.runAsync(() ->
-                ragForgeClient.deleteDocument(ragDocId));
+            java.util.concurrent.CompletableFuture.runAsync(MdcContext.wrap(() ->
+                ragForgeClient.deleteDocument(ragDocId)));
         }
     }
 
@@ -355,7 +356,7 @@ public class ResumeService {
     private void asyncSyncToRag(Long resumeId, String title, String content, Long ignoredOldDocId) {
         Long kbId = parsePersonalKbId();
         if (kbId == null) return;
-        java.util.concurrent.CompletableFuture.runAsync(() -> {
+        java.util.concurrent.CompletableFuture.runAsync(MdcContext.wrap(() -> {
             Optional<Long> result = ragForgeClient.syncText(kbId, title, content, "RESUME");
             result.ifPresent(docId ->
                 resumeMapper.update(null,
@@ -363,13 +364,13 @@ public class ResumeService {
                         .eq(ResumeEntity::getId, resumeId)
                         .set(ResumeEntity::getRagDocId, docId))
             );
-        });
+        }));
     }
 
     private void asyncReplaceRagDoc(Long resumeId, String title, String content, Long oldRagDocId) {
         Long kbId = parsePersonalKbId();
         if (kbId == null) return;
-        java.util.concurrent.CompletableFuture.runAsync(() -> {
+        java.util.concurrent.CompletableFuture.runAsync(MdcContext.wrap(() -> {
             if (oldRagDocId != null) {
                 ragForgeClient.deleteDocument(oldRagDocId);
             }
@@ -380,7 +381,7 @@ public class ResumeService {
                         .eq(ResumeEntity::getId, resumeId)
                         .set(ResumeEntity::getRagDocId, docId))
             );
-        });
+        }));
     }
 
     private Long parsePersonalKbId() {

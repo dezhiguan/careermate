@@ -1,6 +1,7 @@
 package com.careermate.agent.config;
 
 import com.careermate.common.exception.BizException;
+import com.careermate.observability.MdcContext;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +21,7 @@ public class AgentExecutorConfig {
         executor.setMaxPoolSize(agentProperties.getExecutorMaxPoolSize());
         executor.setQueueCapacity(agentProperties.getExecutorQueueCapacity());
         executor.setThreadNamePrefix("agent-executor-");
+        executor.setTaskDecorator(MdcContext.taskDecorator());
         executor.setRejectedExecutionHandler((r, e) -> {
             throw new BizException(429, "Agent executor 队列已满");
         });

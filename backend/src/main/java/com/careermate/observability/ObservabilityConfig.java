@@ -1,6 +1,6 @@
 package com.careermate.observability;
 
-import io.micrometer.tracing.Tracer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -12,8 +12,11 @@ import org.springframework.core.Ordered;
 public class ObservabilityConfig {
 
     @Bean
-    public TracingMdcFilter tracingMdcFilter(TraceIdResolver traceIdResolver) {
-        return new TracingMdcFilter(traceIdResolver);
+    public TracingMdcFilter tracingMdcFilter(
+            TraceIdResolver traceIdResolver,
+            @Value("${spring.application.name:careermate-backend}") String serviceName
+    ) {
+        return new TracingMdcFilter(traceIdResolver, serviceName);
     }
 
     @Bean

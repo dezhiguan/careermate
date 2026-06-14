@@ -79,6 +79,7 @@ public class RagForgeClient {
         HttpHeaders headers = defaultHeaders();
         HttpEntity<Object> entity = body == null ? new HttpEntity<>(headers) : new HttpEntity<>(body, headers);
         String url = properties.getUrl() + path;
+        log.info("ragforge.http.before {} {}", method, path);
         return restTemplate.exchange(url, method, entity, String.class, uriVars);
     }
 
@@ -103,7 +104,7 @@ public class RagForgeClient {
         String careerMateTraceId = traceHeaderPropagator != null ? traceHeaderPropagator.currentTraceId() : null;
         String ragTraceId = response.getHeaders().getFirst(MdcKeys.HEADER_TRACE_ID);
         log.info(
-                "ragforge.http {} {} sw8Present={} traceparentPresent={} requestId={} careerMateTraceId={} ragTraceId={}",
+                "ragforge.http.after {} {} sw8Present={} traceparentPresent={} requestId={} careerMateTraceId={} ragTraceId={}",
                 request.getMethod(),
                 request.getURI().getPath(),
                 StringUtils.hasText(sw8),
@@ -142,7 +143,7 @@ public class RagForgeClient {
                 }
                 JsonNode root = objectMapper.readTree(responseBody);
                 if (!isSuccessCode(root.path("code").asInt(-1))) {
-                    log.warn("RAGForge fetchDocumentChunks 返回失败: docId={} body={}", docId, responseBody);
+                    log.warn("RAGForge fetchDocumentChunks 返回失败: docId={} code={}", docId, root.path("code").asInt(-1));
                     break;
                 }
                 JsonNode list = root.path("data").path("list");
@@ -243,7 +244,7 @@ public class RagForgeClient {
             }
             JsonNode root = objectMapper.readTree(responseBody);
             if (!isSuccessCode(root.path("code").asInt(-1))) {
-                log.warn("RAGForge syncText 返回失败 code: {}", responseBody);
+                log.warn("RAGForge syncText 返回失败 code={}", root.path("code").asInt(-1));
                 return Optional.empty();
             }
             long docId = root.path("data").path("docId").asLong(-1);
@@ -288,6 +289,13 @@ public class RagForgeClient {
                 query, List.of(kbId), "hybrid", topK, 3, 0.55, filter
             );
 
+            log.info(
+                    "ragforge.search.before kbId={} topK={} queryLen={}",
+                    kbId,
+                    topK,
+                    query.length()
+            );
+
             ResponseEntity<String> response = exchange("/api/v1/search", HttpMethod.POST, body);
             String responseBody = response.getBody();
             if (responseBody == null || responseBody.isBlank()) {
@@ -297,11 +305,12 @@ public class RagForgeClient {
             JsonNode root = objectMapper.readTree(responseBody);
             int code = root.path("code").asInt(-1);
             if (!isSuccessCode(code)) {
-                log.warn("RAGForge 返回失败 code: code={} body={}", code, responseBody);
+                log.warn("RAGForge search 返回失败 code={}", code);
                 return List.of();
             }
             JsonNode results = root.path("data").path("results");
             if (!results.isArray() || results.isEmpty()) {
+                log.info("ragforge.search.after kbId={} resultCount=0", kbId);
                 return List.of();
             }
             List<RagForgeChunk> chunks = new ArrayList<>(results.size());
@@ -315,6 +324,7 @@ public class RagForgeClient {
                     node.path("finalScore").isNumber() ? node.path("finalScore").asDouble() : null
                 ));
             }
+            log.info("ragforge.search.after kbId={} resultCount={}", kbId, chunks.size());
             return chunks;
         } catch (Exception e) {
             log.warn("RAGForge search 失败（已降级）: query={} err={}", query, e.getMessage());

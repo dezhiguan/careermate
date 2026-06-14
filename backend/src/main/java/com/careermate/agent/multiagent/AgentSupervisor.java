@@ -1,6 +1,7 @@
 package com.careermate.agent.multiagent;
 
 import com.careermate.agent.tool.AgentToolContext;
+import com.careermate.observability.MdcContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -46,13 +47,13 @@ public class AgentSupervisor {
 
         if (domain == AgentDomain.RESUME) {
             futures.add(CompletableFuture.supplyAsync(
-                () -> resumeAgent.process(context, userMessage), specialistPool));
+                MdcContext.wrap(() -> resumeAgent.process(context, userMessage)), specialistPool));
         } else if (domain == AgentDomain.JOB_MATCH) {
             futures.add(CompletableFuture.supplyAsync(
-                () -> jobMatchAgent.process(context, userMessage), specialistPool));
+                MdcContext.wrap(() -> jobMatchAgent.process(context, userMessage)), specialistPool));
         } else if (domain == AgentDomain.INTERVIEW) {
             futures.add(CompletableFuture.supplyAsync(
-                () -> interviewAgent.process(context, userMessage), specialistPool));
+                MdcContext.wrap(() -> interviewAgent.process(context, userMessage)), specialistPool));
         }
 
         List<SpecialistResult> results = new ArrayList<>();

@@ -29,6 +29,8 @@ spec:
             - secretRef:
                 name: careermate-backend-env
           env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod,skywalking-log
             - name: JAVA_TOOL_OPTIONS
               value: >-
                 -javaagent:/opt/skywalking-agent/skywalking-agent.jar

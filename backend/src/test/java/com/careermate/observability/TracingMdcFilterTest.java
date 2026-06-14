@@ -15,6 +15,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
+import com.careermate.common.api.ApiResponse;
+
 import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,7 +37,7 @@ class TracingMdcFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new TracingMdcFilter(traceIdResolver);
+        filter = new TracingMdcFilter(traceIdResolver, "careermate-backend");
         MDC.clear();
     }
 
@@ -118,5 +120,21 @@ class TracingMdcFilterTest {
 
         assertThat(response.getHeader(MdcKeys.HEADER_REQUEST_ID)).isEqualTo("client-req-42");
         verify(filterChain).doFilter(any(HttpServletRequest.class), any(HttpServletResponse.class));
+    }
+
+    @Test
+    void mdcTraceIdMatchesResponseHeaderAndSkyWalkingTrace() throws ServletException, IOException {
+        when(traceIdResolver.resolveTraceId()).thenReturn("sw-trace-align-42");
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/health");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilterInternal(request, response, (req, res) -> {
+            assertThat(MDC.get(MdcKeys.TRACE_ID)).isEqualTo("sw-trace-align-42");
+            assertThat(MDC.get(MdcKeys.SERVICE)).isEqualTo("careermate-backend");
+            assertThat(ApiResponse.success().getTraceId()).isEqualTo("sw-trace-align-42");
+        });
+
+        assertThat(response.getHeader(MdcKeys.HEADER_TRACE_ID)).isEqualTo("sw-trace-align-42");
     }
 }

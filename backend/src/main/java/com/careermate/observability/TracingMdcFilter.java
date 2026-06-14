@@ -16,9 +16,11 @@ import java.util.UUID;
 public class TracingMdcFilter extends OncePerRequestFilter {
 
     private final TraceIdResolver traceIdResolver;
+    private final String serviceName;
 
-    public TracingMdcFilter(TraceIdResolver traceIdResolver) {
+    public TracingMdcFilter(TraceIdResolver traceIdResolver, String serviceName) {
         this.traceIdResolver = traceIdResolver;
+        this.serviceName = serviceName;
     }
 
     @Override
@@ -32,6 +34,7 @@ public class TracingMdcFilter extends OncePerRequestFilter {
         String sessionId = request.getHeader(MdcKeys.HEADER_SESSION_ID);
 
         MDC.put(MdcKeys.REQUEST_ID, requestId);
+        MDC.put(MdcKeys.SERVICE, serviceName);
         if (StringUtils.hasText(sessionId)) {
             MDC.put(MdcKeys.SESSION_ID, sessionId.trim());
         }
