@@ -233,7 +233,7 @@ class OpportunityServiceImplTest {
     @Test
     void prepareCreatesJdPrepSessionAndWelcomeCard() {
         when(workspaceSessionRepository.findActiveJdPrepSession(1L, "doc-55")).thenReturn(null);
-        when(ragForgeClient.searchJd(anyString(), eq(50))).thenReturn(List.of(
+        when(ragForgeClient.fetchDocumentChunks(55L)).thenReturn(List.of(
                 chunk(1L, 55L, SAMPLE_JD, 0.8)
         ));
         AgentSessionEntity created = new AgentSessionEntity();
@@ -269,14 +269,28 @@ class OpportunityServiceImplTest {
     @Test
     void prepareJdNotFoundThrowsBizException() {
         when(workspaceSessionRepository.findActiveJdPrepSession(1L, "doc-999")).thenReturn(null);
+        when(ragForgeClient.fetchDocumentChunks(999L)).thenReturn(List.of());
         when(ragForgeClient.searchJd(anyString(), eq(50))).thenReturn(List.of());
 
         assertThrows(BizException.class, () -> service.prepare(1L, "doc-999"));
     }
 
     @Test
+    void detailFoundViaDirectFetchWhenSearchMisses() {
+        when(ragForgeClient.fetchDocumentChunks(12598L)).thenReturn(List.of(
+                chunk(1L, 12598L, SAMPLE_JD, 0.8)
+        ));
+        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
+
+        OpportunityDetailVO detail = service.detail(1L, "doc-12598");
+
+        assertEquals("doc-12598", detail.jdId());
+        verify(ragForgeClient, times(0)).searchJd(anyString(), eq(50));
+    }
+
+    @Test
     void detailFoundReturnsJdContent() {
-        when(ragForgeClient.searchJd(anyString(), eq(50))).thenReturn(List.of(
+        when(ragForgeClient.fetchDocumentChunks(55L)).thenReturn(List.of(
                 chunk(1L, 55L, SAMPLE_JD, 0.8),
                 chunk(2L, 55L, "补充描述", 0.6)
         ));

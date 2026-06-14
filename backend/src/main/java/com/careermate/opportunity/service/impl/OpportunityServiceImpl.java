@@ -418,6 +418,11 @@ public class OpportunityServiceImpl implements OpportunityService {
     }
 
     private List<RagForgeChunk> fetchChunksByDocId(Long docId) {
+        List<RagForgeChunk> direct = ragForgeClient.fetchDocumentChunks(docId);
+        if (!direct.isEmpty()) {
+            return direct;
+        }
+
         List<RagForgeChunk> chunks = ragForgeClient.searchJd(DEFAULT_QUERY, DETAIL_SEARCH_TOP_K);
         List<RagForgeChunk> filtered = filterByDocId(chunks, docId);
         if (!filtered.isEmpty()) {
