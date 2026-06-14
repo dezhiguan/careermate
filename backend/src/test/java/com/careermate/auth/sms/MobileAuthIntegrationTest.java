@@ -1,7 +1,6 @@
 package com.careermate.auth.sms;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.careermate.auth.dto.MobileLoginRequest;
 import com.careermate.common.api.ErrorCode;
 import com.careermate.common.exception.BizException;
 import com.careermate.mapper.UserMapper;
@@ -62,9 +61,6 @@ class MobileAuthIntegrationTest {
 
     @MockBean
     private MobileSmsAuthProvider mobileSmsAuthProvider;
-
-    @Autowired
-    private MobileAuthService mobileAuthService;
 
     private final AtomicReference<String> lastOutId = new AtomicReference<>("test-out-id");
 
@@ -343,11 +339,12 @@ class MobileAuthIntegrationTest {
     void concurrentMobileLoginAutoRegisterDoesNotReturn500() throws Exception {
         String phone = uniquePhone();
         String challengeId = sendAndGetChallengeId(phone);
-        MobileLoginRequest request = new MobileLoginRequest();
-        request.setPhone(phone);
-        request.setVerifyCode("123456");
-        request.setOutId(challengeId);
-        request.setScene("mobile_login");
+        String body = objectMapper.writeValueAsString(Map.of(
+                "phone", phone,
+                "verifyCode", "123456",
+                "outId", challengeId,
+                "scene", "mobile_login"
+        ));
 
         java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2);
         java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
@@ -358,11 +355,16 @@ class MobileAuthIntegrationTest {
             executor.submit(() -> {
                 try {
                     start.await();
-                    mobileAuthService.login(request);
-                    successes.incrementAndGet();
-                } catch (BizException ex) {
-                    if (ex.getCode() >= 500) {
+                    int status = mockMvc.perform(post("/api/auth/mobile/login")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(body))
+                            .andReturn()
+                            .getResponse()
+                            .getStatus();
+                    if (status >= 500) {
                         serverErrors.incrementAndGet();
+                    } else if (status == 200) {
+                        successes.incrementAndGet();
                     }
                 } catch (Exception ex) {
                     serverErrors.incrementAndGet();

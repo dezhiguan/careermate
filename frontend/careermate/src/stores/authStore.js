@@ -1,5 +1,12 @@
 import { reactive, computed } from 'vue'
-import { getCurrentUser, login as loginApi, register as registerApi, updateProfile as updateProfileApi } from '../api/auth'
+import {
+  getCurrentUser,
+  login as loginApi,
+  mobileLogin as mobileLoginApi,
+  register as registerApi,
+  sendSmsCode,
+  updateProfile as updateProfileApi,
+} from '../api/auth'
 import { TOKEN_KEY, USER_KEY } from '../api/http'
 
 const state = reactive({
@@ -14,6 +21,7 @@ const state = reactive({
   })(),
   initialized: false,
   loading: false,
+  smsSending: false,
 })
 
 function persistUser(user) {
@@ -93,6 +101,27 @@ async function register(username, password, email) {
   }
 }
 
+async function sendMobileSmsCode(phone) {
+  state.smsSending = true
+  try {
+    return await sendSmsCode(phone)
+  } finally {
+    state.smsSending = false
+  }
+}
+
+async function mobileLogin(phone, verifyCode, challengeId) {
+  state.loading = true
+  try {
+    const result = await mobileLoginApi(phone, verifyCode, challengeId)
+    persistToken(result?.token || '')
+    persistUser(result?.user || null)
+    return result
+  } finally {
+    state.loading = false
+  }
+}
+
 function logout() {
   clearAuth()
   state.initialized = false
@@ -125,6 +154,8 @@ export const authStore = {
   init,
   login,
   register,
+  sendMobileSmsCode,
+  mobileLogin,
   logout,
   updateProfile,
   applyUserProfile,

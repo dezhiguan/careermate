@@ -20,7 +20,7 @@ import com.careermate.security.SecurityProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
-import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -232,7 +232,7 @@ public class MobileAuthService {
                 profile.setUserId(candidate.getId());
                 userProfileMapper.insert(profile);
                 return new MobileUserLookup(candidate, true);
-            } catch (DuplicateKeyException | org.springframework.dao.DataIntegrityViolationException ex) {
+            } catch (DataIntegrityViolationException ex) {
                 existing = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
                         .eq(UserEntity::getPhone, phone)
                         .last("LIMIT 1"));

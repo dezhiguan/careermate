@@ -15,34 +15,87 @@
       </section>
 
       <section class="login-card">
-        <h2 class="card-title">账号登录</h2>
-        <p class="card-sub">使用现有账号进入 CareerMate</p>
+        <template v-if="isMobile">
+          <h2 class="card-title">手机号登录</h2>
+          <p class="card-sub">验证码登录，新用户将自动注册</p>
 
-        <div class="mode-toggle">
-          <button type="button" :class="{ active: mode === 'login' }" @click="mode = 'login'">登录</button>
-          <button type="button" :class="{ active: mode === 'register' }" @click="mode = 'register'">注册</button>
-        </div>
+          <form class="form" @submit.prevent="submitMobile">
+            <label>
+              <span class="field-label">手机号</span>
+              <input
+                v-model.trim="mobileForm.phone"
+                type="tel"
+                inputmode="numeric"
+                maxlength="11"
+                placeholder="请输入手机号"
+                required
+              />
+            </label>
 
-        <form class="form" @submit.prevent="submit">
-          <label>
-            <span class="field-label">用户名</span>
-            <input v-model.trim="form.username" required minlength="3" maxlength="64" />
-          </label>
+            <label>
+              <span class="field-label">验证码</span>
+              <div class="sms-row">
+                <input
+                  v-model.trim="mobileForm.verifyCode"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="8"
+                  placeholder="请输入验证码"
+                  required
+                />
+                <button
+                  type="button"
+                  class="btn-sms"
+                  :disabled="authStore.state.smsSending || cooldown > 0"
+                  @click="sendSms"
+                >
+                  {{
+                    authStore.state.smsSending
+                      ? '发送中...'
+                      : cooldown > 0
+                        ? `${cooldown}s`
+                        : '发送验证码'
+                  }}
+                </button>
+              </div>
+            </label>
 
-          <label v-if="mode === 'register'">
-            <span class="field-label">邮箱</span>
-            <input v-model.trim="form.email" type="email" />
-          </label>
+            <button class="btn-primary" type="submit" :disabled="authStore.state.loading">
+              {{ authStore.state.loading ? '处理中...' : '手机号登录' }}
+            </button>
+          </form>
+        </template>
 
-          <label>
-            <span class="field-label">密码</span>
-            <input v-model="form.password" type="password" required minlength="8" maxlength="64" />
-          </label>
+        <template v-else>
+          <h2 class="card-title">账号登录</h2>
+          <p class="card-sub">使用现有账号进入 CareerMate</p>
 
-          <button class="btn-primary" type="submit" :disabled="authStore.state.loading">
-            {{ authStore.state.loading ? '处理中...' : mode === 'login' ? '登录' : '注册并进入' }}
-          </button>
-        </form>
+          <div class="mode-toggle">
+            <button type="button" :class="{ active: mode === 'login' }" @click="mode = 'login'">登录</button>
+            <button type="button" :class="{ active: mode === 'register' }" @click="mode = 'register'">注册</button>
+          </div>
+
+          <form class="form" @submit.prevent="submit">
+            <label>
+              <span class="field-label">用户名</span>
+              <input v-model.trim="form.username" required minlength="3" maxlength="64" />
+            </label>
+
+            <label v-if="mode === 'register'">
+              <span class="field-label">邮箱</span>
+              <input v-model.trim="form.email" type="email" />
+            </label>
+
+            <label>
+              <span class="field-label">密码</span>
+              <input v-model="form.password" type="password" required minlength="8" maxlength="64" />
+            </label>
+
+            <button class="btn-primary" type="submit" :disabled="authStore.state.loading">
+              {{ authStore.state.loading ? '处理中...' : mode === 'login' ? '登录' : '注册并进入' }}
+            </button>
+          </form>
+        </template>
 
         <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
         <p v-if="successMsg" class="success">{{ successMsg }}</p>
@@ -52,12 +105,16 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authStore } from '../stores/authStore'
 
+const PHONE_PATTERN = /^1[3-9]\d{9}$/
+const VERIFY_CODE_PATTERN = /^\d{4,8}$/
+
 const router = useRouter()
-const mode = ref('login')
+const isMobile = ref(typeof window !== 'undefined' && window.innerWidth < 768)
+const mode = ref(isMobile.value ? 'mobile' : 'login')
 const errorMsg = ref('')
 const successMsg = ref('')
 const form = reactive({
@@ -65,6 +122,94 @@ const form = reactive({
   email: '',
   password: '',
 })
+const mobileForm = reactive({
+  phone: '',
+  verifyCode: '',
+})
+const challengeId = ref('')
+const smsSent = ref(false)
+const cooldown = ref(0)
+let cooldownTimer = null
+
+function updateViewport() {
+  const mobile = window.innerWidth < 768
+  isMobile.value = mobile
+  if (mobile) {
+    mode.value = 'mobile'
+  } else if (mode.value === 'mobile') {
+    mode.value = 'login'
+  }
+}
+
+function startCooldown(seconds) {
+  const duration = Math.max(0, Number(seconds) || 60)
+  cooldown.value = duration
+  if (cooldownTimer) {
+    clearInterval(cooldownTimer)
+    cooldownTimer = null
+  }
+  if (duration <= 0) return
+  cooldownTimer = setInterval(() => {
+    cooldown.value -= 1
+    if (cooldown.value <= 0) {
+      clearInterval(cooldownTimer)
+      cooldownTimer = null
+    }
+  }, 1000)
+}
+
+function isValidPhone(phone) {
+  return PHONE_PATTERN.test(phone)
+}
+
+function isValidVerifyCode(code) {
+  return VERIFY_CODE_PATTERN.test(code)
+}
+
+async function sendSms() {
+  errorMsg.value = ''
+  successMsg.value = ''
+  if (!isValidPhone(mobileForm.phone)) {
+    errorMsg.value = '请输入正确的手机号'
+    return
+  }
+  try {
+    const data = await authStore.sendMobileSmsCode(mobileForm.phone)
+    if (!data?.challengeId) {
+      throw new Error('验证码发送失败，请重试')
+    }
+    challengeId.value = data.challengeId
+    smsSent.value = true
+    successMsg.value = '验证码已发送'
+    startCooldown(data.cooldownSeconds)
+  } catch (e) {
+    errorMsg.value = e?.message || '发送验证码失败'
+  }
+}
+
+async function submitMobile() {
+  errorMsg.value = ''
+  successMsg.value = ''
+  if (!isValidPhone(mobileForm.phone)) {
+    errorMsg.value = '请输入正确的手机号'
+    return
+  }
+  if (!isValidVerifyCode(mobileForm.verifyCode)) {
+    errorMsg.value = '请输入4-8位验证码'
+    return
+  }
+  if (!smsSent.value || !challengeId.value) {
+    errorMsg.value = '请先发送验证码'
+    return
+  }
+  try {
+    await authStore.mobileLogin(mobileForm.phone, mobileForm.verifyCode, challengeId.value)
+    successMsg.value = '登录成功，正在进入...'
+    await router.replace('/opportunity')
+  } catch (e) {
+    errorMsg.value = e?.message || '登录失败'
+  }
+}
 
 async function submit() {
   errorMsg.value = ''
@@ -82,6 +227,19 @@ async function submit() {
     errorMsg.value = e?.message || '操作失败'
   }
 }
+
+onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateViewport)
+  if (cooldownTimer) {
+    clearInterval(cooldownTimer)
+    cooldownTimer = null
+  }
+})
 </script>
 
 <style scoped>
@@ -233,6 +391,35 @@ input {
   font-family: inherit;
 }
 
+.sms-row {
+  display: flex;
+  gap: 8px;
+}
+
+.sms-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-sms {
+  flex-shrink: 0;
+  border: 1px solid #4f46e5;
+  background: #fff;
+  color: #4f46e5;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.btn-sms:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .btn-primary {
   width: 100%;
   border: 0;
@@ -293,6 +480,7 @@ input {
 
   input,
   .btn-primary,
+  .btn-sms,
   .mode-toggle button {
     min-height: 44px;
     font-size: 16px;
