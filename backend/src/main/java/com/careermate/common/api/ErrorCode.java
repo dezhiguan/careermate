@@ -24,9 +24,11 @@ public enum ErrorCode {
     SMS_PROVIDER_ERROR(500, "验证码发送失败，请稍后再试"),
     SMS_CAPTCHA_REQUIRED(403, "需要图形验证码"),
 
-    MOBILE_AUTH_INVALID(400, "验证失败，请重新获取验证码"),
-    MOBILE_AUTH_EXPIRED(400, "验证失败，请重新获取验证码"),
-    MOBILE_AUTH_TOO_MANY_ATTEMPTS(400, "验证失败，请重新获取验证码"),
+    MOBILE_AUTH_CODE_WRONG(400, "验证码错误，请重新输入"),
+    MOBILE_AUTH_CHALLENGE_REQUIRED(400, "请先获取验证码"),
+    MOBILE_AUTH_EXPIRED(400, "验证码已失效，请重新获取"),
+    MOBILE_AUTH_INVALID(400, "验证码已失效，请重新获取"),
+    MOBILE_AUTH_TOO_MANY_ATTEMPTS(400, "验证码错误次数过多，请重新获取"),
     MOBILE_AUTH_LIMITED(429, "请求过于频繁，请稍后再试"),
     MOBILE_AUTH_PROVIDER_ERROR(500, "登录失败，请稍后再试"),
     PHONE_BIND_CONFLICT(400, "登录失败，请稍后再试");

@@ -23,7 +23,7 @@ public class TokenReplayGuard {
             throw new BizException(ErrorCode.MOBILE_AUTH_INVALID);
         }
         if (store.getValue(usedKey(scene, challengeHash)).isPresent()) {
-            throw new BizException(ErrorCode.MOBILE_AUTH_INVALID);
+            throw new BizException(ErrorCode.MOBILE_AUTH_EXPIRED);
         }
     }
 

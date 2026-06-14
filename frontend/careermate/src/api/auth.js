@@ -34,15 +34,9 @@ export function sendSmsCode(phone, scene = 'mobile_login') {
   })
 }
 
-export function mobileLogin(phone, verifyCode, challengeId, scene = 'mobile_login', outId = null) {
-  const body = { phone, verifyCode, scene }
-  if (challengeId) {
-    body.challengeId = challengeId
-  } else if (outId) {
-    body.outId = outId
-  }
+export function mobileLogin(phone, verifyCode, challengeId, scene = 'mobile_login') {
   return request('/auth/mobile/login', {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify({ phone, verifyCode, challengeId, scene }),
   })
 }

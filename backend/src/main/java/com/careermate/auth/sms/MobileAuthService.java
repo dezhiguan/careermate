@@ -132,7 +132,7 @@ public class MobileAuthService {
         String verifyCode = request.getVerifyCode().trim();
         String challengeId = request.resolveChallengeId();
         if (!StringUtils.hasText(challengeId)) {
-            throw new BizException(ErrorCode.MOBILE_AUTH_INVALID);
+            throw new BizException(ErrorCode.MOBILE_AUTH_CHALLENGE_REQUIRED);
         }
 
         String traceId = currentTraceId();
@@ -147,7 +147,7 @@ public class MobileAuthService {
 
         if (!smsAuthRateLimiter.matchesPendingChallenge(scene, phoneHash, challengeHash)) {
             smsAuthRateLimiter.recordLoginFailure(scene, phoneHash);
-            throw new BizException(ErrorCode.MOBILE_AUTH_INVALID);
+            throw new BizException(ErrorCode.MOBILE_AUTH_EXPIRED);
         }
 
         String providerOutId = smsAuthRateLimiter.getPendingProviderOutId(scene, phoneHash).orElse(null);
@@ -164,7 +164,7 @@ public class MobileAuthService {
             smsAuthRateLimiter.recordLoginFailure(scene, phoneHash);
             auditService.recordFailure(null, AuditActionType.MOBILE_LOGIN, "USER", null,
                     "verify failed phone=" + maskedPhone + ", providerRequestId=" + verifyResult.getProviderRequestId());
-            throw new BizException(ErrorCode.MOBILE_AUTH_INVALID);
+            throw new BizException(ErrorCode.MOBILE_AUTH_CODE_WRONG);
         }
 
         String verifiedPhone = PhoneSupport.normalizePhone(verifyResult.getPhone());

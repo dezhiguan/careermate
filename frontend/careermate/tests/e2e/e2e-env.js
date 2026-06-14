@@ -30,6 +30,11 @@ const mustUseUserFlow = isCloud || process.env.E2E_USER_FLOW === '1';
 const TOKEN_KEY = 'careermate_token';
 const USER_KEY = 'careermate_user';
 const LOGIN_PAGE_TITLE = '账号登录';
+const SMS_LOGIN_PAGE_TITLE = '手机号登录';
+const REGISTER_PAGE_TITLE = '创建账号';
+const POST_LOGIN_TITLE = '今天的机会';
+const POST_LOGIN_URL = /#\/opportunity/;
+const MOCK_SMS_CODE = '123456';
 const FATAL_AUTH_ERROR = /系统异常|登录失败|会话创建失败/;
 const FATAL_APP_ERROR = /系统异常|会话创建失败|流式请求失败/;
 const MOCK_REPLY =
@@ -114,6 +119,13 @@ function createTestCredentials() {
   return account;
 }
 
+function createTestPhone() {
+  const suffix = String(Date.now()).slice(-8);
+  const phone = `138${suffix}`;
+  console.log('[e2e-phone] created', phone);
+  return phone;
+}
+
 /**
  * @param {import('@playwright/test').APIRequestContext} request
  */
@@ -174,7 +186,7 @@ function attachDiagnostics(page) {
   });
   page.on('response', async (response) => {
     const url = response.url();
-    if (!/\/auth\/(me|login|register)/.test(url)) return;
+    if (!/\/auth\/(me|login|register|sms\/send|mobile\/login)/.test(url)) return;
     let snippet = '';
     try {
       const json = await response.json();
@@ -312,20 +324,82 @@ async function sendAgentMessageAndExpectMockReply(page, message = '帮我分析�
 /**
  * @param {import('@playwright/test').Page} page
  */
+async function assertAuthenticatedLanding(page) {
+  await expect(page).toHaveURL(POST_LOGIN_URL, { timeout: 25_000 });
+  await expect(page.getByRole('heading', { name: POST_LOGIN_TITLE })).toBeVisible({ timeout: 25_000 });
+}
+
+/**
+ * @param {import('@playwright/test').Page} page
+ */
+async function logoutViaUi(page) {
+  await gotoApp(page, '/mine');
+  await waitStable(page);
+  const logoutBtn = page.getByRole('button', { name: '退出登录' });
+  await logoutBtn.scrollIntoViewIfNeeded();
+  await expect(logoutBtn).toBeVisible({ timeout: 15_000 });
+  await logoutBtn.click();
+  await expect(page).toHaveURL(/#\/login/, { timeout: 15_000 });
+}
+
+/**
+ * @param {import('@playwright/test').Page} page
+ */
+async function ensurePasswordLoginForm(page) {
+  const modeToggle = page.locator('.mode-toggle button', { hasText: '登录' });
+  if (await modeToggle.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await modeToggle.click();
+  }
+  const onSms = await page
+    .getByRole('heading', { name: SMS_LOGIN_PAGE_TITLE })
+    .isVisible({ timeout: 2_000 })
+    .catch(() => false);
+  if (onSms) {
+    await page.getByRole('button', { name: '使用账号密码登录' }).click();
+  }
+  await expect(page.getByRole('heading', { name: LOGIN_PAGE_TITLE })).toBeVisible({ timeout: 10_000 });
+}
+
+/**
+ * @param {import('@playwright/test').Page} page
+ */
+async function ensureSmsLoginForm(page) {
+  const modeToggle = page.locator('.mode-toggle button', { hasText: '登录' });
+  if (await modeToggle.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await modeToggle.click();
+  }
+  const onPassword = await page
+    .getByRole('heading', { name: LOGIN_PAGE_TITLE })
+    .isVisible({ timeout: 2_000 })
+    .catch(() => false);
+  if (onPassword) {
+    await page.getByRole('button', { name: '使用手机验证码登录' }).click();
+  }
+  await expect(page.getByRole('heading', { name: SMS_LOGIN_PAGE_TITLE })).toBeVisible({ timeout: 10_000 });
+}
+
+/**
+ * @param {import('@playwright/test').Page} page
+ */
+async function ensureRegisterForm(page) {
+  await page.locator('.mode-toggle button', { hasText: '注册' }).click();
+  await expect(page.getByRole('heading', { name: REGISTER_PAGE_TITLE })).toBeVisible({ timeout: 10_000 });
+}
+
+/**
+ * @param {import('@playwright/test').Page} page
+ */
 async function ensureLoginPage(page) {
   await gotoApp(page, '/login');
   await waitStable(page);
   const onLogin = await page
-    .getByText(LOGIN_PAGE_TITLE)
+    .getByRole('heading', { name: LOGIN_PAGE_TITLE })
     .isVisible({ timeout: 4_000 })
     .catch(() => false);
   if (!onLogin) {
     console.log('[auth] /login 已自动进入应用，先退出以展示登录页');
-    const logoutBtn = page.getByRole('button', { name: '退出' });
-    await expect(logoutBtn).toBeVisible({ timeout: 15_000 });
-    await logoutBtn.click();
-    await expect(page).toHaveURL(/#\/login/, { timeout: 15_000 });
-    await expect(page.getByText(LOGIN_PAGE_TITLE)).toBeVisible({ timeout: 10_000 });
+    await logoutViaUi(page);
+    await ensurePasswordLoginForm(page);
   }
 }
 
@@ -386,16 +460,13 @@ async function registerViaUi(page, account, request) {
   await clearAuthStorage(page);
   await page.reload();
   await waitStable(page);
-  const registerTab = page.getByRole('button', { name: '注册' });
-  if (await registerTab.first().isVisible({ timeout: 4_000 }).catch(() => false)) {
-    await registerTab.first().click();
-  }
+  await ensureRegisterForm(page);
   await page.getByLabel('用户名').fill(account.username);
   await page.getByLabel('邮箱').fill(account.email);
   await page.getByLabel('密码').fill(account.password);
   await page.getByRole('button', { name: '注册并进入' }).click();
   await expect(page.locator('body')).not.toContainText('系统异常', { timeout: 8_000 });
-  await expect(page).toHaveURL(/#\/$/, { timeout: 25_000 });
+  await assertAuthenticatedLanding(page);
   const token = await page.evaluate((key) => localStorage.getItem(key), TOKEN_KEY);
   expect(token).toBeTruthy();
 }
@@ -407,15 +478,57 @@ async function registerViaUi(page, account, request) {
 async function loginViaUi(page, account) {
   await gotoApp(page, '/login');
   await waitStable(page);
-  const usernameField = page.getByLabel('用户名');
-  if (!(await usernameField.isVisible({ timeout: 4_000 }).catch(() => false))) {
-    await page.getByRole('button', { name: '登录' }).first().click();
-  }
-  await usernameField.fill(account.username);
+  await ensurePasswordLoginForm(page);
+  await page.getByLabel('用户名').fill(account.username);
   await page.getByLabel('密码').fill(account.password);
   await page.locator('form .btn-primary').click();
   await expect(page.locator('body')).not.toContainText('系统异常', { timeout: 8_000 });
-  await expect(page).toHaveURL(/#\/$/, { timeout: 25_000 });
+  await assertAuthenticatedLanding(page);
+  const token = await page.evaluate((key) => localStorage.getItem(key), TOKEN_KEY);
+  expect(token).toBeTruthy();
+}
+
+/**
+ * @param {import('@playwright/test').Page} page
+ * @param {string} phone
+ */
+async function sendSmsCodeViaUi(page, phone) {
+  await page.getByLabel('手机号').fill(phone);
+  await page.getByRole('button', { name: '发送验证码' }).click();
+  await expect(page.locator('.success')).toContainText('验证码已发送', { timeout: 15_000 });
+  await expect(page.getByRole('button', { name: /\d+s/ })).toBeVisible({ timeout: 5_000 });
+}
+
+/**
+ * @param {import('@playwright/test').Page} page
+ * @param {string} phone
+ * @param {string} [verifyCode]
+ */
+async function loginViaSmsUi(page, phone, verifyCode = MOCK_SMS_CODE) {
+  if (!page.url().includes('#/login')) {
+    await gotoApp(page, '/login');
+    await waitStable(page);
+  }
+  const hasModeToggle = await page.locator('.mode-toggle').isVisible({ timeout: 2_000 }).catch(() => false);
+  if (hasModeToggle) {
+    await ensureSmsLoginForm(page);
+  } else {
+    await expect(page.getByRole('heading', { name: SMS_LOGIN_PAGE_TITLE })).toBeVisible({
+      timeout: 10_000,
+    });
+  }
+  await sendSmsCodeViaUi(page, phone);
+  await page.getByLabel('验证码').fill(verifyCode);
+  const loginResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes('/auth/mobile/login') && response.request().method() === 'POST',
+    { timeout: 20_000 }
+  );
+  await page.locator('form .btn-primary').click();
+  const response = await loginResponse;
+  expect(response.ok(), `手机号登录 API 失败: HTTP ${response.status()}`).toBeTruthy();
+  await expect(page.locator('body')).not.toContainText('系统异常', { timeout: 8_000 });
+  await assertAuthenticatedLanding(page);
   const token = await page.evaluate((key) => localStorage.getItem(key), TOKEN_KEY);
   expect(token).toBeTruthy();
 }
@@ -490,6 +603,11 @@ module.exports = {
   TOKEN_KEY,
   USER_KEY,
   LOGIN_PAGE_TITLE,
+  SMS_LOGIN_PAGE_TITLE,
+  REGISTER_PAGE_TITLE,
+  POST_LOGIN_TITLE,
+  POST_LOGIN_URL,
+  MOCK_SMS_CODE,
   FATAL_AUTH_ERROR,
   FATAL_APP_ERROR,
   MOCK_REPLY,
@@ -497,7 +615,13 @@ module.exports = {
   logEnv,
   e2ePrefix,
   createTestCredentials,
+  createTestPhone,
   assertBackendReady,
+  assertAuthenticatedLanding,
+  logoutViaUi,
+  ensurePasswordLoginForm,
+  ensureSmsLoginForm,
+  ensureRegisterForm,
   assertJwtAuthEnforced,
   detectAuthMode,
   attachDiagnostics,
@@ -510,6 +634,8 @@ module.exports = {
   ensureLoginPage,
   registerViaUi,
   loginViaUi,
+  sendSmsCodeViaUi,
+  loginViaSmsUi,
   enterApplication,
   printCreatedAccountsReport,
   sendAgentMessageAndExpectMockReply,

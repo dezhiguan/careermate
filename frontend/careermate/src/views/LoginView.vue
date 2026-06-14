@@ -15,15 +15,15 @@
       </section>
 
       <section class="login-card">
+        <!-- 移动端：仅手机号验证码登录 -->
         <template v-if="isMobile">
           <h2 class="card-title">手机号登录</h2>
-          <p class="card-sub">验证码登录，新用户将自动注册</p>
 
-          <form class="form" @submit.prevent="submitMobile">
+          <form class="form" @submit.prevent="submitSmsLogin">
             <label>
               <span class="field-label">手机号</span>
               <input
-                v-model.trim="mobileForm.phone"
+                v-model.trim="smsForm.phone"
                 type="tel"
                 inputmode="numeric"
                 maxlength="11"
@@ -36,7 +36,7 @@
               <span class="field-label">验证码</span>
               <div class="sms-row">
                 <input
-                  v-model.trim="mobileForm.verifyCode"
+                  v-model.trim="smsForm.verifyCode"
                   type="text"
                   inputmode="numeric"
                   maxlength="8"
@@ -46,16 +46,10 @@
                 <button
                   type="button"
                   class="btn-sms"
-                  :disabled="authStore.state.smsSending || cooldown > 0"
-                  @click="sendSms"
+                  :disabled="smsSending || cooldown > 0"
+                  @click="sendCode"
                 >
-                  {{
-                    authStore.state.smsSending
-                      ? '发送中...'
-                      : cooldown > 0
-                        ? `${cooldown}s`
-                        : '发送验证码'
-                  }}
+                  {{ smsSending ? '发送中...' : cooldown > 0 ? `${cooldown}s` : '发送验证码' }}
                 </button>
               </div>
             </label>
@@ -66,22 +60,98 @@
           </form>
         </template>
 
+        <!-- Web 端：登录 / 注册 + 登录方式互斥切换 -->
         <template v-else>
-          <h2 class="card-title">账号登录</h2>
-          <p class="card-sub">使用现有账号进入 CareerMate</p>
+          <h2 class="card-title">{{ cardTitle }}</h2>
 
           <div class="mode-toggle">
-            <button type="button" :class="{ active: mode === 'login' }" @click="mode = 'login'">登录</button>
-            <button type="button" :class="{ active: mode === 'register' }" @click="mode = 'register'">注册</button>
+            <button type="button" :class="{ active: mode === 'login' }" @click="switchMode('login')">登录</button>
+            <button type="button" :class="{ active: mode === 'register' }" @click="switchMode('register')">注册</button>
           </div>
 
-          <form class="form" @submit.prevent="submit">
+          <form
+            v-if="mode === 'login' && loginMethod === 'password'"
+            class="form"
+            @submit.prevent="submit"
+          >
             <label>
               <span class="field-label">用户名</span>
               <input v-model.trim="form.username" required minlength="3" maxlength="64" />
             </label>
 
-            <label v-if="mode === 'register'">
+            <label>
+              <span class="field-label">密码</span>
+              <input v-model="form.password" type="password" required minlength="8" maxlength="64" />
+            </label>
+
+            <button class="btn-primary" type="submit" :disabled="authStore.state.loading">
+              {{ authStore.state.loading ? '处理中...' : '登录' }}
+            </button>
+
+            <p class="method-switch">
+              <button type="button" class="method-switch-btn" @click="switchLoginMethod('sms')">
+                使用手机验证码登录
+              </button>
+            </p>
+          </form>
+
+          <form
+            v-else-if="mode === 'login' && loginMethod === 'sms'"
+            class="form"
+            @submit.prevent="submitSmsLogin"
+          >
+            <label>
+              <span class="field-label">手机号</span>
+              <input
+                v-model.trim="smsForm.phone"
+                type="tel"
+                inputmode="numeric"
+                maxlength="11"
+                placeholder="请输入手机号"
+                required
+              />
+            </label>
+
+            <label>
+              <span class="field-label">验证码</span>
+              <div class="sms-row">
+                <input
+                  v-model.trim="smsForm.verifyCode"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="8"
+                  placeholder="请输入验证码"
+                  required
+                />
+                <button
+                  type="button"
+                  class="btn-sms"
+                  :disabled="smsSending || cooldown > 0"
+                  @click="sendCode"
+                >
+                  {{ smsSending ? '发送中...' : cooldown > 0 ? `${cooldown}s` : '发送验证码' }}
+                </button>
+              </div>
+            </label>
+
+            <button class="btn-primary" type="submit" :disabled="authStore.state.loading">
+              {{ authStore.state.loading ? '处理中...' : '手机号登录' }}
+            </button>
+
+            <p class="method-switch">
+              <button type="button" class="method-switch-btn" @click="switchLoginMethod('password')">
+                使用账号密码登录
+              </button>
+            </p>
+          </form>
+
+          <form v-else class="form" @submit.prevent="submit">
+            <label>
+              <span class="field-label">用户名</span>
+              <input v-model.trim="form.username" required minlength="3" maxlength="64" />
+            </label>
+
+            <label>
               <span class="field-label">邮箱</span>
               <input v-model.trim="form.email" type="email" />
             </label>
@@ -92,7 +162,7 @@
             </label>
 
             <button class="btn-primary" type="submit" :disabled="authStore.state.loading">
-              {{ authStore.state.loading ? '处理中...' : mode === 'login' ? '登录' : '注册并进入' }}
+              {{ authStore.state.loading ? '处理中...' : '注册并进入' }}
             </button>
           </form>
         </template>
@@ -105,7 +175,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted, onUnmounted } from 'vue'
+import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authStore } from '../stores/authStore'
 
@@ -114,7 +184,8 @@ const VERIFY_CODE_PATTERN = /^\d{4,8}$/
 
 const router = useRouter()
 const isMobile = ref(typeof window !== 'undefined' && window.innerWidth < 768)
-const mode = ref(isMobile.value ? 'mobile' : 'login')
+const mode = ref('login')
+const loginMethod = ref('password')
 const errorMsg = ref('')
 const successMsg = ref('')
 const form = reactive({
@@ -122,23 +193,44 @@ const form = reactive({
   email: '',
   password: '',
 })
-const mobileForm = reactive({
+const smsForm = reactive({
   phone: '',
   verifyCode: '',
+  challengeId: '',
 })
-const challengeId = ref('')
-const smsSent = ref(false)
+const smsSending = ref(false)
 const cooldown = ref(0)
 let cooldownTimer = null
 
-function updateViewport() {
-  const mobile = window.innerWidth < 768
-  isMobile.value = mobile
-  if (mobile) {
-    mode.value = 'mobile'
-  } else if (mode.value === 'mobile') {
-    mode.value = 'login'
+const cardTitle = computed(() => {
+  if (mode.value === 'register') return '创建账号'
+  return loginMethod.value === 'sms' ? '手机号登录' : '账号登录'
+})
+
+function clearMessages() {
+  errorMsg.value = ''
+  successMsg.value = ''
+}
+
+function switchMode(nextMode) {
+  if (mode.value === nextMode) return
+  mode.value = nextMode
+  if (nextMode === 'login') {
+    loginMethod.value = 'password'
   }
+  clearMessages()
+}
+
+function switchLoginMethod(nextMethod) {
+  if (loginMethod.value === nextMethod) return
+  loginMethod.value = nextMethod
+  resetSmsChallenge()
+  clearMessages()
+}
+
+function resetSmsChallenge() {
+  smsForm.verifyCode = ''
+  smsForm.challengeId = ''
 }
 
 function startCooldown(seconds) {
@@ -158,52 +250,53 @@ function startCooldown(seconds) {
   }, 1000)
 }
 
-function isValidPhone(phone) {
-  return PHONE_PATTERN.test(phone)
-}
+watch(
+  () => smsForm.phone,
+  (phone, prevPhone) => {
+    if (phone !== prevPhone) {
+      resetSmsChallenge()
+    }
+  },
+)
 
-function isValidVerifyCode(code) {
-  return VERIFY_CODE_PATTERN.test(code)
-}
-
-async function sendSms() {
-  errorMsg.value = ''
-  successMsg.value = ''
-  if (!isValidPhone(mobileForm.phone)) {
+async function sendCode() {
+  clearMessages()
+  if (!PHONE_PATTERN.test(smsForm.phone)) {
     errorMsg.value = '请输入正确的手机号'
     return
   }
+  smsSending.value = true
   try {
-    const data = await authStore.sendMobileSmsCode(mobileForm.phone)
+    const data = await authStore.sendMobileSmsCode(smsForm.phone)
     if (!data?.challengeId) {
       throw new Error('验证码发送失败，请重试')
     }
-    challengeId.value = data.challengeId
-    smsSent.value = true
+    smsForm.challengeId = data.challengeId
     successMsg.value = '验证码已发送'
     startCooldown(data.cooldownSeconds)
   } catch (e) {
     errorMsg.value = e?.message || '发送验证码失败'
+  } finally {
+    smsSending.value = false
   }
 }
 
-async function submitMobile() {
-  errorMsg.value = ''
-  successMsg.value = ''
-  if (!isValidPhone(mobileForm.phone)) {
+async function submitSmsLogin() {
+  clearMessages()
+  if (!PHONE_PATTERN.test(smsForm.phone)) {
     errorMsg.value = '请输入正确的手机号'
     return
   }
-  if (!isValidVerifyCode(mobileForm.verifyCode)) {
+  if (!VERIFY_CODE_PATTERN.test(smsForm.verifyCode)) {
     errorMsg.value = '请输入4-8位验证码'
     return
   }
-  if (!smsSent.value || !challengeId.value) {
+  if (!smsForm.challengeId) {
     errorMsg.value = '请先发送验证码'
     return
   }
   try {
-    await authStore.mobileLogin(mobileForm.phone, mobileForm.verifyCode, challengeId.value)
+    await authStore.mobileLogin(smsForm.phone, smsForm.verifyCode, smsForm.challengeId)
     successMsg.value = '登录成功，正在进入...'
     await router.replace('/opportunity')
   } catch (e) {
@@ -212,8 +305,7 @@ async function submitMobile() {
 }
 
 async function submit() {
-  errorMsg.value = ''
-  successMsg.value = ''
+  clearMessages()
   try {
     if (mode.value === 'login') {
       await authStore.login(form.username, form.password)
@@ -226,6 +318,10 @@ async function submit() {
   } catch (e) {
     errorMsg.value = e?.message || '操作失败'
   }
+}
+
+function updateViewport() {
+  isMobile.value = window.innerWidth < 768
 }
 
 onMounted(() => {
@@ -330,16 +426,10 @@ onUnmounted(() => {
 }
 
 .card-title {
-  margin: 0;
+  margin: 0 0 24px;
   font-size: 18px;
   font-weight: 700;
   color: #0f172a;
-}
-
-.card-sub {
-  margin: 4px 0 24px;
-  font-size: 12px;
-  color: #94a3b8;
 }
 
 .mode-toggle {
@@ -407,7 +497,7 @@ input {
   background: #fff;
   color: #4f46e5;
   border-radius: 8px;
-  padding: 9px 12px;
+  padding: 9px 10px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -436,6 +526,25 @@ input {
 .btn-primary:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.method-switch {
+  margin: 2px 0 0;
+  text-align: center;
+}
+
+.method-switch-btn {
+  border: 0;
+  background: none;
+  color: #4f46e5;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 0;
+}
+
+.method-switch-btn:hover {
+  text-decoration: underline;
 }
 
 .error {
@@ -480,10 +589,14 @@ input {
 
   input,
   .btn-primary,
-  .btn-sms,
-  .mode-toggle button {
+  .btn-sms {
     min-height: 44px;
     font-size: 16px;
+  }
+
+  .btn-sms {
+    padding: 9px 8px;
+    font-size: 14px;
   }
 
   .field-label {

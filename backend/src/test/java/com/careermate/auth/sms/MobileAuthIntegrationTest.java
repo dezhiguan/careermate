@@ -222,7 +222,7 @@ class MobileAuthIntegrationTest {
                                 "scene", "mobile_login"
                         ))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(ErrorCode.MOBILE_AUTH_INVALID.getCode()));
+                .andExpect(jsonPath("$.code").value(ErrorCode.MOBILE_AUTH_CHALLENGE_REQUIRED.getCode()));
     }
 
     @Test
@@ -238,7 +238,7 @@ class MobileAuthIntegrationTest {
                                 "scene", "mobile_login"
                         ))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(ErrorCode.MOBILE_AUTH_INVALID.getCode()));
+                .andExpect(jsonPath("$.code").value(ErrorCode.MOBILE_AUTH_CODE_WRONG.getCode()));
     }
 
     @Test
@@ -254,7 +254,7 @@ class MobileAuthIntegrationTest {
                                 "scene", "mobile_login"
                         ))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(ErrorCode.MOBILE_AUTH_INVALID.getCode()));
+                .andExpect(jsonPath("$.code").value(ErrorCode.MOBILE_AUTH_EXPIRED.getCode()));
     }
 
     @Test
@@ -271,7 +271,7 @@ class MobileAuthIntegrationTest {
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/auth/mobile/login").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(ErrorCode.MOBILE_AUTH_INVALID.getCode()));
+                .andExpect(jsonPath("$.code").value(ErrorCode.MOBILE_AUTH_EXPIRED.getCode()));
     }
 
     @Test

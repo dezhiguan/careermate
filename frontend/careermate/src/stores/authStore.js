@@ -21,7 +21,6 @@ const state = reactive({
   })(),
   initialized: false,
   loading: false,
-  smsSending: false,
 })
 
 function persistUser(user) {
@@ -102,12 +101,7 @@ async function register(username, password, email) {
 }
 
 async function sendMobileSmsCode(phone) {
-  state.smsSending = true
-  try {
-    return await sendSmsCode(phone)
-  } finally {
-    state.smsSending = false
-  }
+  return sendSmsCode(phone)
 }
 
 async function mobileLogin(phone, verifyCode, challengeId) {
