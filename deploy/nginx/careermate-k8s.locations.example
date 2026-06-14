@@ -1,20 +1,21 @@
 # CareerMate k8s ingress locations for Server 2 (careerforge.cn).
-# NodePorts run on Server 3; Server 2 reaches them via SSH tunnel
-# (172.19.40.32:31000 / :31080). If private network is open, you may
-# point directly to http://172.25.90.184:31000/ and :31080/ instead.
+# NodePorts run on Server 3; Server 2 reaches them via private IP
+# (172.25.90.184:31000 / :31080).
 #
 # Merge into /opt/rag-forge/nginx.conf inside the careerforge.cn server block.
 
-location /careermate/ {
-    proxy_pass http://172.19.40.32:31000/;
-    proxy_set_header Host careerforge.cn;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+# Legacy paths -> canonical root (browser keeps #/... hash on redirect)
+location = /careermate {
+    return 301 /;
 }
 
+location /careermate/ {
+    return 301 /;
+}
+
+# Legacy API path (keep during migration)
 location /careermate-api/ {
-    proxy_pass http://172.19.40.32:31080/api/;
+    proxy_pass http://172.25.90.184:31080/api/;
     proxy_set_header Host careerforge.cn;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -26,4 +27,13 @@ location /careermate-api/ {
     proxy_cache off;
     proxy_read_timeout 300s;
     proxy_send_timeout 300s;
+}
+
+# CareerMate frontend (canonical entry at /)
+location / {
+    proxy_pass http://172.25.90.184:31000;
+    proxy_set_header Host careerforge.cn;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
 }

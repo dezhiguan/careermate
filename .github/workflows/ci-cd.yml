@@ -166,8 +166,8 @@ jobs:
       - name: Build frontend
         working-directory: frontend/careermate
         env:
-          VITE_API_BASE_URL: /careermate-api
-          VITE_BASE_PATH: /careermate/
+          VITE_API_BASE_URL: /api
+          VITE_BASE_PATH: /
         run: npm run build
 
       - name: Upload frontend dist artifact
@@ -322,7 +322,7 @@ jobs:
         run: |
           BASE="${{ vars.CAREERFORGE_BASE_URL || 'https://careerforge.cn' }}"
           BODY="$(curl --fail --silent --show-error --max-time 10 --retry 6 --retry-delay 5 \
-            "${BASE}/careermate-api/health")"
+            "${BASE}/api/health")"
           python3 - <<'PY' "${BODY}"
           import json, sys
           data = json.loads(sys.argv[1])
@@ -335,7 +335,7 @@ jobs:
         run: |
           BASE="${{ vars.CAREERFORGE_BASE_URL || 'https://careerforge.cn' }}"
           RESP="$(curl --silent --show-error --max-time 10 --retry 6 --retry-delay 5 -i \
-            "${BASE}/careermate-api/auth/me")"
+            "${BASE}/api/auth/me")"
           python3 - <<'PY' "${RESP}"
           import json, sys
           raw = sys.argv[1]
@@ -365,4 +365,4 @@ jobs:
         run: |
           BASE="${{ vars.CAREERFORGE_BASE_URL || 'https://careerforge.cn' }}"
           curl --fail --silent --show-error --max-time 10 --retry 6 --retry-delay 5 \
-            "${BASE}/careermate/" | grep -q '<html'
+            "${BASE}/" | grep -q '<html'

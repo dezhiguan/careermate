@@ -29,6 +29,6 @@ curl -fsSI "http://${APP_HOST}:${FRONTEND_PORT}/" | head -n 5
 
 echo ""
 echo "Manual checks on Server 2 ingress:"
-echo "  - open /careermate/"
+echo "  - open https://careerforge.cn/#/login"
 echo "  - login, AI chat, resume PDF/Word download"
 echo "  - confirm backend connects to PostgreSQL/Redis/ES/RocketMQ on Server 1"

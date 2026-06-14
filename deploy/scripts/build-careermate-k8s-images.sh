@@ -48,8 +48,8 @@ import_image "${BACKEND_IMAGE}"
 
 echo "[frontend] docker build -> ${FRONTEND_IMAGE}"
 docker build -f frontend/careermate/Dockerfile \
-  --build-arg VITE_API_BASE_URL=/careermate-api \
-  --build-arg VITE_BASE_PATH=/careermate/ \
+  --build-arg VITE_API_BASE_URL=/api \
+  --build-arg VITE_BASE_PATH=/ \
   -t "${FRONTEND_IMAGE}" .
 import_image "${FRONTEND_IMAGE}"
 

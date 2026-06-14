@@ -2,14 +2,14 @@
 # Build context: careermate repository root.
 #
 #   docker build -f frontend/careermate/Dockerfile \
-#     --build-arg VITE_API_BASE_URL=/careermate-api \
-#     --build-arg VITE_BASE_PATH=/careermate/ \
+#     --build-arg VITE_API_BASE_URL=/api \
+#     --build-arg VITE_BASE_PATH=/ \
 #     -t careermate/frontend:latest .
 
 FROM node:20-alpine AS build
 WORKDIR /src
-ARG VITE_API_BASE_URL=/careermate-api
-ARG VITE_BASE_PATH=/careermate/
+ARG VITE_API_BASE_URL=/api
+ARG VITE_BASE_PATH=/
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 ENV VITE_BASE_PATH=${VITE_BASE_PATH}
 COPY frontend/careermate/package.json frontend/careermate/package-lock.json ./
