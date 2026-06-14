@@ -43,6 +43,7 @@ public class TraceHeaderPropagator {
         if (carrier == null) {
             return;
         }
+        syncMdcTraceId();
         TraceContext context = currentTraceContext();
         if (context != null) {
             propagator.inject(context, carrier, Map::put);
@@ -83,10 +84,12 @@ public class TraceHeaderPropagator {
     public String currentTraceId() {
         String resolved = traceIdResolver.resolveTraceId();
         if (StringUtils.hasText(resolved)) {
+            syncMdcTraceId(resolved);
             return resolved;
         }
         TraceContext context = currentTraceContext();
         if (context != null && StringUtils.hasText(context.traceId())) {
+            syncMdcTraceId(context.traceId());
             return context.traceId();
         }
         String mdcTraceId = MDC.get(MdcKeys.TRACE_ID);
@@ -94,6 +97,19 @@ public class TraceHeaderPropagator {
             return mdcTraceId;
         }
         return MDC.get(MdcKeys.REQUEST_ID);
+    }
+
+    private void syncMdcTraceId() {
+        String resolved = traceIdResolver.resolveTraceId();
+        if (StringUtils.hasText(resolved)) {
+            syncMdcTraceId(resolved);
+        }
+    }
+
+    private static void syncMdcTraceId(String traceId) {
+        if (StringUtils.hasText(traceId)) {
+            MDC.put(MdcKeys.TRACE_ID, traceId);
+        }
     }
 
     private TraceContext currentTraceContext() {
