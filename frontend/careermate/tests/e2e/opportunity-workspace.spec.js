@@ -55,24 +55,30 @@ test.beforeEach(({ page }) => {
   attachDiagnostics(page);
 });
 
-test.describe('市场页联动小职 Workspace', () => {
+test.describe('机会页联动小职 Workspace', () => {
   test.beforeEach(async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'local-chrome-desktop', '仅 desktop project');
     await ensureLoggedInViaApi(page, request);
   });
 
-  test('点击生成谈薪脚本进入市场策略空间', async ({ page }) => {
-    await gotoApp(page, '/market');
+  test('点击定制简历进入 JD 准备空间并展示生成简历 action', async ({ page }) => {
+    await gotoApp(page, '/opportunity');
     await page.waitForLoadState('networkidle');
 
-    const negotiateBtn = page.getByRole('button', { name: /生成谈薪脚本/ });
-    await expect(negotiateBtn).toBeVisible({ timeout: 15_000 });
-    await negotiateBtn.click();
+    const emptyState = page.locator('.empty-state');
+    if (await emptyState.isVisible({ timeout: 10_000 }).catch(() => false)) {
+      test.skip(true, 'RagForge 无 JD 数据，跳过机会页 workspace e2e');
+    }
+
+    const resumeBtn = page.getByRole('button', { name: '定制简历' }).first();
+    await expect(resumeBtn).toBeVisible({ timeout: 45_000 });
+    await resumeBtn.click();
 
     await page.waitForURL(/\/chat\/WS-/, { timeout: 30_000 });
-    await expect(page.locator('.header-sub')).toContainText(/市场策略空间/, { timeout: 20_000 });
-    await expect(page.locator('.context-chips-bar')).toContainText(/广州|Java|3-5年|市场行情/, {
-      timeout: 20_000,
-    });
+    await expect(page.locator('.header-sub')).toContainText(/JD 准备空间/, { timeout: 20_000 });
+    await expect(page.locator('.agent-bubble, .msg-bubble').first()).toContainText(
+      /定制简历|生成定制简历|已为你准备好/,
+      { timeout: 20_000 }
+    );
   });
 });
