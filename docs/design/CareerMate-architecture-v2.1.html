@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CareerMate 架构设计文档 V2.1</title>
+<style>
+  :root {
+    --navy: #0f172a; --slate: #1e293b; --gray: #475569;
+    --light: #f1f5f9; --blue: #3b82f6; --cyan: #06b6d4;
+    --green: #10b981; --amber: #f59e0b; --red: #ef4444;
+    --purple: #8b5cf6; --pink: #ec4899; --border: #e2e8f0;
+    --text: #1e293b; --text-muted: #64748b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    color: var(--text); background: #fff; line-height: 1.85; font-size: 14px;
+  }
+
+  .cover {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #1a0533 0%, #3b1d6e 40%, #1a0533 100%);
+    color: #fff; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; text-align: center;
+    padding: 60px 40px; page-break-after: always;
+  }
+  .cover .tag {
+    display: inline-block; border: 1px solid rgba(255,255,255,.3);
+    border-radius: 20px; padding: 6px 20px; font-size: 13px;
+    letter-spacing: 2px; color: var(--purple); margin-bottom: 32px;
+  }
+  .cover h1 {
+    font-size: 48px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px;
+    background: linear-gradient(135deg, #fff, #c4b5fd);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .cover .subtitle { font-size: 18px; color: rgba(255,255,255,.6); margin-bottom: 40px; max-width: 700px; line-height: 1.8; }
+  .cover .meta { font-size: 13px; color: rgba(255,255,255,.35); }
+
+  .page { max-width: 960px; margin: 0 auto; padding: 60px 40px; }
+  .page-break { page-break-before: always; }
+  h2 { font-size: 26px; font-weight: 700; color: var(--navy); margin-bottom: 8px; padding-top: 20px; }
+  h2 .num { color: var(--purple); font-size: 15px; display: block; font-weight: 500; margin-bottom: 4px; }
+  h3 { font-size: 18px; font-weight: 600; color: var(--slate); margin: 28px 0 10px; }
+  h4 { font-size: 14px; font-weight: 600; color: var(--slate); margin: 16px 0 6px; }
+  p { margin-bottom: 10px; color: var(--gray); }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { background: var(--light); font-weight: 600; color: var(--slate); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { color: var(--gray); font-size: 12px; }
+
+  code {
+    background: var(--light); padding: 2px 6px; border-radius: 3px;
+    font-family: "SF Mono", "Menlo", "Monaco", monospace; font-size: 11px; color: var(--red);
+  }
+  pre {
+    background: var(--navy); color: #e2e8f0; padding: 18px 22px; border-radius: 10px;
+    font-size: 11px; line-height: 1.8; overflow-x: auto; margin: 14px 0;
+  }
+  pre code { background: transparent; color: inherit; padding: 0; }
+
+  .tip-box { background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 10px; padding: 16px 20px; margin: 16px 0; }
+  .tip-box .tip-title { font-weight: 600; color: var(--purple); margin-bottom: 6px; font-size: 13px; }
+
+  .arch-box {
+    background: var(--navy); border-radius: 10px; padding: 22px; margin: 14px 0;
+    color: #e2e8f0; font-family: "SF Mono", "Menlo", monospace; font-size: 11px; line-height: 2;
+  }
+
+  .flow-box {
+    background: #f8fafc; border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px; margin: 14px 0; font-family: "SF Mono", "Menlo", monospace; font-size: 11px;
+    line-height: 2.2; white-space: pre; overflow-x: auto;
+  }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 600; }
+  .badge.green { background: #d1fae5; color: #065f46; }
+  .badge.amber { background: #fef3c7; color: #92400e; }
+  .badge.red { background: #fee2e2; color: #991b1b; }
+  .badge.purple { background: #ede9fe; color: #5b21b6; }
+  .badge.blue { background: #dbeafe; color: #1e40af; }
+
+  .constraint-list { list-style: none; margin: 10px 0; }
+  .constraint-list li { padding: 4px 0 4px 22px; position: relative; color: var(--gray); font-size: 13px; }
+  .constraint-list li::before { content: "▸"; position: absolute; left: 0; color: var(--purple); font-weight: 600; }
+
+  .task-phase { background: var(--slate); color: #fff; font-weight: 600; }
+
+  @media print {
+    body { font-size: 11px; }
+    .page { padding: 20px 0; max-width: 100%; }
+    .cover { min-height: 100vh; }
+    .page-break { page-break-before: always; }
+    pre, .arch-box, .flow-box { break-inside: avoid; }
+    @page { margin: 15mm; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== COVER ==================== -->
+<div class="cover">
+  <div class="tag">PROJECT 02 · AI AGENT APPLICATION</div>
+  <h1>CareerMate</h1>
+  <p class="subtitle">CareerMate 求职智能体 架构设计文档 V2.1<br>单主控 Agent + 分层工具 + RAG 集成 + MCP 预留 + 评测体系 + 可观测性</p>
+  <p class="meta">架构师：@guandezhi · Java 技术栈 · 2026年6月</p>
+</div>
+
+<!-- ==================== PART 01 ==================== -->
+<div class="page">
+  <h2><span class="num">PART 01</span>项目定位</h2>
+
+  <p>CareerMate 是面向求职者的 <strong>AI Agent 应用层</strong>，通过工具调用、记忆管理和 RAGForge 知识检索能力，完成简历分析、岗位匹配、面试训练和求职进度管理等多项任务。知识检索通过 RAGForge REST API 获取，CareerMate 不重复实现底层检索能力。</p>
+
+  <ul class="constraint-list">
+    <li>不是 RAG 管理后台 — 不负责文档导入、解析、切分、Embedding、向量索引等底层处理</li>
+    <li>不是普通聊天壳子 — 有独立的 Agent 引擎、分层工具系统、记忆管理和求职业务流程</li>
+    <li>是求职任务工作流 — Agent 自主规划多步骤任务，调用工具链完成简历分析、岗位匹配、面试训练</li>
+  </ul>
+
+  <h3>1.1 一句话定位</h3>
+  <div class="tip-box">
+    <div class="tip-title">一句话定位</div>
+    <p style="margin:0;font-size:13px;">CareerMate 是一个基于 Java 技术栈构建的 AI 求职 Agent，围绕简历分析、岗位匹配、面试训练和求职进度管理，调用 RAGForge 提供的知识检索能力完成多步骤求职任务。</p>
+  </div>
+
+  <h3>1.2 核心场景</h3>
+  <table>
+    <tr><th>场景</th><th>说明</th><th>涉及能力</th></tr>
+    <tr><td>简历分析</td><td>上传简历后 Agent 解析并给出结构化优势/缺失分析</td><td>文本提取、LLM 分析、画像生成</td></tr>
+    <tr><td>简历优化建议</td><td>对标目标 JD 生成针对性的简历改进建议</td><td>岗位检索、技能对比、建议生成</td></tr>
+    <tr><td>岗位匹配</td><td>将用户简历与岗位库 JD 匹配，按匹配度排序</td><td>RAGForge 检索、匹配算法、差距计算</td></tr>
+    <tr><td>技能差距分析</td><td>对比用户技能与目标岗位要求，生成学习路线</td><td>技能提取、差距对比、资源推荐</td></tr>
+    <tr><td>面试题生成</td><td>基于用户简历和岗位 JD 生成针对性评估题目</td><td>知识检索、LLM 题目生成</td></tr>
+    <tr><td>面试回答评估</td><td>用户提交回答后从多维度评分并给出优化建议</td><td>语义理解、评分模型、反馈生成</td></tr>
+    <tr><td>追问生成</td><td>根据用户回答深挖知识点，生成追问</td><td>上下文分析、题目生成</td></tr>
+    <tr><td>求职进度看板</td><td>汇总简历、匹配、面试数据展示整体进展</td><td>数据聚合、看板快照</td></tr>
+  </table>
+</div>
+
+<!-- ==================== PART 02 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 02</span>与 RAGForge 的关系</h2>
+
+  <h3>2.1 分层定位</h3>
+  <table>
+    <tr><th>维度</th><th>CareerMate（本项目）</th><th>RAGForge</th></tr>
+    <tr><td>定位</td><td><strong>应用层</strong> — AI 求职 Agent</td><td><strong>基础设施层</strong> — RAG 知识检索引擎</td></tr>
+    <tr><td>用户</td><td>求职者</td><td>开发者 / 管理员</td></tr>
+    <tr><td>核心能力</td><td>Agent 规划 · 工具调用 · 记忆管理 · 求职业务流程</td><td>文档处理 · 混合检索 · 评测框架 · API 服务</td></tr>
+    <tr><td>页面数</td><td>5 个（求职应用型，Agent 驱动流转）</td><td>6 个（管理后台型）</td></tr>
+  </table>
+
+  <h3>2.2 调用链</h3>
+  <div class="arch-box" style="line-height:2.4;">
+    <span style="color:rgba(255,255,255,.5);">User</span>
+    <span style="color:rgba(255,255,255,.25);">  ──→  </span>
+    <span style="color:var(--purple);">CareerMate Agent</span>
+    <span style="color:rgba(255,255,255,.25);">  ──→  </span>
+    <span style="color:#c4b5fd;">Tool System</span>
+    <span style="color:rgba(255,255,255,.25);">  ──→  </span>
+    <span style="color:#a78bfa;">RagForgeClient</span>
+    <span style="color:rgba(255,255,255,.25);">  ──→  </span>
+    <span style="color:var(--cyan);">RAGForge Search API</span>
+  </div>
+
+  <h3>2.3 边界约定</h3>
+  <table>
+    <tr><th>RAGForge 负责</th><th>CareerMate 负责</th></tr>
+    <tr><td>公共 JD、面试题、公司信息、求职策略等知识库检索</td><td>用户简历上传、文本提取和结构化画像生成</td></tr>
+    <tr><td>文档导入、解析、分块</td><td>简历上传入口和业务逻辑（文本提取后自行生成画像）</td></tr>
+    <tr><td>Embedding 向量化</td><td>调用 RAGForge API，不直接调 Embedding 服务</td></tr>
+    <tr><td>pgvector 向量检索</td><td>不直接操作 pgvector</td></tr>
+    <tr><td>Elasticsearch 关键词检索</td><td>不直接操作 ES</td></tr>
+    <tr><td>混合检索 + RRF 融合 + Reranker</td><td>不重复实现检索链路</td></tr>
+    <tr><td>检索质量评测</td><td>不实现 RAG 评测后台（Agent 评测由 CareerMate 自建）</td></tr>
+    <tr><td>不关心用户任务规划</td><td>Agent 规划、工具调用、记忆管理</td></tr>
+    <tr><td>不关心求职业务流程</td><td>求职业务全流程：简历→匹配→面试→看板</td></tr>
+  </table>
+
+  <h3>2.4 简历与 RAGForge 知识库隔离</h3>
+  <p>用户私有简历默认<strong>不进入</strong>共享 RAGForge 知识库。CareerMate 自行完成简历文本提取（Apache Tika）和结构化画像生成，简历原文仅存储在 CareerMate 的 PostgreSQL 中。如需将用户简历纳入 RAGForge 检索范围，CareerMate 记录 <code>user_id → ragforge_kb_id</code> 映射，为每个用户创建独立 RAGForge 知识库，实现架构层面数据隔离。</p>
+
+  <h3>2.5 RAGForge 调用方式</h3>
+  <p>CareerMate 通过 <code>RagForgeClient</code> 以服务级 API Key 调用 RAGForge。用户权限完全由 CareerMate 的 Spring Security + JWT 控制，RAGForge 不感知终端用户身份。</p>
+</div>
+
+<!-- ==================== PART 03 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 03</span>总体技术架构</h2>
+
+  <h3>3.1 技术栈</h3>
+  <table>
+    <tr><th>层级</th><th>方案</th><th>说明</th></tr>
+    <tr><td>语言</td><td>Java 17</td><td>LTS 版本，生态成熟</td></tr>
+    <tr><td>后端框架</td><td>Spring Boot 3.2</td><td>与 RAGForge 统一技术栈</td></tr>
+    <tr><td>安全框架</td><td>Spring Security + JWT</td><td>无状态认证，single-user / jwt 双模式</td></tr>
+    <tr><td>ORM</td><td>MyBatis-Plus 3.5</td><td>与 RAGForge 统一</td></tr>
+    <tr><td>数据库</td><td>PostgreSQL 15 + JSONB</td><td>权威持久化存储，独立 database</td></tr>
+    <tr><td>本地缓存</td><td>Caffeine</td><td>热点数据本地缓存，降低 DB 查询</td></tr>
+    <tr><td>分布式缓存</td><td>Redis（可选）</td><td>多实例部署、限流、SSE 会话协同场景按需引入</td></tr>
+    <tr><td>LLM 调用</td><td>自研 LlmClient 抽象层</td><td>不绑定模型供应商，默认 DeepSeek OpenAI-compatible API</td></tr>
+    <tr><td>流式响应</td><td>SSE (Spring MVC SseEmitter)</td><td>不引入 WebFlux</td></tr>
+    <tr><td>知识检索</td><td>RAGForge REST API</td><td>复用已有 RAG 基础设施</td></tr>
+    <tr><td>前端</td><td>Vue 3 + Vite</td><td>5 页面，Pinia 状态管理</td></tr>
+    <tr><td>部署</td><td>Docker Compose</td><td>与 RAGForge 联合部署，Nginx 统一入口</td></tr>
+  </table>
+
+  <h3>3.2 后端核心模块</h3>
+  <div class="arch-box" style="line-height:2.2;">
+  <span style="color:var(--purple);">careermate-backend</span>
+  <span style="color:rgba(255,255,255,.25);">  ──  </span>
+  <span style="color:rgba(255,255,255,.5);">Spring Boot 3.2 + Java 17</span>
+
+  <span style="color:#c4b5fd;">agent-runtime</span><span style="color:rgba(255,255,255,.25);">    Agent 主循环、规划、执行、响应</span>
+  <span style="color:#c4b5fd;">agent-tools</span><span style="color:rgba(255,255,255,.25);">     工具注册、JSON Schema、参数校验、并行执行</span>
+  <span style="color:#c4b5fd;">agent-memory</span><span style="color:rgba(255,255,255,.25);">    五层记忆 + MemoryStore + MemoryCache</span>
+  <span style="color:#c4b5fd;">agent-trace</span><span style="color:rgba(255,255,255,.25);">     Agent 执行轨迹记录与查询</span>
+  <span style="color:#c4b5fd;">agent-eval</span><span style="color:rgba(255,255,255,.25);">     Agent 评测体系</span>
+  <span style="color:#c4b5fd;">agent-prompt</span><span style="color:rgba(255,255,255,.25);">   Prompt 模板与版本管理</span>
+  <span style="color:#c4b5fd;">agent-mcp</span><span style="color:rgba(255,255,255,.25);">      MCP Adapter 扩展预留</span>
+  <span style="color:#a78bfa;">career-domain</span><span style="color:rgba(255,255,255,.25);">   求职业务：简历/岗位/面试/看板</span>
+  <span style="color:#a78bfa;">ragforge-client</span><span style="color:rgba(255,255,255,.25);">  调用 RAGForge 检索 API</span>
+  <span style="color:#8b5cf6;">llm-client</span><span style="color:rgba(255,255,255,.25);">      模型供应商抽象：DeepSeek / OpenAI / DashScope / Mock</span>
+  <span style="color:#8b5cf6;">security</span><span style="color:rgba(255,255,255,.25);">        JWT 认证、用户隔离、审计日志</span>
+  <span style="color:#8b5cf6;">observability</span><span style="color:rgba(255,255,255,.25);">   指标采集、token/cost 统计</span>
+  </div>
+
+  <h3>3.3 模块交互</h3>
+  <div class="flow-box">┌──────────────────────────────────────────────────────┐
+  │                  AgentRuntime                          │
+  │  Observe → Plan → Act → Observe → Decide → Respond   │
+  └──────┬──────────────┬──────────────┬─────────────────┘
+         │              │              │
+         ▼              ▼              ▼
+  ┌──────────┐  ┌──────────┐  ┌──────────────┐
+  │ Memory   │  │  Tool    │  │  LlmClient   │
+  │ Service  │  │ Registry │  │  (抽象层)     │
+  └──────────┘  └────┬─────┘  └──────────────┘
+                     │
+         ┌───────────┼───────────┐
+         ▼           ▼           ▼
+  ┌──────────┐ ┌──────────┐ ┌──────────┐
+  │Knowledge │ │ Career   │ │ System   │
+  │ Tools    │ │ Tools    │ │ Tools    │
+  └────┬─────┘ └────┬─────┘ └──────────┘
+       │            │
+       ▼            ▼
+  ┌──────────────────────────────────────┐
+  │    RagForgeClient (RAGForge API)      │
+  └──────────────────────────────────────┘</div>
+</div>
+
+<!-- ==================== PART 04 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 04</span>LLM 供应商抽象</h2>
+
+  <p>系统不绑定特定模型供应商。核心架构通过 <code>LlmClient</code> 接口隔离模型实现，方便开源用户替换模型，测试环境可使用 Mock 实现。</p>
+
+  <h3>4.1 LlmClient 接口 (SseEmitter + StreamCallback)</h3>
+  <p>后端基于 Spring MVC（非 WebFlux），SSE 流式响应采用 <code>SseEmitter</code> + <code>StreamCallback</code> 模式：</p>
+  <div class="flow-box">public interface LlmClient {
+      ChatResponse chat(ChatRequest request);
+
+      void streamChat(ChatRequest request, StreamCallback callback);
+      // StreamCallback: onToken(String), onComplete(ChatResponse), onError(Throwable)
+
+      ToolCallResponse toolCall(ToolCallRequest request);
+  }
+
+  // Controller
+  @PostMapping("/api/agent/sessions/{id}/messages/stream")
+  public SseEmitter sendMessage(@PathVariable Long id, @RequestBody MessageRequest req) {
+      SseEmitter emitter = new SseEmitter(300_000L);
+      agentRuntime.execute(id, req.getMessage(), new SseEmitterCallback(emitter));
+      return emitter;
+  }</div>
+
+  <h3>4.2 SSE 连接生命周期管理</h3>
+  <table>
+    <tr><th>管理项</th><th>实现方式</th></tr>
+    <tr><td>独立异步线程池</td><td>Agent SSE 执行使用独立线程池 <code>agent-executor</code>（核心 4 / 最大 20 / 有界队列），与 Tomcat 请求线程隔离，避免长时间 Agent 任务阻塞 Web 容器</td></tr>
+    <tr><td>onCompletion</td><td>SSE 流正常结束时触发：调用 <code>emitter.complete()</code>，保存会话最终状态和 Trace，释放线程资源回池</td></tr>
+    <tr><td>onTimeout</td><td><code>SseEmitter(300_000L)</code> 超时触发：发送超时提示事件，标记会话为 <code>TIMEOUT</code>，中断当前 Agent Loop，释放线程</td></tr>
+    <tr><td>onError</td><td>连接异常或客户端断开时触发：捕获异常写入会话错误记录，<code>emitter.completeWithError()</code> 收尾，释放线程资源</td></tr>
+    <tr><td>客户端断开</td><td>通过 <code>SseEmitter.onCompletion()</code> 回调感知客户端断开；调用 <code>agentRuntime.cancel(sessionId)</code> 中断当前 Agent Loop，设置中断标志位，当前 Step 完成后停止不再进入下一步</td></tr>
+    <tr><td>资源释放</td><td>断开/超时/错误统一资源清理：释放 ThreadLocal（如 ToolContext 中的 userId），失效会话级缓存 key，写最终 Trace 快照，移除内存中的运行中会话标记</td></tr>
+    <tr><td>并发保护</td><td>同一 session 同一时间只允许一个 Agent Loop 运行，通过数据库行锁或分布式锁（Redis 场景）防止重复执行</td></tr>
+  </table>
+
+  <h3>4.3 实现类</h3>
+  <table>
+    <tr><th>实现类</th><th>适配协议</th><th>用途</th></tr>
+    <tr><td><code>DeepSeekLlmClient</code></td><td>OpenAI-compatible</td><td>默认生产实现</td></tr>
+    <tr><td><code>OpenAiCompatibleLlmClient</code></td><td>OpenAI-compatible</td><td>通用实现，适配大多数国产模型 API</td></tr>
+    <tr><td><code>DashScopeLlmClient</code></td><td>阿里云 DashScope</td><td>阿里云百炼适配</td></tr>
+    <tr><td><code>MockLlmClient</code></td><td>本地</td><td>单元测试 / 离线开发</td></tr>
+  </table>
+
+  <h3>4.4 配置切换</h3>
+  <pre>careermate:
+    llm:
+      provider: deepseek
+      model: deepseek-chat
+      api-key: ${DEEPSEEK_API_KEY}
+      endpoint: https://api.deepseek.com/v1
+      timeout: 60s
+      max-tokens: 4096
+      temperature: 0.7</pre>
+</div>
+
+<!-- ==================== PART 05 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 05</span>Agent Runtime 设计</h2>
+
+  <h3>5.1 架构模式：单主控 Agent + 分层工具 + 可并行执行</h3>
+  <p>CareerMate V2 采用<strong>"单主控 Agent + 分层工具系统 + 可并行工具执行"</strong>架构。Agent 决策链路保持线性以保证状态一致性；工具执行层可以并行，例如岗位检索、简历读取、JD 上下文读取、多个岗位匹配可以并发执行。</p>
+  <p>Multi-Agent 不进入 V2，仅作为 Roadmap 预留方向。</p>
+
+  <h3>5.2 Agent Loop</h3>
+  <div class="arch-box" style="line-height:2.4;">
+    <span style="color:var(--purple);">用户输入</span>
+    <span style="color:rgba(255,255,255,.25);">  →  </span>
+    <span style="color:#c4b5fd;">① Observe</span>
+    <span style="color:rgba(255,255,255,.25);"> 读取会话状态、用户画像、任务进度  →  </span>
+    <span style="color:#a78bfa;">② Plan</span>
+    <span style="color:rgba(255,255,255,.25);"> LLM 生成结构化计划摘要（步骤序列 + 工具选择）  →  </span>
+    <span style="color:#8b5cf6;">③ Act</span>
+    <span style="color:rgba(255,255,255,.25);"> 通过 Tool Registry 执行工具调用（支持并行、超时、重试、降级）  →  </span>
+    <span style="color:#c4b5fd;">④ Observe</span>
+    <span style="color:rgba(255,255,255,.25);"> 读回工具结果（含并行结果聚合）  →  </span>
+    <span style="color:#a78bfa;">⑤ Decide</span>
+    <span style="color:rgba(255,255,255,.25);"> 判断：继续执行 / 需要更多信息 / 可以回复  →  </span>
+    <span style="color:var(--purple);">⑥ Respond</span>
+    <span style="color:rgba(255,255,255,.25);"> 生成回复 + UI Action 建议</span>
+  </div>
+
+  <h3>5.3 工程约束</h3>
+  <table>
+    <tr><th>约束</th><th>值</th><th>说明</th></tr>
+    <tr><td>单次请求最大步数</td><td>20 步</td><td>每次用户请求（或单次任务）上限 20 步，超出终止当前任务，不影响后续</td></tr>
+    <tr><td>每轮最大工具调用</td><td>5 次</td><td>超过则强制进入 Respond 阶段</td></tr>
+    <tr><td>单工具超时</td><td>30s（可配置）</td><td>超时返回降级结果</td></tr>
+    <tr><td>工具失败重试</td><td>1 次</td><td>失败后重试一次，再失败走降级</td></tr>
+    <tr><td>降级策略</td><td>返回已知上下文</td><td>工具不可用时用缓存或用户画像兜底</td></tr>
+    <tr><td>Agent 状态持久化</td><td>每步落库</td><td>刷新页面后恢复执行进度</td></tr>
+    <tr><td>并行执行</td><td>Act 阶段内</td><td>同一 Plan 步骤内的无依赖工具可并行执行</td></tr>
+    <tr><td>最终回答约束</td><td>必须标注依据</td><td>标明来源于工具结果、用户上下文，或明确标注为建议</td></tr>
+  </table>
+
+  <h3>5.4 Agent Trace</h3>
+  <p>每一步执行生成 Trace。前端展示<strong>意图、计划摘要、工具调用和结果</strong>，不暴露模型内部推理原文。</p>
+  <div class="flow-box">展示：当前意图 · 计划摘要 · 工具调用及耗时 · 工具结果摘要 · 任务状态 · 下一步建议
+  不展示：模型内部长推理原文 · Chain-of-Thought 完整输出 · 原始 Prompt 内容</div>
+
+  <h3>5.5 核心类</h3>
+  <table>
+    <tr><th>类</th><th>职责</th></tr>
+    <tr><td><code>AgentRuntime</code></td><td>Agent 主循环编排：Observe→Plan→Act→Observe→Decide→Respond</td></tr>
+    <tr><td><code>AgentPlanner</code></td><td>调用 LLM 生成结构化任务计划摘要</td></tr>
+    <tr><td><code>AgentSessionService</code></td><td>会话生命周期管理：创建、恢复、持久化、过期</td></tr>
+    <tr><td><code>ToolRegistry</code></td><td>工具注册中心，启动时扫描 @AgentTool 注解并注册</td></tr>
+    <tr><td><code>ToolExecutor</code></td><td>工具调用执行器，支持超时/重试/降级/并行</td></tr>
+    <tr><td><code>ToolContext</code></td><td>工具执行上下文，注入当前用户、会话、权限（不含 userId 参数）</td></tr>
+    <tr><td><code>TraceService</code></td><td>Agent 执行轨迹记录与查询</td></tr>
+    <tr><td><code>UiActionFactory</code></td><td>生成受控 UI Action，前端白名单校验后执行</td></tr>
+  </table>
+</div>
+
+<!-- ==================== PART 06 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 06</span>工具系统设计</h2>
+
+  <h3>6.1 四层工具架构</h3>
+  <div class="arch-box" style="line-height:2.2;">
+  <span style="color:var(--purple);">┌─ Knowledge Tools ───────────────────────────────────────┐</span>
+  <span style="color:#c4b5fd;">│ search_knowledge  ·  retrieve_resume_context  ·  retrieve_job_context │</span>
+  <span style="color:rgba(255,255,255,.3);">│ 调用 RAGForge API，获取外部知识上下文                              │</span>
+  <span style="color:var(--purple);">├─ Career Tools ──────────────────────────────────────────┤</span>
+  <span style="color:#c4b5fd;">│ parse_resume  ·  match_job  ·  analyze_skill_gap  ·  generate_resume_suggestions │</span>
+  <span style="color:rgba(255,255,255,.3);">│ 求职核心业务逻辑，操作简历/岗位/匹配数据                               │</span>
+  <span style="color:var(--purple);">├─ Interview Tools ───────────────────────────────────────┤</span>
+  <span style="color:#c4b5fd;">│ generate_questions  ·  evaluate_answer  ·  generate_followup_question │</span>
+  <span style="color:rgba(255,255,255,.3);">│ 面试训练场景，出题/评分/追问                                     │</span>
+  <span style="color:var(--purple);">└─ System Tools ──────────────────────────────────────────┘</span>
+  <span style="color:#c4b5fd;">│ get_dashboard  ·  update_task_state  ·  navigate                      │</span>
+  <span style="color:rgba(255,255,255,.3);">│ 系统级操作，看板/状态/受控导航                                       │</span>
+  </div>
+
+  <h3>6.2 工具清单（13 个，全部纳入 V2）</h3>
+  <table>
+    <tr><th>层级</th><th>工具名</th><th>功能</th><th>超时</th><th>权限</th><th>降级策略</th></tr>
+    <tr><td>Knowledge</td><td><code>search_knowledge</code></td><td>调用 RAGForge 检索知识库</td><td>10s</td><td>USER</td><td>返回空结果 + 提示</td></tr>
+    <tr><td>Knowledge</td><td><code>retrieve_resume_context</code></td><td>获取当前用户简历完整上下文</td><td>2s</td><td>USER</td><td>返回用户画像摘要</td></tr>
+    <tr><td>Knowledge</td><td><code>retrieve_job_context</code></td><td>获取指定岗位完整 JD 上下文</td><td>2s</td><td>USER</td><td>返回 job_posts 结构化数据</td></tr>
+    <tr><td>Career</td><td><code>parse_resume</code></td><td>解析上传简历，生成结构化画像</td><td>30s</td><td>USER</td><td>返回原始文本 + 人工补充提示</td></tr>
+    <tr><td>Career</td><td><code>match_job</code></td><td>简历 vs JD 匹配度计算</td><td>15s</td><td>USER</td><td>返回基于关键词的简单匹配</td></tr>
+    <tr><td>Career</td><td><code>analyze_skill_gap</code></td><td>技能差距分析 + 学习建议</td><td>10s</td><td>USER</td><td>返回静态技能对比表</td></tr>
+    <tr><td>Career</td><td><code>generate_resume_suggestions</code></td><td>对标 JD 生成简历优化建议</td><td>10s</td><td>USER</td><td>返回通用简历建议模板</td></tr>
+    <tr><td>Interview</td><td><code>generate_questions</code></td><td>基于简历+JD 生成面试题</td><td>15s</td><td>USER</td><td>返回预设题库随机选题</td></tr>
+    <tr><td>Interview</td><td><code>evaluate_answer</code></td><td>评估回答质量 + 多维反馈</td><td>10s</td><td>USER</td><td>返回基础评分框架</td></tr>
+    <tr><td>Interview</td><td><code>generate_followup_question</code></td><td>根据回答生成追问</td><td>10s</td><td>USER</td><td>跳过追问环节</td></tr>
+    <tr><td>System</td><td><code>get_dashboard</code></td><td>汇总求职数据生成看板</td><td>5s</td><td>USER</td><td>返回缓存快照</td></tr>
+    <tr><td>System</td><td><code>update_task_state</code></td><td>更新当前任务执行状态</td><td>1s</td><td>SYSTEM</td><td>静默失败</td></tr>
+    <tr><td>System</td><td><code>navigate</code></td><td>返回受控 UI Action</td><td>1s</td><td>SYSTEM</td><td>无导航建议</td></tr>
+  </table>
+
+  <h3>6.3 工具注册与约束</h3>
+  <pre>@AgentTool(
+    name = "match_job",
+    description = "计算用户简历与指定岗位的匹配度，返回匹配分数和技能差距",
+    layer = ToolLayer.CAREER,
+    timeout = 15000,
+    permission = "USER"
+  )
+  public JobMatchResult matchJob(
+      @ToolParam(desc = "岗位JD ID列表", required = true) List&lt;Long&gt; jdIds,
+      @ToolParam(desc = "期望城市", required = false) String location,
+      @ToolParam(desc = "期望薪资范围", required = false) String salaryRange
+  ) { ... }</pre>
+  <ul class="constraint-list">
+    <li>工具参数中不允许 LLM 传入 userId — userId 由 ToolContext 从登录态注入</li>
+    <li>参数通过 Bean Validation 校验，JSON Schema 由 @AgentTool 自动生成</li>
+    <li>每个工具声明 name、description、JSON Schema、timeout、permission、fallback</li>
+    <li>ToolExecutor 支持超时控制、重试（1次）、降级、同步骤内无依赖并行执行</li>
+  </ul>
+
+  <h3>6.4 UI Action 受控导航</h3>
+  <pre>{
+    "type": "NAVIGATE",
+    "target": "JOB_MATCH",        // 前端白名单: DIALOG | RESUME | JOB_MATCH | INTERVIEW | DASHBOARD
+    "params": { "matchBatchId": 1001 },
+    "reason": "已完成 6 个岗位匹配，推荐查看详情"
+  }</pre>
+  <p>前端路由守卫拦截 UI Action，仅白名单 target 可触发。用户可手动导航，Agent 建议不阻塞操作。</p>
+</div>
+
+<!-- ==================== PART 07 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 07</span>MCP Adapter 设计</h2>
+
+  <p>V2 不要求实现完整 MCP (Model Context Protocol) 平台，但架构层面需要清晰预留扩展点。内部 Tool Registry 仍然是 CareerMate 的主工具系统，MCP 作为外部集成通道。</p>
+
+  <h3>7.1 设计原则</h3>
+  <ul class="constraint-list">
+    <li>内部 Tool Registry 是工具权威来源，MCP 不替代它</li>
+    <li>MCP Server Adapter：后续可把 CareerMate 的部分工具暴露为 MCP Tools，供外部 Agent 调用</li>
+    <li>MCP Client Adapter：后续可接入外部 MCP Server（授权外部数据源、公开 API、企业内部系统、用户导入数据），所有外部接入必须在用户授权和法律合规前提下进行</li>
+    <li>V2 只定义接口和扩展点，不引入 MCP 运行时依赖，不影响 MVP 部署复杂度</li>
+    <li>MCP 是 Roadmap 扩展能力</li>
+  </ul>
+
+  <h3>7.2 接口预留</h3>
+  <div class="flow-box">// MCP Server Adapter — 将内部工具暴露为 MCP Tools
+  public interface McpServerAdapter {
+      List&lt;McpTool&gt; listTools();
+      McpToolResult callTool(String toolName, Map&lt;String, Object&gt; args);
+      void start();
+      void stop();
+  }
+
+  // MCP Client Adapter — 调用外部 MCP Server 的工具
+  public interface McpClientAdapter {
+      void connect(String serverUrl);
+      List&lt;McpTool&gt; listRemoteTools();
+      McpToolResult callRemoteTool(String toolName, Map&lt;String, Object&gt; args);
+      void disconnect();
+  }
+
+  // V2 实现：NoOp 占位
+  NoOpMcpServerAdapter implements McpServerAdapter   // 所有方法返回空
+  NoOpMcpClientAdapter implements McpClientAdapter   // 所有方法返回空</div>
+
+  <h3>7.3 扩展场景</h3>
+  <table>
+    <tr><th>场景</th><th>方向</th><th>说明</th></tr>
+    <tr><td>CareerMate 工具被外部 Agent 调用</td><td>MCP Server</td><td>将 match_job、analyze_skill_gap 等暴露为标准 MCP Tool</td></tr>
+    <tr><td>接入授权外部数据源</td><td>MCP Client</td><td>通过授权 API 接入公共招聘数据源、公开 JD 信息，用户主动授权后拉取</td></tr>
+    <tr><td>接入用户日历/邮件</td><td>MCP Client</td><td>用户授权后面试日程提醒、投递跟进邮件</td></tr>
+    <tr><td>接入企业内部文档系统</td><td>MCP Client</td><td>经企业授权后读取公司内部岗位说明、面试题库</td></tr>
+    <tr><td>接入用户导入数据源</td><td>MCP Client</td><td>用户自行导入或连接的个人数据（本地文件、网盘、笔记等）</td></tr>
+  </table>
+</div>
+
+<!-- ==================== PART 08 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 08</span>记忆系统设计</h2>
+
+  <h3>8.1 五层记忆架构</h3>
+  <table>
+    <tr><th>类型</th><th>内容</th><th>存储</th><th>生命周期</th><th>Token 策略</th></tr>
+    <tr><td><strong>Session Memory</strong></td><td>当前会话对话历史、中间结果</td><td>PostgreSQL</td><td>单次会话</td><td>最近 N 轮 + 摘要压缩</td></tr>
+    <tr><td><strong>Profile Memory</strong></td><td>用户技能标签、工作年限、求职偏好、目标公司</td><td>PostgreSQL JSONB</td><td>持久</td><td>结构化注入 System Prompt</td></tr>
+    <tr><td><strong>Task Memory</strong></td><td>当前任务类型、进度、已完成步骤</td><td>PostgreSQL JSONB</td><td>跨会话</td><td>仅注入当前任务状态</td></tr>
+    <tr><td><strong>Artifact Memory</strong></td><td>简历解析结果、JD 匹配记录、面试记录</td><td>PostgreSQL + 业务表</td><td>持久（可删除）</td><td>按需检索，不预加载</td></tr>
+    <tr><td><strong>Trace Memory</strong></td><td>工具调用参数和返回值摘要</td><td>PostgreSQL</td><td>持久（可配置 TTL）</td><td>不进入 LLM 上下文</td></tr>
+  </table>
+
+  <h3>8.2 MemoryStore 抽象与 MemoryCache 加速层</h3>
+  <p><strong>MemoryStore 是权威持久化存储抽象</strong>，以 PostgreSQL 为唯一权威数据源。Caffeine 和 Redis 是 <strong>MemoryCache 加速层</strong>，属于独立的缓存抽象，不实现 MemoryStore 接口，不承载权威数据：</p>
+  <div class="flow-box">// MemoryStore — 权威持久化存储（仅 PostgresMemoryStore 实现）
+  public interface MemoryStore {
+      void save(String key, Object value);
+      void saveWithTtl(String key, Object value, Duration ttl);
+      &lt;T&gt; T get(String key, Class&lt;T&gt; type);
+      void delete(String key);
+  }
+
+  PostgresMemoryStore implements MemoryStore        // V2 唯一权威 MemoryStore 实现
+
+  // MemoryCache — 缓存加速层（Caffeine / Redis），不实现 MemoryStore
+  public interface MemoryCache {
+      void put(String key, Object value, Duration ttl);
+      &lt;T&gt; T get(String key, Class&lt;T&gt; type);
+      void evict(String key);
+  }
+
+  CaffeineMemoryCache implements MemoryCache         // 本地热点缓存 (L1)，默认启用
+  RedisMemoryCache implements MemoryCache             // 分布式缓存 (L2)，V2 可选
+  CompositeCache                                     // L1 Caffeine + L2 Redis 两级缓存</div>
+  <p>读写路径：读 → 查 Caffeine L1 → 未命中查 Redis L2（如有）→ 未命中查 PostgresMemoryStore → 回填缓存。写 → 写 PostgresMemoryStore（权威）→ 失效对应缓存 key。缓存不可用不影响服务，退化到直接读 PostgresMemoryStore。</p>
+
+  <h3>8.3 隐私控制</h3>
+  <table>
+    <tr><th>能力</th><th>实现方式</th></tr>
+    <tr><td>用户可查看画像</td><td>看板页展示 Agent 推断的技能标签和求职偏好</td></tr>
+    <tr><td>用户可编辑画像</td><td>手动修改技能标签、求职偏好、目标公司</td></tr>
+    <tr><td>用户可清空记忆</td><td>按 scope 清除（session / profile / all），业务数据独立保留</td></tr>
+    <tr><td>简历可删除</td><td>级联删除关联的匹配记录和解析结果</td></tr>
+    <tr><td>parsed_content 加密存储</td><td>简历解析结果支持 AES-256-GCM 可配置加密，密钥通过环境变量注入，默认关闭（本地部署场景可跳过）</td></tr>
+    <tr><td>敏感字段脱敏</td><td>Trace 日志中姓名/电话/邮箱自动替换为占位符</td></tr>
+    <tr><td>日志不保存简历原文</td><td>应用日志仅记录文件名和解析状态，不写入简历原文或 parsed_content 完整内容</td></tr>
+    <tr><td>Trace 只保存摘要</td><td>Agent Trace 中不保存简历/JD 完整原文，仅保留结构化摘要（技能标签、工作年限、目标岗位）和脱敏字段</td></tr>
+    <tr><td>评测样本不含隐私原文</td><td>agent_eval_cases 中的 resume_context 使用匿名化合成数据，不存储真实用户简历</td></tr>
+    <tr><td>避免长文本注入 Prompt</td><td>使用摘要和结构化画像，不把完整简历长期注入 Prompt</td></tr>
+  </table>
+</div>
+
+<!-- ==================== PART 09 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 09</span>Prompt 模板与版本管理</h2>
+
+  <p>Prompt 不写死在代码里。核心模板可配置、可审计、可演进。Prompt 变更不应要求重新部署。</p>
+
+  <h3>9.1 设计</h3>
+  <ul class="constraint-list">
+    <li>System Prompt 按任务类型拆分：简历分析、岗位匹配、面试题生成、回答评估、看板汇总</li>
+    <li>Tool Description 统一规范：名称、用途、参数说明、返回值格式</li>
+    <li>Few-shot 示例可配置，存储在 prompt_versions 中</li>
+    <li>Prompt 模板支持版本号（v1, v2, ...）和状态（draft / active / archived）</li>
+    <li>Prompt 修改可回滚：通过激活历史版本实现</li>
+    <li>运行时按 task_type 查询当前 active 版本注入</li>
+  </ul>
+
+  <h3>9.2 表设计</h3>
+  <table>
+    <tr><th>表名</th><th>说明</th><th>核心字段</th></tr>
+    <tr><td><code>prompt_templates</code></td><td>Prompt 模板定义</td><td>id, template_key, task_type, name, description, current_version_id, status, created_at, updated_at</td></tr>
+    <tr><td><code>prompt_versions</code></td><td>Prompt 版本快照</td><td>id, template_id, version, system_prompt, tool_prompt, few_shot_examples(JSONB), change_log, status(draft/active/archived), created_at</td></tr>
+  </table>
+
+  <h3>9.3 Prompt 渲染流程</h3>
+  <div class="flow-box">AgentRuntime.plan()
+    → PromptService.render(templateKey, context)
+      → 查询 prompt_templates WHERE template_key = ? AND status = 'active'
+      → 查询 prompt_versions WHERE id = template.current_version_id
+      → 替换变量: {{user_profile}} {{task_context}} {{tool_list}} {{few_shot}}
+      → 注入 Tool JSON Schema 列表
+    → 返回完整 System Prompt
+    → 发送给 LlmClient</div>
+</div>
+
+<!-- ==================== PART 10 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 10</span>权限与隐私设计</h2>
+
+  <h3>10.1 认证方案</h3>
+  <p>Spring Security + JWT 无状态认证。密码使用 <strong>BCrypt</strong>（Spring Security 默认）或 <strong>Argon2</strong> 哈希存储。两种运行模式：</p>
+  <table>
+    <tr><th>模式</th><th>说明</th><th>适用场景</th></tr>
+    <tr><td><code>single-user</code></td><td>不强制登录，使用默认用户 ID，跳过 JWT 校验</td><td>本地体验、个人使用</td></tr>
+    <tr><td><code>jwt</code></td><td>登录注册 + JWT 鉴权 + user_id 数据隔离</td><td>线上部署、多用户</td></tr>
+  </table>
+  <pre>careermate:
+    security:
+      mode: jwt
+      jwt:
+        secret: ${JWT_SECRET}
+        expiration: 86400000</pre>
+
+  <h3>10.2 角色</h3>
+  <table>
+    <tr><th>角色</th><th>权限</th></tr>
+    <tr><td><code>USER</code></td><td>访问自己的简历、会话、匹配结果、面试记录、画像、任务状态</td></tr>
+    <tr><td><code>ADMIN</code></td><td>查看系统指标、管理公共岗位库、管理 Prompt 模板、查看审计日志、查看评测结果</td></tr>
+  </table>
+
+  <h3>10.3 数据隔离原则</h3>
+  <ul class="constraint-list">
+    <li>所有用户私有数据表必须包含 user_id</li>
+    <li>所有查询、更新、删除必须带 user_id 条件</li>
+    <li>Tool 参数中不允许 LLM 传入 userId — userId 由 ToolContext 从登录态注入</li>
+    <li>CareerMate 使用服务级 API Key 调用 RAGForge，用户权限由 CareerMate 控制</li>
+  </ul>
+
+  <h3>10.4 审计日志</h3>
+  <p><code>security_audit_logs</code> 表记录：LOGIN, LOGOUT, UPLOAD_RESUME, DELETE_RESUME, CLEAR_MEMORY, EXPORT_PROFILE, DELETE_SESSION</p>
+</div>
+
+<!-- ==================== PART 11 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 11</span>Agent Evaluation 评测体系</h2>
+
+  <p>Agent 评测体系用于量化 Agent 质量、对比模型效果、验证 Prompt 改动、发现回归问题。每次修改 Prompt、Tool、模型配置后跑评测，用数据驱动迭代。</p>
+
+  <h3>11.1 评测维度</h3>
+  <table>
+    <tr><th>维度</th><th>指标</th><th>计算方式</th></tr>
+    <tr><td>意图识别准确率</td><td>intent_accuracy</td><td>正确识别意图的用例数 / 总用例数</td></tr>
+    <tr><td>工具选择准确率</td><td>tool_selection_accuracy</td><td>选择了正确工具集的用例数 / 总用例数</td></tr>
+    <tr><td>工具参数正确率</td><td>tool_param_accuracy</td><td>参数正确的工具调用数 / 总工具调用数</td></tr>
+    <tr><td>RAG 命中率</td><td>rag_hit_rate</td><td>检索结果包含期望文档的用例数 / 总用例数</td></tr>
+    <tr><td>回复可用性</td><td>response_usability</td><td>人工评分 1-5 分或 LLM-as-Judge 评分</td></tr>
+    <tr><td>幻觉率</td><td>hallucination_rate</td><td>包含虚构信息的回复数 / 总回复数</td></tr>
+    <tr><td>平均响应耗时</td><td>avg_latency_ms</td><td>端到端延迟（从请求到完整回复）</td></tr>
+    <tr><td>Token 消耗</td><td>input_tokens / output_tokens</td><td>单次执行的平均 token 消耗</td></tr>
+    <tr><td>估算成本</td><td>estimated_cost</td><td>基于模型定价的估算成本（元/次）</td></tr>
+  </table>
+
+  <h3>11.2 表设计</h3>
+  <table>
+    <tr><th>表名</th><th>说明</th><th>核心字段</th></tr>
+    <tr><td><code>agent_eval_cases</code></td><td>评测用例</td><td>id, case_key, scenario, user_input, expected_intent, expected_tools(JSONB), expected_keywords(JSONB), resume_context, difficulty, created_at</td></tr>
+    <tr><td><code>agent_eval_runs</code></td><td>评测执行记录</td><td>id, run_tag, model_provider, model_name, prompt_version_id, total_cases, passed_cases, avg_latency_ms, avg_input_tokens, avg_output_tokens, avg_cost, run_at</td></tr>
+    <tr><td><code>agent_eval_results</code></td><td>单用例评测结果</td><td>id, run_id, case_id, actual_intent, intent_match, tool_selection_match, tool_param_accuracy, usability_score, hallucination_detected, latency_ms, input_tokens, output_tokens, estimated_cost, detail(JSONB), created_at</td></tr>
+  </table>
+
+  <h3>11.3 评测流程</h3>
+  <div class="flow-box">① 准备评测用例 (agent_eval_cases)
+  ② 创建评测 Run → 选择模型 + Prompt 版本
+  ③ 逐条执行：发送 user_input 到 Agent → 记录 Trace
+  ④ 自动比对：意图/工具/参数 vs 期望值
+  ⑤ LLM-as-Judge 评分：可用性 + 幻觉检测
+  ⑥ 汇总报告：各维度得分 + 对比历史 Run</div>
+</div>
+
+<!-- ==================== PART 12 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 12</span>可观测性与成本控制</h2>
+
+  <h3>12.1 指标采集</h3>
+  <p>每次 Agent 执行记录以下指标，写入 agent_sessions 和 agent_tool_calls 表：</p>
+  <table>
+    <tr><th>指标</th><th>说明</th><th>存储位置</th></tr>
+    <tr><td><code>total_latency_ms</code></td><td>端到端延迟，从用户请求到完整 SSE 流结束</td><td>agent_sessions</td></tr>
+    <tr><td><code>llm_latency_ms</code></td><td>LLM 调用耗时合计</td><td>agent_sessions</td></tr>
+    <tr><td><code>rag_latency_ms</code></td><td>RAGForge 检索耗时</td><td>agent_tool_calls (search_knowledge)</td></tr>
+    <tr><td><code>tool_latency_ms</code></td><td>各工具调用耗时合计</td><td>agent_tool_calls</td></tr>
+    <tr><td><code>input_tokens</code></td><td>本次会话累计输入 token</td><td>agent_sessions</td></tr>
+    <tr><td><code>output_tokens</code></td><td>本次会话累计输出 token</td><td>agent_sessions</td></tr>
+    <tr><td><code>estimated_cost</code></td><td>基于模型定价的估算成本</td><td>agent_sessions</td></tr>
+    <tr><td><code>model_provider</code> / <code>model_name</code></td><td>使用的模型</td><td>agent_sessions</td></tr>
+    <tr><td><code>tool_call_count</code></td><td>本次会话工具调用总数</td><td>agent_sessions</td></tr>
+    <tr><td><code>error_code</code></td><td>错误码（如有）</td><td>agent_sessions / agent_tool_calls</td></tr>
+    <tr><td><code>fallback_used</code></td><td>是否触发了降级策略</td><td>agent_tool_calls</td></tr>
+  </table>
+
+  <h3>12.2 扩展空间</h3>
+  <p>V2 通过日志、数据库 Trace 和 Spring Boot Actuator 提供基础可观测性。不强制接入 APM，但架构保留扩展能力：</p>
+  <ul class="constraint-list">
+    <li>Actuator 端点（/actuator/metrics, /actuator/health）暴露 JVM 和业务指标</li>
+    <li>可通过 Micrometer 对接 Prometheus + Grafana</li>
+    <li>agent_sessions 和 agent_tool_calls 表本身可作为成本分析和性能监控的数据源</li>
+    <li>日志格式统一为 JSON，方便后续接入 ELK / Loki</li>
+  </ul>
+</div>
+
+<!-- ==================== PART 13 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 13</span>求职业务领域模型（19 张表）</h2>
+
+  <h3>13.1 Agent Runtime 表（5 张）</h3>
+  <table>
+    <tr><th>表名</th><th>说明</th><th>核心字段</th></tr>
+    <tr><td><code>agent_sessions</code></td><td>Agent 会话</td><td>id, session_id, user_id, status, intent, task_type, total_latency_ms, llm_latency_ms, input_tokens, output_tokens, estimated_cost, model_provider, model_name, tool_call_count, error_code, created_at, updated_at</td></tr>
+    <tr><td><code>agent_messages</code></td><td>对话消息</td><td>id, session_id, user_id, role, content, message_type, created_at</td></tr>
+    <tr><td><code>agent_tool_calls</code></td><td>工具调用记录</td><td>id, session_id, user_id, message_id, tool_name, tool_layer, request_params_summary(JSONB), response_summary(JSONB), status, latency_ms, rag_latency_ms, fallback_used, error_code, created_at</td></tr>
+    <tr><td><code>agent_task_states</code></td><td>任务状态</td><td>id, session_id, user_id, task_type, current_step, total_steps, state_data(JSONB), status, created_at, updated_at</td></tr>
+    <tr><td><code>user_profiles</code></td><td>用户画像</td><td>id, user_id, skills(JSONB), experience_years, target_positions(JSONB), target_companies(JSONB), preferences(JSONB), created_at, updated_at</td></tr>
+  </table>
+
+  <h3>13.2 Career Domain 表（9 张）</h3>
+  <table>
+    <tr><th>表名</th><th>说明</th><th>核心字段</th></tr>
+    <tr><td><code>users</code></td><td>用户</td><td>id, username, password_hash (BCrypt/Argon2), email, role, status, created_at, updated_at</td></tr>
+    <tr><td><code>resumes</code></td><td>简历</td><td>id, user_id, filename, file_path, parsed_content, parse_status, skill_keywords(JSONB), created_at, updated_at</td></tr>
+    <tr><td><code>job_posts</code></td><td>岗位描述</td><td>id, source, company_name, position, location, salary_range, requirements, parsed_content, rag_kb_id, rag_doc_id, source_url, external_job_id, status, created_at</td></tr>
+    <tr><td><code>job_matches</code></td><td>岗位匹配</td><td>id, user_id, resume_id, job_post_id, match_score, matched_skills(JSONB), gap_skills(JSONB), analysis_result(JSONB), created_at</td></tr>
+    <tr><td><code>interview_sessions</code></td><td>面试训练会话</td><td>id, user_id, session_id, position, job_post_id, total_questions, completed_questions, status, created_at, updated_at</td></tr>
+    <tr><td><code>interview_questions</code></td><td>面试问题</td><td>id, interview_session_id, question_text, question_type, reference_job_post_id, expected_points(JSONB), sequence_num, created_at</td></tr>
+    <tr><td><code>interview_answers</code></td><td>面试回答</td><td>id, question_id, user_id, user_answer, evaluation_score, evaluation_feedback(JSONB), suggestions(JSONB), created_at</td></tr>
+    <tr><td><code>career_dashboard_snapshots</code></td><td>看板快照</td><td>id, user_id, snapshot_data(JSONB), generated_at</td></tr>
+    <tr><td><code>security_audit_logs</code></td><td>安全审计日志</td><td>id, user_id, action_type, action_detail, resource_type, resource_id, success, failure_reason, ip_address, user_agent, created_at</td></tr>
+  </table>
+
+  <h3>13.3 Prompt & Eval 表（5 张，V2 新增）</h3>
+  <table>
+    <tr><th>表名</th><th>说明</th><th>核心字段</th></tr>
+    <tr><td><code>prompt_templates</code></td><td>Prompt 模板</td><td>id, template_key, task_type, name, description, current_version_id, status, created_at, updated_at</td></tr>
+    <tr><td><code>prompt_versions</code></td><td>Prompt 版本</td><td>id, template_id, version, system_prompt, tool_prompt, few_shot_examples(JSONB), change_log, status, created_at</td></tr>
+    <tr><td><code>agent_eval_cases</code></td><td>评测用例</td><td>id, case_key, scenario, user_input, expected_intent, expected_tools(JSONB), expected_keywords(JSONB), resume_context, difficulty, created_at</td></tr>
+    <tr><td><code>agent_eval_runs</code></td><td>评测执行</td><td>id, run_tag, model_provider, model_name, prompt_version_id, total_cases, passed_cases, avg_latency_ms, avg_input_tokens, avg_output_tokens, avg_cost, run_at</td></tr>
+    <tr><td><code>agent_eval_results</code></td><td>评测结果</td><td>id, run_id, case_id, actual_intent, intent_match, tool_selection_match, tool_param_accuracy, usability_score, hallucination_detected, latency_ms, input_tokens, output_tokens, estimated_cost, detail(JSONB), created_at</td></tr>
+  </table>
+
+  <h3>13.4 数据隔离</h3>
+  <ul class="constraint-list">
+    <li>resumes、job_matches、interview_sessions、interview_answers、agent_sessions、agent_messages、user_profiles 都必须有 user_id</li>
+    <li>job_posts 是公共岗位库，不绑定 user_id</li>
+    <li>prompt_templates、prompt_versions、agent_eval_cases、agent_eval_runs 为系统级表</li>
+    <li>CareerMate 使用独立 PostgreSQL Database（careermate_db），不与 RAGForge 混用</li>
+  </ul>
+
+  <h3>13.5 job_posts 与 RAGForge JD 库</h3>
+  <table>
+    <tr><th>维度</th><th>job_posts（CareerMate）</th><th>RAGForge JD 知识库</th></tr>
+    <tr><td>存储内容</td><td>结构化岗位元数据</td><td>JD 原文和 chunk（向量 + 关键词索引）</td></tr>
+    <tr><td>用途</td><td>列表展示、匹配计算、筛选排序</td><td>语义检索、知识问答、面试题上下文</td></tr>
+    <tr><td>关联</td><td>通过 rag_kb_id + rag_doc_id 关联 RAGForge 中的 JD 文档</td><td>通过 knowledge_base_id + document_id 标识</td></tr>
+  </table>
+
+  <h3>13.6 数据库 Migration 管理</h3>
+  <p>所有 DDL 变更通过 <strong>Flyway</strong> 管理，确保数据库 schema 版本化、可追溯、可复现：</p>
+  <table>
+    <tr><th>管理项</th><th>实现方式</th></tr>
+    <tr><td>Migration 工具</td><td>Flyway（Spring Boot 3.2 内置集成，<code>flyway-core</code>），也可替换为 Liquibase</td></tr>
+    <tr><td>脚本命名规范</td><td><code>V{version}__{description}.sql</code>，如 <code>V1__init_19_tables.sql</code>、<code>V2__add_eval_tables.sql</code></td></tr>
+    <tr><td>脚本目录</td><td><code>src/main/resources/db/migration/</code></td></tr>
+    <tr><td>执行时机</td><td>应用启动时自动执行未应用的 migration，通过 <code>spring.flyway.enabled=true</code> 控制</td></tr>
+    <tr><td>版本表</td><td>Flyway 自动维护 <code>flyway_schema_history</code> 表，记录已执行脚本版本、校验和、执行时间</td></tr>
+    <tr><td>禁止行为</td><td>不手动修改已应用的 migration 文件；变更必须通过新增 migration 脚本完成</td></tr>
+    <tr><td>种子数据</td><td>预置 Prompt 模板、评测用例等种子数据通过 <code>V999__seed_data.sql</code> 或应用层 DataInitializer 写入</td></tr>
+  </table>
+</div>
+
+<!-- ==================== PART 14 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 14</span>API 接口设计</h2>
+
+  <h3>14.1 认证</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>POST</td><td><code>/api/auth/register</code></td><td>用户注册</td></tr>
+    <tr><td>POST</td><td><code>/api/auth/login</code></td><td>用户登录，返回 JWT</td></tr>
+    <tr><td>GET</td><td><code>/api/health</code></td><td>健康检查（无需认证）</td></tr>
+  </table>
+
+  <h3>14.2 Agent 对话（SSE 流式）</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>POST</td><td><code>/api/agent/sessions</code></td><td>创建新会话</td></tr>
+    <tr><td>GET</td><td><code>/api/agent/sessions/{id}</code></td><td>获取会话详情 + 消息历史</td></tr>
+    <tr><td>POST</td><td><code>/api/agent/sessions/{id}/messages/stream</code></td><td>发送消息，返回 SSE 事件流</td></tr>
+    <tr><td>GET</td><td><code>/api/agent/sessions/{id}/trace</code></td><td>获取 Agent Trace</td></tr>
+    <tr><td>GET</td><td><code>/api/agent/sessions/{id}/metrics</code></td><td>获取会话可观测性指标</td></tr>
+  </table>
+
+  <p>SSE 事件类型：intent → plan → tool_call → tool_result → trace → message → ui_action → done</p>
+
+  <h3>14.3 简历</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>POST</td><td><code>/api/resumes/upload</code></td><td>上传简历（异步解析）</td></tr>
+    <tr><td>GET</td><td><code>/api/resumes</code></td><td>简历列表</td></tr>
+    <tr><td>GET</td><td><code>/api/resumes/{id}</code></td><td>简历详情 + 解析结果</td></tr>
+    <tr><td>DELETE</td><td><code>/api/resumes/{id}</code></td><td>删除简历（级联）</td></tr>
+  </table>
+
+  <h3>14.4 岗位匹配</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>POST</td><td><code>/api/jobs/match</code></td><td>执行岗位匹配</td></tr>
+    <tr><td>GET</td><td><code>/api/jobs/matches</code></td><td>匹配结果列表</td></tr>
+    <tr><td>GET</td><td><code>/api/jobs/matches/{id}</code></td><td>匹配结果详情 + 技能差距</td></tr>
+  </table>
+
+  <h3>14.5 面试训练</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>POST</td><td><code>/api/interviews/sessions</code></td><td>创建面试训练会话</td></tr>
+    <tr><td>POST</td><td><code>/api/interviews/sessions/{id}/answers</code></td><td>提交回答</td></tr>
+    <tr><td>GET</td><td><code>/api/interviews/sessions/{id}/report</code></td><td>获取训练报告</td></tr>
+  </table>
+
+  <h3>14.6 看板与记忆</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>GET</td><td><code>/api/dashboard</code></td><td>求职看板数据</td></tr>
+    <tr><td>GET</td><td><code>/api/profile</code></td><td>查看用户画像</td></tr>
+    <tr><td>PUT</td><td><code>/api/profile</code></td><td>编辑用户画像</td></tr>
+    <tr><td>DELETE</td><td><code>/api/memory/session</code></td><td>清空会话记忆</td></tr>
+    <tr><td>DELETE</td><td><code>/api/memory/profile</code></td><td>重置用户画像</td></tr>
+    <tr><td>DELETE</td><td><code>/api/memory/all</code></td><td>清空全部记忆</td></tr>
+  </table>
+
+  <h3>14.7 Prompt 管理（ADMIN）</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>GET</td><td><code>/api/prompts</code></td><td>Prompt 模板列表</td></tr>
+    <tr><td>POST</td><td><code>/api/prompts</code></td><td>创建模板</td></tr>
+    <tr><td>PUT</td><td><code>/api/prompts/{id}</code></td><td>更新模板</td></tr>
+    <tr><td>POST</td><td><code>/api/prompts/{id}/versions</code></td><td>创建新版本（激活）</td></tr>
+    <tr><td>POST</td><td><code>/api/prompts/{id}/rollback</code></td><td>回滚到指定版本</td></tr>
+  </table>
+
+  <h3>14.8 Agent 评测（ADMIN）</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>POST</td><td><code>/api/evals/runs</code></td><td>创建评测 Run</td></tr>
+    <tr><td>GET</td><td><code>/api/evals/runs</code></td><td>评测 Run 列表</td></tr>
+    <tr><td>GET</td><td><code>/api/evals/runs/{id}</code></td><td>Run 详情 + 汇总</td></tr>
+    <tr><td>GET</td><td><code>/api/evals/results/{id}</code></td><td>单用例评测详情</td></tr>
+  </table>
+
+  <h3>14.9 可观测性</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>GET</td><td><code>/api/dashboard/agent-metrics</code></td><td>Agent 全局指标汇总（ADMIN）</td></tr>
+  </table>
+</div>
+
+<!-- ==================== PART 15 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 15</span>前端页面与 Agent 驱动流转</h2>
+
+  <h3>15.1 5 个页面</h3>
+  <table>
+    <tr><th>页面</th><th>路由</th><th>说明</th></tr>
+    <tr><td>Agent 对话台</td><td><code>/chat</code></td><td>Agent 交互主界面，对话输入 + Trace 展示 + UI Action 提示条。所有任务的入口和中枢。</td></tr>
+    <tr><td>简历工作室</td><td><code>/resume</code></td><td>简历上传、解析状态、分析结果、优化建议列表</td></tr>
+    <tr><td>岗位匹配</td><td><code>/jobs</code></td><td>匹配结果列表、技能差距分析、匹配度排序</td></tr>
+    <tr><td>面试特训</td><td><code>/interview</code></td><td>面试题展示、回答输入、评分反馈、训练报告</td></tr>
+    <tr><td>求职看板</td><td><code>/dashboard</code></td><td>求职全景：简历、匹配、训练进度、Agent 指标</td></tr>
+  </table>
+
+  <h3>15.2 页面流转方式</h3>
+  <ul class="constraint-list">
+    <li>用户可手动导航，自由切换页面</li>
+    <li>Agent 返回 UI Action 推荐跳转，前端路由守卫白名单校验后执行</li>
+    <li>Agent 对话台是入口和任务中枢</li>
+    <li>Agent 推荐受控导航动作，不任意控制页面</li>
+  </ul>
+
+  <h3>15.3 意图识别与页面推荐</h3>
+  <table>
+    <tr><th>用户输入</th><th>识别意图</th><th>Agent 动作</th><th>推荐页面</th></tr>
+    <tr><td>"帮我分析简历"</td><td>RESUME_ANALYSIS</td><td>加载简历 → 解析 → 分析优势/缺失</td><td>简历工作室</td></tr>
+    <tr><td>"有什么合适的后端岗位"</td><td>JOB_MATCH</td><td>检索 JD → 匹配 → 排序</td><td>岗位匹配</td></tr>
+    <tr><td>"准备字节的面试"</td><td>INTERVIEW_PREP</td><td>检索 JD+题库 → 生成面试题</td><td>面试特训</td></tr>
+    <tr><td>"求职进展怎么样"</td><td>DASHBOARD</td><td>汇总各模块数据</td><td>求职看板</td></tr>
+    <tr><td>其他</td><td>CHITCHAT</td><td>对话台直接回复</td><td>无</td></tr>
+  </table>
+</div>
+
+<!-- ==================== PART 16 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 16</span>推荐项目结构</h2>
+
+  <div class="flow-box">careermate/
+  ├── README.md
+  ├── docker-compose.yml
+  ├── nginx.conf
+  ├── .env.example
+  ├── docs/
+  │   ├── architecture.md
+  │   ├── api.md
+  │   ├── database.md
+  │   ├── deployment.md
+  │   └── roadmap.md
+  ├── backend/
+  │   ├── pom.xml
+  │   ├── Dockerfile
+  │   └── src/main/java/com/careermate/
+  │       ├── CareerMateApplication.java
+  │       ├── common/               统一响应体、异常处理、拦截器
+  │       ├── config/               LLM、SSE、WebMvc、Security 配置
+  │       ├── security/             JWT 过滤器、当前用户、审计日志
+  │       ├── auth/                 注册、登录、Token 刷新
+  │       ├── agent/
+  │       │   ├── controller/       Agent SSE 端点
+  │       │   ├── runtime/          Agent 主循环、规划、执行、响应
+  │       │   ├── session/          会话管理、消息历史
+  │       │   ├── memory/           五层记忆 + MemoryStore + MemoryCache
+  │       │   ├── tool/             工具注册、JSON Schema、参数校验、并行执行
+  │       │   ├── trace/            Agent 执行轨迹记录与查询
+  │       │   ├── ui/               受控 UI Action 生成
+  │       │   ├── prompt/           Prompt 模板、渲染、版本管理
+  │       │   ├── eval/             Agent 评测：用例管理、执行引擎、结果分析
+  │       │   ├── metrics/          指标采集、token/cost 统计
+  │       │   └── mcp/              MCP Adapter 接口 + NoOp 实现
+  │       ├── llm/
+  │       │   ├── LlmClient.java    模型调用接口 (StreamCallback)
+  │       │   └── provider/         DeepSeek / OpenAI / DashScope / Mock
+  │       ├── ragforge/
+  │       │   └── RagForgeClient.java
+  │       ├── career/
+  │       │   ├── resume/           简历上传、解析、分析、优化建议
+  │       │   ├── job/              JD 管理、岗位匹配、技能差距分析
+  │       │   ├── interview/        面试题生成、回答评估、训练报告
+  │       │   └── dashboard/        求职进度看板
+  │       ├── tools/
+  │       │   ├── knowledge/        Knowledge Tools 实现
+  │       │   ├── career/           Career Tools 实现
+  │       │   ├── interview/        Interview Tools 实现
+  │       │   └── system/           System Tools 实现
+  │       ├── observability/        指标采集、Actuator 端点
+  │       ├── model/
+  │       │   ├── entity/           19 张表实体
+  │       │   ├── dto/              请求/响应 DTO
+  │       │   └── vo/               视图对象
+  │       └── mapper/               MyBatis-Plus Mapper
+  │       └── src/main/resources/
+  │           └── db/migration/      Flyway SQL migration 脚本
+  └── frontend/
+      └── src/
+          ├── api/                  后端 API 请求层
+          ├── views/                5 个页面
+          ├── components/           Sidebar、ChatBubble、TracePanel、MetricsCard
+          ├── composables/          useAgent、useAuth、useTrace
+          ├── stores/               Pinia 状态管理
+          ├── router/               路由（含 UI Action 拦截）
+          └── styles/               全局样式</div>
+
+  <h3>16.1 关键包职责</h3>
+  <table>
+    <tr><th>包</th><th>职责</th></tr>
+    <tr><td><code>agent.runtime</code></td><td>Agent 主循环、规划、执行、响应</td></tr>
+    <tr><td><code>agent.tool</code></td><td>工具注册、JSON Schema、参数校验、并行执行</td></tr>
+    <tr><td><code>agent.memory</code></td><td>五层记忆 + MemoryStore 抽象 + MemoryCache 加速层</td></tr>
+    <tr><td><code>agent.trace</code></td><td>Agent 执行轨迹记录与查询</td></tr>
+    <tr><td><code>agent.ui</code></td><td>受控 UI Action 生成</td></tr>
+    <tr><td><code>agent.prompt</code></td><td>Prompt 模板渲染、版本管理、回滚</td></tr>
+    <tr><td><code>agent.eval</code></td><td>Agent 评测：用例管理、执行引擎、结果分析</td></tr>
+    <tr><td><code>agent.metrics</code></td><td>指标采集、token/cost 统计</td></tr>
+    <tr><td><code>agent.mcp</code></td><td>MCP Server/Client Adapter 接口 + NoOp 实现</td></tr>
+    <tr><td><code>llm</code></td><td>模型调用抽象，不绑定供应商</td></tr>
+    <tr><td><code>ragforge</code></td><td>调用 RAGForge 检索 API</td></tr>
+    <tr><td><code>career.resume</code></td><td>简历上传、解析、分析、优化建议</td></tr>
+    <tr><td><code>career.job</code></td><td>JD 管理、岗位匹配、技能差距分析</td></tr>
+    <tr><td><code>career.interview</code></td><td>面试题生成、回答评估、训练报告</td></tr>
+    <tr><td><code>career.dashboard</code></td><td>求职进度看板</td></tr>
+    <tr><td><code>observability</code></td><td>Actuator 端点、Prometheus 指标导出预留</td></tr>
+    <tr><td><code>security</code></td><td>JWT 认证、当前用户上下文、审计日志</td></tr>
+  </table>
+</div>
+
+<!-- ==================== PART 17 ==================== -->
+<div class="page page-break">
+  <h2><span class="num">PART 17</span>部署与路线图</h2>
+
+  <h3>17.1 Docker Compose 拓扑</h3>
+  <p>PostgreSQL 使用独立 database（careermate_db），不与 RAGForge 混用业务表。Redis 标注为 optional。</p>
+  <div class="flow-box">services:
+    postgres              postgres:15                    :5432
+    │  ├─ careermate_db     (CareerMate 业务数据)
+    │  └─ ragforge_db       (RAGForge 业务数据)
+    redis (optional)      redis:7-alpine                :6379
+    careermate-backend    Spring Boot 3.2               :8081
+    careermate-frontend   Nginx + Vue 3 SPA             :80
+    ragforge-backend      Spring Boot 3.2               :8080
+    ragforge-reranker     Python FastAPI                :8082
+    elasticsearch         elasticsearch:8.11.0          :9200
+    rocketmq-namesrv      apache/rocketmq:5.1.0         :9876
+    rocketmq-broker       apache/rocketmq:5.1.0         :10911</div>
+
+  <h3>17.2 Nginx 路由</h3>
+  <div class="flow-box">/                       → careermate-frontend 静态文件
+  /api/auth/*             → careermate-backend:8081
+  /api/agent/*            → careermate-backend:8081
+  /api/resumes/*          → careermate-backend:8081
+  /api/jobs/*             → careermate-backend:8081
+  /api/interviews/*       → careermate-backend:8081
+  /api/dashboard          → careermate-backend:8081
+  /api/profile            → careermate-backend:8081
+  /api/memory/*           → careermate-backend:8081
+  /api/prompts/*          → careermate-backend:8081
+  /api/evals/*            → careermate-backend:8081
+  /api/health             → careermate-backend:8081
+  /actuator/*             → careermate-backend:8081
+  /ragforge/              → ragforge-backend:8080</div>
+
+  <h3>17.3 为什么不用 LangChain / LangChain4j</h3>
+  <table>
+    <tr><th>考量</th><th>LangChain4j</th><th>自研 Agent Runtime</th></tr>
+    <tr><td>工具注册</td><td>框架封装，黑盒度高</td><td>Spring Bean + @AgentTool 注解，完全透明</td></tr>
+    <tr><td>调用链路</td><td>框架内部编排，调试困难</td><td>每步可追踪、可打断、可重放</td></tr>
+    <tr><td>定制成本</td><td>深度定制需 hack</td><td>轻量引擎，完全可控</td></tr>
+    <tr><td>RAGForge 集成</td><td>需要写适配层</td><td>RagForgeClient 直接调用，天然集成</td></tr>
+    <tr><td>权限控制</td><td>依赖框架机制</td><td>ToolContext 注入 userId，工具内权限可控</td></tr>
+  </table>
+
+  <h3>17.4 V2 完整范围</h3>
+  <table>
+    <tr><th>能力</th><th>状态</th><th>说明</th></tr>
+    <tr><td>Agent SSE 流式对话</td><td><span class="badge green">V2</span></td><td>SseEmitter + StreamCallback，Observe→Plan→Act→Decide→Respond</td></tr>
+    <tr><td>RAGForge 集成</td><td><span class="badge green">V2</span></td><td>RagForgeClient + search_knowledge</td></tr>
+    <tr><td>简历上传/解析</td><td><span class="badge green">V2</span></td><td>Apache Tika + 结构化画像生成</td></tr>
+    <tr><td>简历分析 + 优化建议</td><td><span class="badge green">V2</span></td><td>parse_resume + generate_resume_suggestions</td></tr>
+    <tr><td>岗位匹配 + 差距分析</td><td><span class="badge green">V2</span></td><td>match_job + analyze_skill_gap</td></tr>
+    <tr><td>面试题生成 + 评估 + 追问</td><td><span class="badge green">V2</span></td><td>generate_questions + evaluate_answer + generate_followup_question</td></tr>
+    <tr><td>求职看板</td><td><span class="badge green">V2</span></td><td>get_dashboard + Agent 指标</td></tr>
+    <tr><td>Agent Trace</td><td><span class="badge green">V2</span></td><td>每步记录，前端实时展示（不暴露 CoT）</td></tr>
+    <tr><td>JWT 权限 + 审计</td><td><span class="badge green">V2</span></td><td>Spring Security + single-user/jwt + BCrypt + 审计日志</td></tr>
+    <tr><td>五层记忆 + 隐私</td><td><span class="badge green">V2</span></td><td>Session/Profile/Task/Artifact/Trace + MemoryStore + MemoryCache</td></tr>
+    <tr><td>Prompt 模板管理</td><td><span class="badge green">V2</span></td><td>prompt_templates + prompt_versions + 版本回滚</td></tr>
+    <tr><td>Agent 评测体系</td><td><span class="badge green">V2</span></td><td>9 维度 + 预置用例 + LLM-as-Judge</td></tr>
+    <tr><td>可观测性 + 成本</td><td><span class="badge green">V2</span></td><td>11 项指标采集 + Actuator + Prometheus 扩展预留</td></tr>
+    <tr><td>MCP Adapter 预留</td><td><span class="badge green">V2</span></td><td>接口定义 + NoOp 实现，不增加运行时依赖</td></tr>
+  </table>
+
+  <h3>17.5 Roadmap（不进 V2）</h3>
+  <table>
+    <tr><th>能力</th><th>状态</th><th>预留设计</th></tr>
+    <tr><td>语音输入/回答评估</td><td><span class="badge amber">Roadmap</span></td><td>MediaRecorder API → Whisper 转写</td></tr>
+    <tr><td>多模态简历</td><td><span class="badge amber">Roadmap</span></td><td>Parser 接口预留，ImageResumeParser</td></tr>
+    <tr><td>K8s 部署</td><td><span class="badge amber">Roadmap</span></td><td>Dockerfile 已有</td></tr>
+    <tr><td>Redis 分布式增强</td><td><span class="badge amber">Roadmap</span></td><td>MemoryStore 接口已有，切换实现即可</td></tr>
+    <tr><td>Multi-Agent 协作</td><td><span class="badge amber">Roadmap</span></td><td>当前单主控 Agent，后续可扩展</td></tr>
+    <tr><td>MCP 完整运行时</td><td><span class="badge amber">Roadmap</span></td><td>接口已定义，实现 McpServerAdapter / McpClientAdapter</td></tr>
+    <tr><td>自动投递 / 浏览器自动化</td><td><span class="badge amber">Roadmap</span></td><td>Plugin 机制预留</td></tr>
+    <tr><td>企业多租户</td><td><span class="badge amber">Roadmap</span></td><td>user_id 隔离已有，需增加 team/org 模型</td></tr>
+    <tr><td>插件市场</td><td><span class="badge amber">Roadmap</span></td><td>工具注册机制天然支持</td></tr>
+    <tr><td>LangChain4j / Spring AI Adapter</td><td><span class="badge blue">预留</span></td><td>LlmClient 接口兼容，可切换实现</td></tr>
+  </table>
+
+  <h3>17.6 实施计划（V2 完整 MVP，约 3 周）</h3>
+  <table>
+    <tr><th>#</th><th>阶段</th><th>任务</th><th>人天</th></tr>
+    <tr class="task-phase"><td colspan="4">P1 基础工程与权限（3 天）</td></tr>
+    <tr><td>1</td><td>基础</td><td>Spring Boot 脚手架 + Flyway migration 管理 + PostgreSQL 19 张表 DDL + MyBatis-Plus 代码生成</td><td>1d</td></tr>
+    <tr><td>2</td><td>基础</td><td>统一响应体、全局异常处理、SSE (SseEmitter) 基础设施</td><td>0.5d</td></tr>
+    <tr><td>3</td><td>安全</td><td>Spring Security + JWT + BCrypt + single-user/jwt 双模式 + 审计日志</td><td>1d</td></tr>
+    <tr><td>4</td><td>LLM</td><td>LlmClient 接口 (StreamCallback) + DeepSeekLlmClient + MockLlmClient + 配置切换</td><td>0.5d</td></tr>
+    <tr class="task-phase"><td colspan="4">P2 Agent Runtime + Tool System（3.5 天）</td></tr>
+    <tr><td>5</td><td>Agent</td><td>AgentRuntime 主循环（6 阶段 + 工程约束 + 并行执行）</td><td>1.5d</td></tr>
+    <tr><td>6</td><td>Agent</td><td>ToolRegistry + @AgentTool 注解 + JSON Schema + ToolExecutor（超时/重试/降级/并行）</td><td>1d</td></tr>
+    <tr><td>7</td><td>Agent</td><td>AgentPlanner + TraceService + UiActionFactory + ToolContext</td><td>0.5d</td></tr>
+    <tr><td>8</td><td>Agent</td><td>MCP Adapter 接口定义 + NoOpMcpServerAdapter / NoOpMcpClientAdapter</td><td>0.5d</td></tr>
+    <tr class="task-phase"><td colspan="4">P3 求职业务工具闭环（4 天）</td></tr>
+    <tr><td>9</td><td>工具</td><td>Knowledge Tools: search_knowledge + retrieve_resume_context + retrieve_job_context</td><td>1d</td></tr>
+    <tr><td>10</td><td>工具</td><td>Career Tools: parse_resume + match_job + analyze_skill_gap + generate_resume_suggestions</td><td>1.5d</td></tr>
+    <tr><td>11</td><td>工具</td><td>Interview Tools: generate_questions + evaluate_answer + generate_followup_question</td><td>1d</td></tr>
+    <tr><td>12</td><td>工具</td><td>System Tools: get_dashboard + update_task_state + navigate</td><td>0.5d</td></tr>
+    <tr class="task-phase"><td colspan="4">P4 Prompt / Eval / Metrics 工程化（3 天）</td></tr>
+    <tr><td>13</td><td>记忆</td><td>PostgresMemoryStore（权威存储）+ MemoryCache（Caffeine L1 / Redis L2）+ 五层记忆 + 隐私控制 + 细粒度 Memory API</td><td>1d</td></tr>
+    <tr><td>14</td><td>Prompt</td><td>Prompt 模板渲染 + 版本管理 + 回滚 + API</td><td>0.5d</td></tr>
+    <tr><td>15</td><td>Eval</td><td>Agent 评测引擎 + 10 条预置用例 + LLM-as-Judge + 结果汇总</td><td>1d</td></tr>
+    <tr><td>16</td><td>观测</td><td>指标采集（11 项）+ Actuator + token/cost 统计 + API</td><td>0.5d</td></tr>
+    <tr class="task-phase"><td colspan="4">P5 前端 + 部署联调（3 天）</td></tr>
+    <tr><td>17</td><td>前端</td><td>5 页面 API 对接 + Agent Trace 展示 + UI Action 路由拦截 + Pinia</td><td>1.5d</td></tr>
+    <tr><td>18</td><td>前端</td><td>用户画像编辑 + 记忆清空 + 简历删除 + Prompt 管理页(ADMIN) + 评测结果页(ADMIN)</td><td>1d</td></tr>
+    <tr><td>19</td><td>部署</td><td>Docker Compose 编排 + Nginx 路由 + .env.example + 与 RAGForge 联合启动验证</td><td>0.5d</td></tr>
+  </table>
+
+  <div class="tip-box">
+    <div class="tip-title">V2 完整 MVP 总计：19 个任务，约 16.5 人天，3 周完成</div>
+    <p style="margin:0;font-size:13px;">开发顺序严格按 #1→#19 执行。V2 完整覆盖：Agent SSE 对话 → 13 个工具(4层) → MCP 预留 → 5 层记忆 → Prompt 管理 → Agent 评测 → 可观测性 → 部署。</p>
+  </div>
+
+  <h3>17.7 核心闭环优先策略</h3>
+  <p>实施中遵循"核心闭环优先"原则，确保最早可验收的求职端到端链路尽早跑通：</p>
+  <table>
+    <tr><th>优先级</th><th>闭环</th><th>覆盖任务</th><th>最低验收标准</th></tr>
+    <tr><td><strong>P0 核心闭环</strong></td><td>上传简历 → Agent 分析 → 岗位匹配 → 看板</td><td>#1–#7, #9, #10, #12, #17（约 8.5d）</td><td>用户上传简历后可获得匹配结果和求职看板</td></tr>
+    <tr><td><strong>P1 面试闭环</strong></td><td>生成面试题 → 回答 → 评估 → 追问</td><td>#11（约 1d）</td><td>完整的面试训练链路</td></tr>
+    <tr><td><strong>P2 工程化</strong></td><td>记忆 + Prompt 管理 + 评测 + 观测</td><td>#13–#16（约 3d）</td><td>可观测指标、可配置 Prompt</td></tr>
+    <tr><td><strong>P3 管理页面</strong></td><td>Prompt 管理页 + 评测结果页（ADMIN）</td><td>#18（约 1d）</td><td>最小可用的 ADMIN 基础页面</td></tr>
+  </table>
+  <p>Prompt/Eval/Admin 页面在 P2/P3 阶段先做<strong>最小 API 和基础页面</strong>，不追求完整 UI，确保核心求职闭环优先交付。部署（#19）在核心闭环验收后执行。</p>
+</div>
+
+<div style="background:var(--navy);color:rgba(255,255,255,.5);text-align:center;padding:32px;font-size:12px;">
+  <p>CareerMate · AI 求职智能体 · 架构设计 V2.1</p>
+  <p style="margin-top:4px;">Java Spring Boot 3.2 + PostgreSQL + SseEmitter + LlmClient 抽象层 + RAGForge 集成</p>
+  <p style="margin-top:4px;">19 个任务 · 3 周 · Agent Loop → 13 工具(4层) → MCP 预留 → 5 层记忆 → Prompt 管理 → Agent 评测 → 19 张表</p>
+</div>
+
+</body>
+</html>

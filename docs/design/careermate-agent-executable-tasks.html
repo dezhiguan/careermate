@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CareerMate Agent 升级可执行任务清单</title>
+<style>
+  :root {
+    --bg: #101312;
+    --panel: #f7f2e8;
+    --paper: #fffaf0;
+    --ink: #151712;
+    --muted: #69685f;
+    --line: #d8cebc;
+    --green: #167052;
+    --green-2: #dbece3;
+    --red: #a9362d;
+    --red-2: #f2d9d5;
+    --blue: #255f93;
+    --blue-2: #dce8f3;
+    --amber: #a86616;
+    --amber-2: #f3e3c7;
+    --violet: #60489a;
+    --violet-2: #e7def5;
+    --black: #161a17;
+    --shadow: 0 18px 60px rgba(0,0,0,.22);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.04) 25%, transparent 25%) 0 0 / 18px 18px,
+      linear-gradient(315deg, rgba(255,255,255,.03) 25%, transparent 25%) 0 0 / 18px 18px,
+      var(--bg);
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.62;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  code {
+    padding: 2px 6px;
+    border-radius: 7px;
+    background: rgba(22, 26, 23, .08);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .92em;
+  }
+
+  .wrap {
+    width: min(1220px, calc(100% - 28px));
+    margin: 0 auto;
+    padding: 18px 0 72px;
+  }
+
+  .hero {
+    position: relative;
+    overflow: hidden;
+    color: #fbf6eb;
+    background: #151a16;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 22px;
+    padding: 24px;
+    box-shadow: var(--shadow);
+  }
+
+  .hero:before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(110deg, rgba(22,112,82,.42), transparent 34%),
+      radial-gradient(circle at 78% 16%, rgba(168,102,22,.36), transparent 28%),
+      radial-gradient(circle at 42% 80%, rgba(96,72,154,.2), transparent 24%);
+  }
+
+  .hero > * { position: relative; }
+
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 999px;
+    padding: 6px 11px;
+    color: #dceee3;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .kicker:before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #41c88f;
+    box-shadow: 0 0 0 5px rgba(65,200,143,.16);
+  }
+
+  h1 {
+    max-width: 980px;
+    margin: 18px 0 8px;
+    font-size: clamp(32px, 6vw, 66px);
+    line-height: 1.02;
+    letter-spacing: 0;
+  }
+
+  .hero p {
+    max-width: 840px;
+    margin: 0;
+    color: #d4dccf;
+    font-size: 16px;
+  }
+
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 22px;
+  }
+
+  .stat {
+    min-height: 98px;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.13);
+  }
+
+  .stat b {
+    display: block;
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .stat span {
+    display: block;
+    margin-top: 8px;
+    color: #d4dccf;
+    font-size: 12px;
+  }
+
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 12px 0;
+    background: linear-gradient(180deg, var(--bg) 74%, rgba(16,19,18,0));
+  }
+
+  .nav a {
+    flex: 0 0 auto;
+    color: #f8f0df;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.11);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .section {
+    margin-top: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    padding: 18px;
+    box-shadow: 0 12px 36px rgba(0,0,0,.14);
+  }
+
+  .section-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 14px;
+    align-items: start;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 14px;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: clamp(23px, 4vw, 38px);
+    line-height: 1.15;
+    letter-spacing: 0;
+  }
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 17px;
+    line-height: 1.25;
+  }
+
+  .desc {
+    margin: 8px 0 0;
+    color: var(--muted);
+    max-width: 820px;
+  }
+
+  .badge {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    height: 32px;
+    min-width: 76px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: var(--black);
+    color: #fffaf0;
+    font-size: 12px;
+    font-weight: 1000;
+  }
+
+  .badge.p0 { background: var(--red); }
+  .badge.p1 { background: var(--green); }
+  .badge.p2 { background: var(--blue); }
+  .badge.p3 { background: var(--amber); color: #fffaf0; }
+
+  .task-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .task {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  .task-top {
+    display: grid;
+    grid-template-columns: 92px 1fr auto;
+    gap: 14px;
+    align-items: start;
+    padding: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .task-id {
+    display: grid;
+    place-items: center;
+    width: 70px;
+    height: 70px;
+    border-radius: 16px;
+    background: var(--black);
+    color: #fffaf0;
+    font-weight: 1000;
+    font-size: 18px;
+  }
+
+  .task.p0 .task-id { background: var(--red); }
+  .task.p1 .task-id { background: var(--green); }
+  .task.p2 .task-id { background: var(--blue); }
+  .task.p3 .task-id { background: var(--amber); }
+
+  .task-title {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.2;
+  }
+
+  .task-summary {
+    margin: 7px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #eee6d8;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+  }
+
+  .pill.green { background: var(--green-2); color: var(--green); }
+  .pill.blue { background: var(--blue-2); color: var(--blue); }
+  .pill.amber { background: var(--amber-2); color: var(--amber); }
+  .pill.red { background: var(--red-2); color: var(--red); }
+  .pill.violet { background: var(--violet-2); color: var(--violet); }
+
+  .task-meta {
+    min-width: 116px;
+    text-align: right;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .task-body {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr 1fr;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .box {
+    border: 1px solid var(--line);
+    background: #fffdf7;
+    border-radius: 14px;
+    padding: 12px;
+    min-height: 142px;
+  }
+
+  .box-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 8px;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 1000;
+    text-transform: uppercase;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+
+  ul, ol { margin: 0; padding-left: 18px; }
+  li { margin: 5px 0; color: var(--muted); font-size: 13px; }
+
+  .acceptance {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 0 14px 14px;
+  }
+
+  .accept {
+    background: #151a16;
+    border-radius: 14px;
+    color: #f9f3e8;
+    padding: 12px;
+  }
+
+  .accept b { display: block; margin-bottom: 6px; font-size: 12px; }
+  .accept li { color: #d9dfd4; }
+
+  .map-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+  }
+
+  .map-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 12px;
+    min-height: 160px;
+  }
+
+  .map-card b {
+    display: block;
+    font-size: 18px;
+    margin-bottom: 8px;
+  }
+
+  .map-card span {
+    display: block;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--paper);
+    border-radius: 16px;
+    overflow: hidden;
+    font-size: 13px;
+  }
+
+  th, td {
+    padding: 11px 10px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    background: #ebe1d0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  tr:last-child td { border-bottom: 0; }
+
+  .cursor-box {
+    background: #111611;
+    color: #e8f4ea;
+    border-radius: 16px;
+    padding: 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    overflow-x: auto;
+  }
+
+  @media (max-width: 980px) {
+    .wrap { width: min(100% - 22px, 760px); }
+    .hero { border-radius: 0 0 22px 22px; margin: -18px -11px 0; }
+    .hero-stats, .map-grid { grid-template-columns: 1fr; }
+    .section-head, .task-top, .task-body, .acceptance { grid-template-columns: 1fr; }
+    .task-meta { text-align: left; }
+    table { display: block; overflow-x: auto; white-space: nowrap; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <section class="hero">
+    <div class="kicker">Executable Roadmap for Cursor</div>
+    <h1>CareerMate Agent 升级任务清单</h1>
+    <p>这是一份按重要性从高到低排列的可执行任务页。目标是把当前 5 tab 求职产品升级为真正的 Agent 工作台，并把后端从自研 Agent 路由逐步升级到 Spring AI Alibaba / Spring AI 主流技术栈。</p>
+    <div class="hero-stats">
+      <div class="stat"><b>4</b><span>阶段：P0 产品闭环、P1 Agent 内核、P2 智能能力、P3 企业治理</span></div>
+      <div class="stat"><b>16</b><span>可执行任务：每个任务有范围、验收和依赖</span></div>
+      <div class="stat"><b>5</b><span>板块联动：机会、面试题、小职、市场、我的</span></div>
+      <div class="stat"><b>1</b><span>原则：先打通 Agent 工作空间，再做框架替换</span></div>
+    </div>
+  </section>
+
+  <nav class="nav">
+    <a href="#overview">总览</a>
+    <a href="#p0">P0 必做</a>
+    <a href="#p1">P1 技术主线</a>
+    <a href="#p2">P2 能力增强</a>
+    <a href="#p3">P3 企业化</a>
+    <a href="#sequence">执行顺序</a>
+    <a href="#cursor">Cursor 规则</a>
+  </nav>
+
+  <section class="section" id="overview">
+    <div class="section-head">
+      <div>
+        <h2>总览：5 个板块如何变成一个 Agent 产品</h2>
+        <p class="desc">每个 tab 都有清晰职责，所有 AI 行为统一进入小职工作空间，所有结果统一沉淀到“我的”。</p>
+      </div>
+      <span class="badge">MAP</span>
+    </div>
+    <div class="map-grid">
+      <div class="map-card"><b>机会</b><span>找目标：JD、公司、岗位、薪资、匹配差距。所有“分析 JD / 定制简历 / 准备面试”都进入小职。</span></div>
+      <div class="map-card"><b>面试题</b><span>练能力：根据 JD、简历、缺口出题、评分、讲解、追问，并回流弱项。</span></div>
+      <div class="map-card"><b>AI 小职</b><span>中枢：理解目标、生成计划、调用工具、请求确认、产出简历/题目/任务/话术。</span></div>
+      <div class="map-card"><b>市场</b><span>做判断：薪资区间、技能趋势、公司情报、谈薪依据，进入小职生成策略。</span></div>
+      <div class="map-card"><b>我的</b><span>存资产：简历版本、训练记录、求职档案、任务清单、工作空间历史。</span></div>
+    </div>
+  </section>
+
+  <section class="section" id="p0">
+    <div class="section-head">
+      <div>
+        <h2>P0：必须先做的产品闭环任务</h2>
+        <p class="desc">这些任务先于框架替换。没有统一工作空间和产物沉淀，后面接 Spring AI Alibaba 也只是换技术，不会让产品更像 Agent。</p>
+      </div>
+      <span class="badge p0">P0</span>
+    </div>
+    <div class="task-list">
+      <article class="task p0">
+        <div class="task-top">
+          <div class="task-id">T01</div>
+          <div>
+            <h3 class="task-title">统一移动端 5 tab 产品壳</h3>
+            <p class="task-summary">把产品入口固定为机会、面试题、AI 小职、市场、我的；小职为中间凸起唯一 AI 主入口。</p>
+            <div class="pill-row"><span class="pill red">移动端优先</span><span class="pill">产品形态</span><span class="pill">不动业务逻辑</span></div>
+          </div>
+          <div class="task-meta">依赖：无<br>建议：0.5-1 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>对齐 `careermate-ux-v5-flow` 原型。</li><li>检查 `router/index.js` 与 AppShell 移动端导航。</li><li>保留小职沉浸全屏，普通页面显示底部 tab。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`frontend/careermate/src/router/index.js`</li><li>`frontend/careermate/src/components/AppShellMobile.vue`</li><li>`frontend/careermate/src/views/AgentChat.vue`</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要新增 AI 浮窗。</li><li>不要把 Dashboard 恢复为一级 tab。</li><li>不要改登录和鉴权。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>移动端底部为 5 tab，中间 AI 小职凸起。</li><li>进入小职后底 tab 收起，左上抽屉可切模块。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>`cd frontend/careermate && npm run build`</li><li>Playwright 截图检查移动端导航。</li></ul></div>
+        </div>
+      </article>
+
+      <article class="task p0">
+        <div class="task-top">
+          <div class="task-id">T02</div>
+          <div>
+            <h3 class="task-title">建立统一 AgentWorkspace 概念</h3>
+            <p class="task-summary">把 JD 准备空间扩展为统一工作空间，支持 JD、面试、市场、简历、通用对话多种类型。</p>
+            <div class="pill-row"><span class="pill red">核心模型</span><span class="pill blue">后端</span><span class="pill violet">上下文联动</span></div>
+          </div>
+          <div class="task-meta">依赖：T01<br>建议：2-3 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>扩展 `workspace_type`：`JD_PREP / INTERVIEW / MARKET / RESUME / GENERAL`。</li><li>增加 workspace 当前上下文字段或 metadata 结构。</li><li>保留现有 `JD_PREP` 行为兼容。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`WorkspaceSessionRepository`</li><li>`WorkspaceServiceImpl`</li><li>`WorkspaceVO`</li><li>Flyway 新 migration</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要重写所有 session 表。</li><li>不要破坏现有 `/api/workspace/{sessionId}`。</li><li>不要一次性迁移所有历史数据。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>机会页进入小职仍能创建 JD 工作空间。</li><li>后端能返回 workspace 类型、目标、关联产物摘要。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>`mvn test -Dtest=WorkspaceServiceImplTest,WorkspaceSessionRepositoryTest`</li><li>补工作空间类型单测。</li></ul></div>
+        </div>
+      </article>
+
+      <article class="task p0">
+        <div class="task-top">
+          <div class="task-id">T03</div>
+          <div>
+            <h3 class="task-title">新增 Artifact 产物层</h3>
+            <p class="task-summary">让小职生成的简历、匹配报告、面试训练、市场判断、谈薪脚本不只停在聊天里，而是可检索、可展示、可继续处理。</p>
+            <div class="pill-row"><span class="pill red">产物中心</span><span class="pill green">我的</span><span class="pill">可恢复</span></div>
+          </div>
+          <div class="task-meta">依赖：T02<br>建议：2-4 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>设计 `agent_artifacts` 表或复用 message metadata 建索引。</li><li>产物类型：`RESUME_VERSION / JOB_MATCH / INTERVIEW_SESSION / MARKET_REPORT / TASK_PLAN`。</li><li>“我的”页聚合展示最近产物。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`workspace` 包</li><li>`resume/version` 包</li><li>`interview` 包</li><li>`market` 包</li><li>`MineView.vue`</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要复制大段正文到多个表。</li><li>不要把产物和普通聊天消息混成一个概念。</li><li>不要影响简历版本下载接口。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>小职生成简历后，“我的”能看到对应产物入口。</li><li>产物能回到小职继续优化。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>补 artifact service 单测。</li><li>补“生成简历 -> 我的可见”的 e2e。</li></ul></div>
+        </div>
+      </article>
+
+      <article class="task p0">
+        <div class="task-top">
+          <div class="task-id">T04</div>
+          <div>
+            <h3 class="task-title">四个消费 tab 接入“让小职处理”动作</h3>
+            <p class="task-summary">机会、面试题、市场、我的都只负责提供上下文，点击动作统一进入小职工作空间。</p>
+            <div class="pill-row"><span class="pill red">联动闭环</span><span class="pill blue">前后端</span><span class="pill">高价值体验</span></div>
+          </div>
+          <div class="task-meta">依赖：T02,T03<br>建议：3-5 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>机会：分析 JD、定制简历、准备面试。</li><li>面试题：讲解本题、生成追问、生成补强任务。</li><li>市场：解释行情、生成谈薪脚本。</li><li>我的：用指定资产继续对话。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`OpportunityView.vue`</li><li>`InterviewPrep.vue`</li><li>`MarketView.vue`</li><li>`MineView.vue`</li><li>`WorkspaceController`</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要在各页面直接调用 LLM。</li><li>不要生成新的独立聊天组件。</li><li>不要绕过 Workspace。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>四个 tab 都能携带上下文跳转小职。</li><li>小职顶部能显示当前上下文 chip。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>补 Playwright：机会 -> 小职 -> 生成简历。</li><li>补市场 -> 小职谈薪脚本路径。</li></ul></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" id="p1">
+    <div class="section-head">
+      <div>
+        <h2>P1：主流 Agent 技术主线</h2>
+        <p class="desc">P1 开始把当前自研 Agent 内核逐步替换成主流 Java Agent 技术栈。原则是保留业务服务，先加适配层，再切流量。</p>
+      </div>
+      <span class="badge p1">P1</span>
+    </div>
+    <div class="task-list">
+      <article class="task p1">
+        <div class="task-top">
+          <div class="task-id">T05</div>
+          <div>
+            <h3 class="task-title">引入 Spring AI / Spring AI Alibaba 依赖与隔离配置</h3>
+            <p class="task-summary">先把框架引入为旁路能力，不立刻替换现有 LlmClient，避免一次性大爆炸。</p>
+            <div class="pill-row"><span class="pill green">框架底座</span><span class="pill">低风险</span><span class="pill blue">Spring Boot</span></div>
+          </div>
+          <div class="task-meta">依赖：T02<br>建议：1-2 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>在 `pom.xml` 引入 Spring AI / Spring AI Alibaba。</li><li>新增 `agent.framework.enabled` 配置开关。</li><li>提供 `spring-ai` profile 或 adapter bean。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`backend/pom.xml`</li><li>`application.yml`</li><li>`agent/config`</li><li>`llm` 包</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要删除现有 LlmClient。</li><li>不要直接替换生产流量。</li><li>不要提交真实 API Key。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>默认配置下现有测试仍通过。</li><li>打开开关后能初始化 Spring AI ChatClient。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>`cd backend && mvn test -Dtest=LlmConfigTest`</li><li>新增配置加载测试。</li></ul></div>
+        </div>
+      </article>
+
+      <article class="task p1">
+        <div class="task-top">
+          <div class="task-id">T06</div>
+          <div>
+            <h3 class="task-title">把现有 AgentTool 改造成标准 Tool Schema</h3>
+            <p class="task-summary">把 `get_default_resume`、`create_job_match` 等工具暴露为模型可理解的结构化工具，替代伪 JSON 意图识别。</p>
+            <div class="pill-row"><span class="pill green">Tool Calling</span><span class="pill violet">Function Calling</span><span class="pill red">核心能力</span></div>
+          </div>
+          <div class="task-meta">依赖：T05<br>建议：3-5 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>新增 `AgentToolDefinition`：name、description、input schema、permission、riskLevel。</li><li>给每个现有工具补参数 DTO。</li><li>实现 Spring AI ToolCallback 适配器。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`agent/tool/*Tool.java`</li><li>`AgentToolRegistry`</li><li>`AgentToolExecutionService`</li><li>`AgentToolTraceSupport`</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要移除 regex fallback。</li><li>不要让模型传 userId。</li><li>不要允许未授权工具执行。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>每个业务工具都有 schema 和参数校验。</li><li>工具调用 trace 保留 toolName、参数摘要、结果摘要。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>`mvn test -Dtest=AgentToolExecutionTest,AgentToolRouterTest`</li><li>新增 schema 生成测试。</li></ul></div>
+        </div>
+      </article>
+
+      <article class="task p1">
+        <div class="task-top">
+          <div class="task-id">T07</div>
+          <div>
+            <h3 class="task-title">新增 AgentKernelService，接管小职主链路</h3>
+            <p class="task-summary">把 AgentStreamService 中的上下文加载、工具路由、ReAct、最终流式回复拆到统一 Agent Kernel。</p>
+            <div class="pill-row"><span class="pill green">Agent Kernel</span><span class="pill blue">重构</span><span class="pill">可切流</span></div>
+          </div>
+          <div class="task-meta">依赖：T06<br>建议：4-7 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>新增 `agent/runtime` 包。</li><li>定义 `AgentRunRequest`、`AgentRunResult`、`AgentEvent`。</li><li>AgentStreamService 只负责 SSE 编排和事件转发。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`AgentStreamService`</li><li>`AgentPromptAssembler`</li><li>`agent/context`</li><li>`agent/react`</li><li>`agent/multiagent`</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要改变前端 SSE event 名称。</li><li>不要一次删除 ReAct 和 Supervisor。</li><li>不要把业务逻辑塞进 controller。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>小职原有对话、工具卡片、trace 行为不回退。</li><li>新旧 Agent Kernel 可通过配置切换。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>`mvn test -Dtest=AgentStreamControllerTest,AgentStreamToolTraceTest`</li><li>前端 agent stream e2e。</li></ul></div>
+        </div>
+      </article>
+
+      <article class="task p1">
+        <div class="task-top">
+          <div class="task-id">T08</div>
+          <div>
+            <h3 class="task-title">将按 JD 生成简历改造成 Workflow Agent</h3>
+            <p class="task-summary">把 `GenerateResumeFromJdWorkflow` 从手写流程升级为可恢复、可重试、可确认的工作流。</p>
+            <div class="pill-row"><span class="pill green">Workflow</span><span class="pill violet">Graph</span><span class="pill red">高价值场景</span></div>
+          </div>
+          <div class="task-meta">依赖：T07<br>建议：5-8 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>步骤：读取 JD、读取简历、差距分析、生成简历、质量检查、保存版本、生成下载卡片。</li><li>失败步骤可重试。</li><li>保存前增加可选人工确认。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`GenerateResumeFromJdWorkflow`</li><li>`ResumeVersionService`</li><li>`WorkspaceController`</li><li>`ChatCard.vue`</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要让 LLM 编造经历。</li><li>不要破坏现有下载 PDF/Word。</li><li>不要改变版本列表接口。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>生成流程可在 trace 看到每一步。</li><li>失败时前端出现明确重试卡片。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>`mvn test -Dtest=GenerateResumeFromJdWorkflowTest,ResumeVersionServiceImplTest`</li><li>补失败恢复单测。</li></ul></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" id="p2">
+    <div class="section-head">
+      <div>
+        <h2>P2：让 Agent 更聪明、更像长期求职军师</h2>
+        <p class="desc">这一阶段补 Memory、RAG、专家 Agent、人工确认和任务计划。目标是让小职能持续推进，而不是每次只回答一句。</p>
+      </div>
+      <span class="badge p2">P2</span>
+    </div>
+    <div class="task-list">
+      <article class="task p2">
+        <div class="task-top">
+          <div class="task-id">T09</div>
+          <div>
+            <h3 class="task-title">升级 Memory：短期会话 + 长期职业画像 + 弱项记忆</h3>
+            <p class="task-summary">把当前最近对话和职业画像扩展为标准记忆体系，持续沉淀目标、偏好、技能、面试弱项。</p>
+            <div class="pill-row"><span class="pill blue">Memory</span><span class="pill green">画像</span><span class="pill">长期价值</span></div>
+          </div>
+          <div class="task-meta">依赖：T07<br>建议：3-6 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>抽象 `AgentMemoryService`。</li><li>短期：会话历史摘要。</li><li>长期：职业画像、技能关键词、薄弱点、目标城市薪资。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`agent/context`</li><li>`profile/service`</li><li>`interview/service`</li><li>`career_profiles` migration</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要全文保存敏感对话为画像。</li><li>不要无确认覆盖用户明确填写的目标。</li><li>不要把记忆直接暴露给前端。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>面试低分题能更新弱项记忆。</li><li>小职回复能引用用户目标岗位和近期弱项。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>`mvn test -Dtest=CareerProfileContextProviderTest,CareerProfileAutoUpdateTest`</li><li>补弱项记忆测试。</li></ul></div>
+        </div>
+      </article>
+
+      <article class="task p2">
+        <div class="task-top">
+          <div class="task-id">T10</div>
+          <div>
+            <h3 class="task-title">把 RAGForge 封装成标准 Retriever Tool</h3>
+            <p class="task-summary">让 JD、面试、市场、公司情报都走统一 RAG 适配层，并返回来源、分数、chunk 类型。</p>
+            <div class="pill-row"><span class="pill blue">RAG</span><span class="pill green">RAGForge</span><span class="pill violet">Citation</span></div>
+          </div>
+          <div class="task-meta">依赖：T06<br>建议：3-5 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>新增 `KnowledgeRetrievalService`。</li><li>支持 `JD / INTERVIEW / MARKET / COMPANY / RESUME` 检索域。</li><li>返回 citation 列表给小职和市场页。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`ragforge/RagForgeClient`</li><li>`agent/tool/SearchKnowledgeBaseTool`</li><li>`market/service`</li><li>`interview/service`</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要绕过 RAGForge 直接连 ES/向量库。</li><li>不要把私有简历混入共享 JD KB。</li><li>不要返回完整敏感文档。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>小职回答市场/面试问题时能展示来源摘要。</li><li>检索失败有降级提示，不中断主流程。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>`mvn test -Dtest=RagForgeClientTest,JobMatchAnalyzerTest`</li><li>补 retriever adapter 测试。</li></ul></div>
+        </div>
+      </article>
+
+      <article class="task p2">
+        <div class="task-top">
+          <div class="task-id">T11</div>
+          <div>
+            <h3 class="task-title">把专家 Agent 从工具壳升级为协作体</h3>
+            <p class="task-summary">ResumeAgent、OpportunityAgent、InterviewAgent、MarketAgent、CriticAgent 各自有 prompt、工具集、输入输出 schema。</p>
+            <div class="pill-row"><span class="pill blue">Multi-Agent</span><span class="pill violet">Supervisor</span><span class="pill">Critic</span></div>
+          </div>
+          <div class="task-meta">依赖：T07,T10<br>建议：5-8 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>新增 MarketAgent 和 CriticAgent。</li><li>Supervisor 由关键词升级为 router prompt + fallback。</li><li>专家结果统一为 structured result。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`agent/multiagent`</li><li>`AgentSupervisor`</li><li>`AgentPromptAssembler`</li><li>`AgentKernelService`</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要暴露模型思考链。</li><li>不要让多个专家同时写同一产物。</li><li>不要无上限并发调用 LLM。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>复杂请求能路由到多个专家并聚合。</li><li>Critic 能拦截编造简历经历的输出。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>`mvn test -Dtest=AgentSupervisorTest,ResumeSpecialistAgentTest`</li><li>新增 MarketAgent/CriticAgent 测试。</li></ul></div>
+        </div>
+      </article>
+
+      <article class="task p2">
+        <div class="task-top">
+          <div class="task-id">T12</div>
+          <div>
+            <h3 class="task-title">引入 Human-in-the-loop 确认卡片</h3>
+            <p class="task-summary">对高风险动作要求用户确认：覆盖简历、保存最终版、创建任务、生成谈薪脚本、删除产物。</p>
+            <div class="pill-row"><span class="pill blue">HITL</span><span class="pill red">安全</span><span class="pill green">产品体验</span></div>
+          </div>
+          <div class="task-meta">依赖：T03,T07<br>建议：3-5 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>新增 `CONFIRM_ACTION` 卡片类型。</li><li>后端保存 pending action。</li><li>用户确认后继续 workflow。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`ChatCard.vue`</li><li>`WorkspaceController`</li><li>`WorkspaceServiceImpl`</li><li>`agent/runtime`</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要前端假确认后直接执行。</li><li>不要让 pending action 永久有效。</li><li>不要跳过权限校验。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>覆盖/保存类动作必须先出现确认卡片。</li><li>取消后 workflow 停止且有 trace。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>补确认卡片前端单测。</li><li>补 pending action 后端权限测试。</li></ul></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" id="p3">
+    <div class="section-head">
+      <div>
+        <h2>P3：企业级与招聘市场能力补齐</h2>
+        <p class="desc">这些任务让项目更适合覆盖中国 Agent 开发岗位要求：MCP、评测、Prompt 管理、Guardrails、成本观测和招聘场景深度。</p>
+      </div>
+      <span class="badge p3">P3</span>
+    </div>
+    <div class="task-list">
+      <article class="task p3">
+        <div class="task-top">
+          <div class="task-id">T13</div>
+          <div>
+            <h3 class="task-title">建设 Agent Eval 评测集</h3>
+            <p class="task-summary">评估工具选择、参数正确性、RAG 相关性、简历生成质量、面试评分一致性。</p>
+            <div class="pill-row"><span class="pill amber">Evaluation</span><span class="pill blue">质量治理</span><span class="pill violet">LLM-as-Judge</span></div>
+          </div>
+          <div class="task-meta">依赖：T06,T10<br>建议：4-7 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>新增 `backend/src/test/resources/eval` 数据集。</li><li>指标：tool selection、argument accuracy、final answer groundedness。</li><li>输出评测报告 JSON/HTML。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`backend/src/test/java/com/careermate/agent/eval`</li><li>`agent/tool`</li><li>`ragforge`</li><li>`resume/version/workflow`</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要用生产密钥跑 CI。</li><li>不要把模型随机输出当稳定断言。</li><li>不要只测 happy path。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>有不少于 30 条评测样本。</li><li>能输出工具准确率和 RAG 命中摘要。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>mock 模型下评测稳定。</li><li>真实模型评测本地手动跑。</li></ul></div>
+        </div>
+      </article>
+
+      <article class="task p3">
+        <div class="task-top">
+          <div class="task-id">T14</div>
+          <div>
+            <h3 class="task-title">Prompt 版本管理与灰度</h3>
+            <p class="task-summary">把散落在 Java 常量里的 prompt 迁移到版本化模板，支持回滚、对比和评测。</p>
+            <div class="pill-row"><span class="pill amber">PromptOps</span><span class="pill blue">治理</span><span class="pill">可回滚</span></div>
+          </div>
+          <div class="task-meta">依赖：T13<br>建议：3-5 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>新增 prompt template 配置目录或表。</li><li>每个 Agent/Tool 有 promptId 和 version。</li><li>Trace 记录 prompt version。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`AgentPromptAssembler`</li><li>`GenerateResumeFromJdWorkflow`</li><li>`JobMatchLlmAnalyzer`</li><li>`InterviewLlmQuestionGenerator`</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要一次性引入复杂后台。</li><li>不要把密钥写进 prompt 文件。</li><li>不要改业务 API。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>Trace 可看到 promptId/version。</li><li>简历生成 prompt 可单独回滚。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>补模板加载和变量替换测试。</li><li>补缺变量报错测试。</li></ul></div>
+        </div>
+      </article>
+
+      <article class="task p3">
+        <div class="task-top">
+          <div class="task-id">T15</div>
+          <div>
+            <h3 class="task-title">MCP 能力：把 CareerMate / RAGForge 暴露为标准工具</h3>
+            <p class="task-summary">面向企业级 Agent 技术栈，把简历、JD、任务、知识库封装成 MCP tools/resources。</p>
+            <div class="pill-row"><span class="pill amber">MCP</span><span class="pill violet">开放协议</span><span class="pill blue">企业能力</span></div>
+          </div>
+          <div class="task-meta">依赖：T06,T10<br>建议：5-10 天</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>先做 MCP server PoC。</li><li>资源：当前用户简历版本、JD 工作空间、任务清单。</li><li>工具：search_jd、get_resume、create_task。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>新增 `mcp` 包</li><li>`resume` 服务</li><li>`workspace` 服务</li><li>`ragforge` 服务</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要绕过用户鉴权。</li><li>不要暴露完整隐私简历给外部未授权客户端。</li><li>不要直接影响主业务链路。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>MCP 客户端能列出工具和资源。</li><li>工具调用能按当前用户权限收敛。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>补 MCP 工具权限测试。</li><li>手动用 MCP inspector 验证。</li></ul></div>
+        </div>
+      </article>
+
+      <article class="task p3">
+        <div class="task-top">
+          <div class="task-id">T16</div>
+          <div>
+            <h3 class="task-title">中国求职市场场景增强包</h3>
+            <p class="task-summary">补 JD 粘贴解析、求职 Pipeline、薪资谈判、技能趋势、投递策略，让项目更贴近真实招聘市场。</p>
+            <div class="pill-row"><span class="pill amber">市场落地</span><span class="pill green">产品差异化</span><span class="pill">可演示</span></div>
+          </div>
+          <div class="task-meta">依赖：T04,T10,T12<br>建议：持续迭代</div>
+        </div>
+        <div class="task-body">
+          <div class="box"><div class="box-title"><span class="dot"></span>执行范围</div><ul><li>新增求职 Pipeline：收藏、已投、笔试、一面、二面、Offer、拒绝。</li><li>支持 Boss/猎聘/智联 JD 粘贴解析。</li><li>市场页输出投递建议和谈薪依据。</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>涉及文件</div><ul><li>`opportunity` 包</li><li>`market` 包</li><li>`task` 包</li><li>`MineView.vue`</li><li>Flyway 新 migration</li></ul></div>
+          <div class="box"><div class="box-title"><span class="dot"></span>不要做</div><ul><li>不要自动投递。</li><li>不要声称薪资数据绝对准确。</li><li>不要绕过用户确认创建关键任务。</li></ul></div>
+        </div>
+        <div class="acceptance">
+          <div class="accept"><b>验收标准</b><ul><li>用户能围绕一个 JD 看到完整求职状态。</li><li>小职能基于 Pipeline 给下一步建议。</li></ul></div>
+          <div class="accept"><b>测试建议</b><ul><li>补 Pipeline service 单测。</li><li>补机会 -> Pipeline -> 小职建议 e2e。</li></ul></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" id="sequence">
+    <div class="section-head">
+      <div>
+        <h2>推荐执行顺序</h2>
+        <p class="desc">按这个顺序做，风险最低，也最容易持续演示。</p>
+      </div>
+      <span class="badge">ORDER</span>
+    </div>
+    <table>
+      <thead>
+        <tr><th>阶段</th><th>先做</th><th>再做</th><th>完成后能演示什么</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>P0</td><td>T01 -> T02</td><td>T03 -> T04</td><td>5 tab 都能联动小职，产物能沉淀到我的。</td></tr>
+        <tr><td>P1</td><td>T05 -> T06</td><td>T07 -> T08</td><td>小职从伪工具调用升级为标准 Tool Calling + Workflow Agent。</td></tr>
+        <tr><td>P2</td><td>T09 -> T10</td><td>T11 -> T12</td><td>小职具备长期记忆、RAG 来源、多 Agent 协作和人工确认。</td></tr>
+        <tr><td>P3</td><td>T13 -> T14</td><td>T15 -> T16</td><td>项目具备 Eval、PromptOps、MCP 和中国求职市场落地能力。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section" id="cursor">
+    <div class="section-head">
+      <div>
+        <h2>给 Cursor 的统一执行规则</h2>
+        <p class="desc">每次只拿一个任务执行，不要让 Cursor 自由发挥。任务开始前让它先读相关文件，任务结束必须跑测试并汇报改动边界。</p>
+      </div>
+      <span class="badge">RULE</span>
+    </div>
+    <pre class="cursor-box">你在 /Users/amy/CursorProject/careermate 执行任务。
+严格按 docs/careermate-agent-executable-tasks.html 中指定的单个任务执行。
+
+通用规则：
+1. 先读任务涉及文件，再给出最小改动方案。
+2. 不要跨任务实现未来阶段能力。
+3. 不要改 API 路径，除非任务明确要求。
+4. 不要删除现有 LlmClient、AgentTool、Workspace 的兼容路径。
+5. 不要提交真实密钥，不要把完整简历/JD 打进日志。
+6. 每个任务必须补对应单测或 e2e；如果跑不了，说明原因。
+7. 最后汇报：改了哪些文件、为什么、如何验证、剩余风险。</pre>
+  </section>
+</main>
+</body>
+</html>
