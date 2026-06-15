@@ -29,6 +29,22 @@ public class CreateInterviewSessionTool implements AgentTool {
     }
 
     @Override
+    public AgentToolDefinition definition() {
+        return AgentToolDefinition.base(
+                name(),
+                "创建面试训练",
+                description(),
+                AgentToolDomain.INTERVIEW,
+                AgentToolPermission.WRITE_USER_DATA,
+                AgentToolRiskLevel.MEDIUM
+        )
+                .parameter(AgentToolDefinitionSupport.stringParam(
+                        "title", false, "面试训练标题"))
+                .example("帮我准备面试")
+                .build();
+    }
+
+    @Override
     public boolean supports(AgentToolContext context) {
         return true;
     }

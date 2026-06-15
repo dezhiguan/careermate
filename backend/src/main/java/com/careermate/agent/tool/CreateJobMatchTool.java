@@ -29,6 +29,26 @@ public class CreateJobMatchTool implements AgentTool {
     }
 
     @Override
+    public AgentToolDefinition definition() {
+        return AgentToolDefinition.base(
+                name(),
+                "创建岗位匹配",
+                description(),
+                AgentToolDomain.JOB_MATCH,
+                AgentToolPermission.WRITE_USER_DATA,
+                AgentToolRiskLevel.MEDIUM
+        )
+                .parameter(AgentToolDefinitionSupport.stringParam(
+                        "jdContent", true, "岗位 JD 原文"))
+                .parameter(AgentToolDefinitionSupport.stringParam(
+                        "jobTitle", false, "岗位名称"))
+                .parameter(AgentToolDefinitionSupport.stringParam(
+                        "companyName", false, "公司名称"))
+                .example("帮我匹配这个岗位 JD")
+                .build();
+    }
+
+    @Override
     public boolean supports(AgentToolContext context) {
         return true;
     }

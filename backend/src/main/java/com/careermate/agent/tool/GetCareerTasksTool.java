@@ -27,6 +27,20 @@ public class GetCareerTasksTool implements AgentTool {
     }
 
     @Override
+    public AgentToolDefinition definition() {
+        return AgentToolDefinition.base(
+                name(),
+                "求职任务列表",
+                description(),
+                AgentToolDomain.TASK,
+                AgentToolPermission.READ_USER_DATA,
+                AgentToolRiskLevel.LOW
+        )
+                .example("我还有哪些任务")
+                .build();
+    }
+
+    @Override
     public boolean supports(AgentToolContext context) {
         return true;
     }

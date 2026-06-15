@@ -30,6 +30,20 @@ public class GetDashboardOverviewTool implements AgentTool {
     }
 
     @Override
+    public AgentToolDefinition definition() {
+        return AgentToolDefinition.base(
+                name(),
+                "求职看板概览",
+                description(),
+                AgentToolDomain.DASHBOARD,
+                AgentToolPermission.READ_USER_DATA,
+                AgentToolRiskLevel.LOW
+        )
+                .example("看一下求职进展")
+                .build();
+    }
+
+    @Override
     public boolean supports(AgentToolContext context) {
         return true;
     }

@@ -29,6 +29,24 @@ public class MarkCareerTaskDoneTool implements AgentTool {
     }
 
     @Override
+    public AgentToolDefinition definition() {
+        return AgentToolDefinition.base(
+                name(),
+                "完成任务",
+                description(),
+                AgentToolDomain.TASK,
+                AgentToolPermission.WRITE_USER_DATA,
+                AgentToolRiskLevel.MEDIUM
+        )
+                .parameter(AgentToolDefinitionSupport.stringOrNumberParam(
+                        "taskId", false, "任务 ID"))
+                .parameter(AgentToolDefinitionSupport.stringParam(
+                        "titleKeyword", false, "任务标题关键词"))
+                .example("把完善简历标记完成")
+                .build();
+    }
+
+    @Override
     public boolean supports(AgentToolContext context) {
         return true;
     }

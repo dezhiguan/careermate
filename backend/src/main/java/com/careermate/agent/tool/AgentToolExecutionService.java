@@ -6,14 +6,31 @@ import org.springframework.stereotype.Service;
 public class AgentToolExecutionService {
 
     private final AgentToolRegistry registry;
+    private final AgentToolArgumentValidator argumentValidator;
 
-    public AgentToolExecutionService(AgentToolRegistry registry) {
+    public AgentToolExecutionService(
+            AgentToolRegistry registry,
+            AgentToolArgumentValidator argumentValidator
+    ) {
         this.registry = registry;
+        this.argumentValidator = argumentValidator;
     }
 
     public AgentToolResult execute(AgentToolContext context, String toolName) {
         return registry.findByName(toolName)
                 .map(tool -> {
+                    AgentToolDefinition definition = tool.definition();
+                    var validationError = argumentValidator.validate(definition, context);
+                    if (validationError.isPresent()) {
+                        return validationError.get();
+                    }
+                    if (!tool.supports(context)) {
+                        return AgentToolResult.failure(
+                                toolName,
+                                "工具不可用",
+                                "当前上下文不支持该工具"
+                        );
+                    }
                     try {
                         return tool.execute(context);
                     } catch (Exception e) {

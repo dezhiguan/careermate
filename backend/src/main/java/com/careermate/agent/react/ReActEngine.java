@@ -1,8 +1,10 @@
 package com.careermate.agent.react;
 
 import com.careermate.agent.tool.AgentToolContext;
+import com.careermate.agent.tool.AgentToolDefinition;
 import com.careermate.agent.tool.AgentToolExecutionService;
 import com.careermate.agent.tool.AgentToolResult;
+import com.careermate.agent.tool.AgentToolRegistry;
 import com.careermate.llm.LlmClient;
 import com.careermate.llm.dto.ChatMessage;
 import com.careermate.llm.dto.ChatRequest;
@@ -15,7 +17,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,24 +27,12 @@ public class ReActEngine {
 
     private static final int MAX_ROUNDS = 3;
     private static final Pattern JSON_BLOCK = Pattern.compile("\\{[\\s\\S]*\\}");
-    private static final Set<String> KNOWN_TOOLS = Set.of(
-        "get_default_resume", "get_latest_job_match", "create_job_match",
-        "create_interview_session", "get_dashboard_overview", "get_career_tasks",
-        "create_career_task", "mark_career_task_done", "search_knowledge_base",
-        "generate_resume_from_jd"
-    );
 
-    private static final String REACT_SYSTEM_PROMPT = """
+    private static final String REACT_SYSTEM_PROMPT_TEMPLATE = """
         你是 CareerMate 求职 Agent，使用 ReAct 推理链解决用户问题。
 
         可用工具：
-        - get_default_resume: 读取用户默认简历
-        - get_latest_job_match: 读取最近岗位匹配结果
-        - create_job_match: 创建新的岗位匹配（用户提供了 JD 时使用）
-        - create_interview_session: 创建面试训练会话
-        - get_dashboard_overview: 读取求职看板概览
-        - search_knowledge_base: 搜索知识库
-        - generate_resume_from_jd: 在 JD 准备空间中按目标 JD 生成定制简历 Markdown 版本；生成完成后用户可点击对话卡片「下载 PDF」导出 PDF 文件
+        %s
 
         请严格输出 JSON，不要 markdown 围栏：
         {"thought": "你的推理过程", "action": "工具名或final_answer"}
@@ -55,6 +44,7 @@ public class ReActEngine {
     private final LlmClient llmClient;
     private final AgentToolExecutionService toolExecutionService;
     private final ObjectMapper objectMapper;
+    private final AgentToolRegistry toolRegistry;
 
     /**
      * 针对复杂查询运行 ReAct 推理链，返回推理轨迹。
@@ -67,7 +57,7 @@ public class ReActEngine {
 
         List<ReActStep> steps = new ArrayList<>();
         List<ChatMessage> history = new ArrayList<>();
-        history.add(ChatMessage.builder().role("system").content(REACT_SYSTEM_PROMPT).build());
+        history.add(ChatMessage.builder().role("system").content(buildSystemPrompt()).build());
         history.add(ChatMessage.builder().role("user").content(userMessage).build());
 
         for (int round = 1; round <= MAX_ROUNDS; round++) {
@@ -105,7 +95,7 @@ public class ReActEngine {
                 break;
             }
 
-            if ("final_answer".equals(action) || !KNOWN_TOOLS.contains(action)) {
+            if ("final_answer".equals(action) || !toolRegistry.knownToolNames().contains(action)) {
                 steps.add(new ReActStep(round, thought, "final_answer", null));
                 return new ReActTrace(steps, true, round);
             }
@@ -134,5 +124,17 @@ public class ReActEngine {
         String m = message.trim();
         if (m.equals("你好") || m.equals("hi") || m.equals("hello") || m.length() < 8) return false;
         return true;
+    }
+
+    private String buildSystemPrompt() {
+        StringBuilder tools = new StringBuilder();
+        for (AgentToolDefinition definition : toolRegistry.listDefinitions()) {
+            tools.append("- ")
+                    .append(definition.getName())
+                    .append(": ")
+                    .append(definition.getDescription())
+                    .append('\n');
+        }
+        return REACT_SYSTEM_PROMPT_TEMPLATE.formatted(tools.toString().trim());
     }
 }

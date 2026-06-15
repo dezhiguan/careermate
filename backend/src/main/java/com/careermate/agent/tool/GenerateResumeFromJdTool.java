@@ -40,6 +40,22 @@ public class GenerateResumeFromJdTool implements AgentTool {
     }
 
     @Override
+    public AgentToolDefinition definition() {
+        return AgentToolDefinition.base(
+                name(),
+                "按 JD 生成简历",
+                description(),
+                AgentToolDomain.RESUME,
+                AgentToolPermission.LONG_RUNNING_TASK,
+                AgentToolRiskLevel.HIGH
+        )
+                .parameter(AgentToolDefinitionSupport.stringParam(
+                        "jdId", false, "目标 JD 文档 ID"))
+                .example("按当前 JD 生成定制简历")
+                .build();
+    }
+
+    @Override
     public boolean supports(AgentToolContext context) {
         if (context.getSessionId() == null || context.getSessionId().isBlank()) {
             return false;

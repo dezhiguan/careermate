@@ -30,6 +30,22 @@ public class SearchKnowledgeBaseTool implements AgentTool {
     }
 
     @Override
+    public AgentToolDefinition definition() {
+        return AgentToolDefinition.base(
+                name(),
+                "搜索知识库",
+                description(),
+                AgentToolDomain.KNOWLEDGE,
+                AgentToolPermission.CALL_EXTERNAL_SERVICE,
+                AgentToolRiskLevel.MEDIUM
+        )
+                .parameter(AgentToolDefinitionSupport.stringParam(
+                        "query", false, "检索关键词；缺失时可从用户消息推断"))
+                .example("搜索类似岗位要求")
+                .build();
+    }
+
+    @Override
     public boolean supports(AgentToolContext context) {
         return true;
     }

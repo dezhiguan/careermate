@@ -32,6 +32,20 @@ public class GetLatestJobMatchTool implements AgentTool {
     }
 
     @Override
+    public AgentToolDefinition definition() {
+        return AgentToolDefinition.base(
+                name(),
+                "最近岗位匹配",
+                description(),
+                AgentToolDomain.JOB_MATCH,
+                AgentToolPermission.READ_USER_DATA,
+                AgentToolRiskLevel.LOW
+        )
+                .example("查看最近岗位匹配结果")
+                .build();
+    }
+
+    @Override
     public boolean supports(AgentToolContext context) {
         return true;
     }

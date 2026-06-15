@@ -31,6 +31,24 @@ public class CreateCareerTaskTool implements AgentTool {
     }
 
     @Override
+    public AgentToolDefinition definition() {
+        return AgentToolDefinition.base(
+                name(),
+                "创建求职任务",
+                description(),
+                AgentToolDomain.TASK,
+                AgentToolPermission.WRITE_USER_DATA,
+                AgentToolRiskLevel.MEDIUM
+        )
+                .parameter(AgentToolDefinitionSupport.stringParam(
+                        "title", true, "任务标题"))
+                .parameter(AgentToolDefinitionSupport.stringParam(
+                        "dueDate", false, "截止日期，格式 yyyy-MM-dd"))
+                .example("帮我创建一个任务：完善简历")
+                .build();
+    }
+
+    @Override
     public boolean supports(AgentToolContext context) {
         return true;
     }

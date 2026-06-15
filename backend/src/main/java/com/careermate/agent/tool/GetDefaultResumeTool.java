@@ -30,6 +30,20 @@ public class GetDefaultResumeTool implements AgentTool {
     }
 
     @Override
+    public AgentToolDefinition definition() {
+        return AgentToolDefinition.base(
+                name(),
+                "默认简历",
+                description(),
+                AgentToolDomain.RESUME,
+                AgentToolPermission.READ_USER_DATA,
+                AgentToolRiskLevel.LOW
+        )
+                .example("帮我分析默认简历")
+                .build();
+    }
+
+    @Override
     public boolean supports(AgentToolContext context) {
         return true;
     }

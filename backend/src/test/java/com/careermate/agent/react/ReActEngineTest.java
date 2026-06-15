@@ -1,8 +1,13 @@
 package com.careermate.agent.react;
 
 import com.careermate.agent.tool.AgentToolContext;
+import com.careermate.agent.tool.AgentToolDefinition;
+import com.careermate.agent.tool.AgentToolDomain;
 import com.careermate.agent.tool.AgentToolExecutionService;
+import com.careermate.agent.tool.AgentToolPermission;
+import com.careermate.agent.tool.AgentToolRegistry;
 import com.careermate.agent.tool.AgentToolResult;
+import com.careermate.agent.tool.AgentToolRiskLevel;
 import com.careermate.llm.LlmClient;
 import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
@@ -12,6 +17,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -23,6 +33,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class ReActEngineTest {
 
     @Mock
@@ -31,12 +42,37 @@ class ReActEngineTest {
     @Mock
     private AgentToolExecutionService toolExecutionService;
 
+    @Mock
+    private AgentToolRegistry toolRegistry;
+
     private ReActEngine engine;
     private AgentToolContext toolContext;
 
     @BeforeEach
     void setUp() {
-        engine = new ReActEngine(llmClient, toolExecutionService, new ObjectMapper());
+        when(toolRegistry.knownToolNames()).thenReturn(Set.of(
+                "get_default_resume",
+                "get_latest_job_match",
+                "create_job_match",
+                "create_interview_session",
+                "get_dashboard_overview",
+                "get_career_tasks",
+                "create_career_task",
+                "mark_career_task_done",
+                "search_knowledge_base",
+                "generate_resume_from_jd"
+        ));
+        when(toolRegistry.listDefinitions()).thenReturn(List.of(
+                AgentToolDefinition.builder()
+                        .name("get_default_resume")
+                        .displayName("读取默认简历")
+                        .description("读取用户默认简历")
+                        .domain(AgentToolDomain.RESUME)
+                        .permission(AgentToolPermission.READ_USER_DATA)
+                        .riskLevel(AgentToolRiskLevel.LOW)
+                        .build()
+        ));
+        engine = new ReActEngine(llmClient, toolExecutionService, new ObjectMapper(), toolRegistry);
         toolContext = AgentToolContext.builder()
                 .userId(1L)
                 .sessionId("S-001")
