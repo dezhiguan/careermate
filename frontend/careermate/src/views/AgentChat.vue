@@ -711,7 +711,29 @@ async function handleCardAction(actionItem) {
     return
   }
   if (action === 'NAVIGATE') {
-    router.push(payload || '/mine')
+    handleNavigateCardAction(actionItem)
+  }
+}
+
+const ENTRY_ACTION_PROMPTS = {
+  EXPLAIN_MARKET: '请帮我解读当前市场行情',
+  NEGOTIATION_SCRIPT: '请帮我生成谈薪脚本',
+  EXPLAIN_QUESTION: '请讲解这道面试题',
+  FOLLOW_UP: '请为这道面试题生成追问',
+  CREATE_STRENGTHEN_TASK: '请针对这道题生成补强任务',
+  CONTINUE_WITH_ASSET: '请基于当前资产继续优化',
+}
+
+function handleNavigateCardAction(actionItem) {
+  const payload = actionItem?.payload
+  const target = payload == null || payload === '' ? '/mine' : String(payload)
+  if (target.startsWith('/') || target.startsWith('#/')) {
+    router.push(target.startsWith('#/') ? target.slice(1) : target)
+    return
+  }
+  const prompt = ENTRY_ACTION_PROMPTS[target] || actionItem?.label || ''
+  if (prompt) {
+    inputText.value = prompt.startsWith('请') ? prompt : `请帮我${prompt}`
   }
 }
 

@@ -9,8 +9,8 @@ const targets = {
     apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8081/api',
   },
   cloud: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://careerforge.cn',
-    apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://careerforge.cn/api',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'https://careerforge.cn',
+    apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'https://careerforge.cn/api',
   },
 };
 
