@@ -9,32 +9,65 @@ import com.careermate.mapper.AgentTaskStateMapper;
 import com.careermate.model.entity.AgentMessageEntity;
 import com.careermate.model.entity.AgentSessionEntity;
 import com.careermate.model.entity.AgentTaskStateEntity;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
 public class WorkspaceSessionRepository {
 
     public static final String WORKSPACE_JD_PREP = "JD_PREP";
+    public static final String WORKSPACE_INTERVIEW = "INTERVIEW";
+    public static final String WORKSPACE_MARKET = "MARKET";
+    public static final String WORKSPACE_RESUME = "RESUME";
+    public static final String WORKSPACE_GENERAL = "GENERAL";
+    /** 兼容历史数据与旧调用，新逻辑优先使用 {@link #WORKSPACE_GENERAL} */
     public static final String WORKSPACE_CHAT = "CHAT";
-    public static final String STATUS_ACTIVE = "ACTIVE";
+
+    private static final Set<String> KNOWN_WORKSPACE_TYPES = Set.of(
+            WORKSPACE_JD_PREP,
+            WORKSPACE_INTERVIEW,
+            WORKSPACE_MARKET,
+            WORKSPACE_RESUME,
+            WORKSPACE_GENERAL
+    );
 
     private final AgentSessionMapper agentSessionMapper;
     private final AgentMessageMapper agentMessageMapper;
     private final AgentTaskStateMapper agentTaskStateMapper;
+    private final ObjectMapper objectMapper;
 
     public WorkspaceSessionRepository(
             AgentSessionMapper agentSessionMapper,
             AgentMessageMapper agentMessageMapper,
-            AgentTaskStateMapper agentTaskStateMapper
+            AgentTaskStateMapper agentTaskStateMapper,
+            ObjectMapper objectMapper
     ) {
         this.agentSessionMapper = agentSessionMapper;
         this.agentMessageMapper = agentMessageMapper;
         this.agentTaskStateMapper = agentTaskStateMapper;
+        this.objectMapper = objectMapper;
+    }
+
+    public static String normalizeWorkspaceType(String workspaceType) {
+        if (workspaceType == null || workspaceType.isBlank()) {
+            return WORKSPACE_GENERAL;
+        }
+        String upper = workspaceType.trim().toUpperCase();
+        if (WORKSPACE_CHAT.equals(upper)) {
+            return WORKSPACE_GENERAL;
+        }
+        return upper;
+    }
+
+    public static String displayWorkspaceType(String workspaceType) {
+        return normalizeWorkspaceType(workspaceType);
     }
 
     public AgentSessionEntity findActiveJdPrepSession(Long userId, String jdId) {
@@ -95,18 +128,41 @@ public class WorkspaceSessionRepository {
         session.setUpdatedAt(now);
         agentSessionMapper.insert(session);
 
-        AgentTaskStateEntity taskState = new AgentTaskStateEntity();
-        taskState.setSessionId(session.getId());
-        taskState.setUserId(userId);
-        taskState.setTaskType(WORKSPACE_JD_PREP);
-        taskState.setCurrentStep(0);
-        taskState.setTotalSteps(0);
-        taskState.setStateData("{}");
-        taskState.setStatus("RUNNING");
-        taskState.setCreatedAt(now);
-        taskState.setUpdatedAt(now);
-        agentTaskStateMapper.insert(taskState);
+        insertTaskState(userId, session.getId(), WORKSPACE_JD_PREP, now);
 
+        return session;
+    }
+
+    @Transactional
+    public AgentSessionEntity createWorkspace(
+            Long userId,
+            String workspaceType,
+            String title,
+            String goalText,
+            Map<String, Object> contextMetadata
+    ) {
+        String normalizedType = normalizeWorkspaceType(workspaceType);
+        validateWorkspaceType(normalizedType);
+
+        String sessionId = "WS-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        OffsetDateTime now = OffsetDateTime.now();
+
+        AgentSessionEntity session = new AgentSessionEntity();
+        session.setSessionId(sessionId);
+        session.setUserId(userId);
+        session.setStatus(STATUS_ACTIVE);
+        session.setWorkspaceType(normalizedType);
+        session.setTitle(title);
+        session.setGoalText(resolveGoalText(goalText, title));
+        session.setWorkspaceMetadata(serializeMetadata(contextMetadata));
+        session.setToolCallCount(0);
+        session.setCreatedAt(now);
+        session.setUpdatedAt(now);
+
+        applyContextMetadata(session, normalizedType, contextMetadata);
+
+        agentSessionMapper.insert(session);
+        insertTaskState(userId, session.getId(), normalizedType, now);
         return session;
     }
 
@@ -157,6 +213,69 @@ public class WorkspaceSessionRepository {
         return agentMessageMapper.selectList(wrapper);
     }
 
+    private void validateWorkspaceType(String normalizedType) {
+        if (!KNOWN_WORKSPACE_TYPES.contains(normalizedType)) {
+            throw new BizException(400, "不支持的工作空间类型: " + normalizedType);
+        }
+    }
+
+    private void applyContextMetadata(
+            AgentSessionEntity session,
+            String normalizedType,
+            Map<String, Object> contextMetadata
+    ) {
+        if (contextMetadata == null || contextMetadata.isEmpty()) {
+            return;
+        }
+        if (WORKSPACE_JD_PREP.equals(normalizedType)) {
+            Object jdId = contextMetadata.get("jdId");
+            if (jdId != null && !String.valueOf(jdId).isBlank()) {
+                session.setJdId(String.valueOf(jdId).trim());
+            }
+            Object jdSnapshot = contextMetadata.get("jdSnapshot");
+            if (jdSnapshot instanceof String snapshotJson && !snapshotJson.isBlank()) {
+                session.setJdSnapshot(snapshotJson);
+            } else if (jdSnapshot instanceof Map<?, ?> snapshotMap && !snapshotMap.isEmpty()) {
+                session.setJdSnapshot(serializeMetadata(snapshotMap));
+            }
+        }
+    }
+
+    private String resolveGoalText(String goalText, String title) {
+        if (goalText != null && !goalText.isBlank()) {
+            return goalText.trim();
+        }
+        if (title != null && !title.isBlank()) {
+            return title.trim();
+        }
+        return null;
+    }
+
+    private String serializeMetadata(Map<?, ?> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(metadata);
+        } catch (Exception e) {
+            throw new BizException(400, "工作空间 metadata 序列化失败");
+        }
+    }
+
+    private void insertTaskState(Long userId, Long internalSessionId, String taskType, OffsetDateTime now) {
+        AgentTaskStateEntity taskState = new AgentTaskStateEntity();
+        taskState.setSessionId(internalSessionId);
+        taskState.setUserId(userId);
+        taskState.setTaskType(taskType);
+        taskState.setCurrentStep(0);
+        taskState.setTotalSteps(0);
+        taskState.setStateData("{}");
+        taskState.setStatus("RUNNING");
+        taskState.setCreatedAt(now);
+        taskState.setUpdatedAt(now);
+        agentTaskStateMapper.insert(taskState);
+    }
+
     private int nextSequenceNo(Long internalSessionId, Long userId) {
         AgentMessageEntity last = agentMessageMapper.selectOne(
                 new LambdaQueryWrapper<AgentMessageEntity>()
@@ -167,4 +286,6 @@ public class WorkspaceSessionRepository {
         );
         return last == null ? 1 : last.getSequenceNo() + 1;
     }
+
+    public static final String STATUS_ACTIVE = "ACTIVE";
 }

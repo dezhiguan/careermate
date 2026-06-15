@@ -15,9 +15,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -44,6 +46,7 @@ public class WorkspaceServiceImpl implements WorkspaceService {
     public WorkspaceVO getWorkspace(Long userId, String sessionId) {
         AgentSessionEntity session = workspaceSessionRepository.requireSession(userId, sessionId);
         Map<String, Object> snapshot = parseJsonMap(session.getJdSnapshot());
+        Map<String, Object> workspaceMetadata = parseJsonMap(session.getWorkspaceMetadata());
         List<ResumeVersionListItemVO> versions = resumeVersionService.listBySession(userId, sessionId);
         List<WorkspaceVO.ResumeVersionBriefVO> briefs = versions.stream()
                 .map(v -> new WorkspaceVO.ResumeVersionBriefVO(
@@ -52,15 +55,24 @@ public class WorkspaceServiceImpl implements WorkspaceService {
                         v.createdAt()
                 ))
                 .toList();
+        String workspaceType = WorkspaceSessionRepository.displayWorkspaceType(session.getWorkspaceType());
+        String goalText = resolveGoalText(session);
+        List<String> contextChips = buildContextChips(workspaceType, snapshot, versions);
+        String contextSummary = buildContextSummary(contextChips);
+
         return new WorkspaceVO(
                 session.getSessionId(),
-                session.getWorkspaceType(),
+                workspaceType,
                 session.getTitle(),
                 session.getJdId(),
                 snapshot,
                 session.getCreatedAt(),
                 session.getUpdatedAt(),
-                briefs
+                briefs,
+                goalText,
+                workspaceMetadata,
+                contextSummary,
+                contextChips
         );
     }
 
@@ -108,6 +120,46 @@ public class WorkspaceServiceImpl implements WorkspaceService {
                 parseJsonMap(entity.getMetadata()),
                 entity.getCreatedAt()
         );
+    }
+
+    private String resolveGoalText(AgentSessionEntity session) {
+        if (session.getGoalText() != null && !session.getGoalText().isBlank()) {
+            return session.getGoalText().trim();
+        }
+        if (session.getTitle() != null && !session.getTitle().isBlank()) {
+            return session.getTitle().trim();
+        }
+        return null;
+    }
+
+    private List<String> buildContextChips(
+            String workspaceType,
+            Map<String, Object> jdSnapshot,
+            List<ResumeVersionListItemVO> versions
+    ) {
+        return switch (workspaceType) {
+            case WorkspaceSessionRepository.WORKSPACE_JD_PREP -> {
+                List<String> chips = new ArrayList<>();
+                chips.add("JD 已加载");
+                if (!versions.isEmpty()) {
+                    chips.add("简历版本 " + versions.size());
+                }
+                yield chips;
+            }
+            case WorkspaceSessionRepository.WORKSPACE_INTERVIEW -> List.of("面试训练");
+            case WorkspaceSessionRepository.WORKSPACE_MARKET -> List.of("市场行情");
+            case WorkspaceSessionRepository.WORKSPACE_RESUME -> List.of("简历优化");
+            default -> List.of("普通对话");
+        };
+    }
+
+    private String buildContextSummary(List<String> contextChips) {
+        if (contextChips == null || contextChips.isEmpty()) {
+            return null;
+        }
+        return contextChips.stream()
+                .filter(chip -> chip != null && !chip.isBlank())
+                .collect(Collectors.joining(" · "));
     }
 
     private Map<String, Object> parseJsonMap(String json) {

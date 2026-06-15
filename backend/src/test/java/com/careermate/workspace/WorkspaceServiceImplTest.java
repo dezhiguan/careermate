@@ -25,9 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -57,6 +55,70 @@ class WorkspaceServiceImplTest {
 
         assertEquals("腾讯", vo.jdSnapshot().get("company"));
         assertEquals("算法工程师", vo.jdSnapshot().get("title"));
+        assertEquals(WorkspaceSessionRepository.WORKSPACE_JD_PREP, vo.workspaceType());
+        assertEquals("腾讯 算法工程师", vo.goalText());
+        assertEquals(List.of("JD 已加载"), vo.contextChips());
+        assertEquals("JD 已加载", vo.contextSummary());
+    }
+
+    @Test
+    void getWorkspaceReturnsGeneralTypeWithContextChips() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        session.setWorkspaceType(WorkspaceSessionRepository.WORKSPACE_GENERAL);
+        session.setTitle("通用空间");
+        session.setGoalText("随便聊聊");
+        session.setWorkspaceMetadata("{\"entry\":\"mine\"}");
+        when(workspaceSessionRepository.requireSession(1L, "WS-general")).thenReturn(session);
+        when(resumeVersionService.listBySession(1L, "WS-general")).thenReturn(List.of());
+
+        WorkspaceVO vo = service.getWorkspace(1L, "WS-general");
+
+        assertEquals(WorkspaceSessionRepository.WORKSPACE_GENERAL, vo.workspaceType());
+        assertEquals("随便聊聊", vo.goalText());
+        assertEquals("mine", vo.workspaceMetadata().get("entry"));
+        assertEquals(List.of("普通对话"), vo.contextChips());
+    }
+
+    @Test
+    void getWorkspaceNormalizesChatAliasToGeneral() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        session.setWorkspaceType(WorkspaceSessionRepository.WORKSPACE_CHAT);
+        when(workspaceSessionRepository.requireSession(1L, "WS-chat")).thenReturn(session);
+        when(resumeVersionService.listBySession(1L, "WS-chat")).thenReturn(List.of());
+
+        WorkspaceVO vo = service.getWorkspace(1L, "WS-chat");
+
+        assertEquals(WorkspaceSessionRepository.WORKSPACE_GENERAL, vo.workspaceType());
+        assertEquals(List.of("普通对话"), vo.contextChips());
+    }
+
+    @Test
+    void getWorkspaceIncludesResumeVersionChipForJdPrep() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        session.setJdSnapshot("{}");
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        when(resumeVersionService.listBySession(1L, "WS-abc")).thenReturn(List.of(
+                new ResumeVersionListItemVO("v1", "定制简历 A", "腾讯 Java", OffsetDateTime.now())
+        ));
+
+        WorkspaceVO vo = service.getWorkspace(1L, "WS-abc");
+
+        assertEquals(List.of("JD 已加载", "简历版本 1"), vo.contextChips());
+        assertEquals("JD 已加载 · 简历版本 1", vo.contextSummary());
+    }
+
+    @Test
+    void getWorkspaceDegradesInvalidMetadataToEmptyMap() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        session.setWorkspaceMetadata("{not-json");
+        session.setJdSnapshot("{bad-json");
+        when(workspaceSessionRepository.requireSession(1L, "WS-bad")).thenReturn(session);
+        when(resumeVersionService.listBySession(1L, "WS-bad")).thenReturn(List.of());
+
+        WorkspaceVO vo = service.getWorkspace(1L, "WS-bad");
+
+        assertTrue(vo.workspaceMetadata().isEmpty());
+        assertTrue(vo.jdSnapshot().isEmpty());
     }
 
     @Test

@@ -12,7 +12,11 @@ public record WorkspaceVO(
         Map<String, Object> jdSnapshot,
         OffsetDateTime createdAt,
         OffsetDateTime lastActiveAt,
-        List<ResumeVersionBriefVO> resumeVersions
+        List<ResumeVersionBriefVO> resumeVersions,
+        String goalText,
+        Map<String, Object> workspaceMetadata,
+        String contextSummary,
+        List<String> contextChips
 ) {
     public record ResumeVersionBriefVO(
             String versionId,

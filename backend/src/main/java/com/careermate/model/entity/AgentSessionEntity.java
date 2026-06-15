@@ -36,6 +36,9 @@ public class AgentSessionEntity {
     private String jdId;
     @TableField(value = "jd_snapshot", typeHandler = JsonbStringTypeHandler.class)
     private String jdSnapshot;
+    @TableField(value = "workspace_metadata", typeHandler = JsonbStringTypeHandler.class)
+    private String workspaceMetadata;
+    private String goalText;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

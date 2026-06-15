@@ -18,6 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -156,6 +157,85 @@ class WorkspaceSessionRepositoryTest {
 
         assertEquals(3, repository.listMessages(session.getId(), TestUsers.USER_A, null, 200).size());
         assertEquals(1, repository.listMessages(session.getId(), TestUsers.USER_A, null, 0).size());
+    }
+
+    @Test
+    void createWorkspaceSupportsGeneralAndNormalizesChatAlias() {
+        AgentSessionEntity general = repository.createWorkspace(
+                TestUsers.USER_A,
+                WorkspaceSessionRepository.WORKSPACE_GENERAL,
+                "通用对话",
+                "随便聊聊",
+                Map.of("source", "test")
+        );
+
+        assertEquals(WorkspaceSessionRepository.WORKSPACE_GENERAL, general.getWorkspaceType());
+        assertEquals("随便聊聊", general.getGoalText());
+        assertNotNull(general.getWorkspaceMetadata());
+        assertTrue(general.getWorkspaceMetadata().contains("test"));
+
+        AgentSessionEntity fromChatAlias = repository.createWorkspace(
+                TestUsers.USER_A,
+                WorkspaceSessionRepository.WORKSPACE_CHAT,
+                "历史别名",
+                null,
+                null
+        );
+        assertEquals(WorkspaceSessionRepository.WORKSPACE_GENERAL, fromChatAlias.getWorkspaceType());
+        assertEquals("历史别名", fromChatAlias.getGoalText());
+    }
+
+    @Test
+    void createWorkspaceSupportsInterviewMarketResume() {
+        AgentSessionEntity interview = repository.createWorkspace(
+                TestUsers.USER_A,
+                WorkspaceSessionRepository.WORKSPACE_INTERVIEW,
+                "Redis 专项",
+                "练 Redis 面试题",
+                Map.of("questionId", "q-1")
+        );
+        AgentSessionEntity market = repository.createWorkspace(
+                TestUsers.USER_A,
+                WorkspaceSessionRepository.WORKSPACE_MARKET,
+                "谈薪准备",
+                "生成谈薪脚本",
+                Map.of("city", "北京")
+        );
+        AgentSessionEntity resume = repository.createWorkspace(
+                TestUsers.USER_A,
+                WorkspaceSessionRepository.WORKSPACE_RESUME,
+                "简历优化",
+                "按 JD 改简历",
+                Map.of("resumeId", "r-1")
+        );
+
+        assertEquals(WorkspaceSessionRepository.WORKSPACE_INTERVIEW, interview.getWorkspaceType());
+        assertEquals(WorkspaceSessionRepository.WORKSPACE_MARKET, market.getWorkspaceType());
+        assertEquals(WorkspaceSessionRepository.WORKSPACE_RESUME, resume.getWorkspaceType());
+        assertTrue(interview.getWorkspaceMetadata().contains("questionId"));
+    }
+
+    @Test
+    void createWorkspaceRejectsUnknownType() {
+        BizException ex = assertThrows(
+                BizException.class,
+                () -> repository.createWorkspace(
+                        TestUsers.USER_A, "UNKNOWN", "title", "goal", null
+                )
+        );
+        assertEquals(400, ex.getCode());
+    }
+
+    @Test
+    void normalizeWorkspaceTypeMapsChatToGeneral() {
+        assertEquals(
+                WorkspaceSessionRepository.WORKSPACE_GENERAL,
+                WorkspaceSessionRepository.normalizeWorkspaceType(WorkspaceSessionRepository.WORKSPACE_CHAT)
+        );
+        assertEquals(
+                WorkspaceSessionRepository.WORKSPACE_GENERAL,
+                WorkspaceSessionRepository.normalizeWorkspaceType(null)
+        );
     }
 
     private void loginAs(long userId) {
