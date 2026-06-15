@@ -7,6 +7,17 @@
 #   sudo SKIP_IMAGE_BUILD=1 bash deploy/scripts/deploy-careermate-k8s.sh
 set -euo pipefail
 
+step_start() {
+  STEP_LABEL="$1"
+  STEP_START_TS=$(date +%s)
+  echo "[$(date -Iseconds)] START: ${STEP_LABEL}"
+}
+
+step_end() {
+  local elapsed=$(( $(date +%s) - STEP_START_TS ))
+  echo "[$(date -Iseconds)] END (${elapsed}s): ${STEP_LABEL}"
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 K8S_DIR="${REPO_ROOT}/deploy/k8s/careermate"
@@ -22,40 +33,47 @@ if [[ ! -d "${K8S_DIR}" ]]; then
   exit 1
 fi
 
-echo "[1/6] Ensure k3s is installed"
+step_start "[1/6] Ensure k3s is installed"
 bash "${SCRIPT_DIR}/install-k3s-server3.sh"
+step_end
 
 IMAGES_REBUILT=0
 if [[ "${SKIP_IMAGE_BUILD:-0}" != "1" ]]; then
-  echo "[2/6] Build and import images"
+  step_start "[2/6] Build and import images"
   bash "${SCRIPT_DIR}/build-careermate-k8s-images.sh"
+  step_end
   IMAGES_REBUILT=1
 else
   echo "[2/6] Skip image build (SKIP_IMAGE_BUILD=1)"
 fi
 
-echo "[3/6] Create backend secret from /opt/shared/env"
+step_start "[3/6] Create backend secret from /opt/shared/env"
 bash "${SCRIPT_DIR}/create-careermate-k8s-secret.sh"
+step_end
 
-echo "[4/6] Apply manifests"
+step_start "[4/6] Apply manifests"
 for manifest in namespace.yaml backend-deployment.yaml backend-service.yaml frontend-deployment.yaml frontend-service.yaml; do
   k3s kubectl apply -f "${K8S_DIR}/${manifest}"
 done
+step_end
 
 # Rebuilt images keep :latest tag; without a pod restart, k3s keeps running the old container layers.
 if [[ "${IMAGES_REBUILT}" -eq 1 ]]; then
-  echo "[4.5/6] Restart deployments to pick up rebuilt :latest images"
+  step_start "[4.5/6] Restart deployments to pick up rebuilt :latest images"
   k3s kubectl -n "${NAMESPACE}" rollout restart deployment/careermate-backend
   k3s kubectl -n "${NAMESPACE}" rollout restart deployment/careermate-frontend
+  step_end
 fi
 
-echo "[5/6] Wait for rollouts"
+step_start "[5/6] Wait for rollouts"
 k3s kubectl -n "${NAMESPACE}" rollout status deployment/careermate-backend --timeout=300s
 k3s kubectl -n "${NAMESPACE}" rollout status deployment/careermate-frontend --timeout=180s
+step_end
 
-echo "[6/6] Current status"
+step_start "[6/6] Current status"
 k3s kubectl -n "${NAMESPACE}" get pods -o wide
 k3s kubectl -n "${NAMESPACE}" get svc
+step_end
 
 echo ""
 echo "NodePort endpoints on Server 3 (172.25.90.184):"

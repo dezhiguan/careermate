@@ -17,7 +17,13 @@ RUN npm ci
 COPY frontend/careermate/ ./
 RUN npm run build
 
-FROM nginx:1.27-alpine
+# Pre-built dist from CI (SKIP_FRONTEND_BUILD=1): docker build --target runtime-prebuilt
+FROM nginx:1.27-alpine AS runtime-prebuilt
+COPY deploy/k8s/careermate/frontend-nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/careermate/dist /usr/share/nginx/html
+EXPOSE 80
+
+FROM nginx:1.27-alpine AS runtime
 COPY deploy/k8s/careermate/frontend-nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /src/dist /usr/share/nginx/html
 EXPOSE 80

@@ -4,6 +4,7 @@
 # Usage (from careermate repo root on Server 3):
 #   bash deploy/scripts/build-careermate-k8s-images.sh
 #   SKIP_BACKEND_BUILD=1 bash deploy/scripts/build-careermate-k8s-images.sh
+#   SKIP_FRONTEND_BUILD=1 bash deploy/scripts/build-careermate-k8s-images.sh
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,11 +47,23 @@ echo "[backend] docker build -> ${BACKEND_IMAGE}"
 docker build -f backend/Dockerfile -t "${BACKEND_IMAGE}" backend/
 import_image "${BACKEND_IMAGE}"
 
-echo "[frontend] docker build -> ${FRONTEND_IMAGE}"
-docker build -f frontend/careermate/Dockerfile \
-  --build-arg VITE_API_BASE_URL=/api \
-  --build-arg VITE_BASE_PATH=/ \
-  -t "${FRONTEND_IMAGE}" .
+FRONTEND_DIST="${REPO_ROOT}/frontend/careermate/dist"
+if [[ "${SKIP_FRONTEND_BUILD:-0}" == "1" ]]; then
+  if [[ ! -d "${FRONTEND_DIST}" ]] || [[ -z "$(ls -A "${FRONTEND_DIST}" 2>/dev/null || true)" ]]; then
+    echo "ERROR: SKIP_FRONTEND_BUILD=1 but pre-built dist missing or empty: ${FRONTEND_DIST}" >&2
+    exit 1
+  fi
+  echo "[frontend] docker build (pre-built dist) -> ${FRONTEND_IMAGE}"
+  docker build -f frontend/careermate/Dockerfile \
+    --target runtime-prebuilt \
+    -t "${FRONTEND_IMAGE}" .
+else
+  echo "[frontend] docker build (npm ci + build) -> ${FRONTEND_IMAGE}"
+  docker build -f frontend/careermate/Dockerfile \
+    --build-arg VITE_API_BASE_URL=/api \
+    --build-arg VITE_BASE_PATH=/ \
+    -t "${FRONTEND_IMAGE}" .
+fi
 import_image "${FRONTEND_IMAGE}"
 
 echo ""

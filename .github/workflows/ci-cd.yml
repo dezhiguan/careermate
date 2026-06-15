@@ -197,6 +197,12 @@ jobs:
         with:
           name: careermate-backend-jar
 
+      - name: Download frontend dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: careermate-frontend-dist
+          path: frontend/careermate/dist
+
       - name: Configure SSH (Server 3)
         env:
           SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
@@ -260,9 +266,14 @@ jobs:
 
           timeout 15m rsync -avz --delete \
             --exclude '.git' \
+            --exclude '.github/' \
+            --exclude 'docs/' \
             --exclude 'backend/target' \
+            --exclude 'backend/src/test/' \
             --exclude 'frontend/careermate/node_modules' \
-            --exclude 'frontend/careermate/dist' \
+            --exclude 'frontend/careermate/tests/' \
+            --exclude 'playwright-report/' \
+            --exclude 'test-results/' \
             -e "${RSYNC_SSH}" \
             ./ \
             careermate-app:/opt/careermate/k8s-src/
@@ -308,7 +319,7 @@ jobs:
         run: |
           SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
           timeout 35m ssh "${SSH_OPTS[@]}" careermate-app \
-            "cd /opt/careermate/k8s-src && sudo env SKIP_BACKEND_BUILD=1 bash deploy/scripts/deploy-careermate-k8s.sh"
+            "cd /opt/careermate/k8s-src && sudo env SKIP_BACKEND_BUILD=1 SKIP_FRONTEND_BUILD=1 bash deploy/scripts/deploy-careermate-k8s.sh"
 
   smoke-test:
     name: smoke-test

@@ -30,11 +30,18 @@ fi
 
 REGISTRY_FILE="/etc/rancher/k3s/registries.yaml"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "${SCRIPT_DIR}/../k3s/registries.yaml" ]]; then
+SOURCE_REGISTRY="${SCRIPT_DIR}/../k3s/registries.yaml"
+if [[ -f "${SOURCE_REGISTRY}" ]]; then
   mkdir -p /etc/rancher/k3s
-  cp "${SCRIPT_DIR}/../k3s/registries.yaml" "${REGISTRY_FILE}"
-  systemctl restart k3s || true
-  sleep 10
+  if [[ -f "${REGISTRY_FILE}" ]] && cmp -s "${SOURCE_REGISTRY}" "${REGISTRY_FILE}"; then
+    echo "registries.yaml unchanged; skip k3s restart"
+  else
+    cp "${SOURCE_REGISTRY}" "${REGISTRY_FILE}"
+    if command -v k3s >/dev/null 2>&1; then
+      systemctl restart k3s || true
+      sleep 10
+    fi
+  fi
 fi
 
 # Import pause sandbox image via Docker when containerd cannot reach docker.io.
