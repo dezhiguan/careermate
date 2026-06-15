@@ -70,9 +70,24 @@
       </section>
 
       <!-- 跳转谈薪 -->
-      <button type="button" class="cta-btn" @click="router.push('/')">
-        去小职练谈薪 →
-      </button>
+      <div class="market-cta-row">
+        <button
+          type="button"
+          class="cta-btn secondary"
+          :disabled="!!workspaceLoading"
+          @click="enterMarketWorkspace('EXPLAIN_MARKET')"
+        >
+          解读行情
+        </button>
+        <button
+          type="button"
+          class="cta-btn"
+          :disabled="!!workspaceLoading"
+          @click="enterMarketWorkspace('NEGOTIATION_SCRIPT')"
+        >
+          生成谈薪脚本 →
+        </button>
+      </div>
 
       <!-- 技能热榜 -->
       <section class="card">
@@ -166,6 +181,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getSalaryInsight, getSkillTrends, getResumeGap } from '../api/market'
 import { getCareerProfile } from '../api/profile'
+import { createWorkspace } from '../api/workspace'
 
 const router = useRouter()
 const route = useRoute()
@@ -193,6 +209,7 @@ const gapLoading = ref(true)
 const salaryData = ref(null)
 const skillsData = ref(null)
 const gapData = ref(null)
+const workspaceLoading = ref('')
 
 const filterTitle = computed(() => {
   const parts = [city.value, role.value, years.value].filter(Boolean)
@@ -308,6 +325,42 @@ function barWidth(rank) {
 function growthClass(growth) {
   return { 快涨: 'tag-fast', 上涨: 'tag-up', 稳定: 'tag-flat', 下降: 'tag-down' }[growth] || 'tag-flat'
 }
+
+function buildMarketContextMetadata() {
+  return {
+    city: city.value,
+    role: role.value,
+    years: years.value,
+    salaryData: salaryData.value,
+    skillsData: skillsData.value,
+    gapData: gapData.value,
+  }
+}
+
+async function enterMarketWorkspace(entryAction) {
+  if (workspaceLoading.value) return
+  workspaceLoading.value = entryAction
+  try {
+    const goalMap = {
+      EXPLAIN_MARKET: '解读当前市场行情',
+      NEGOTIATION_SCRIPT: '生成谈薪脚本',
+    }
+    const resp = await createWorkspace({
+      workspaceType: 'MARKET',
+      title: filterTitle.value || '市场策略空间',
+      goalText: goalMap[entryAction] || '市场分析',
+      entryAction,
+      contextMetadata: buildMarketContextMetadata(),
+    })
+    const path = resp?.redirectPath || (resp?.workspaceId ? `/chat/${resp.workspaceId}` : '')
+    if (!path) throw new Error('创建工作空间失败')
+    await router.push(path)
+  } catch (e) {
+    console.error('进入小职失败', e)
+  } finally {
+    workspaceLoading.value = ''
+  }
+}
 </script>
 
 <style scoped>
@@ -359,7 +412,33 @@ function growthClass(growth) {
 .disclaimer { font-size: 10px; color: #94a3b8; margin: 8px 0 0; }
 
 /* CTA */
-.cta-btn { width: 100%; padding: 14px; background: #b45309; color: #fff; border: none; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.market-cta-row {
+  display: flex;
+  gap: 8px;
+}
+
+.cta-btn {
+  flex: 1;
+  padding: 14px;
+  background: #b45309;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cta-btn.secondary {
+  background: #fff;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+}
+
+.cta-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 /* 技能 */
 .skill-list { display: flex; flex-direction: column; gap: 10px; }

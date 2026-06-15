@@ -56,7 +56,27 @@
                 <span class="q-text">{{ item.question }}</span>
                 <span class="expand-arrow">{{ expandedAnswers.has(i) ? '▲' : '▼' }}</span>
               </div>
-              <div v-if="expandedAnswers.has(i)" class="answer-body">{{ item.answer }}</div>
+              <div v-if="expandedAnswers.has(i)" class="answer-body">
+                <p>{{ item.answer }}</p>
+                <div class="kb-ai-actions">
+                  <button
+                    type="button"
+                    class="btn-kb-ai"
+                    :disabled="!!workspaceLoading"
+                    @click.stop="enterInterviewWorkspace(item, 'EXPLAIN_QUESTION', { kbQuery: kbQuery })"
+                  >
+                    让小职讲解
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-kb-ai secondary"
+                    :disabled="!!workspaceLoading"
+                    @click.stop="enterInterviewWorkspace(item, 'FOLLOW_UP', { kbQuery: kbQuery })"
+                  >
+                    生成追问
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           <div v-else class="empty-tip">暂无题目，换个关键词试试</div>
@@ -227,6 +247,14 @@
           </div>
           <div class="next-actions">
             <button
+              type="button"
+              class="btn-secondary-ai"
+              :disabled="!!workspaceLoading"
+              @click="enterPracticeWorkspace('CREATE_STRENGTHEN_TASK')"
+            >
+              让小职帮我补强
+            </button>
+            <button
               v-if="!allAnswered"
               type="button"
               class="btn-primary"
@@ -266,6 +294,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   completeInterviewSession,
   createInterviewSession,
@@ -275,6 +304,9 @@ import {
   listInterviewSessions,
   submitInterviewAnswer,
 } from '../api/interview'
+import { createWorkspace } from '../api/workspace'
+
+const router = useRouter()
 
 const kbQuery = ref('')
 const companyQuery = ref('')
@@ -295,6 +327,7 @@ const currentQuestionIndex = ref(0)
 const answerText = ref('')
 const submitting = ref(false)
 const showHints = ref(false)
+const workspaceLoading = ref(false)
 
 const kbQuickTags = ['Spring Boot', 'Redis', 'MySQL', 'JVM', '系统设计', '行为面试']
 
@@ -339,6 +372,72 @@ function categoryClass(category) {
   if (category === '行为') return 'cat-behavior'
   if (category === 'HR') return 'cat-hr'
   return 'cat-default'
+}
+
+async function enterInterviewWorkspace(questionItem, entryAction, extra = {}) {
+  if (workspaceLoading.value) return
+  workspaceLoading.value = entryAction
+  pageError.value = ''
+  try {
+    const questionText = questionItem?.question || ''
+    const resp = await createWorkspace({
+      workspaceType: 'INTERVIEW',
+      title: truncateText(questionText, 40) || '面试题讲解',
+      goalText: entryAction === 'FOLLOW_UP' ? '生成追问' : '讲解面试题',
+      entryAction,
+      contextMetadata: {
+        questionText,
+        answerText: questionItem?.answer || '',
+        category: questionItem?.category,
+        kbQuery: extra.kbQuery || kbQuery.value,
+      },
+    })
+    const path = resp?.redirectPath || (resp?.workspaceId ? `/chat/${resp.workspaceId}` : '')
+    if (!path) throw new Error('创建工作空间失败')
+    await router.push(path)
+  } catch (e) {
+    pageError.value = e?.message || '进入小职失败'
+  } finally {
+    workspaceLoading.value = ''
+  }
+}
+
+async function enterPracticeWorkspace(entryAction) {
+  const question = currentQuestion.value
+  const session = activeSession.value
+  if (!question || workspaceLoading.value) return
+  workspaceLoading.value = entryAction
+  pageError.value = ''
+  try {
+    const resp = await createWorkspace({
+      workspaceType: 'INTERVIEW',
+      title: truncateText(question.questionText, 40) || '面试补强',
+      goalText: '针对本题生成补强任务',
+      entryAction,
+      contextMetadata: {
+        questionText: question.questionText,
+        answerText: question.userAnswer || answerText.value,
+        score: question.score,
+        feedback: question.feedback,
+        referencePoints: question.referencePoints,
+        sessionId: session?.id,
+        questionId: question.id,
+      },
+    })
+    const path = resp?.redirectPath || (resp?.workspaceId ? `/chat/${resp.workspaceId}` : '')
+    if (!path) throw new Error('创建工作空间失败')
+    await router.push(path)
+  } catch (e) {
+    pageError.value = e?.message || '进入小职失败'
+  } finally {
+    workspaceLoading.value = ''
+  }
+}
+
+function truncateText(text, max) {
+  if (!text) return ''
+  const t = String(text).trim()
+  return t.length <= max ? t : `${t.slice(0, max)}…`
 }
 
 async function searchKb() {
@@ -678,6 +777,39 @@ onMounted(() => {
   background: #fff;
 }
 
+.answer-body p {
+  margin: 0 0 10px;
+}
+
+.kb-ai-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn-kb-ai {
+  border: none;
+  background: #7c3aed;
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-kb-ai.secondary {
+  background: #fff;
+  color: #7c3aed;
+  border: 1px solid #ddd6fe;
+}
+
+.btn-kb-ai:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .company-prep-card { margin-top: 4px; }
 
 .card-title-row h3 {
@@ -995,6 +1127,25 @@ onMounted(() => {
   margin-top: 12px;
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-secondary-ai {
+  background: #fff;
+  color: #7c3aed;
+  border: 1px solid #ddd6fe;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-secondary-ai:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-primary {

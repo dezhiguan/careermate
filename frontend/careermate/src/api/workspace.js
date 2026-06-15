@@ -1,6 +1,13 @@
 import { API_BASE_URL, getAuthHeaders, request } from './http'
 import { createSseParser } from '../utils/sseParser'
 
+export async function createWorkspace(payload) {
+  return request('/workspace', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export async function getWorkspace(sessionId) {
   return request(`/workspace/${encodeURIComponent(sessionId)}`, { method: 'GET' })
 }

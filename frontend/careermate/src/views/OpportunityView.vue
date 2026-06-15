@@ -86,11 +86,27 @@
         <div class="card-actions">
           <button
             type="button"
-            class="btn-primary"
+            class="btn-action"
             :disabled="!!preparingId"
-            @click.stop="handlePrepare(item)"
+            @click.stop="handleWorkspaceAction(item, 'ANALYZE_JD')"
           >
-            {{ preparingId === item.jdId ? '准备中...' : '用 AI 准备 →' }}
+            分析 JD
+          </button>
+          <button
+            type="button"
+            class="btn-action"
+            :disabled="!!preparingId"
+            @click.stop="handleWorkspaceAction(item, 'GENERATE_RESUME')"
+          >
+            定制简历
+          </button>
+          <button
+            type="button"
+            class="btn-action"
+            :disabled="!!preparingId"
+            @click.stop="handleWorkspaceAction(item, 'PREPARE_INTERVIEW')"
+          >
+            准备面试
           </button>
           <button
             type="button"
@@ -112,6 +128,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { listOpportunities, prepareWithAi } from '../api/opportunity'
+import { createWorkspace } from '../api/workspace'
 
 const router = useRouter()
 const route = useRoute()
@@ -156,6 +173,41 @@ async function fetchList() {
   }
 }
 
+async function handleWorkspaceAction(item, entryAction) {
+  if (!item?.jdId || preparingId.value) return
+  preparingId.value = item.jdId
+  error.value = ''
+  try {
+    const goalMap = {
+      ANALYZE_JD: '分析 JD 匹配度与要求',
+      GENERATE_RESUME: '按 JD 定制简历',
+      PREPARE_INTERVIEW: '准备该岗位面试',
+    }
+    const resp = await createWorkspace({
+      workspaceType: 'JD_PREP',
+      title: buildJdTitle(item),
+      goalText: goalMap[entryAction] || 'JD 准备',
+      entryAction,
+      contextMetadata: {
+        jdId: item.jdId,
+        company: item.company,
+        title: item.title,
+        city: item.city,
+        skills: item.skills,
+        matchScore: item.matchScore,
+      },
+    })
+    const path = resp?.redirectPath || (resp?.workspaceId ? `/chat/${resp.workspaceId}` : '')
+    if (!path) throw new Error('准备失败：未返回工作空间')
+    await router.push(path)
+  } catch (e) {
+    error.value = e?.message || '准备失败，请稍后重试'
+  } finally {
+    preparingId.value = ''
+  }
+}
+
+/** 保留旧接口兼容路径，供回归或外部调用 */
 async function handlePrepare(item) {
   if (!item?.jdId || preparingId.value) return
   preparingId.value = item.jdId
@@ -173,6 +225,13 @@ async function handlePrepare(item) {
   } finally {
     preparingId.value = ''
   }
+}
+
+function buildJdTitle(item) {
+  const company = item?.company?.trim()
+  const title = item?.title?.trim()
+  if (company && title) return `${company} ${title}`
+  return title || company || 'JD 准备空间'
 }
 
 function openExternal(url) {
@@ -471,24 +530,26 @@ onMounted(fetchList)
 
 .card-actions {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
   position: relative;
   z-index: 1;
 }
 
-.btn-primary {
-  flex: 1;
+.btn-action {
+  flex: 1 1 calc(33% - 6px);
+  min-width: 72px;
   background: #4f46e5;
   color: #fff;
   border: 0;
   border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 13px;
+  padding: 8px 6px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
 }
 
-.btn-primary:disabled {
+.btn-action:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

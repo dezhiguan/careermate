@@ -8,6 +8,8 @@ import com.careermate.security.CurrentUserContext;
 import com.careermate.workspace.dto.ActionAckResponse;
 import com.careermate.workspace.dto.ActionRequest;
 import com.careermate.workspace.dto.MessageVO;
+import com.careermate.workspace.dto.WorkspaceCreateRequest;
+import com.careermate.workspace.dto.WorkspaceCreateResponse;
 import com.careermate.workspace.dto.WorkspaceVO;
 import com.careermate.workspace.service.WorkspaceService;
 import jakarta.validation.Valid;
@@ -45,6 +47,14 @@ public class WorkspaceController {
         this.generateResumeFromJdWorkflow = generateResumeFromJdWorkflow;
         this.sseEmitterService = sseEmitterService;
         this.agentExecutor = agentExecutor;
+    }
+
+    @PostMapping
+    public ApiResponse<WorkspaceCreateResponse> createWorkspace(
+            @Valid @RequestBody WorkspaceCreateRequest request
+    ) {
+        Long userId = CurrentUserContext.getUserId();
+        return ApiResponse.success(workspaceService.createWorkspace(userId, request));
     }
 
     @GetMapping("/{sessionId}")

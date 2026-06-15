@@ -67,8 +67,14 @@
         </div>
 
         <div v-if="workspaceInfo" class="context-chips-bar">
-          <span v-if="jdChipLabel" class="ctx-chip">{{ jdChipLabel }}</span>
-          <span v-if="resumeChipLabel" class="ctx-chip ctx-chip--resume">{{ resumeChipLabel }}</span>
+          <span
+            v-for="(chip, idx) in contextChipList"
+            :key="`${chip}-${idx}`"
+            class="ctx-chip"
+            :class="{ 'ctx-chip--resume': chip.includes('简历') }"
+          >
+            {{ chip }}
+          </span>
         </div>
 
         <div v-if="globalError" class="global-error">{{ globalError }}</div>
@@ -290,12 +296,38 @@ const hasResumeVersion = computed(() => workspaceVersions.value.length > 0)
 
 const workspaceSubText = computed(() => {
   if (!workspaceInfo.value) return ''
-  return hasResumeVersion.value ? 'JD + 简历已加载' : 'JD 已加载，等待简历'
+  const type = workspaceInfo.value.workspaceType
+  const typeLabel = {
+    JD_PREP: 'JD 准备空间',
+    INTERVIEW: '面试训练空间',
+    MARKET: '市场策略空间',
+    RESUME: '简历优化空间',
+    GENERAL: '通用对话',
+  }[type] || '工作空间'
+  if (type === 'JD_PREP') {
+    return hasResumeVersion.value ? `${typeLabel} · JD + 简历已加载` : `${typeLabel} · JD 已加载`
+  }
+  const summary = workspaceInfo.value.contextSummary
+  return summary ? `${typeLabel} · ${summary}` : typeLabel
 })
 
 const workspaceSubClass = computed(() => {
   if (!workspaceInfo.value) return ''
-  return hasResumeVersion.value ? 'header-sub--ready' : 'header-sub--pending'
+  if (workspaceInfo.value.workspaceType === 'JD_PREP') {
+    return hasResumeVersion.value ? 'header-sub--ready' : 'header-sub--pending'
+  }
+  return 'header-sub--ready'
+})
+
+const contextChipList = computed(() => {
+  const chips = workspaceInfo.value?.contextChips
+  if (Array.isArray(chips) && chips.length > 0) {
+    return chips
+  }
+  const fallback = []
+  if (jdChipLabel.value) fallback.push(jdChipLabel.value)
+  if (resumeChipLabel.value) fallback.push(resumeChipLabel.value)
+  return fallback
 })
 
 const jdChipLabel = computed(() => {

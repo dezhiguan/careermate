@@ -249,6 +249,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { listRecentArtifacts } from '../api/artifact'
+import { createWorkspace } from '../api/workspace'
 import { getCareerProfile, updateCareerProfile } from '../api/profile'
 import { listResumes } from '../api/resume'
 import { listVersions } from '../api/resumeVersion'
@@ -270,6 +271,7 @@ const resumes = ref([])
 const versions = ref([])
 const sessions = ref([])
 const recentArtifacts = ref([])
+const artifactLoading = ref('')
 
 const ARTIFACT_TYPE_LABELS = {
   RESUME_VERSION: '简历版本',
@@ -510,10 +512,39 @@ function formatArtifactTime(iso) {
   return `${m}月${day}日`
 }
 
-function openArtifact(item) {
+async function openArtifact(item) {
   if (item.actionRoute) {
     router.push(item.actionRoute)
     return
+  }
+  if (artifactLoading.value) return
+  artifactLoading.value = item.artifactId
+  try {
+    const resp = await createWorkspace({
+      workspaceType: 'RESUME',
+      title: item.title || '继续优化',
+      goalText: '基于已有产物继续优化',
+      entryAction: 'CONTINUE_WITH_ASSET',
+      contextMetadata: {
+        artifactId: item.artifactId,
+        artifactType: item.artifactType,
+        refType: item.refType,
+        refId: item.refId,
+        title: item.title,
+        summary: item.summary,
+        actionRoute: item.actionRoute,
+        sessionId: item.sessionId,
+      },
+    })
+    const path = resp?.redirectPath || (resp?.workspaceId ? `/chat/${resp.workspaceId}` : '')
+    if (path) {
+      router.push(path)
+      return
+    }
+  } catch (e) {
+    console.error('创建 workspace 失败', e)
+  } finally {
+    artifactLoading.value = ''
   }
   if (item.artifactType === 'RESUME_VERSION' && item.sessionId) {
     router.push(`/chat/${item.sessionId}`)

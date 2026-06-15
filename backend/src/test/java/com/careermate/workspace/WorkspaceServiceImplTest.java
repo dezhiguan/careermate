@@ -7,6 +7,8 @@ import com.careermate.resume.version.dto.ResumeVersionListItemVO;
 import com.careermate.resume.version.service.ResumeVersionService;
 import com.careermate.workspace.dto.ActionAckResponse;
 import com.careermate.workspace.dto.MessageVO;
+import com.careermate.workspace.dto.WorkspaceCreateRequest;
+import com.careermate.workspace.dto.WorkspaceCreateResponse;
 import com.careermate.workspace.dto.WorkspaceVO;
 import com.careermate.workspace.service.impl.WorkspaceServiceImpl;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
@@ -19,13 +21,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -57,8 +65,8 @@ class WorkspaceServiceImplTest {
         assertEquals("算法工程师", vo.jdSnapshot().get("title"));
         assertEquals(WorkspaceSessionRepository.WORKSPACE_JD_PREP, vo.workspaceType());
         assertEquals("腾讯 算法工程师", vo.goalText());
-        assertEquals(List.of("JD 已加载"), vo.contextChips());
-        assertEquals("JD 已加载", vo.contextSummary());
+        assertEquals(List.of("📋 腾讯 算法工程师"), vo.contextChips());
+        assertEquals("📋 腾讯 算法工程师", vo.contextSummary());
     }
 
     @Test
@@ -157,6 +165,114 @@ class WorkspaceServiceImplTest {
         assertFalse(ack.noop());
         assertNotNull(ack.sseEndpoint());
         assertTrue(ack.sseEndpoint().contains("/api/workspace/WS-abc/generate-resume/stream"));
+    }
+
+    @Test
+    void createWorkspaceCreatesInterviewWorkspaceWithMetadata() {
+        AgentSessionEntity session = baseSession(11L, 1L);
+        session.setSessionId("WS-interview");
+        session.setWorkspaceType(WorkspaceSessionRepository.WORKSPACE_INTERVIEW);
+        when(workspaceSessionRepository.createWorkspace(
+                eq(1L),
+                eq(WorkspaceSessionRepository.WORKSPACE_INTERVIEW),
+                eq("Redis 面试题"),
+                eq("讲解面试题"),
+                eq(Map.of("questionText", "Redis 持久化"))
+        )).thenReturn(session);
+        when(workspaceSessionRepository.appendMessage(
+                eq(1L), eq(session), eq("assistant"), anyString(), eq("CARD"), anyString(), eq(1)
+        )).thenReturn(message(1L, 1, "assistant", "welcome"));
+
+        WorkspaceCreateResponse response = service.createWorkspace(1L, new WorkspaceCreateRequest(
+                WorkspaceSessionRepository.WORKSPACE_INTERVIEW,
+                "Redis 面试题",
+                "讲解面试题",
+                "EXPLAIN_QUESTION",
+                Map.of("questionText", "Redis 持久化")
+        ));
+
+        assertEquals("WS-interview", response.workspaceId());
+        assertEquals("/chat/WS-interview", response.redirectPath());
+        assertEquals(WorkspaceSessionRepository.WORKSPACE_INTERVIEW, response.workspaceType());
+        verify(workspaceSessionRepository).appendMessage(
+                eq(1L), eq(session), eq("assistant"), anyString(), eq("CARD"), anyString(), eq(1)
+        );
+    }
+
+    @Test
+    void createWorkspaceCreatesMarketWorkspaceWithWelcomeCard() {
+        AgentSessionEntity session = baseSession(12L, 1L);
+        session.setSessionId("WS-market");
+        session.setWorkspaceType(WorkspaceSessionRepository.WORKSPACE_MARKET);
+        when(workspaceSessionRepository.createWorkspace(
+                anyLong(), anyString(), anyString(), anyString(), any()
+        )).thenReturn(session);
+        when(workspaceSessionRepository.appendMessage(
+                anyLong(), eq(session), eq("assistant"), anyString(), eq("CARD"), anyString(), eq(1)
+        )).thenReturn(message(1L, 1, "assistant", "welcome"));
+
+        WorkspaceCreateResponse response = service.createWorkspace(1L, new WorkspaceCreateRequest(
+                WorkspaceSessionRepository.WORKSPACE_MARKET,
+                "广州 Java后端",
+                "生成谈薪脚本",
+                "NEGOTIATION_SCRIPT",
+                Map.of("city", "广州", "role", "Java后端", "years", "3-5年")
+        ));
+
+        assertEquals("WS-market", response.workspaceId());
+        assertEquals("/chat/WS-market", response.redirectPath());
+        verify(workspaceSessionRepository).appendMessage(
+                anyLong(), eq(session), eq("assistant"), anyString(), eq("CARD"), anyString(), eq(1)
+        );
+    }
+
+    @Test
+    void createWorkspaceRejectsUnknownWorkspaceType() {
+        BizException ex = assertThrows(
+                BizException.class,
+                () -> service.createWorkspace(1L, new WorkspaceCreateRequest(
+                        "PIPELINE", "title", "goal", "ACTION", Map.of()
+                ))
+        );
+        assertEquals(400, ex.getCode());
+    }
+
+    @Test
+    void createWorkspaceReturnsRedirectPath() {
+        AgentSessionEntity session = baseSession(13L, 1L);
+        session.setSessionId("WS-redirect");
+        session.setWorkspaceType(WorkspaceSessionRepository.WORKSPACE_RESUME);
+        when(workspaceSessionRepository.createWorkspace(
+                anyLong(), anyString(), anyString(), anyString(), any()
+        )).thenReturn(session);
+        when(workspaceSessionRepository.appendMessage(
+                anyLong(), eq(session), anyString(), anyString(), anyString(), anyString(), anyInt()
+        )).thenReturn(message(1L, 1, "assistant", "welcome"));
+
+        WorkspaceCreateResponse response = service.createWorkspace(1L, new WorkspaceCreateRequest(
+                WorkspaceSessionRepository.WORKSPACE_RESUME,
+                "简历优化",
+                "继续优化",
+                "CONTINUE_WITH_ASSET",
+                null
+        ));
+
+        assertEquals("/chat/WS-redirect", response.redirectPath());
+    }
+
+    @Test
+    void createWorkspaceRejectsNullUserId() {
+        BizException ex = assertThrows(
+                BizException.class,
+                () -> service.createWorkspace(null, new WorkspaceCreateRequest(
+                        WorkspaceSessionRepository.WORKSPACE_MARKET,
+                        "title",
+                        "goal",
+                        "NEGOTIATION_SCRIPT",
+                        Map.of()
+                ))
+        );
+        assertEquals(401, ex.getCode());
     }
 
     @Test

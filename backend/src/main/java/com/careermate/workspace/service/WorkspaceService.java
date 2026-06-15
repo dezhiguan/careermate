@@ -3,6 +3,8 @@ package com.careermate.workspace.service;
 import com.careermate.model.entity.AgentSessionEntity;
 import com.careermate.workspace.dto.ActionAckResponse;
 import com.careermate.workspace.dto.MessageVO;
+import com.careermate.workspace.dto.WorkspaceCreateRequest;
+import com.careermate.workspace.dto.WorkspaceCreateResponse;
 import com.careermate.workspace.dto.WorkspaceVO;
 
 import java.util.List;
@@ -16,4 +18,6 @@ public interface WorkspaceService {
     ActionAckResponse handleAction(Long userId, String sessionId, String action, String payload);
 
     AgentSessionEntity requireOwnedSession(Long userId, String sessionId);
+
+    WorkspaceCreateResponse createWorkspace(Long userId, WorkspaceCreateRequest request);
 }
