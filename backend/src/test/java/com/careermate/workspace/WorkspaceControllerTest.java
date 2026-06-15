@@ -89,7 +89,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get("/api/workspace/{workspaceId}", workspaceId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.workspaceId").value(workspaceId))
+                .andExpect(jsonPath("$.data.sessionId").value(workspaceId))
                 .andExpect(jsonPath("$.data.workspaceType").value("MARKET"));
     }
 

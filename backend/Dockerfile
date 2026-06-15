@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 ARG JAR_FILE=target/careermate-backend-0.1.0.jar
 ENV JAVA_OPTS="-Xms512m -Xmx1g"

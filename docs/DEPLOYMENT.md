@@ -22,7 +22,7 @@
 
 ### 依赖
 
-- JDK 17、Maven 3.8+
+- JDK 21、Maven 3.8+
 - PostgreSQL 15
 - Node 18+（前端）
 

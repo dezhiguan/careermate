@@ -64,7 +64,7 @@
 
 | 层级 | 技术 |
 |------|------|
-| 后端 | Java 17、Spring Boot 3.2、Maven、MyBatis-Plus、Flyway |
+| 后端 | Java 21、Spring Boot 3.5、Maven、MyBatis-Plus、Flyway |
 | 数据库 | PostgreSQL 15 |
 | 前端 | Vue 3、Vite、Vue Router |
 | LLM | mock / qwen / deepseek / openai-compatible |
