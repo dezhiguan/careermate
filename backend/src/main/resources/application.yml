@@ -7,6 +7,25 @@ mybatis-plus:
 spring:
   application:
     name: careermate-backend
+  ai:
+    chat:
+      client:
+        enabled: false
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
+      - com.alibaba.cloud.ai.autoconfigure.dashscope.DashScopeChatAutoConfiguration
+      - com.alibaba.cloud.ai.autoconfigure.dashscope.DashScopeAgentAutoConfiguration
+      - com.alibaba.cloud.ai.autoconfigure.dashscope.DashScopeImageAutoConfiguration
+      - com.alibaba.cloud.ai.autoconfigure.dashscope.DashScopeAudioSpeechAutoConfiguration
+      - com.alibaba.cloud.ai.autoconfigure.dashscope.DashScopeAudioTranscriptionAutoConfiguration
+      - com.alibaba.cloud.ai.autoconfigure.dashscope.DashScopeRerankAutoConfiguration
+      - com.alibaba.cloud.ai.autoconfigure.dashscope.DashScopeEmbeddingAutoConfiguration
   output:
     ansi:
       enabled: ${SPRING_OUTPUT_ANSI_ENABLED:always} # always 强制彩色，IDE/重定向场景也生效；可设为 detect/never
@@ -70,6 +89,13 @@ careermate:
     stream-task-timeout-ms: ${AGENT_STREAM_TASK_TIMEOUT_MS:300000}
     conversation-context-max-messages: ${AGENT_CONVERSATION_CONTEXT_MAX_MESSAGES:10}
     conversation-context-max-chars: ${AGENT_CONVERSATION_CONTEXT_MAX_CHARS:6000}
+    framework:
+      enabled: ${AGENT_FRAMEWORK_ENABLED:false}
+      provider: ${AGENT_FRAMEWORK_PROVIDER:spring-ai-openai}
+      model: ${AGENT_FRAMEWORK_MODEL:}
+      base-url: ${AGENT_FRAMEWORK_BASE_URL:}
+      api-key: ${AGENT_FRAMEWORK_API_KEY:}
+      timeout-ms: ${AGENT_FRAMEWORK_TIMEOUT_MS:60000}
   tracing:
     service-name: ${OTEL_SERVICE_NAME:careermate-backend}
   ragforge:
