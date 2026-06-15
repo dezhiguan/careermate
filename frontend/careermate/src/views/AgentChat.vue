@@ -14,7 +14,7 @@
         </div>
         <nav class="drawer-nav">
           <button type="button" class="drawer-link" @click="navigateFromDrawer('/opportunity')">机会</button>
-          <button type="button" class="drawer-link active" @click="drawerOpen = false">小职 · 当前</button>
+          <button type="button" class="drawer-link active" @click="drawerOpen = false">AI 小职 · 当前</button>
           <button type="button" class="drawer-link" @click="navigateFromDrawer('/interview')">面试题</button>
           <button type="button" class="drawer-link" @click="navigateFromDrawer('/market')">市场</button>
           <button type="button" class="drawer-link" @click="navigateFromDrawer('/mine')">我的</button>
@@ -39,10 +39,10 @@
               ☰
             </button>
             <div>
-              <div class="header-title">AI 对话</div>
+              <div class="header-title">小职</div>
               <div class="header-sub" :class="workspaceSubClass">
                 <template v-if="workspaceInfo">● {{ workspaceSubText }}</template>
-                <template v-else>● 在线</template>
+                <template v-else>● 求职军师 · 一句话办求职事</template>
               </div>
             </div>
           </div>
