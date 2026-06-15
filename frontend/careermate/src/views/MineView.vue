@@ -184,7 +184,37 @@
       <button type="button" class="btn-link" @click="router.push('/chat')">去小职完善画像 →</button>
     </section>
 
-    <!-- 区块五：快捷入口 + 活动摘要 -->
+    <!-- 区块五：最近产物 -->
+    <section v-if="recentArtifacts.length" class="profile-section artifacts-section">
+      <div class="section-head">
+        <span class="section-title">最近产物</span>
+      </div>
+      <ul class="artifact-list">
+        <li
+          v-for="item in recentArtifacts"
+          :key="item.artifactId"
+          class="artifact-item"
+          @click="openArtifact(item)"
+        >
+          <div class="artifact-head">
+            <span class="artifact-type">{{ artifactTypeLabel(item.artifactType) }}</span>
+            <span class="artifact-time">{{ formatArtifactTime(item.createdAt) }}</span>
+          </div>
+          <div class="artifact-title">{{ item.title }}</div>
+          <p v-if="item.summary" class="artifact-summary">{{ item.summary }}</p>
+          <button
+            v-if="item.actionLabel"
+            type="button"
+            class="artifact-action"
+            @click.stop="openArtifact(item)"
+          >
+            {{ item.actionLabel }} →
+          </button>
+        </li>
+      </ul>
+    </section>
+
+    <!-- 区块六：快捷入口 + 活动摘要 -->
     <button type="button" class="entry-btn" @click="router.push('/mine/resume')">
       <span class="entry-icon">📄</span>
       <div class="entry-info">
@@ -218,6 +248,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { listRecentArtifacts } from '../api/artifact'
 import { getCareerProfile, updateCareerProfile } from '../api/profile'
 import { listResumes } from '../api/resume'
 import { listVersions } from '../api/resumeVersion'
@@ -238,6 +269,15 @@ const YEARS_OPTIONS = ['应届', '1-3年', '3-5年', '5-10年', '10年以上']
 const resumes = ref([])
 const versions = ref([])
 const sessions = ref([])
+const recentArtifacts = ref([])
+
+const ARTIFACT_TYPE_LABELS = {
+  RESUME_VERSION: '简历版本',
+  JOB_MATCH: '匹配报告',
+  INTERVIEW_SESSION: '面试训练',
+  MARKET_REPORT: '市场报告',
+  TASK_PLAN: '任务计划',
+}
 
 const profile = ref({
   targetRole: '',
@@ -452,6 +492,36 @@ async function onAvatarSelected(event) {
   }
 }
 
+function artifactTypeLabel(type) {
+  return ARTIFACT_TYPE_LABELS[type] || '产物'
+}
+
+function formatArtifactTime(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const now = new Date()
+  const diffMs = now - d
+  if (diffMs < 60_000) return '刚刚'
+  if (diffMs < 3_600_000) return `${Math.floor(diffMs / 60_000)} 分钟前`
+  if (diffMs < 86_400_000) return `${Math.floor(diffMs / 3_600_000)} 小时前`
+  const m = d.getMonth() + 1
+  const day = d.getDate()
+  return `${m}月${day}日`
+}
+
+function openArtifact(item) {
+  if (item.actionRoute) {
+    router.push(item.actionRoute)
+    return
+  }
+  if (item.artifactType === 'RESUME_VERSION' && item.sessionId) {
+    router.push(`/chat/${item.sessionId}`)
+    return
+  }
+  router.push('/chat')
+}
+
 function handleLogout() {
   authStore.logout()
   router.push('/login')
@@ -464,11 +534,12 @@ onMounted(async () => {
     // 未登录时保持现状
   }
 
-  const [profileResult, resumesResult, versionsResult, sessionsResult] = await Promise.allSettled([
+  const [profileResult, resumesResult, versionsResult, sessionsResult, artifactsResult] = await Promise.allSettled([
     getCareerProfile(),
     listResumes(),
     listVersions(),
     listInterviewSessions(),
+    listRecentArtifacts(5),
   ])
 
   if (profileResult.status === 'fulfilled' && profileResult.value) {
@@ -482,6 +553,9 @@ onMounted(async () => {
   }
   if (sessionsResult.status === 'fulfilled') {
     sessions.value = Array.isArray(sessionsResult.value) ? sessionsResult.value : []
+  }
+  if (artifactsResult.status === 'fulfilled') {
+    recentArtifacts.value = Array.isArray(artifactsResult.value) ? artifactsResult.value : []
   }
 })
 </script>
@@ -889,6 +963,80 @@ onMounted(async () => {
   border: none;
   color: #7c3aed;
   font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.artifacts-section {
+  padding-bottom: 12px;
+}
+
+.artifact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.artifact-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.artifact-item:active {
+  background: #faf5ff;
+}
+
+.artifact-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.artifact-type {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7c3aed;
+  background: #f3e8ff;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.artifact-time {
+  font-size: 11px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.artifact-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.artifact-summary {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.artifact-action {
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: #7c3aed;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   padding: 0;

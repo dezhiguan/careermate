@@ -1,6 +1,9 @@
 package com.careermate.resume.version.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.careermate.artifact.ArtifactConstants;
+import com.careermate.artifact.dto.CreateAgentArtifactCommand;
+import com.careermate.artifact.service.AgentArtifactService;
 import com.careermate.common.exception.BizException;
 import com.careermate.mapper.ResumeVersionMapper;
 import com.careermate.model.entity.ResumeVersionEntity;
@@ -20,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,17 +37,20 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     private final ObjectMapper objectMapper;
     private final ResumeVersionPdfRenderer pdfRenderer;
     private final ResumeVersionDocxRenderer docxRenderer;
+    private final AgentArtifactService agentArtifactService;
 
     public ResumeVersionServiceImpl(
             ResumeVersionMapper resumeVersionMapper,
             ObjectMapper objectMapper,
             ResumeVersionPdfRenderer pdfRenderer,
-            ResumeVersionDocxRenderer docxRenderer
+            ResumeVersionDocxRenderer docxRenderer,
+            AgentArtifactService agentArtifactService
     ) {
         this.resumeVersionMapper = resumeVersionMapper;
         this.objectMapper = objectMapper;
         this.pdfRenderer = pdfRenderer;
         this.docxRenderer = docxRenderer;
+        this.agentArtifactService = agentArtifactService;
     }
 
     @Override
@@ -114,6 +119,7 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         resumeVersionMapper.insert(entity);
+        registerResumeVersionArtifact(userId, sessionId, sourceResumeId, targetJdId, targetJdLabel, versionName, entity.getVersionId());
         return toDetailVO(entity);
     }
 
@@ -147,6 +153,43 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
             log.error("Word 导出失败, versionId={}", versionId, e);
             throw new BizException(500, "Word 导出失败");
         }
+    }
+
+    private void registerResumeVersionArtifact(
+            Long userId,
+            String sessionId,
+            Long sourceResumeId,
+            String targetJdId,
+            String targetJdLabel,
+            String versionName,
+            String versionId
+    ) {
+        String summary = targetJdLabel != null && !targetJdLabel.isBlank()
+                ? "针对 " + targetJdLabel.trim() + " 生成的简历版本"
+                : "AI 生成的简历版本";
+        Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        if (sourceResumeId != null) {
+            metadata.put("sourceResumeId", sourceResumeId);
+        }
+        if (targetJdId != null && !targetJdId.isBlank()) {
+            metadata.put("targetJdId", targetJdId);
+        }
+        if (targetJdLabel != null && !targetJdLabel.isBlank()) {
+            metadata.put("targetJdLabel", targetJdLabel);
+        }
+        if (versionName != null && !versionName.isBlank()) {
+            metadata.put("versionName", versionName);
+        }
+        agentArtifactService.create(new CreateAgentArtifactCommand(
+                userId,
+                sessionId,
+                ArtifactConstants.TYPE_RESUME_VERSION,
+                versionName,
+                summary,
+                ArtifactConstants.REF_RESUME_VERSION,
+                versionId,
+                metadata
+        ));
     }
 
     private ResumeVersionEntity requireOwnedVersion(Long userId, String versionId) {

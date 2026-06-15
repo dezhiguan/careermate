@@ -1,6 +1,7 @@
 package com.careermate.resume.version;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.careermate.artifact.service.AgentArtifactService;
 import com.careermate.common.exception.BizException;
 import com.careermate.mapper.ResumeVersionMapper;
 import com.careermate.model.entity.ResumeVersionEntity;
@@ -30,6 +31,8 @@ class ResumeVersionPdfExportTest {
 
     @Mock
     private ResumeVersionMapper resumeVersionMapper;
+    @Mock
+    private AgentArtifactService agentArtifactService;
 
     private ResumeVersionPdfRenderer pdfRenderer;
     private ResumeVersionDocxRenderer docxRenderer;
@@ -39,7 +42,9 @@ class ResumeVersionPdfExportTest {
     void setUp() {
         pdfRenderer = new ResumeVersionPdfRenderer();
         docxRenderer = new ResumeVersionDocxRenderer();
-        service = new ResumeVersionServiceImpl(resumeVersionMapper, new ObjectMapper(), pdfRenderer, docxRenderer);
+        service = new ResumeVersionServiceImpl(
+                resumeVersionMapper, new ObjectMapper(), pdfRenderer, docxRenderer, agentArtifactService
+        );
     }
 
     @Test
@@ -117,7 +122,7 @@ class ResumeVersionPdfExportTest {
             throw new RuntimeException("render failed");
         }).when(failingRenderer).render(eq("# test"), any());
         ResumeVersionServiceImpl failingService = new ResumeVersionServiceImpl(
-                resumeVersionMapper, new ObjectMapper(), failingRenderer, docxRenderer
+                resumeVersionMapper, new ObjectMapper(), failingRenderer, docxRenderer, agentArtifactService
         );
 
         MockHttpServletResponse response = new MockHttpServletResponse();

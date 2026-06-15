@@ -1,6 +1,9 @@
 package com.careermate.resume.version;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.careermate.artifact.ArtifactConstants;
+import com.careermate.artifact.dto.CreateAgentArtifactCommand;
+import com.careermate.artifact.service.AgentArtifactService;
 import com.careermate.common.exception.BizException;
 import com.careermate.mapper.ResumeVersionMapper;
 import com.careermate.model.entity.ResumeVersionEntity;
@@ -33,6 +36,8 @@ class ResumeVersionServiceImplTest {
     private ResumeVersionMapper resumeVersionMapper;
     @Mock
     private ResumeVersionPdfRenderer pdfRenderer;
+    @Mock
+    private AgentArtifactService agentArtifactService;
 
     private ResumeVersionServiceImpl service;
 
@@ -42,7 +47,8 @@ class ResumeVersionServiceImplTest {
                 resumeVersionMapper,
                 new ObjectMapper(),
                 pdfRenderer,
-                new ResumeVersionDocxRenderer()
+                new ResumeVersionDocxRenderer(),
+                agentArtifactService
         );
     }
 
@@ -97,6 +103,33 @@ class ResumeVersionServiceImplTest {
         verify(resumeVersionMapper).updateById(entity);
         assertEquals("新标题", entity.getVersionName());
         assertEquals("# 新内容", entity.getContentMarkdown());
+    }
+
+    @Test
+    void createVersionRegistersResumeArtifact() {
+        service.createVersion(
+                1L,
+                "WS-session",
+                99L,
+                "doc-1",
+                "腾讯 算法工程师",
+                "腾讯 - 算法工程师",
+                "# 简历\n内容",
+                List.of()
+        );
+
+        ArgumentCaptor<ResumeVersionEntity> versionCaptor = ArgumentCaptor.forClass(ResumeVersionEntity.class);
+        verify(resumeVersionMapper).insert(versionCaptor.capture());
+        String versionId = versionCaptor.getValue().getVersionId();
+
+        ArgumentCaptor<CreateAgentArtifactCommand> captor = ArgumentCaptor.forClass(CreateAgentArtifactCommand.class);
+        verify(agentArtifactService).create(captor.capture());
+        CreateAgentArtifactCommand artifact = captor.getValue();
+        assertEquals(ArtifactConstants.TYPE_RESUME_VERSION, artifact.artifactType());
+        assertEquals(ArtifactConstants.REF_RESUME_VERSION, artifact.refType());
+        assertEquals(versionId, artifact.refId());
+        assertEquals("WS-session", artifact.sessionId());
+        assertEquals("腾讯 - 算法工程师", artifact.title());
     }
 
     @Test
