@@ -249,7 +249,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { listRecentArtifacts } from '../api/artifact'
-import { createWorkspace } from '../api/workspace'
+import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 import { getCareerProfile, updateCareerProfile } from '../api/profile'
 import { listResumes } from '../api/resume'
 import { listVersions } from '../api/resumeVersion'
@@ -536,11 +536,8 @@ async function openArtifact(item) {
         sessionId: item.sessionId,
       },
     })
-    const path = resp?.redirectPath || (resp?.workspaceId ? `/chat/${resp.workspaceId}` : '')
-    if (path) {
-      router.push(path)
-      return
-    }
+    await navigateToWorkspace(router, resp)
+    return
   } catch (e) {
     console.error('创建 workspace 失败', e)
   } finally {

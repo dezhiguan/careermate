@@ -128,7 +128,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { listOpportunities, prepareWithAi } from '../api/opportunity'
-import { createWorkspace } from '../api/workspace'
+import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 
 const router = useRouter()
 const route = useRoute()
@@ -197,9 +197,7 @@ async function handleWorkspaceAction(item, entryAction) {
         matchScore: item.matchScore,
       },
     })
-    const path = resp?.redirectPath || (resp?.workspaceId ? `/chat/${resp.workspaceId}` : '')
-    if (!path) throw new Error('准备失败：未返回工作空间')
-    await router.push(path)
+    await navigateToWorkspace(router, resp)
   } catch (e) {
     error.value = e?.message || '准备失败，请稍后重试'
   } finally {
@@ -214,12 +212,7 @@ async function handlePrepare(item) {
   error.value = ''
   try {
     const resp = await prepareWithAi(item.jdId)
-    const wsId = resp?.workspaceId
-    const path = resp?.redirectPath || (wsId ? `/chat/${wsId}` : '')
-    if (!path) {
-      throw new Error('准备失败：未返回工作空间')
-    }
-    await router.push(path)
+    await navigateToWorkspace(router, resp)
   } catch (e) {
     error.value = e?.message || '准备失败，请稍后重试'
   } finally {

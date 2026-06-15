@@ -1,6 +1,44 @@
 import { API_BASE_URL, getAuthHeaders, request } from './http'
 import { createSseParser } from '../utils/sseParser'
 
+export const LAST_WORKSPACE_CREATE_KEY = 'careermate_last_workspace_create'
+
+/**
+ * 统一解析 POST /workspace 响应（兼容 request 已解包 data 与完整 ApiResponse）。
+ * @returns {{ workspaceId: string, redirectPath: string }}
+ */
+export function resolveWorkspaceRedirect(resp) {
+  const data = resp?.data ?? resp
+  const workspaceId = data?.workspaceId ? String(data.workspaceId).trim() : ''
+  const redirectPath = data?.redirectPath ? String(data.redirectPath).trim() : ''
+  if (redirectPath.startsWith('/chat/')) {
+    const wsFromPath = redirectPath.slice('/chat/'.length).split('/')[0]?.split('?')[0] || ''
+    return {
+      workspaceId: workspaceId || wsFromPath,
+      redirectPath,
+    }
+  }
+  if (workspaceId) {
+    return { workspaceId, redirectPath: `/chat/${workspaceId}` }
+  }
+  return { workspaceId: '', redirectPath: '' }
+}
+
+/** 创建工作空间后跳转到 AI 小职，使用命名路由确保 wsId 参数正确。 */
+export async function navigateToWorkspace(router, resp) {
+  const { workspaceId, redirectPath } = resolveWorkspaceRedirect(resp)
+  const wsId = workspaceId || redirectPath.match(/^\/chat\/([^/?#]+)/)?.[1] || ''
+  if (!wsId || !wsId.startsWith('WS-')) {
+    throw new Error('创建工作空间失败')
+  }
+  try {
+    sessionStorage.setItem(LAST_WORKSPACE_CREATE_KEY, wsId)
+  } catch {
+    // sessionStorage 不可用时忽略
+  }
+  await router.push({ name: 'chat-workspace', params: { wsId } })
+}
+
 export async function createWorkspace(payload) {
   return request('/workspace', {
     method: 'POST',

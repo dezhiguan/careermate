@@ -6,7 +6,7 @@ const target = process.env.E2E_TARGET || 'local';
 const targets = {
   local: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173',
-    apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8080/api',
+    apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8081/api',
     startWebServer: true,
   },
   cloud: {
@@ -24,7 +24,7 @@ const currentTarget = targets[target];
 const baseURL = currentTarget.baseURL.replace(/\/$/, '');
 
 /** @type {import('@playwright/test').PlaywrightTestConfig['webServer']} */
-const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || 'http://localhost:8080';
+const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || 'http://localhost:8081';
 
 const webServer = currentTarget.startWebServer
   ? {

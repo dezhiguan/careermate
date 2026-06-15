@@ -1,5 +1,7 @@
 package com.careermate.workspace;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.careermate.security.CurrentUser;
 import com.careermate.security.CurrentUserContext;
 import com.careermate.testsupport.TestUsers;
@@ -13,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -24,6 +27,8 @@ class WorkspaceControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUpUser() {
@@ -57,6 +62,34 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.workspaceId").isNotEmpty())
                 .andExpect(jsonPath("$.data.redirectPath").value(org.hamcrest.Matchers.startsWith("/chat/WS-")))
+                .andExpect(jsonPath("$.data.workspaceType").value("MARKET"));
+    }
+
+    @Test
+    void createWorkspaceThenGetWorkspaceShouldSucceed() throws Exception {
+        var createResult = mockMvc.perform(post("/api/workspace")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "workspaceType": "MARKET",
+                                  "title": "广州 Java后端",
+                                  "goalText": "生成谈薪脚本",
+                                  "entryAction": "NEGOTIATION_SCRIPT",
+                                  "contextMetadata": {"city": "广州", "role": "Java后端"}
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.workspaceId").isNotEmpty())
+                .andReturn();
+
+        JsonNode root = objectMapper.readTree(createResult.getResponse().getContentAsString());
+        String workspaceId = root.path("data").path("workspaceId").asText();
+
+        mockMvc.perform(get("/api/workspace/{workspaceId}", workspaceId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.workspaceId").value(workspaceId))
                 .andExpect(jsonPath("$.data.workspaceType").value("MARKET"));
     }
 

@@ -189,7 +189,7 @@ import {
   getAgentTrace,
   sendAgentMessageStream,
 } from '../api/agent'
-import { getWorkspace, getMessages, postAction, openResumeGenerateStream } from '../api/workspace'
+import { getWorkspace, getMessages, postAction, openResumeGenerateStream, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
 import { getOpportunityDetail } from '../api/opportunity'
 import { downloadVersionDocx, downloadVersionPdf, getVersion, listVersions } from '../api/resumeVersion'
 import { isCareerTaskToolName, notifyCareerTasksUpdated } from '../utils/agentToolDisplay'
@@ -259,8 +259,17 @@ function scheduleMarkdownForMessages(msgs) {
   requestAnimationFrame(step)
 }
 
+function normalizeWsId(raw) {
+  if (Array.isArray(raw)) return raw[0] || null
+  if (raw == null || raw === '') return null
+  const text = String(raw).trim()
+  return text || null
+}
+
 /** Phase 2: workspaceId 将用于 API；Phase 1 仅接收路由参数 */
-const workspaceId = computed(() => route.params.wsId || null)
+const workspaceId = computed(() => normalizeWsId(route.params.wsId))
+
+let workspaceLoadSeq = 0
 
 const MOBILE_MAX = 767
 const isMobile = ref(false)
@@ -600,24 +609,43 @@ function formatVersionDate(value) {
 }
 
 async function loadWorkspaceContext(wsId) {
+  const normalizedWsId = normalizeWsId(wsId)
+  if (!normalizedWsId) return
+  const seq = ++workspaceLoadSeq
   sessionCreating.value = true
   globalError.value = ''
   try {
     const [ws, msgs, versions] = await Promise.all([
-      getWorkspace(wsId),
-      getMessages(wsId, { limit: 100 }),
-      listVersions(wsId).catch(() => []),
+      getWorkspace(normalizedWsId),
+      getMessages(normalizedWsId, { limit: 100 }),
+      listVersions(normalizedWsId).catch(() => []),
     ])
+    if (seq !== workspaceLoadSeq) return
     workspaceInfo.value = ws
     workspaceVersions.value = versions || ws?.resumeVersions || []
-    sessionId.value = wsId
+    sessionId.value = normalizedWsId
     const restored = mapServerMessages(msgs)
     messages.value = restored.length > 0 ? restored : [defaultWelcomeMessage()]
     scheduleMarkdownForMessages(messages.value)
     streamState.value = 'idle'
     scrollBottom()
   } catch (e) {
-    globalError.value = e?.message || '加载工作空间失败'
+    if (seq !== workspaceLoadSeq) return
+    const msg = e?.message || '加载工作空间失败'
+    if (msg.includes('工作空间不存在')) {
+      let lastCreateWorkspaceId = ''
+      try {
+        lastCreateWorkspaceId = sessionStorage.getItem(LAST_WORKSPACE_CREATE_KEY) || ''
+      } catch {
+        // ignore
+      }
+      console.warn('[workspace] GET 404', {
+        routeWsId: route.params.wsId,
+        requestWsId: normalizedWsId,
+        lastCreateWorkspaceId,
+      })
+    }
+    globalError.value = msg
     messages.value = [withMarkdown({
       id: `m_err_${Date.now()}`,
       role: 'agent',
@@ -627,7 +655,9 @@ async function loadWorkspaceContext(wsId) {
       toolCalls: [],
     })]
   } finally {
-    sessionCreating.value = false
+    if (seq === workspaceLoadSeq) {
+      sessionCreating.value = false
+    }
   }
 }
 
@@ -1006,7 +1036,8 @@ async function resetChat() {
   scrollBottom()
 }
 
-watch(() => route.params.wsId, async (wsId) => {
+watch(() => route.params.wsId, async (rawWsId) => {
+  const wsId = normalizeWsId(rawWsId)
   if (wsId) {
     await loadWorkspaceContext(wsId)
   }

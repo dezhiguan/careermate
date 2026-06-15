@@ -181,7 +181,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getSalaryInsight, getSkillTrends, getResumeGap } from '../api/market'
 import { getCareerProfile } from '../api/profile'
-import { createWorkspace } from '../api/workspace'
+import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 
 const router = useRouter()
 const route = useRoute()
@@ -352,9 +352,7 @@ async function enterMarketWorkspace(entryAction) {
       entryAction,
       contextMetadata: buildMarketContextMetadata(),
     })
-    const path = resp?.redirectPath || (resp?.workspaceId ? `/chat/${resp.workspaceId}` : '')
-    if (!path) throw new Error('创建工作空间失败')
-    await router.push(path)
+    await navigateToWorkspace(router, resp)
   } catch (e) {
     console.error('进入小职失败', e)
   } finally {

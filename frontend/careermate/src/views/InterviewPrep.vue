@@ -304,7 +304,7 @@ import {
   listInterviewSessions,
   submitInterviewAnswer,
 } from '../api/interview'
-import { createWorkspace } from '../api/workspace'
+import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 
 const router = useRouter()
 
@@ -392,9 +392,7 @@ async function enterInterviewWorkspace(questionItem, entryAction, extra = {}) {
         kbQuery: extra.kbQuery || kbQuery.value,
       },
     })
-    const path = resp?.redirectPath || (resp?.workspaceId ? `/chat/${resp.workspaceId}` : '')
-    if (!path) throw new Error('创建工作空间失败')
-    await router.push(path)
+    await navigateToWorkspace(router, resp)
   } catch (e) {
     pageError.value = e?.message || '进入小职失败'
   } finally {
@@ -424,9 +422,7 @@ async function enterPracticeWorkspace(entryAction) {
         questionId: question.id,
       },
     })
-    const path = resp?.redirectPath || (resp?.workspaceId ? `/chat/${resp.workspaceId}` : '')
-    if (!path) throw new Error('创建工作空间失败')
-    await router.push(path)
+    await navigateToWorkspace(router, resp)
   } catch (e) {
     pageError.value = e?.message || '进入小职失败'
   } finally {
