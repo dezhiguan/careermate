@@ -414,7 +414,7 @@ async function sendPasswordResetSmsViaUi(page, phone) {
  * @param {string} phone
  * @param {string} [verifyCode]
  */
-async function mobileLoginViaApi(request, phone, verifyCode = MOCK_SMS_CODE) {
+async function sendSmsChallengeViaApi(request, phone) {
   const sendRes = await request.post(`${apiBaseURL}/auth/sms/send`, {
     data: { phone, scene: 'mobile_login' },
     timeout: 20_000,
@@ -424,9 +424,16 @@ async function mobileLoginViaApi(request, phone, verifyCode = MOCK_SMS_CODE) {
   expect(sendBody?.code).toBe(0);
   const challengeId = sendBody?.data?.challengeId;
   expect(challengeId).toBeTruthy();
+  console.log('[sms] challenge sent', { phone, challengeId });
+  return challengeId;
+}
+
+async function mobileLoginViaApi(request, phone, verifyCode = MOCK_SMS_CODE, challengeId) {
+  const resolvedChallengeId =
+    challengeId || process.env.E2E_SMS_CHALLENGE_ID || (await sendSmsChallengeViaApi(request, phone));
 
   const loginRes = await request.post(`${apiBaseURL}/auth/mobile/login`, {
-    data: { phone, verifyCode, challengeId, scene: 'mobile_login' },
+    data: { phone, verifyCode, challengeId: resolvedChallengeId, scene: 'mobile_login' },
     timeout: 20_000,
   });
   const loginBody = await loginRes.json().catch(() => null);
@@ -436,7 +443,43 @@ async function mobileLoginViaApi(request, phone, verifyCode = MOCK_SMS_CODE) {
     phone,
     username: loginBody?.data?.user?.username,
     token: loginBody?.data?.token,
+    user: loginBody?.data?.user,
   };
+}
+
+/**
+ * 将已有 token 写入页面 localStorage（不再调用登录 API）。
+ * @param {import('@playwright/test').Page} page
+ * @param {string} token
+ * @param {{ userId: number; username: string; role?: string }} user
+ */
+async function seedPageWithToken(page, token, user) {
+  await gotoApp(page, '/login');
+  await page.evaluate(
+    ([tokenKey, userKey, authToken, authUser]) => {
+      localStorage.setItem(tokenKey, authToken);
+      localStorage.setItem(
+        userKey,
+        JSON.stringify({
+          userId: authUser.userId,
+          username: authUser.username,
+          role: authUser.role || 'USER',
+          authenticated: true,
+        })
+      );
+    },
+    [TOKEN_KEY, USER_KEY, token, user]
+  );
+  await page.reload({ waitUntil: 'networkidle' });
+  await assertAuthenticatedLanding(page);
+}
+
+/**
+ * 云端 E2E：用已发送的验证码 API 登录并写入 localStorage，避免 UI 重复发码。
+ */
+async function seedPageWithSmsLogin(page, request, phone, verifyCode, challengeId) {
+  const login = await mobileLoginViaApi(request, phone, verifyCode, challengeId);
+  await seedPageWithToken(page, login.token, login.user);
 }
 
 /**
@@ -748,6 +791,9 @@ module.exports = {
   sendPasswordResetSmsViaUi,
   resetPasswordViaUi,
   mobileLoginViaApi,
+  sendSmsChallengeViaApi,
+  seedPageWithSmsLogin,
+  seedPageWithToken,
   createPhoneOnlyAccount,
   createAccountWithPhoneAndPassword,
   loginViaSmsUi,
