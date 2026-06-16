@@ -11,6 +11,8 @@ public class CareerProfileContextResult {
     private final String contextText;
     private final String targetRole;
     private final int skillCount;
+    private final int weaknessCount;
+    private final boolean hasSessionSummary;
 
     public static CareerProfileContextResult empty() {
         return CareerProfileContextResult.builder()
@@ -18,6 +20,8 @@ public class CareerProfileContextResult {
                 .contextText("")
                 .targetRole(null)
                 .skillCount(0)
+                .weaknessCount(0)
+                .hasSessionSummary(false)
                 .build();
     }
 }

@@ -10,7 +10,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("career_profiles")
+@TableName(value = "career_profiles", autoResultMap = true)
 public class CareerProfileEntity {
 
     @TableId(type = IdType.AUTO)
@@ -30,6 +30,17 @@ public class CareerProfileEntity {
     private String skillKeywords;
 
     private String preferenceSummary;
+
+    private String targetSalaryRange;
+
+    @TableField(value = "weakness_keywords", typeHandler = JsonbStringTypeHandler.class)
+    private String weaknessKeywords;
+
+    private String interviewWeaknessSummary;
+
+    private String memorySummary;
+
+    private LocalDateTime memoryUpdatedAt;
 
     private String source;
 

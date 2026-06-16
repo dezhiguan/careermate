@@ -2,6 +2,7 @@ package com.careermate.interview.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.careermate.agent.memory.AgentMemoryService;
 import com.careermate.common.exception.BizException;
 import com.careermate.interview.InterviewAnswerEvaluator;
 import com.careermate.interview.InterviewQuestionGenerator;
@@ -20,6 +21,7 @@ import com.careermate.model.entity.JobMatchEntity;
 import com.careermate.model.entity.ResumeEntity;
 import com.careermate.resume.service.ResumeService;
 import com.careermate.security.CurrentUserContext;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
+@Slf4j
 public class InterviewPracticeService {
 
     public static final String STATUS_ACTIVE = "ACTIVE";
@@ -46,6 +49,7 @@ public class InterviewPracticeService {
     private final InterviewQuestionGenerator questionGenerator;
     private final InterviewAnswerEvaluator answerEvaluator;
     private final JobMatchJsonSupport jobMatchJsonSupport;
+    private final AgentMemoryService agentMemoryService;
 
     public InterviewPracticeService(
             InterviewSessionMapper sessionMapper,
@@ -54,7 +58,8 @@ public class InterviewPracticeService {
             JobMatchService jobMatchService,
             InterviewQuestionGenerator questionGenerator,
             InterviewAnswerEvaluator answerEvaluator,
-            JobMatchJsonSupport jobMatchJsonSupport
+            JobMatchJsonSupport jobMatchJsonSupport,
+            AgentMemoryService agentMemoryService
     ) {
         this.sessionMapper = sessionMapper;
         this.questionMapper = questionMapper;
@@ -63,6 +68,7 @@ public class InterviewPracticeService {
         this.questionGenerator = questionGenerator;
         this.answerEvaluator = answerEvaluator;
         this.jobMatchJsonSupport = jobMatchJsonSupport;
+        this.agentMemoryService = agentMemoryService;
     }
 
     public List<InterviewSessionListItemResponse> listSessions() {
@@ -174,7 +180,34 @@ public class InterviewPracticeService {
         questionMapper.updateById(question);
 
         refreshSessionProgress(sessionId, userId, now);
+        rememberWeaknessSafely(userId, eval.score(), question, eval.improvements());
         return toQuestionResponse(question);
+    }
+
+    private void rememberWeaknessSafely(
+            Long userId,
+            int score,
+            InterviewQuestionEntity question,
+            List<String> improvements
+    ) {
+        try {
+            List<String> referencePoints = jobMatchJsonSupport.readStringList(question.getReferencePoints());
+            agentMemoryService.rememberInterviewWeakness(
+                    userId,
+                    score,
+                    question.getQuestionType(),
+                    question.getQuestionText(),
+                    referencePoints,
+                    improvements
+            );
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to remember interview weakness: userId={}, questionId={}",
+                    userId,
+                    question.getId(),
+                    e
+            );
+        }
     }
 
     @Transactional

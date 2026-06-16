@@ -39,6 +39,8 @@ public class AgentSessionEntity {
     @TableField(value = "workspace_metadata", typeHandler = JsonbStringTypeHandler.class)
     private String workspaceMetadata;
     private String goalText;
+    private String conversationSummary;
+    private OffsetDateTime conversationSummaryUpdatedAt;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

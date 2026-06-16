@@ -42,6 +42,7 @@ public class AgentKernelService {
     static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
     static final String TRACE_CONVERSATION_CONTEXT = "conversation_context";
     static final String TRACE_CAREER_PROFILE_CONTEXT = "career_profile_context";
+    static final String TRACE_MEMORY_CONTEXT_LOADED = "memory_context_loaded";
     static final String TRACE_CAREER_PROFILE_UPDATE = "career_profile_update";
 
     private final ResumeContextProvider resumeContextProvider;
@@ -127,9 +128,10 @@ public class AgentKernelService {
                 null,
                 null,
                 null,
-                () -> careerProfileContextProvider.load(userId)
+                () -> careerProfileContextProvider.load(userId, sessionId)
         );
         addCareerProfileContextTrace(sink, careerProfileContext);
+        addMemoryContextTrace(sink, careerProfileContext);
 
         ResumeContext resumeContext = agentTracing.call(
                 "agent.load_resume_context",
@@ -330,6 +332,25 @@ public class AgentKernelService {
                 "{}",
                 writeJson(payload),
                 "SUCCESS",
+                null,
+                null
+        ));
+    }
+
+    private void addMemoryContextTrace(AgentEventSink sink, CareerProfileContextResult result) {
+        String status = result != null && result.isAvailable() ? "SUCCESS" : "EMPTY";
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("available", result != null && result.isAvailable());
+        if (result != null && result.isAvailable()) {
+            payload.put("weaknessCount", result.getWeaknessCount());
+            payload.put("skillCount", result.getSkillCount());
+            payload.put("hasSessionSummary", result.isHasSessionSummary());
+        }
+        emit(sink, traceEvent(
+                TRACE_MEMORY_CONTEXT_LOADED,
+                "{}",
+                writeJson(payload),
+                status,
                 null,
                 null
         ));

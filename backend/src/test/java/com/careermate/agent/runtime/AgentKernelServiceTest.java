@@ -5,6 +5,8 @@ import com.careermate.agent.tool.AgentToolResult;
 import com.careermate.llm.dto.ChatRequest;
 import com.careermate.mapper.UserMapper;
 import com.careermate.mapper.UserProfileMapper;
+import com.careermate.profile.dto.CareerProfileUpsertRequest;
+import com.careermate.profile.service.CareerProfileService;
 import com.careermate.resume.dto.ResumeCreateRequest;
 import com.careermate.resume.service.ResumeService;
 import com.careermate.security.CurrentUser;
@@ -37,6 +39,9 @@ class AgentKernelServiceTest {
 
     @Autowired
     private ResumeService resumeService;
+
+    @Autowired
+    private CareerProfileService careerProfileService;
 
     @Autowired
     private WorkspaceSessionRepository workspaceSessionRepository;
@@ -158,6 +163,24 @@ class AgentKernelServiceTest {
 
         assertEquals(TestUsers.USER_A, result.getDebugMetadata().get("userId"));
         assertEquals("kernel-ownership-session", result.getDebugMetadata().get("sessionId"));
+    }
+
+    @Test
+    void systemPromptContainsCareerProfileAndMemoryTrace() {
+        CareerProfileUpsertRequest request = new CareerProfileUpsertRequest();
+        request.setTargetRole("Java 后端开发工程师");
+        request.setTargetCity("广州");
+        request.setSkillKeywords(List.of("Java", "Spring"));
+        careerProfileService.upsertProfile(TestUsers.USER_A, request, "manual");
+
+        AgentRunResult result = agentKernelService.prepareRun(AgentRunRequest.builder()
+                .userId(TestUsers.USER_A)
+                .sessionId("kernel-memory-session")
+                .userMessage("请结合我的目标岗位给建议")
+                .build());
+
+        assertTrue(result.getSystemPrompt().contains("目标岗位：Java 后端开发工程师"));
+        assertTrue(result.getEvents().stream().anyMatch(e -> traceNamed(e, AgentKernelService.TRACE_MEMORY_CONTEXT_LOADED)));
     }
 
     private boolean traceNamed(AgentEvent event, String traceName) {

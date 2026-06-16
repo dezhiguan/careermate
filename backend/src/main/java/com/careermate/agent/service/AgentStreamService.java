@@ -15,6 +15,7 @@ import com.careermate.agent.tool.AgentToolExecutionService;
 import com.careermate.agent.tool.AgentLlmIntentRecognizer;
 import com.careermate.agent.tool.AgentToolResult;
 import com.careermate.agent.tool.AgentToolTraceSupport;
+import com.careermate.agent.memory.AgentMemoryService;
 import com.careermate.agent.dto.AgentMessageRequest;
 import com.careermate.agent.runtime.AgentEvent;
 import com.careermate.agent.runtime.AgentKernelEventTypes;
@@ -77,6 +78,7 @@ public class AgentStreamService {
     private final AgentConversationContextProvider conversationContextProvider;
     private final CareerProfileContextProvider careerProfileContextProvider;
     private final CareerProfileAutoUpdateService careerProfileAutoUpdateService;
+    private final AgentMemoryService agentMemoryService;
     private final AgentTracing agentTracing;
     private final LlmProperties llmProperties;
     private final AgentSupervisor agentSupervisor;
@@ -89,6 +91,7 @@ public class AgentStreamService {
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
     private static final String TRACE_CONVERSATION_CONTEXT = "conversation_context";
     private static final String TRACE_CAREER_PROFILE_CONTEXT = "career_profile_context";
+    private static final String TRACE_MEMORY_CONTEXT_LOADED = "memory_context_loaded";
     private static final String TRACE_CAREER_PROFILE_UPDATE = "career_profile_update";
 
     public AgentStreamService(
@@ -106,6 +109,7 @@ public class AgentStreamService {
             AgentConversationContextProvider conversationContextProvider,
             CareerProfileContextProvider careerProfileContextProvider,
             CareerProfileAutoUpdateService careerProfileAutoUpdateService,
+            AgentMemoryService agentMemoryService,
             AgentTracing agentTracing,
             LlmProperties llmProperties,
             AgentSupervisor agentSupervisor,
@@ -128,6 +132,7 @@ public class AgentStreamService {
         this.conversationContextProvider = conversationContextProvider;
         this.careerProfileContextProvider = careerProfileContextProvider;
         this.careerProfileAutoUpdateService = careerProfileAutoUpdateService;
+        this.agentMemoryService = agentMemoryService;
         this.agentTracing = agentTracing;
         this.llmProperties = llmProperties;
         this.agentSupervisor = agentSupervisor;
@@ -278,6 +283,7 @@ public class AgentStreamService {
                         String content = full.toString();
                         sseEmitterService.send(sessionId, SseEventType.MESSAGE, Map.of("content", content));
                         agentSessionService.appendMessage(userId, sessionId, "agent", content, "text");
+                        refreshConversationSummarySafely(userId, sessionId);
                         agentSessionService.recordTrace(
                                 userId,
                                 sessionId,
@@ -404,9 +410,10 @@ public class AgentStreamService {
                 null,
                 null,
                 null,
-                () -> careerProfileContextProvider.load(userId)
+                () -> careerProfileContextProvider.load(userId, sessionId)
         );
         recordCareerProfileContextTrace(userId, sessionId, careerProfileContext);
+        recordMemoryContextTrace(userId, sessionId, careerProfileContext);
         logPhase(sessionId, "load_career_profile_context", phaseStart);
 
         phaseStart = System.currentTimeMillis();
@@ -659,6 +666,39 @@ public class AgentStreamService {
 
     private int sizeOf(List<String> items) {
         return items == null ? 0 : items.size();
+    }
+
+    private void recordMemoryContextTrace(
+            Long userId,
+            String sessionId,
+            CareerProfileContextResult result
+    ) {
+        String status = result != null && result.isAvailable() ? "SUCCESS" : "EMPTY";
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("available", result != null && result.isAvailable());
+        if (result != null && result.isAvailable()) {
+            payload.put("weaknessCount", result.getWeaknessCount());
+            payload.put("skillCount", result.getSkillCount());
+            payload.put("hasSessionSummary", result.isHasSessionSummary());
+        }
+        agentSessionService.recordTrace(
+                userId,
+                sessionId,
+                TRACE_MEMORY_CONTEXT_LOADED,
+                "{}",
+                writeJson(payload),
+                status,
+                null,
+                null
+        );
+    }
+
+    private void refreshConversationSummarySafely(Long userId, String sessionId) {
+        try {
+            agentMemoryService.refreshConversationSummary(userId, sessionId);
+        } catch (Exception e) {
+            log.warn("Failed to refresh conversation summary: userId={}, sessionId={}", userId, sessionId, e);
+        }
     }
 
     private void recordCareerProfileContextTrace(
