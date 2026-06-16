@@ -55,8 +55,7 @@ public class ResumeVersionPdfRenderer {
     private static final Color SECTION_LINE_COLOR = new Color(0xD1, 0xD5, 0xDB);
 
     public void render(String markdown, OutputStream outputStream) throws Exception {
-        String source = MarkdownExportSupport.stripWrappingFence(markdown);
-        ResumeStructureParser.ResumeStructure structure = ResumeStructureParser.parse(source);
+        ResumeStructureParser.ResumeStructure structure = ResumeStructureParser.parse(markdown);
 
         BaseFont baseFont = BaseFont.createFont("STSong-Light", "UniGB-UCS2-H", BaseFont.NOT_EMBEDDED);
         Fonts fonts = new Fonts(baseFont);

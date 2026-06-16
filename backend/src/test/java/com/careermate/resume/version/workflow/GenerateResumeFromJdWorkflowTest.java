@@ -390,6 +390,178 @@ class GenerateResumeFromJdWorkflowTest {
     }
 
     @Test
+    void parseMetaBlockStripsTrailingBareChangesJson() {
+        String input = """
+                # 官德志
+
+                ## 专业技能
+
+                Java / Spring
+
+                {
+                "changes": [
+                "对齐 JD 关键词",
+                "补全专业技能"
+                ]
+                }
+                """;
+        GenerateResumeFromJdWorkflow.MetaParseResult result = GenerateResumeFromJdWorkflow.parseMetaBlock(input);
+        assertFalse(result.markdown().contains("{"));
+        assertFalse(result.markdown().contains("\"changes\""));
+        assertTrue(result.markdown().contains("# 官德志"));
+        assertEquals(2, result.changes().size());
+    }
+
+    @Test
+    void parseMetaBlockStripsTrailingBareMetaChangesJson() {
+        String input = """
+                # 官德志
+
+                ## 项目经历
+
+                项目内容
+
+                {
+                "meta": {
+                "changes": [
+                "强化分布式经验",
+                "弱化无关内容"
+                ]
+                }
+                }
+                """;
+        GenerateResumeFromJdWorkflow.MetaParseResult result = GenerateResumeFromJdWorkflow.parseMetaBlock(input);
+        assertFalse(result.markdown().contains("{"));
+        assertFalse(result.markdown().contains("\"changes\""));
+        assertTrue(result.markdown().contains("# 官德志"));
+        assertEquals(2, result.changes().size());
+    }
+
+    @Test
+    void parseMetaBlockStripsTrailingJsonFence() {
+        String input = """
+                # 官德志
+
+                ## 工作经历
+
+                内容
+
+                ```json
+                {
+                  "meta": {
+                    "changes": ["统一术语"]
+                  }
+                }
+                ```
+                """;
+        GenerateResumeFromJdWorkflow.MetaParseResult result = GenerateResumeFromJdWorkflow.parseMetaBlock(input);
+        assertFalse(result.markdown().contains("```json"));
+        assertFalse(result.markdown().contains("\"meta\""));
+        assertTrue(result.markdown().contains("# 官德志"));
+        assertEquals(1, result.changes().size());
+    }
+
+    @Test
+    void parseMetaBlockDoesNotStripMiddleJsonExample() {
+        String input = """
+                # 项目经历
+
+                系统配置示例：
+
+                {"threadPool": 16}
+
+                ## 教育经历
+
+                本科
+                """;
+        GenerateResumeFromJdWorkflow.MetaParseResult result = GenerateResumeFromJdWorkflow.parseMetaBlock(input);
+        assertTrue(result.markdown().contains("{\"threadPool\": 16}"));
+        assertTrue(result.changes().isEmpty());
+    }
+
+    @Test
+    void qualityCheckRejectsResidualMetaJson() {
+        String dirty = """
+                # 官德志
+
+                ## 工作经历
+
+                内容
+
+                { "meta": { "changes": [ "残留说明"
+                """;
+        BizException ex = assertThrows(BizException.class, () ->
+                GenerateResumeWorkflowRunner.validateMarkdownQuality(dirty)
+        );
+        assertTrue(ex.getMessage().contains("优化说明残留"));
+    }
+
+    @Test
+    void qualityCheckRejectsResidualMetaJsonInWorkflow() {
+        stubHappyPath();
+        mockLlmStreamOnly("""
+                # 官德志
+
+                ## 工作经历
+
+                内容
+
+                { "meta": { "changes": [ "残留说明"
+                """);
+
+        assertThrows(BizException.class, () ->
+                workflow.doGenerate(1L, "WS-abc", "doc-1", null)
+        );
+        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void bareMetaJsonStrippedBeforeSave() {
+        stubHappyPath();
+        String output = """
+                # 官德志
+
+                ## 专业技能
+
+                Java / Spring
+
+                {
+                  "meta": {
+                    "changes": [
+                      "对齐 JD 关键词",
+                      "补全专业技能"
+                    ]
+                  }
+                }
+                """;
+        mockLlmStreamOnly(output);
+        when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(new ResumeVersionVO(
+                        "ver-1", "腾讯 - 算法", "WS-abc", "doc-1", "腾讯 算法",
+                        "# 官德志", List.of(), null, OffsetDateTime.now()
+                ));
+        when(workspaceSessionRepository.appendMessage(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(new AgentMessageEntity());
+
+        workflow.doGenerate(1L, "WS-abc", "doc-1", null);
+
+        ArgumentCaptor<String> markdownCaptor = ArgumentCaptor.forClass(String.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Map<String, Object>>> notesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(resumeVersionService).createVersion(
+                eq(1L), eq("WS-abc"), eq(10L), eq("doc-1"), any(), any(),
+                markdownCaptor.capture(), notesCaptor.capture()
+        );
+        String saved = markdownCaptor.getValue();
+        assertFalse(saved.contains("{"));
+        assertFalse(saved.contains("\"changes\""));
+        assertFalse(saved.contains("\"meta\""));
+        assertFalse(saved.contains("```meta"));
+        assertTrue(saved.contains("# 官德志"));
+        assertFalse(notesCaptor.getValue().isEmpty());
+    }
+
+    @Test
     void analyzeGapIsRuleBased() {
         String summary = GenerateResumeWorkflowRunner.analyzeGap("Java 后端工程师", "原始简历无章节");
         assertTrue(summary.contains("jdChars="));

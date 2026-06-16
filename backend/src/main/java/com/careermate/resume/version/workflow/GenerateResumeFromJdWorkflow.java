@@ -10,26 +10,16 @@ import com.careermate.resume.ResumeContextProvider;
 import com.careermate.resume.version.export.MarkdownExportSupport;
 import com.careermate.resume.version.service.ResumeVersionService;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Slf4j
 @Component
 public class GenerateResumeFromJdWorkflow {
-
-    private static final Pattern META_BLOCK_PATTERN = Pattern.compile(
-            "```meta\\s*([\\s\\S]*?)```",
-            Pattern.CASE_INSENSITIVE
-    );
 
     private final GenerateResumeWorkflowRunner runner;
     private final AgentSessionService agentSessionService;
@@ -153,44 +143,9 @@ public class GenerateResumeFromJdWorkflow {
     }
 
     static MetaParseResult parseMetaBlock(String raw) {
-        if (raw == null) {
-            return new MetaParseResult("", List.of());
-        }
-        Matcher matcher = META_BLOCK_PATTERN.matcher(raw);
-        String markdown = raw;
-        List<Map<String, Object>> changes = List.of();
-        if (matcher.find()) {
-            markdown = matcher.replaceFirst("").trim();
-            String json = matcher.group(1).trim();
-            changes = parseChangesJson(json);
-        }
-        markdown = MarkdownExportSupport.stripWrappingFence(markdown);
-        return new MetaParseResult(markdown, changes);
-    }
-
-    private static List<Map<String, Object>> parseChangesJson(String json) {
-        if (json == null || json.isBlank()) {
-            return List.of();
-        }
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            Map<String, Object> root = mapper.readValue(json, new TypeReference<>() {});
-            Object changes = root.get("changes");
-            if (changes instanceof List<?> list) {
-                List<Map<String, Object>> result = new ArrayList<>();
-                for (Object item : list) {
-                    if (item instanceof Map<?, ?> map) {
-                        Map<String, Object> cast = new LinkedHashMap<>();
-                        map.forEach((k, v) -> cast.put(String.valueOf(k), v));
-                        result.add(cast);
-                    }
-                }
-                return result;
-            }
-            return List.of();
-        } catch (Exception e) {
-            return List.of();
-        }
+        MarkdownExportSupport.OptimizationMetaStripResult result =
+                MarkdownExportSupport.stripOptimizationMeta(raw);
+        return new MetaParseResult(result.markdown(), result.changes());
     }
 
     private String writeJson(Object value) {

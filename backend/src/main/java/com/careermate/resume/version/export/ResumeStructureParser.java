@@ -13,7 +13,6 @@ import java.util.regex.Pattern;
  */
 final class ResumeStructureParser {
 
-    private static final Pattern META_BLOCK = Pattern.compile("```meta\\s*[\\s\\S]*?```", Pattern.CASE_INSENSITIVE);
     private static final Pattern MARKDOWN_HEADING = Pattern.compile("^#{1,3}\\s+(.+)$");
     private static final Pattern PHONE = Pattern.compile("(?:电话|手机|Tel|Phone)?[:：\\s]*(1[3-9]\\d{9})");
     private static final Pattern EMAIL = Pattern.compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}");
@@ -38,8 +37,7 @@ final class ResumeStructureParser {
     }
 
     static ResumeStructure parse(String markdown) {
-        String source = MarkdownExportSupport.stripWrappingFence(markdown);
-        source = stripMetaBlock(source).strip();
+        String source = MarkdownExportSupport.stripOptimizationMetaFromMarkdown(markdown).strip();
         if (source.isEmpty()) {
             return new ResumeStructure("个人简历", List.of(), List.of());
         }
@@ -287,13 +285,6 @@ final class ResumeStructureParser {
                 .replaceAll("`([^`]+)`", "$1")
                 .replaceAll("\\[(.+?)]\\([^)]*\\)", "$1")
                 .strip();
-    }
-
-    private static String stripMetaBlock(String source) {
-        if (source == null) {
-            return "";
-        }
-        return META_BLOCK.matcher(source).replaceAll("").strip();
     }
 
     private static String joinLines(List<String> lines, int from, int to) {

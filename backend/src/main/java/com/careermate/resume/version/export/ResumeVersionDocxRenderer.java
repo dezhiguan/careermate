@@ -52,7 +52,7 @@ public class ResumeVersionDocxRenderer {
     private static final String HEADER_FILL = "F1F5F9";
 
     public void render(String markdown, OutputStream outputStream) throws Exception {
-        String source = MarkdownExportSupport.stripWrappingFence(markdown);
+        String source = MarkdownExportSupport.stripOptimizationMetaFromMarkdown(markdown);
         Node document = MarkdownExportSupport.parser().parse(source);
         try (XWPFDocument docx = new XWPFDocument()) {
             MarkdownDocxVisitor visitor = new MarkdownDocxVisitor(docx);

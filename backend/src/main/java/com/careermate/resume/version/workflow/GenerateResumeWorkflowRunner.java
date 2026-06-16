@@ -12,6 +12,7 @@ import com.careermate.ragforge.RagForgeClient;
 import com.careermate.resume.ResumeContext;
 import com.careermate.resume.ResumeContextProvider;
 import com.careermate.resume.version.dto.ResumeVersionVO;
+import com.careermate.resume.version.export.MarkdownExportSupport;
 import com.careermate.resume.version.service.ResumeVersionService;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -41,7 +42,13 @@ class GenerateResumeWorkflowRunner {
                    ## 工作经历
                    ## 项目经历
                    ## 教育经历
-                 ⑤ 末尾 JSON 块 ```meta 包含 changes 数组""";
+                 ⑤ 正文不得出现「优化说明」「修改说明」「changes」「meta」等字样，不得输出裸 JSON
+                 ⑥ 简历正文结束后，单独追加一个系统解析用 meta 块，格式固定为：
+                   ```meta
+                   {"changes":["改动说明1","改动说明2"]}
+                   ```
+                   meta 块仅用于系统记录优化项，不属于简历正文；changes 元素为简短字符串
+                 ⑦ 除上述 meta 块外，禁止任何 JSON 输出""";
 
     private static final int JD_SEARCH_TOP_K = 50;
     private static final int PREVIEW_MAX = 300;
@@ -270,6 +277,9 @@ class GenerateResumeWorkflowRunner {
                 throw new BizException(400, "生成内容含模板占位词，请重试");
             }
         }
+        if (MarkdownExportSupport.hasOptimizationMetaResidual(markdown)) {
+            throw new BizException(400, "生成结果含优化说明残留，请重试");
+        }
     }
 
     static String analyzeGap(String jdContent, String resumeContent) {
@@ -327,7 +337,7 @@ class GenerateResumeWorkflowRunner {
         if (msg.contains("非法 JD") || msg.contains("JD 不存在") || msg.contains("已下架")) {
             return GenerateResumeWorkflowStep.LOAD_JD;
         }
-        if (msg.contains("生成结果为空") || msg.contains("模板占位词")) {
+        if (msg.contains("生成结果为空") || msg.contains("模板占位词") || msg.contains("优化说明残留")) {
             return GenerateResumeWorkflowStep.QUALITY_CHECK;
         }
         if (msg.contains("LLM")) {
