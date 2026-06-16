@@ -18,6 +18,35 @@ step_end() {
   echo "[$(date -Iseconds)] END (${elapsed}s): ${STEP_LABEL}"
 }
 
+wait_for_node_ready() {
+  local attempts="${1:-60}"
+  for _ in $(seq 1 "${attempts}"); do
+    local ready
+    ready="$(k3s kubectl get nodes -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' 2>/dev/null || true)"
+    if [[ "${ready}" == *"True"* ]] && [[ "${ready}" != *"False"* ]]; then
+      return 0
+    fi
+    echo "[k8s] waiting for node Ready..."
+    sleep 5
+  done
+  echo "ERROR: k3s node not Ready after $((attempts * 5))s" >&2
+  k3s kubectl get nodes -o wide || true
+  return 1
+}
+
+wait_for_rollout() {
+  local deployment="$1"
+  local timeout_seconds="$2"
+  if k3s kubectl -n "${NAMESPACE}" rollout status "deployment/${deployment}" --timeout="${timeout_seconds}s"; then
+    return 0
+  fi
+  echo "ERROR: rollout timed out for deployment/${deployment}" >&2
+  k3s kubectl -n "${NAMESPACE}" get pods -l "app=${deployment}" -o wide || true
+  k3s kubectl -n "${NAMESPACE}" describe pods -l "app=${deployment}" | tail -120 || true
+  k3s kubectl -n "${NAMESPACE}" logs -l "app=${deployment}" --tail=120 --all-containers=true || true
+  return 1
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 K8S_DIR="${REPO_ROOT}/deploy/k8s/careermate"
@@ -60,14 +89,16 @@ step_end
 # Rebuilt images keep :latest tag; without a pod restart, k3s keeps running the old container layers.
 if [[ "${IMAGES_REBUILT}" -eq 1 ]]; then
   step_start "[4.5/6] Restart deployments to pick up rebuilt :latest images"
+  wait_for_node_ready 12
   k3s kubectl -n "${NAMESPACE}" rollout restart deployment/careermate-backend
   k3s kubectl -n "${NAMESPACE}" rollout restart deployment/careermate-frontend
   step_end
 fi
 
 step_start "[5/6] Wait for rollouts"
-k3s kubectl -n "${NAMESPACE}" rollout status deployment/careermate-backend --timeout=300s
-k3s kubectl -n "${NAMESPACE}" rollout status deployment/careermate-frontend --timeout=180s
+wait_for_node_ready 24
+wait_for_rollout careermate-backend 600
+wait_for_rollout careermate-frontend 180
 step_end
 
 step_start "[6/6] Current status"
