@@ -115,7 +115,8 @@ public class GenerateResumeFromJdWorkflow {
                 jdId,
                 failure.failedStep(),
                 failure.userMessage(),
-                failure.retryable()
+                failure.retryable(),
+                objectMapper
         );
         sseEmitterService.send(sessionId, SseEventType.UI_ACTION, Map.of("card", card));
     }
@@ -134,7 +135,8 @@ public class GenerateResumeFromJdWorkflow {
                     effectiveJdId,
                     failure.failedStep(),
                     failure.userMessage(),
-                    failure.retryable()
+                    failure.retryable(),
+                    objectMapper
             );
             workspaceSessionRepository.appendMessage(
                     userId,

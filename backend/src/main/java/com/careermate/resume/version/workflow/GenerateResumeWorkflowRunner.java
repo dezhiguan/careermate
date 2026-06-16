@@ -318,10 +318,13 @@ class GenerateResumeWorkflowRunner {
 
     GenerateResumeWorkflowStep inferFailedStep(BizException e) {
         String msg = e.getMessage() != null ? e.getMessage() : "";
+        if (msg.contains("缺少目标 JD") || msg.contains("与会话不匹配")) {
+            return GenerateResumeWorkflowStep.LOAD_WORKSPACE;
+        }
         if (msg.contains("请先上传简历")) {
             return GenerateResumeWorkflowStep.LOAD_RESUME;
         }
-        if (msg.contains("JD") || msg.contains("非法 JD")) {
+        if (msg.contains("非法 JD") || msg.contains("JD 不存在") || msg.contains("已下架")) {
             return GenerateResumeWorkflowStep.LOAD_JD;
         }
         if (msg.contains("生成结果为空") || msg.contains("模板占位词")) {
@@ -371,28 +374,45 @@ class GenerateResumeWorkflowRunner {
 
     private String buildRequestSummary(GenerateResumeWorkflowStep step, GenerateResumeWorkflowRun run) {
         return switch (step) {
-            case LOAD_WORKSPACE -> writeJson(Map.of("sessionId", run.sessionId(), "jdId", run.jdId()));
-            case LOAD_RESUME -> writeJson(Map.of("userId", run.userId()));
-            case LOAD_JD -> writeJson(Map.of("jdId", run.jdId()));
-            case ANALYZE_GAP -> writeJson(Map.of("jdId", run.jdId()));
-            case GENERATE_RESUME -> writeJson(Map.of("jdId", run.jdId(), "gapSummary", run.gapSummary()));
-            case QUALITY_CHECK -> writeJson(Map.of("rawLength", safeLength(run.rawLlmOutput())));
-            case SAVE_VERSION -> writeJson(Map.of("versionName", run.versionName()));
-            case EMIT_CARD -> writeJson(Map.of("versionId", run.savedVersion() != null ? run.savedVersion().versionId() : ""));
+            case LOAD_WORKSPACE -> summaryOf("sessionId", run.sessionId(), "jdId", run.jdId());
+            case LOAD_RESUME -> summaryOf("userId", run.userId());
+            case LOAD_JD -> summaryOf("jdId", run.jdId());
+            case ANALYZE_GAP -> summaryOf("jdId", run.jdId());
+            case GENERATE_RESUME -> summaryOf("jdId", run.jdId(), "gapSummary", run.gapSummary());
+            case QUALITY_CHECK -> summaryOf("rawLength", safeLength(run.rawLlmOutput()));
+            case SAVE_VERSION -> summaryOf("versionName", run.versionName());
+            case EMIT_CARD -> summaryOf(
+                    "versionId", run.savedVersion() != null ? run.savedVersion().versionId() : null
+            );
         };
     }
 
     private String buildSuccessResponse(GenerateResumeWorkflowStep step, GenerateResumeWorkflowRun run) {
         return switch (step) {
-            case LOAD_WORKSPACE -> writeJson(Map.of("ok", true));
-            case LOAD_RESUME -> writeJson(Map.of("resumeId", run.resumeContext().getResumeId()));
-            case LOAD_JD -> writeJson(Map.of("jdChars", safeLength(run.jdContent()), "versionName", run.versionName()));
-            case ANALYZE_GAP -> writeJson(Map.of("gapSummary", run.gapSummary()));
-            case GENERATE_RESUME -> writeJson(Map.of("outputChars", safeLength(run.rawLlmOutput())));
-            case QUALITY_CHECK -> writeJson(Map.of("markdownChars", safeLength(run.markdown()), "notesCount", run.optimizationNotes().size()));
-            case SAVE_VERSION -> writeJson(Map.of("versionId", run.savedVersion().versionId()));
-            case EMIT_CARD -> writeJson(Map.of("cardType", "RESUME_GENERATED"));
+            case LOAD_WORKSPACE -> summaryOf("ok", true);
+            case LOAD_RESUME -> summaryOf(
+                    "resumeId", run.resumeContext() != null ? run.resumeContext().getResumeId() : null
+            );
+            case LOAD_JD -> summaryOf("jdChars", safeLength(run.jdContent()), "versionName", run.versionName());
+            case ANALYZE_GAP -> summaryOf("gapSummary", run.gapSummary());
+            case GENERATE_RESUME -> summaryOf("outputChars", safeLength(run.rawLlmOutput()));
+            case QUALITY_CHECK -> summaryOf(
+                    "markdownChars", safeLength(run.markdown()),
+                    "notesCount", run.optimizationNotes() != null ? run.optimizationNotes().size() : 0
+            );
+            case SAVE_VERSION -> summaryOf(
+                    "versionId", run.savedVersion() != null ? run.savedVersion().versionId() : null
+            );
+            case EMIT_CARD -> summaryOf("cardType", "RESUME_GENERATED");
         };
+    }
+
+    private String summaryOf(Object... keyValues) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        for (int i = 0; i + 1 < keyValues.length; i += 2) {
+            map.put(String.valueOf(keyValues[i]), keyValues[i + 1]);
+        }
+        return writeJson(map);
     }
 
     private static int safeLength(String value) {
@@ -463,13 +483,20 @@ class GenerateResumeWorkflowRunner {
             String jdId,
             GenerateResumeWorkflowStep failedStep,
             String message,
-            boolean retryable
+            boolean retryable,
+            ObjectMapper objectMapper
     ) {
         Map<String, Object> retryPayload = new LinkedHashMap<>();
         retryPayload.put("sessionId", sessionId);
         retryPayload.put("jdId", jdId != null ? jdId : "");
         retryPayload.put("failedStep", failedStep.name());
         retryPayload.put("retryable", retryable);
+        String retryPayloadJson = writeJsonStatic(retryPayload, objectMapper);
+
+        Map<String, Object> retryAction = new LinkedHashMap<>();
+        retryAction.put("label", "重试");
+        retryAction.put("action", "RETRY");
+        retryAction.put("payload", retryPayloadJson);
 
         Map<String, Object> card = new LinkedHashMap<>();
         card.put("type", "GENERATE_FAILED");
@@ -478,11 +505,17 @@ class GenerateResumeWorkflowRunner {
         card.put("jdId", jdId != null ? jdId : "");
         card.put("failedStep", failedStep.name());
         card.put("retryable", retryable);
-        card.put("actions", List.of(
-                Map.of("label", "重试", "action", "RETRY", "payload", jdId != null ? jdId : "")
-        ));
+        card.put("actions", List.of(retryAction));
         card.put("payload", retryPayload);
         return card;
+    }
+
+    private static String writeJsonStatic(Object value, ObjectMapper objectMapper) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            return "{}";
+        }
     }
 
     private Map<String, Object> parseSnapshot(String json) {

@@ -162,8 +162,59 @@ class WorkspaceServiceImplTest {
         ActionAckResponse ack = service.handleAction(1L, "WS-abc", "GENERATE_RESUME", "doc-1");
 
         assertFalse(ack.noop());
-        assertNotNull(ack.sseEndpoint());
-        assertTrue(ack.sseEndpoint().contains("/api/workspace/WS-abc/generate-resume/stream"));
+        assertEquals("/api/workspace/WS-abc/generate-resume/stream?jdId=doc-1", ack.sseEndpoint());
+    }
+
+    @Test
+    void actionRetryWithJsonPayloadReturnsSseEndpointWithJdId() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        String jsonPayload = """
+                {"sessionId":"WS-abc","jdId":"doc-1","failedStep":"LOAD_JD","retryable":true}
+                """;
+
+        ActionAckResponse ack = service.handleAction(1L, "WS-abc", "RETRY", jsonPayload);
+
+        assertFalse(ack.noop());
+        assertEquals("/api/workspace/WS-abc/generate-resume/stream?jdId=doc-1", ack.sseEndpoint());
+    }
+
+    @Test
+    void actionRetryWithJsonPayloadNotRetryableReturnsNoop() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        String jsonPayload = """
+                {"sessionId":"WS-abc","jdId":"doc-1","failedStep":"LOAD_RESUME","retryable":false}
+                """;
+
+        ActionAckResponse ack = service.handleAction(1L, "WS-abc", "RETRY", jsonPayload);
+
+        assertTrue(ack.noop());
+        assertEquals(null, ack.sseEndpoint());
+    }
+
+    @Test
+    void actionGenerateResumeUrlEncodesSpecialCharactersInJdId() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        String jdId = "doc 中文";
+
+        ActionAckResponse ack = service.handleAction(1L, "WS-abc", "GENERATE_RESUME", jdId);
+
+        assertFalse(ack.noop());
+        assertTrue(ack.sseEndpoint().contains("?jdId="));
+        assertTrue(ack.sseEndpoint().contains("doc+%E4%B8%AD%E6%96%87"));
+    }
+
+    @Test
+    void actionRetryWithInvalidJsonTreatedAsLegacyJdId() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+
+        ActionAckResponse ack = service.handleAction(1L, "WS-abc", "RETRY", "{not-json");
+
+        assertFalse(ack.noop());
+        assertEquals("/api/workspace/WS-abc/generate-resume/stream?jdId=%7Bnot-json", ack.sseEndpoint());
     }
 
     @Test

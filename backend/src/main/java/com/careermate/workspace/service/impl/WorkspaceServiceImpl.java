@@ -13,11 +13,14 @@ import com.careermate.workspace.dto.WorkspaceVO;
 import com.careermate.workspace.service.WorkspaceService;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -108,13 +111,54 @@ public class WorkspaceServiceImpl implements WorkspaceService {
             return ActionAckResponse.asNoop();
         }
         return switch (action) {
-            case "GENERATE_RESUME", "RETRY" -> ActionAckResponse.withSse(
-                    "/api/workspace/" + sessionId + "/generate-resume/stream"
-                            + (payload != null && !payload.isBlank() ? "?jdId=" + payload : "")
-            );
+            case "GENERATE_RESUME", "RETRY" -> resolveGenerateResumeAction(sessionId, payload);
             case "VIEW_JD", "NAVIGATE", "VIEW_RESUME", "COPY_MARKDOWN" -> ActionAckResponse.asNoop();
             default -> ActionAckResponse.asNoop();
         };
+    }
+
+    private ActionAckResponse resolveGenerateResumeAction(String sessionId, String payload) {
+        ResumeRetryPayload parsed = parseResumeRetryPayload(payload);
+        if (parsed != null && !parsed.retryable()) {
+            return ActionAckResponse.asNoop();
+        }
+        String jdId = parsed != null ? parsed.jdId() : null;
+        if (jdId == null && payload != null && !payload.isBlank() && !payload.trim().startsWith("{")) {
+            jdId = payload.trim();
+        }
+        String base = "/api/workspace/" + sessionId + "/generate-resume/stream";
+        if (jdId == null || jdId.isBlank()) {
+            return ActionAckResponse.withSse(base);
+        }
+        String encodedJdId = URLEncoder.encode(jdId, StandardCharsets.UTF_8);
+        return ActionAckResponse.withSse(base + "?jdId=" + encodedJdId);
+    }
+
+    /**
+     * 解析 GENERATE_RESUME / RETRY 的 payload：兼容旧 jdId 字符串与新 JSON 结构。
+     */
+    private ResumeRetryPayload parseResumeRetryPayload(String payload) {
+        if (payload == null || payload.isBlank()) {
+            return null;
+        }
+        String trimmed = payload.trim();
+        if (!trimmed.startsWith("{")) {
+            return new ResumeRetryPayload(trimmed, true);
+        }
+        try {
+            JsonNode node = objectMapper.readTree(trimmed);
+            String jdId = node.path("jdId").asText(null);
+            if (jdId != null && jdId.isBlank()) {
+                jdId = null;
+            }
+            boolean retryable = !node.has("retryable") || node.get("retryable").asBoolean(true);
+            return new ResumeRetryPayload(jdId, retryable);
+        } catch (Exception e) {
+            return new ResumeRetryPayload(trimmed, true);
+        }
+    }
+
+    private record ResumeRetryPayload(String jdId, boolean retryable) {
     }
 
     @Override

@@ -17,6 +17,7 @@ import com.careermate.resume.ResumeContextProvider;
 import com.careermate.resume.version.dto.ResumeVersionVO;
 import com.careermate.resume.version.service.ResumeVersionService;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -77,6 +78,43 @@ class GenerateResumeFromJdWorkflowTest {
                 agentSessionService,
                 objectMapper
         );
+    }
+
+    @Test
+    void missingJdIdFailsWithLoadWorkspaceTrace() {
+        AgentSessionEntity session = jdSession();
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+
+        assertThrows(BizException.class, () ->
+                workflow.doGenerate(1L, "WS-abc", null, null)
+        );
+
+        verify(agentSessionService).recordTrace(
+                eq(1L), eq("WS-abc"),
+                eq(GenerateResumeWorkflowStep.LOAD_WORKSPACE.traceName()),
+                anyString(), eq("{}"), eq("FAILED"), anyLong(),
+                eq("WORKFLOW_LOAD_WORKSPACE_FAILED")
+        );
+        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void missingJdIdSseFailedStepIsLoadWorkspace() {
+        AgentSessionEntity session = jdSession();
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        when(workspaceSessionRepository.appendMessage(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(new AgentMessageEntity());
+
+        workflow.generate(1L, "WS-abc", null, sseEmitterService);
+
+        verify(sseEmitterService).send(eq("WS-abc"), eq(SseEventType.ERROR), any());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> cardCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(sseEmitterService).send(eq("WS-abc"), eq(SseEventType.UI_ACTION), cardCaptor.capture());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> card = (Map<String, Object>) cardCaptor.getValue().get("card");
+        assertEquals("LOAD_WORKSPACE", card.get("failedStep"));
+        verify(sseEmitterService).complete("WS-abc");
     }
 
     @Test
@@ -232,7 +270,7 @@ class GenerateResumeFromJdWorkflowTest {
     }
 
     @Test
-    void failureSseSendsErrorAndFailedCardWithPayload() {
+    void failureSseSendsErrorAndFailedCardWithPayload() throws Exception {
         AgentSessionEntity session = jdSession();
         when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
         when(resumeContextProvider.getResumeContext(1L)).thenReturn(
@@ -255,7 +293,30 @@ class GenerateResumeFromJdWorkflowTest {
         assertEquals("LOAD_RESUME", card.get("failedStep"));
         assertEquals("doc-1", card.get("jdId"));
         assertNotNull(card.get("payload"));
+        assertRetryActionPayload(card, "WS-abc", "doc-1", "LOAD_RESUME", false);
         verify(sseEmitterService).complete("WS-abc");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertRetryActionPayload(
+            Map<String, Object> card,
+            String sessionId,
+            String jdId,
+            String failedStep,
+            boolean retryable
+    ) throws Exception {
+        List<Map<String, Object>> actions = (List<Map<String, Object>>) card.get("actions");
+        assertNotNull(actions);
+        assertFalse(actions.isEmpty());
+        Object payloadObj = actions.get(0).get("payload");
+        assertTrue(payloadObj instanceof String);
+        String payloadJson = (String) payloadObj;
+        assertTrue(payloadJson.startsWith("{"));
+        JsonNode node = objectMapper.readTree(payloadJson);
+        assertEquals(sessionId, node.path("sessionId").asText());
+        assertEquals(jdId, node.path("jdId").asText());
+        assertEquals(failedStep, node.path("failedStep").asText());
+        assertEquals(retryable, node.path("retryable").asBoolean());
     }
 
     @Test
