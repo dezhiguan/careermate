@@ -1,6 +1,10 @@
 package com.careermate.agent;
 
 import com.careermate.agent.dto.AgentTraceResponse;
+import com.careermate.agent.runtime.AgentKernelEventTypes;
+import com.careermate.agent.runtime.AgentKernelService;
+import com.careermate.agent.runtime.AgentRunRequest;
+import com.careermate.agent.runtime.AgentRunResult;
 import com.careermate.agent.session.AgentSessionService;
 import com.careermate.agent.tool.AgentToolContext;
 import com.careermate.agent.tool.AgentToolExecutionService;
@@ -39,6 +43,28 @@ class AgentStreamToolTraceTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private AgentKernelService agentKernelService;
+
+    @Test
+    void kernelEnabledRunProducesToolTraceEvents() {
+        long userId = 900_003L;
+        String sessionId = agentSessionService.createSession(userId).getSessionId();
+        AgentRunResult result = agentKernelService.prepareRun(AgentRunRequest.builder()
+                .userId(userId)
+                .sessionId(sessionId)
+                .userMessage("请帮我查看当前求职进展和看板统计数据详情")
+                .build());
+
+        assertTrue(result.getEvents().stream().anyMatch(e ->
+                AgentKernelEventTypes.TRACE.equals(e.getType())
+                        && "get_dashboard_overview".equals(String.valueOf(e.getPayload().get("traceName")))));
+        assertTrue(result.getEvents().stream().anyMatch(e ->
+                AgentKernelEventTypes.TOOL_START.equals(e.getType())));
+        assertTrue(result.getEvents().stream().anyMatch(e ->
+                AgentKernelEventTypes.TOOL_RESULT.equals(e.getType())));
+    }
 
     @Test
     void recordsToolTraceOnHitWithSummaryOnly() throws Exception {

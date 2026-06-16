@@ -2,6 +2,7 @@ package com.careermate.agent.service;
 
 import com.careermate.agent.AgentPromptAssembler;
 import com.careermate.agent.multiagent.AgentSupervisor;
+import com.careermate.agent.config.AgentKernelProperties;
 import com.careermate.agent.config.AgentProperties;
 import com.careermate.agent.context.AgentConversationContextProvider;
 import com.careermate.agent.context.CareerProfileContextProvider;
@@ -15,6 +16,11 @@ import com.careermate.agent.tool.AgentLlmIntentRecognizer;
 import com.careermate.agent.tool.AgentToolResult;
 import com.careermate.agent.tool.AgentToolTraceSupport;
 import com.careermate.agent.dto.AgentMessageRequest;
+import com.careermate.agent.runtime.AgentEvent;
+import com.careermate.agent.runtime.AgentKernelEventTypes;
+import com.careermate.agent.runtime.AgentKernelService;
+import com.careermate.agent.runtime.AgentRunRequest;
+import com.careermate.agent.runtime.AgentRunResult;
 import com.careermate.agent.session.AgentSessionService;
 import com.careermate.jobmatch.JobMatchContext;
 import com.careermate.jobmatch.JobMatchContextProvider;
@@ -76,6 +82,8 @@ public class AgentStreamService {
     private final AgentSupervisor agentSupervisor;
     private final com.careermate.agent.react.ReActEngine reactEngine;
     private final WorkspaceSessionRepository workspaceSessionRepository;
+    private final AgentKernelService agentKernelService;
+    private final AgentKernelProperties agentKernelProperties;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -102,7 +110,9 @@ public class AgentStreamService {
             LlmProperties llmProperties,
             AgentSupervisor agentSupervisor,
             com.careermate.agent.react.ReActEngine reactEngine,
-            WorkspaceSessionRepository workspaceSessionRepository
+            WorkspaceSessionRepository workspaceSessionRepository,
+            AgentKernelService agentKernelService,
+            AgentKernelProperties agentKernelProperties
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -123,6 +133,8 @@ public class AgentStreamService {
         this.agentSupervisor = agentSupervisor;
         this.reactEngine = reactEngine;
         this.workspaceSessionRepository = workspaceSessionRepository;
+        this.agentKernelService = agentKernelService;
+        this.agentKernelProperties = agentKernelProperties;
     }
 
     public SseEmitter stream(Long userId, String sessionId, AgentMessageRequest request) {
@@ -196,139 +208,25 @@ public class AgentStreamService {
             agentSessionService.appendMessage(userId, sessionId, "user", request.getMessage(), "text");
             logPhase(sessionId, "persist_user_message", phaseStart);
 
-            Map<String, Object> planData = Map.of(
-                    "steps", List.of("接收用户输入", "调用 LLM", "生成回复"),
-                    "totalSteps", 3
-            );
-            sseEmitterService.send(sessionId, SseEventType.PLAN, planData);
-            agentSessionService.recordTrace(
-                    userId,
-                    sessionId,
-                    "PLAN",
-                    toJson(planData),
-                    toJson(planData),
-                    "SUCCESS",
-                    null,
-                    null
-            );
-
-            phaseStart = System.currentTimeMillis();
-            CareerProfileUpdateResult profileUpdate = careerProfileAutoUpdateService.tryAutoUpdateTargetRole(
-                    userId,
-                    request.getMessage()
-            );
-            recordCareerProfileUpdateTrace(userId, sessionId, profileUpdate);
-            logPhase(sessionId, "career_profile_auto_update", phaseStart);
-
-            phaseStart = System.currentTimeMillis();
-            CareerProfileContextResult careerProfileContext = agentTracing.call(
-                    "agent.load_profile_context",
-                    userId,
-                    sessionId,
-                    null,
-                    null,
-                    null,
-                    () -> careerProfileContextProvider.load(userId)
-            );
-            recordCareerProfileContextTrace(userId, sessionId, careerProfileContext);
-            logPhase(sessionId, "load_career_profile_context", phaseStart);
-
-            phaseStart = System.currentTimeMillis();
-            ResumeContext resumeContext = agentTracing.call(
-                    "agent.load_resume_context",
-                    userId,
-                    sessionId,
-                    null,
-                    null,
-                    null,
-                    () -> resumeContextProvider.getResumeContext(userId)
-            );
-            recordResumeContextTrace(userId, sessionId, resumeContext);
-            logPhase(sessionId, "load_resume_context", phaseStart);
-
-            phaseStart = System.currentTimeMillis();
-            JobMatchContext jobMatchContext = jobMatchContextProvider.getLatestJobMatchContext(userId);
-            recordJobMatchContextTrace(userId, sessionId, jobMatchContext);
-            logPhase(sessionId, "load_job_match_context", phaseStart);
-
-            phaseStart = System.currentTimeMillis();
-            ConversationContextResult conversationContext = agentTracing.call(
-                    "agent.load_conversation_context",
-                    userId,
-                    sessionId,
-                    null,
-                    null,
-                    null,
-                    () -> loadConversationContextSafely(userId, sessionId, request.getMessage())
-            );
-            recordConversationContextTrace(userId, sessionId, conversationContext);
-            logPhase(sessionId, "load_conversation_context", phaseStart);
-
-            String systemPrompt = AgentPromptAssembler.buildBaseSystemPrompt();
-            systemPrompt = AgentPromptAssembler.appendCareerProfileContext(systemPrompt, careerProfileContext);
-            systemPrompt = AgentPromptAssembler.appendResumeContext(systemPrompt, resumeContext);
-            systemPrompt = AgentPromptAssembler.appendJobMatchContext(systemPrompt, jobMatchContext);
-            systemPrompt = AgentPromptAssembler.appendConversationContext(systemPrompt, conversationContext);
-
-            try {
-                AgentSessionEntity wsSession = workspaceSessionRepository.getSessionIfExists(userId, sessionId);
-                if (wsSession != null) {
-                    systemPrompt = AgentPromptAssembler.appendWorkspaceContext(
-                            systemPrompt,
-                            wsSession.getWorkspaceType(),
-                            wsSession.getJdId(),
-                            wsSession.getJdSnapshot()
-                    );
-                }
-            } catch (Exception ignored) {
-                // 工作空间上下文加载失败不中断主流程
+            ChatRequest chatRequest;
+            String systemPrompt;
+            if (agentKernelProperties.isEnabled()) {
+                phaseStart = System.currentTimeMillis();
+                AgentRunResult runResult = agentKernelService.prepareRun(
+                        AgentRunRequest.builder()
+                                .userId(userId)
+                                .sessionId(sessionId)
+                                .userMessage(request.getMessage())
+                                .build(),
+                        event -> applyKernelEvent(userId, sessionId, event)
+                );
+                chatRequest = runResult.getChatRequest();
+                systemPrompt = runResult.getSystemPrompt();
+                logPhase(sessionId, "kernel_prepare_run", phaseStart);
+            } else {
+                chatRequest = prepareLegacyRun(userId, sessionId, request.getMessage());
+                systemPrompt = chatRequest.getMessages().get(0).getContent();
             }
-
-            phaseStart = System.currentTimeMillis();
-            // Multi-Agent：Supervisor 派发给专家 Agent，专家结果注入 system prompt
-            AgentToolContext toolCtx = AgentToolContext.builder()
-                    .userId(userId)
-                    .sessionId(sessionId)
-                    .userMessage(request.getMessage())
-                    .build();
-            List<com.careermate.agent.multiagent.SpecialistResult> specialistResults =
-                    agentSupervisor.dispatch(toolCtx, request.getMessage());
-            for (com.careermate.agent.multiagent.SpecialistResult sr : specialistResults) {
-                if (sr.toolSummary() != null && !sr.toolSummary().isBlank()) {
-                    systemPrompt = AgentPromptAssembler.appendSpecialistResult(systemPrompt, sr);
-                }
-            }
-            // 回退：若 Supervisor 无专家结果，走原有单工具路由（向后兼容）
-            if (specialistResults.isEmpty()) {
-                AgentToolResult toolResult = executeRoutedToolIfAny(userId, sessionId, request.getMessage());
-                if (toolResult != null) {
-                    systemPrompt = AgentPromptAssembler.appendToolResult(systemPrompt, toolResult);
-                }
-            }
-            logPhase(sessionId, "supervisor_dispatch", phaseStart);
-
-            // ReAct 推理链：非流式 LLM 推理循环，结果注入 system prompt
-            phaseStart = System.currentTimeMillis();
-            AgentToolContext reactCtx = AgentToolContext.builder()
-                    .userId(userId)
-                    .sessionId(sessionId)
-                    .userMessage(request.getMessage())
-                    .build();
-            com.careermate.agent.react.ReActTrace reactTrace =
-                    reactEngine.run(reactCtx, request.getMessage(), systemPrompt);
-            if (reactTrace.hasSteps()) {
-                systemPrompt = AgentPromptAssembler.appendReActTrace(systemPrompt, reactTrace);
-                log.info("ReAct trace injected: rounds={} reachedFinalAnswer={}",
-                        reactTrace.rounds(), reactTrace.reachedFinalAnswer());
-            }
-            logPhase(sessionId, "react_reasoning", phaseStart);
-
-            ChatRequest chatRequest = ChatRequest.builder()
-                    .messages(List.of(
-                            ChatMessage.builder().role("system").content(systemPrompt).build(),
-                            ChatMessage.builder().role("user").content(request.getMessage()).build()
-                    ))
-                    .build();
 
             final long llmStart = System.currentTimeMillis();
             final long[] firstTokenAt = { -1L };
@@ -470,6 +368,181 @@ public class AgentStreamService {
                 phase,
                 System.currentTimeMillis() - phaseStartMs
         );
+    }
+
+    private ChatRequest prepareLegacyRun(Long userId, String sessionId, String userMessage) {
+        long phaseStart = System.currentTimeMillis();
+        Map<String, Object> planData = Map.of(
+                "steps", List.of("接收用户输入", "调用 LLM", "生成回复"),
+                "totalSteps", 3
+        );
+        sseEmitterService.send(sessionId, SseEventType.PLAN, planData);
+        agentSessionService.recordTrace(
+                userId,
+                sessionId,
+                "PLAN",
+                toJson(planData),
+                toJson(planData),
+                "SUCCESS",
+                null,
+                null
+        );
+
+        phaseStart = System.currentTimeMillis();
+        CareerProfileUpdateResult profileUpdate = careerProfileAutoUpdateService.tryAutoUpdateTargetRole(
+                userId,
+                userMessage
+        );
+        recordCareerProfileUpdateTrace(userId, sessionId, profileUpdate);
+        logPhase(sessionId, "career_profile_auto_update", phaseStart);
+
+        phaseStart = System.currentTimeMillis();
+        CareerProfileContextResult careerProfileContext = agentTracing.call(
+                "agent.load_profile_context",
+                userId,
+                sessionId,
+                null,
+                null,
+                null,
+                () -> careerProfileContextProvider.load(userId)
+        );
+        recordCareerProfileContextTrace(userId, sessionId, careerProfileContext);
+        logPhase(sessionId, "load_career_profile_context", phaseStart);
+
+        phaseStart = System.currentTimeMillis();
+        ResumeContext resumeContext = agentTracing.call(
+                "agent.load_resume_context",
+                userId,
+                sessionId,
+                null,
+                null,
+                null,
+                () -> resumeContextProvider.getResumeContext(userId)
+        );
+        recordResumeContextTrace(userId, sessionId, resumeContext);
+        logPhase(sessionId, "load_resume_context", phaseStart);
+
+        phaseStart = System.currentTimeMillis();
+        JobMatchContext jobMatchContext = jobMatchContextProvider.getLatestJobMatchContext(userId);
+        recordJobMatchContextTrace(userId, sessionId, jobMatchContext);
+        logPhase(sessionId, "load_job_match_context", phaseStart);
+
+        phaseStart = System.currentTimeMillis();
+        ConversationContextResult conversationContext = agentTracing.call(
+                "agent.load_conversation_context",
+                userId,
+                sessionId,
+                null,
+                null,
+                null,
+                () -> loadConversationContextSafely(userId, sessionId, userMessage)
+        );
+        recordConversationContextTrace(userId, sessionId, conversationContext);
+        logPhase(sessionId, "load_conversation_context", phaseStart);
+
+        String systemPrompt = AgentPromptAssembler.buildBaseSystemPrompt();
+        systemPrompt = AgentPromptAssembler.appendCareerProfileContext(systemPrompt, careerProfileContext);
+        systemPrompt = AgentPromptAssembler.appendResumeContext(systemPrompt, resumeContext);
+        systemPrompt = AgentPromptAssembler.appendJobMatchContext(systemPrompt, jobMatchContext);
+        systemPrompt = AgentPromptAssembler.appendConversationContext(systemPrompt, conversationContext);
+
+        try {
+            AgentSessionEntity wsSession = workspaceSessionRepository.getSessionIfExists(userId, sessionId);
+            if (wsSession != null) {
+                systemPrompt = AgentPromptAssembler.appendWorkspaceContext(
+                        systemPrompt,
+                        wsSession.getWorkspaceType(),
+                        wsSession.getJdId(),
+                        wsSession.getJdSnapshot()
+                );
+            }
+        } catch (Exception ignored) {
+            // 工作空间上下文加载失败不中断主流程
+        }
+
+        phaseStart = System.currentTimeMillis();
+        AgentToolContext toolCtx = AgentToolContext.builder()
+                .userId(userId)
+                .sessionId(sessionId)
+                .userMessage(userMessage)
+                .build();
+        List<com.careermate.agent.multiagent.SpecialistResult> specialistResults =
+                agentSupervisor.dispatch(toolCtx, userMessage);
+        for (com.careermate.agent.multiagent.SpecialistResult sr : specialistResults) {
+            if (sr.toolSummary() != null && !sr.toolSummary().isBlank()) {
+                systemPrompt = AgentPromptAssembler.appendSpecialistResult(systemPrompt, sr);
+            }
+        }
+        if (specialistResults.isEmpty()) {
+            AgentToolResult toolResult = executeRoutedToolIfAny(userId, sessionId, userMessage);
+            if (toolResult != null) {
+                systemPrompt = AgentPromptAssembler.appendToolResult(systemPrompt, toolResult);
+            }
+        }
+        logPhase(sessionId, "supervisor_dispatch", phaseStart);
+
+        phaseStart = System.currentTimeMillis();
+        AgentToolContext reactCtx = AgentToolContext.builder()
+                .userId(userId)
+                .sessionId(sessionId)
+                .userMessage(userMessage)
+                .build();
+        com.careermate.agent.react.ReActTrace reactTrace =
+                reactEngine.run(reactCtx, userMessage, systemPrompt);
+        if (reactTrace.hasSteps()) {
+            systemPrompt = AgentPromptAssembler.appendReActTrace(systemPrompt, reactTrace);
+            log.info("ReAct trace injected: rounds={} reachedFinalAnswer={}",
+                    reactTrace.rounds(), reactTrace.reachedFinalAnswer());
+        }
+        logPhase(sessionId, "react_reasoning", phaseStart);
+
+        return ChatRequest.builder()
+                .messages(List.of(
+                        ChatMessage.builder().role("system").content(systemPrompt).build(),
+                        ChatMessage.builder().role("user").content(userMessage).build()
+                ))
+                .build();
+    }
+
+    private void applyKernelEvent(Long userId, String sessionId, AgentEvent event) {
+        if (AgentKernelEventTypes.PLAN.equals(event.getType())) {
+            sseEmitterService.send(sessionId, SseEventType.PLAN, event.getPayload());
+            agentSessionService.recordTrace(
+                    userId,
+                    sessionId,
+                    "PLAN",
+                    toJson(event.getPayload()),
+                    toJson(event.getPayload()),
+                    "SUCCESS",
+                    null,
+                    null
+            );
+            return;
+        }
+        if (AgentKernelEventTypes.TOOL_START.equals(event.getType())) {
+            sseEmitterService.send(sessionId, SseEventType.TOOL_START, event.getPayload());
+            return;
+        }
+        if (AgentKernelEventTypes.TOOL_RESULT.equals(event.getType())) {
+            sseEmitterService.send(sessionId, SseEventType.TOOL_RESULT, event.getPayload());
+            return;
+        }
+        if (AgentKernelEventTypes.TRACE.equals(event.getType())) {
+            Map<String, Object> payload = event.getPayload();
+            Long latencyMs = payload.get("latencyMs") == null
+                    ? null
+                    : ((Number) payload.get("latencyMs")).longValue();
+            agentSessionService.recordTrace(
+                    userId,
+                    sessionId,
+                    String.valueOf(payload.get("traceName")),
+                    String.valueOf(payload.get("requestSummary")),
+                    String.valueOf(payload.get("responseSummary")),
+                    String.valueOf(payload.get("status")),
+                    latencyMs,
+                    payload.get("errorCode") == null ? null : String.valueOf(payload.get("errorCode"))
+            );
+        }
     }
 
     private void handleStreamError(Long userId, String sessionId, Throwable error, String errorCode) {
