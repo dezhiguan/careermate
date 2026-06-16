@@ -53,5 +53,9 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+frontend/careermate/tests/e2e/.auth/
 frontend/careermate/test-results/
 frontend/careermate/playwright-report/
+
+# E2E 测试报告中的真实简历产物（含个人信息）
+docs/test-reports/assets/**/generated-resume.*

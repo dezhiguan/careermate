@@ -1,0 +1,24 @@
+{
+  "env": {
+    "backend": "http://localhost:8081",
+    "frontend": "http://localhost:5173",
+    "ragforge": "http://localhost:8080",
+    "browser": "Google Chrome (Playwright channel: chrome)",
+    "viewport": "390x844 (iPhone 13 class, isMobile=true)",
+    "phone": "185****0934",
+    "authStatePath": "frontend/careermate/tests/e2e/.auth/user-18565040934.json"
+  },
+  "coverage": {
+    "用户习惯与完整性": {
+      "status": "部分通过",
+      "observation": "机会页：JD 卡片有分析/定制简历/准备面试，行动按钮清晰 | 面试题页：标签筛选 + 让小职讲解，路径直观 | 市场页：解读行情 + 谈薪脚本双 CTA | 我的页：画像 + 最近产物 + 简历入口聚合 | AI 小职：独立入口，对话台隐藏底部导航，像军师工作台",
+      "severity": "-",
+      "screenshot": "docs/test-reports/assets/t01-t08/ux-overall.png"
+    }
+  },
+  "tabLinkage": {},
+  "resumeWorkflow": {},
+  "bugs": [],
+  "startedAt": "2026-06-16T11:17:51.499Z",
+  "finishedAt": "2026-06-16T11:18:26.873Z"
+}
