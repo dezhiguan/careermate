@@ -52,6 +52,8 @@ class GenerateResumeWorkflowRunner {
 
     private static final int JD_SEARCH_TOP_K = 50;
     private static final int PREVIEW_MAX = 300;
+    static final String RESUME_GENERATED_CARD_TITLE = "简历已生成";
+    static final String GENERATE_PROGRESS_MESSAGE = "正在生成简历...";
 
     private static final List<String> PLACEHOLDER_MARKERS = List.of(
             "暂无", "待补充", "示例", "公司A", "项目A", "某某公司", "XXX", "xxx"
@@ -179,13 +181,6 @@ class GenerateResumeWorkflowRunner {
                     return;
                 }
                 fullOutput.append(token);
-                if (run.sseEmitterService() != null) {
-                    run.sseEmitterService().send(
-                            run.sessionId(),
-                            com.careermate.agent.sse.SseEventType.TOKEN,
-                            Map.of("delta", token, "content", token)
-                    );
-                }
             }
 
             @Override
@@ -200,6 +195,14 @@ class GenerateResumeWorkflowRunner {
 
         if (streamError.get() != null) {
             throw new BizException(500, "LLM 生成失败: " + streamError.get().getMessage());
+        }
+
+        if (run.sseEmitterService() != null) {
+            run.sseEmitterService().send(
+                    run.sessionId(),
+                    com.careermate.agent.sse.SseEventType.TOKEN,
+                    Map.of("delta", GENERATE_PROGRESS_MESSAGE, "content", GENERATE_PROGRESS_MESSAGE)
+            );
         }
 
         run.setRawLlmOutput(fullOutput.toString());
@@ -472,6 +475,7 @@ class GenerateResumeWorkflowRunner {
     static Map<String, Object> buildGeneratedCard(String versionId, String versionName, String preview) {
         Map<String, Object> card = new LinkedHashMap<>();
         card.put("type", "RESUME_GENERATED");
+        card.put("title", RESUME_GENERATED_CARD_TITLE);
         card.put("versionId", versionId);
         card.put("versionName", versionName);
         card.put("previewMarkdown", preview);
@@ -483,7 +487,7 @@ class GenerateResumeWorkflowRunner {
                 Map.of("label", "复制 Markdown", "action", "COPY_MARKDOWN", "payload", versionId),
                 Map.of("label", "下载 PDF", "action", "DOWNLOAD_PDF", "payload", pdfPayload),
                 Map.of("label", "下载 Word", "action", "DOWNLOAD_WORD", "payload", pdfPayload),
-                Map.of("label", "去我的简历继续改", "action", "NAVIGATE", "payload", "/mine")
+                Map.of("label", "去我的简历继续改", "action", "NAVIGATE", "payload", "/mine/resume")
         ));
         return card;
     }

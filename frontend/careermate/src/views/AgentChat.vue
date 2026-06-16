@@ -804,6 +804,7 @@ async function startResumeGeneration(jdId) {
         scrollBottom()
       },
       onCard(card) {
+        streamMsg.text = ''
         finishStreaming(streamMsg)
         messages.value.push({
           id: `m_card_${Date.now()}`,

@@ -1,10 +1,15 @@
 <template>
-  <div class="chat-card" :class="`chat-card--${cardType}`">
+  <div
+    class="chat-card"
+    :class="`chat-card--${cardType}`"
+    :data-testid="card.type === 'RESUME_GENERATED' ? 'resume-generated-card' : undefined"
+  >
     <div v-if="card.type === 'OFFER_GENERATE_RESUME'" class="chat-card-body">
       <p class="chat-card-text">小职可以按这份 JD 帮你重写简历，选个操作吧：</p>
     </div>
     <div v-else-if="card.type === 'RESUME_GENERATED'" class="chat-card-body">
-      <p class="chat-card-title">✅ {{ card.versionName || '简历已生成' }}</p>
+      <p class="chat-card-title">✅ {{ card.title || '简历已生成' }}</p>
+      <p v-if="card.versionName" class="chat-card-subtitle">{{ card.versionName }}</p>
       <pre v-if="card.previewMarkdown" class="chat-card-preview">{{ card.previewMarkdown }}</pre>
     </div>
     <div v-else-if="card.type === 'GENERATE_FAILED'" class="chat-card-body">
@@ -66,6 +71,11 @@ function actionLabel(act) {
   margin: 0 0 8px;
   font-weight: 600;
   color: #0f172a;
+}
+.chat-card-subtitle {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #64748b;
 }
 .chat-card-text {
   margin: 0 0 10px;

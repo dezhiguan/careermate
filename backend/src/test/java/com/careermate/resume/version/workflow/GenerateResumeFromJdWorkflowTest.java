@@ -40,9 +40,11 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -241,12 +243,13 @@ class GenerateResumeFromJdWorkflowTest {
     }
 
     @Test
-    void streamAccumulatesOutput() {
+    void streamSendsProgressTokenOnly() {
         stubHappyPath();
         doAnswer(invocation -> {
             StreamCallback cb = invocation.getArgument(1);
             cb.onToken("# ");
             cb.onToken("简历");
+            cb.onToken("\n{\"changes\":[\"不应出现在 SSE\"]}");
             cb.onComplete(ChatResponse.builder().build());
             return null;
         }).when(llmClient).streamChat(any(ChatRequest.class), any(StreamCallback.class));
@@ -260,13 +263,87 @@ class GenerateResumeFromJdWorkflowTest {
 
         workflow.doGenerate(1L, "WS-abc", "doc-1", sseEmitterService);
 
-        verify(sseEmitterService, atLeastOnce())
-                .send(eq("WS-abc"), eq(SseEventType.TOKEN), any());
+        verify(sseEmitterService, times(1)).send(
+                eq("WS-abc"),
+                eq(SseEventType.TOKEN),
+                argThat(payload -> GenerateResumeWorkflowRunner.GENERATE_PROGRESS_MESSAGE.equals(
+                        ((Map<?, ?>) payload).get("content"))
+                )
+        );
         verify(sseEmitterService).send(eq("WS-abc"), eq(SseEventType.UI_ACTION), any());
         verify(sseEmitterService).send(eq("WS-abc"), eq(SseEventType.DONE), any());
         verify(resumeVersionService).createVersion(
-                eq(1L), eq("WS-abc"), eq(10L), eq("doc-1"), any(), any(), any(), any()
+                eq(1L), eq("WS-abc"), eq(10L), eq("doc-1"), any(), any(), eq("# 简历"), any()
         );
+    }
+
+    @Test
+    void sseDoesNotStreamMetaJson() {
+        stubHappyPath();
+        String output = """
+                # 官德志
+
+                ## 专业技能
+
+                Java / Spring
+
+                {
+                  "meta": {
+                    "changes": [
+                      "对齐 JD 关键词"
+                    ]
+                  }
+                }
+                """;
+        mockLlmStreamOnly(output);
+        when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(new ResumeVersionVO(
+                        "ver-1", "定制简历版", "WS-abc", "doc-1", "定制简历版",
+                        "# 官德志", List.of(Map.of("text", "对齐 JD 关键词")), null, OffsetDateTime.now()
+                ));
+        when(workspaceSessionRepository.appendMessage(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(new AgentMessageEntity());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> tokenCaptor = ArgumentCaptor.forClass(Map.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> cardCaptor = ArgumentCaptor.forClass(Map.class);
+
+        workflow.doGenerate(1L, "WS-abc", "doc-1", sseEmitterService);
+
+        verify(sseEmitterService, times(1)).send(
+                eq("WS-abc"), eq(SseEventType.TOKEN), tokenCaptor.capture()
+        );
+        for (Map<String, Object> payload : tokenCaptor.getAllValues()) {
+            String delta = String.valueOf(payload.getOrDefault("delta", ""));
+            String content = String.valueOf(payload.getOrDefault("content", ""));
+            assertFalse(delta.contains("changes"));
+            assertFalse(delta.contains("meta"));
+            assertFalse(delta.contains("```meta"));
+            assertFalse(delta.contains("```json"));
+            assertFalse(content.contains("changes"));
+            assertFalse(content.contains("meta"));
+            assertFalse(content.contains("```meta"));
+            assertFalse(content.contains("```json"));
+        }
+
+        verify(sseEmitterService).send(eq("WS-abc"), eq(SseEventType.UI_ACTION), cardCaptor.capture());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> card = (Map<String, Object>) cardCaptor.getValue().get("card");
+        assertEquals("RESUME_GENERATED", card.get("type"));
+        assertEquals(GenerateResumeWorkflowRunner.RESUME_GENERATED_CARD_TITLE, card.get("title"));
+        assertEquals("定制简历版", card.get("versionName"));
+        assertFalse(String.valueOf(card.get("previewMarkdown")).contains("changes"));
+
+        ArgumentCaptor<String> markdownCaptor = ArgumentCaptor.forClass(String.class);
+        verify(resumeVersionService).createVersion(
+                eq(1L), eq("WS-abc"), eq(10L), eq("doc-1"), any(), any(),
+                markdownCaptor.capture(), any()
+        );
+        String savedMarkdown = markdownCaptor.getValue();
+        assertFalse(savedMarkdown.contains("\"changes\""));
+        assertFalse(savedMarkdown.contains("\"meta\""));
+        assertTrue(savedMarkdown.contains("# 官德志"));
     }
 
     @Test
