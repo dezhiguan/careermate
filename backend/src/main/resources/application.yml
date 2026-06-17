@@ -111,6 +111,8 @@ careermate:
   prompt:
     active-versions:
       resume-generate-from-jd: ${RESUME_PROMPT_VERSION:v1}
+  mcp:
+    enabled: ${CAREERMATE_MCP_ENABLED:false}
 
 aliyun:
   sms:
