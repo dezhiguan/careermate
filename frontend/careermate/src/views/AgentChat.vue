@@ -186,7 +186,9 @@ import { marked } from 'marked'
 import { authStore } from '../stores/authStore'
 import {
   createAgentSession,
+  getAgentSession,
   getAgentTrace,
+  listAgentSessions,
   sendAgentMessageStream,
 } from '../api/agent'
 import { getWorkspace, getMessages, postAction, openResumeGenerateStreamByEndpoint, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
@@ -970,9 +972,45 @@ async function createNewSession({ withWelcome = true } = {}) {
   }
 }
 
+async function restoreLatestChatSession() {
+  sessionCreating.value = true
+  globalError.value = ''
+  streamState.value = 'session_creating'
+  try {
+    const sessions = await listAgentSessions({ taskType: 'CHAT', limit: 1 })
+    const latest = Array.isArray(sessions) ? sessions[0] : null
+    if (!latest?.sessionId) {
+      return false
+    }
+    const restoredSession = await getAgentSession(latest.sessionId)
+    if (!restoredSession?.sessionId) {
+      return false
+    }
+    sessionId.value = restoredSession.sessionId
+    const restoredMessages = mapServerMessages(restoredSession.messages)
+    messages.value = restoredMessages.length > 0 ? restoredMessages : [defaultWelcomeMessage()]
+    scheduleMarkdownForMessages(messages.value)
+    streamState.value = 'idle'
+    scrollBottom()
+    return true
+  } catch (e) {
+    console.warn('[agent] restore latest chat session failed', e)
+    return false
+  } finally {
+    sessionCreating.value = false
+    if (streamState.value === 'session_creating') {
+      streamState.value = 'idle'
+    }
+  }
+}
+
 async function bootstrapChat() {
   if (workspaceId.value) {
     await loadWorkspaceContext(workspaceId.value)
+    return
+  }
+  const restored = await restoreLatestChatSession()
+  if (restored) {
     return
   }
   await createNewSession({ withWelcome: true })

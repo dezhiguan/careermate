@@ -16,6 +16,8 @@ public interface AgentSessionService {
 
     List<AgentSessionListItemResponse> listRecentSessions(Long userId, int limit);
 
+    List<AgentSessionListItemResponse> listRecentSessions(Long userId, int limit, String taskType);
+
     List<AgentTraceResponse> getTrace(Long userId, String sessionId);
 
     AgentMessageEntity appendMessage(Long userId, String sessionId, String role, String content, String messageType);

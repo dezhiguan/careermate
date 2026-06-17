@@ -10,6 +10,7 @@ import com.careermate.security.CurrentUserContext;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,9 +33,12 @@ public class AgentSessionController {
     }
 
     @GetMapping("/sessions")
-    public ApiResponse<List<AgentSessionListItemResponse>> listSessions() {
+    public ApiResponse<List<AgentSessionListItemResponse>> listSessions(
+            @RequestParam(required = false) String taskType,
+            @RequestParam(required = false, defaultValue = "20") Integer limit
+    ) {
         Long userId = CurrentUserContext.getUserId();
-        return ApiResponse.success(agentSessionService.listRecentSessions(userId, 20));
+        return ApiResponse.success(agentSessionService.listRecentSessions(userId, limit == null ? 20 : limit, taskType));
     }
 
     @GetMapping("/sessions/{sessionId}")

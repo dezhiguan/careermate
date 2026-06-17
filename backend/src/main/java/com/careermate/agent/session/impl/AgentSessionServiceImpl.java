@@ -63,6 +63,7 @@ public class AgentSessionServiceImpl implements AgentSessionService {
         session.setSessionId(sessionId);
         session.setUserId(userId);
         session.setStatus("ACTIVE");
+        session.setTaskType("CHAT");
         session.setTitle("新会话");
         session.setToolCallCount(0);
         session.setCreatedAt(now);
@@ -118,13 +119,28 @@ public class AgentSessionServiceImpl implements AgentSessionService {
 
     @Override
     public List<AgentSessionListItemResponse> listRecentSessions(Long userId, int limit) {
+        return listRecentSessions(userId, limit, null);
+    }
+
+    @Override
+    public List<AgentSessionListItemResponse> listRecentSessions(Long userId, int limit, String taskType) {
         int safeLimit = limit <= 0 ? DEFAULT_LIST_LIMIT : Math.min(limit, DEFAULT_LIST_LIMIT);
-        List<AgentSessionEntity> sessions = agentSessionMapper.selectList(
-                new LambdaQueryWrapper<AgentSessionEntity>()
-                        .eq(AgentSessionEntity::getUserId, userId)
-                        .orderByDesc(AgentSessionEntity::getUpdatedAt)
-                        .last("LIMIT " + safeLimit)
-        );
+        LambdaQueryWrapper<AgentSessionEntity> wrapper = new LambdaQueryWrapper<AgentSessionEntity>()
+                .eq(AgentSessionEntity::getUserId, userId);
+        String normalizedTaskType = taskType == null ? "" : taskType.trim().toUpperCase();
+        if ("CHAT".equals(normalizedTaskType)) {
+            wrapper.and(w -> w.eq(AgentSessionEntity::getWorkspaceType, "CHAT")
+                            .or()
+                            .isNull(AgentSessionEntity::getWorkspaceType))
+                    .and(w -> w.eq(AgentSessionEntity::getTaskType, "CHAT")
+                            .or()
+                            .isNull(AgentSessionEntity::getTaskType));
+        } else if (!normalizedTaskType.isBlank()) {
+            wrapper.eq(AgentSessionEntity::getTaskType, normalizedTaskType);
+        }
+        wrapper.orderByDesc(AgentSessionEntity::getUpdatedAt)
+                .last("LIMIT " + safeLimit);
+        List<AgentSessionEntity> sessions = agentSessionMapper.selectList(wrapper);
         return sessions.stream()
                 .map(s -> toListItem(userId, s))
                 .toList();
