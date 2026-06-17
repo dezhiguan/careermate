@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -17,16 +16,20 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class MarketSpecialistAgent implements SpecialistAgent {
 
+    private static final SpecialistAgentSpec SPEC = new SpecialistAgentSpec(
+            AgentDomain.MARKET,
+            "MarketSpecialistAgent",
+            "负责市场行情、薪资谈薪、技能趋势与公司情报的知识检索参考。",
+            List.of("rag_retriever"),
+            SpecialistAgentSpec.INPUT_SCHEMA_V1,
+            SpecialistAgentSpec.OUTPUT_SCHEMA_V1
+    );
+
     private final AgentToolExecutionService toolExecutionService;
 
     @Override
-    public AgentDomain domain() {
-        return AgentDomain.MARKET;
-    }
-
-    @Override
-    public String agentName() {
-        return "MarketSpecialistAgent";
+    public SpecialistAgentSpec spec() {
+        return SPEC;
     }
 
     @Override

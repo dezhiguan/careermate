@@ -11,14 +11,18 @@ import java.util.Map;
 @Component
 public class CriticAgent implements SpecialistAgent {
 
-    @Override
-    public AgentDomain domain() {
-        return AgentDomain.CRITIC;
-    }
+    private static final SpecialistAgentSpec SPEC = new SpecialistAgentSpec(
+            AgentDomain.CRITIC,
+            "CriticAgent",
+            "审查简历造假风险并拦截编造经历/项目/学历/证书的请求，不调用写产物工具。",
+            List.of(),
+            SpecialistAgentSpec.INPUT_SCHEMA_V1,
+            SpecialistAgentSpec.OUTPUT_SCHEMA_V1
+    );
 
     @Override
-    public String agentName() {
-        return "CriticAgent";
+    public SpecialistAgentSpec spec() {
+        return SPEC;
     }
 
     @Override

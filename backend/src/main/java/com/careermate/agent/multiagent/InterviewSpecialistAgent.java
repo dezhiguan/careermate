@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Locale;
 
 @Slf4j
@@ -14,16 +15,20 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class InterviewSpecialistAgent implements SpecialistAgent {
 
+    private static final SpecialistAgentSpec SPEC = new SpecialistAgentSpec(
+            AgentDomain.INTERVIEW,
+            "InterviewSpecialistAgent",
+            "负责创建面试练习会话；纯知识型面试题交由知识检索处理。",
+            List.of("create_interview_session"),
+            SpecialistAgentSpec.INPUT_SCHEMA_V1,
+            SpecialistAgentSpec.OUTPUT_SCHEMA_V1
+    );
+
     private final AgentToolExecutionService toolExecutionService;
 
     @Override
-    public AgentDomain domain() {
-        return AgentDomain.INTERVIEW;
-    }
-
-    @Override
-    public String agentName() {
-        return "InterviewSpecialistAgent";
+    public SpecialistAgentSpec spec() {
+        return SPEC;
     }
 
     public SpecialistResult process(AgentToolContext context, String userMessage) {

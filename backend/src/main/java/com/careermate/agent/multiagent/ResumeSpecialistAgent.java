@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -14,16 +15,20 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ResumeSpecialistAgent implements SpecialistAgent {
 
+    private static final SpecialistAgentSpec SPEC = new SpecialistAgentSpec(
+            AgentDomain.RESUME,
+            "ResumeSpecialistAgent",
+            "负责读取默认简历、按 JD 生成或优化简历、检索知识库建议；不编造未发生的经历。",
+            List.of("get_default_resume", "generate_resume_from_jd", "search_knowledge_base"),
+            SpecialistAgentSpec.INPUT_SCHEMA_V1,
+            SpecialistAgentSpec.OUTPUT_SCHEMA_V1
+    );
+
     private final AgentToolExecutionService toolExecutionService;
 
     @Override
-    public AgentDomain domain() {
-        return AgentDomain.RESUME;
-    }
-
-    @Override
-    public String agentName() {
-        return "ResumeSpecialistAgent";
+    public SpecialistAgentSpec spec() {
+        return SPEC;
     }
 
     public SpecialistResult process(AgentToolContext context, String userMessage) {

@@ -7,21 +7,27 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class JobMatchSpecialistAgent implements SpecialistAgent {
 
+    private static final SpecialistAgentSpec SPEC = new SpecialistAgentSpec(
+            AgentDomain.JOB_MATCH,
+            "JobMatchSpecialistAgent",
+            "负责岗位/JD 匹配、差距分析与最近匹配结果读取。",
+            List.of("get_latest_job_match", "create_job_match"),
+            SpecialistAgentSpec.INPUT_SCHEMA_V1,
+            SpecialistAgentSpec.OUTPUT_SCHEMA_V1
+    );
+
     private final AgentToolExecutionService toolExecutionService;
 
     @Override
-    public AgentDomain domain() {
-        return AgentDomain.JOB_MATCH;
-    }
-
-    @Override
-    public String agentName() {
-        return "JobMatchSpecialistAgent";
+    public SpecialistAgentSpec spec() {
+        return SPEC;
     }
 
     public SpecialistResult process(AgentToolContext context, String userMessage) {
