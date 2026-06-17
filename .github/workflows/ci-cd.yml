@@ -147,7 +147,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs:
-      - security-scan
+      - backend-build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
