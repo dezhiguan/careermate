@@ -11,6 +11,7 @@ import com.careermate.workspace.dto.MessageVO;
 import com.careermate.workspace.dto.WorkspaceCreateRequest;
 import com.careermate.workspace.dto.WorkspaceCreateResponse;
 import com.careermate.workspace.dto.WorkspaceVO;
+import com.careermate.workspace.pending.PendingActionService;
 import com.careermate.workspace.service.WorkspaceService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -36,17 +37,20 @@ public class WorkspaceController {
     private final GenerateResumeFromJdWorkflow generateResumeFromJdWorkflow;
     private final SseEmitterService sseEmitterService;
     private final TaskExecutor agentExecutor;
+    private final PendingActionService pendingActionService;
 
     public WorkspaceController(
             WorkspaceService workspaceService,
             GenerateResumeFromJdWorkflow generateResumeFromJdWorkflow,
             SseEmitterService sseEmitterService,
-            TaskExecutor agentExecutor
+            TaskExecutor agentExecutor,
+            PendingActionService pendingActionService
     ) {
         this.workspaceService = workspaceService;
         this.generateResumeFromJdWorkflow = generateResumeFromJdWorkflow;
         this.sseEmitterService = sseEmitterService;
         this.agentExecutor = agentExecutor;
+        this.pendingActionService = pendingActionService;
     }
 
     @PostMapping
@@ -87,12 +91,17 @@ public class WorkspaceController {
     @GetMapping("/{sessionId}/generate-resume/stream")
     public SseEmitter generateResumeStream(
             @PathVariable String sessionId,
-            @RequestParam(required = false) String jdId
+            @RequestParam(required = false) String jdId,
+            @RequestParam(required = false) String pendingActionId
     ) {
         Long userId = CurrentUserContext.getUserId();
         AgentSessionEntity session = workspaceService.requireOwnedSession(userId, sessionId);
         String targetJdId = resolveJdId(jdId, session);
-        log.info("generate resume stream: sessionId={}, userId={}, jdId={}", sessionId, userId, targetJdId);
+        if (pendingActionId != null && !pendingActionId.isBlank()) {
+            pendingActionService.validateAndConsumeConfirmed(userId, sessionId, pendingActionId, targetJdId);
+        }
+        log.info("generate resume stream: sessionId={}, userId={}, jdId={}, pendingActionId={}",
+                sessionId, userId, targetJdId, pendingActionId);
 
         SseEmitter emitter = sseEmitterService.createEmitter(sessionId);
         FutureTask<Void> task = new FutureTask<>(() -> {

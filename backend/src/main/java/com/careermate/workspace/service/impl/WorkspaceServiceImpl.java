@@ -10,6 +10,9 @@ import com.careermate.workspace.dto.MessageVO;
 import com.careermate.workspace.dto.WorkspaceCreateRequest;
 import com.careermate.workspace.dto.WorkspaceCreateResponse;
 import com.careermate.workspace.dto.WorkspaceVO;
+import com.careermate.workspace.pending.ConfirmedPendingAction;
+import com.careermate.workspace.pending.PendingActionCreateResult;
+import com.careermate.workspace.pending.PendingActionService;
 import com.careermate.workspace.service.WorkspaceService;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -45,15 +48,18 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
     private final WorkspaceSessionRepository workspaceSessionRepository;
     private final ResumeVersionService resumeVersionService;
+    private final PendingActionService pendingActionService;
     private final ObjectMapper objectMapper;
 
     public WorkspaceServiceImpl(
             WorkspaceSessionRepository workspaceSessionRepository,
             ResumeVersionService resumeVersionService,
+            PendingActionService pendingActionService,
             ObjectMapper objectMapper
     ) {
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.resumeVersionService = resumeVersionService;
+        this.pendingActionService = pendingActionService;
         this.objectMapper = objectMapper;
     }
 
@@ -111,27 +117,104 @@ public class WorkspaceServiceImpl implements WorkspaceService {
             return ActionAckResponse.asNoop();
         }
         return switch (action) {
-            case "GENERATE_RESUME", "RETRY" -> resolveGenerateResumeAction(sessionId, payload);
+            case "GENERATE_RESUME", "RETRY" -> handleGenerateResumeRequest(userId, sessionId, payload);
+            case "CONFIRM_PENDING_ACTION" -> handleConfirmPendingAction(userId, sessionId, payload);
+            case "CANCEL_PENDING_ACTION" -> handleCancelPendingAction(userId, sessionId, payload);
             case "VIEW_JD", "NAVIGATE", "VIEW_RESUME", "COPY_MARKDOWN" -> ActionAckResponse.asNoop();
             default -> ActionAckResponse.asNoop();
         };
     }
 
-    private ActionAckResponse resolveGenerateResumeAction(String sessionId, String payload) {
+    private ActionAckResponse handleGenerateResumeRequest(Long userId, String sessionId, String payload) {
         ResumeRetryPayload parsed = parseResumeRetryPayload(payload);
         if (parsed != null && !parsed.retryable()) {
             return ActionAckResponse.asNoop();
         }
+        AgentSessionEntity session = workspaceSessionRepository.requireSession(userId, sessionId);
         String jdId = parsed != null ? parsed.jdId() : null;
         if (jdId == null && payload != null && !payload.isBlank() && !payload.trim().startsWith("{")) {
             jdId = payload.trim();
         }
-        String base = "/api/workspace/" + sessionId + "/generate-resume/stream";
         if (jdId == null || jdId.isBlank()) {
-            return ActionAckResponse.withSse(base);
+            jdId = session.getJdId();
         }
-        String encodedJdId = URLEncoder.encode(jdId, StandardCharsets.UTF_8);
-        return ActionAckResponse.withSse(base + "?jdId=" + encodedJdId);
+        PendingActionCreateResult pending = pendingActionService.createGenerateResumePendingAction(
+                userId,
+                sessionId,
+                jdId
+        );
+        appendCardMessage(userId, session, pending.confirmCard(), "请确认是否按 JD 生成定制简历");
+        return ActionAckResponse.withCard(pending.confirmCard());
+    }
+
+    private ActionAckResponse handleConfirmPendingAction(Long userId, String sessionId, String payload) {
+        String actionId = parseActionId(payload);
+        ConfirmedPendingAction confirmed = pendingActionService.confirm(userId, sessionId, actionId);
+        String endpoint = buildGenerateResumeSseEndpoint(sessionId, confirmed.jdId(), confirmed.actionId());
+        return ActionAckResponse.withSse(endpoint);
+    }
+
+    private ActionAckResponse handleCancelPendingAction(Long userId, String sessionId, String payload) {
+        String actionId = parseActionId(payload);
+        pendingActionService.cancel(userId, sessionId, actionId);
+        AgentSessionEntity session = workspaceSessionRepository.requireSession(userId, sessionId);
+        Map<String, Object> cancelledCard = pendingActionService.buildCancelledCard(actionId);
+        appendCardMessage(userId, session, cancelledCard, "已取消按 JD 生成简历");
+        return ActionAckResponse.withCard(cancelledCard);
+    }
+
+    private void appendCardMessage(
+            Long userId,
+            AgentSessionEntity session,
+            Map<String, Object> card,
+            String content
+    ) {
+        try {
+            workspaceSessionRepository.appendMessage(
+                    userId,
+                    session,
+                    "assistant",
+                    content,
+                    "CARD",
+                    objectMapper.writeValueAsString(Map.of("card", card)),
+                    null
+            );
+        } catch (Exception e) {
+            log.warn("append HITL card message failed: {}", e.getMessage());
+        }
+    }
+
+    private String buildGenerateResumeSseEndpoint(String sessionId, String jdId, String pendingActionId) {
+        String base = "/api/workspace/" + sessionId + "/generate-resume/stream";
+        StringBuilder sb = new StringBuilder(base).append('?');
+        boolean hasParam = false;
+        if (jdId != null && !jdId.isBlank()) {
+            sb.append("jdId=").append(URLEncoder.encode(jdId, StandardCharsets.UTF_8));
+            hasParam = true;
+        }
+        if (pendingActionId != null && !pendingActionId.isBlank()) {
+            if (hasParam) {
+                sb.append('&');
+            }
+            sb.append("pendingActionId=").append(URLEncoder.encode(pendingActionId, StandardCharsets.UTF_8));
+        }
+        return sb.toString();
+    }
+
+    private String parseActionId(String payload) {
+        if (payload == null || payload.isBlank()) {
+            return null;
+        }
+        String trimmed = payload.trim();
+        if (trimmed.startsWith("{")) {
+            try {
+                JsonNode node = objectMapper.readTree(trimmed);
+                return node.path("actionId").asText(null);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        return trimmed;
     }
 
     /**

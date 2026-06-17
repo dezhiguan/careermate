@@ -60,13 +60,6 @@ export async function getMessages(sessionId, opts = {}) {
   })
 }
 
-export async function postAction(sessionId, action, payload) {
-  return request(`/workspace/${encodeURIComponent(sessionId)}/action`, {
-    method: 'POST',
-    body: JSON.stringify({ action, payload }),
-  })
-}
-
 function resolveSsePayload(event) {
   const raw = event?.data
   if (raw == null) return {}
@@ -80,9 +73,25 @@ function resolveSsePayload(event) {
   return raw
 }
 
-/** 打开简历生成 SSE 流，返回 { close, abort } */
-export function openResumeGenerateStream(sessionId, handlers = {}) {
-  const url = `${API_BASE_URL}/workspace/${encodeURIComponent(sessionId)}/generate-resume/stream`
+export async function postAction(sessionId, action, payload) {
+  const body = { action, payload }
+  if (payload != null && typeof payload === 'object' && !Array.isArray(payload)) {
+    body.payload = JSON.stringify(payload)
+  }
+  return request(`/workspace/${encodeURIComponent(sessionId)}/action`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+/** 按后端返回的相对路径打开简历生成 SSE */
+export function openResumeGenerateStreamByEndpoint(sseEndpoint, handlers = {}) {
+  const path = sseEndpoint?.startsWith('/') ? sseEndpoint : `/${sseEndpoint || ''}`
+  const url = `${API_BASE_URL}${path}`
+  return openResumeGenerateStreamUrl(url, handlers)
+}
+
+function openResumeGenerateStreamUrl(url, handlers = {}) {
   const controller = new AbortController()
   let closed = false
 
@@ -140,4 +149,10 @@ export function openResumeGenerateStream(sessionId, handlers = {}) {
 
   run()
   return { close, get closed() { return closed } }
+}
+
+/** 打开简历生成 SSE 流（无 pendingActionId，兼容旧入口） */
+export function openResumeGenerateStream(sessionId, handlers = {}) {
+  const url = `${API_BASE_URL}/workspace/${encodeURIComponent(sessionId)}/generate-resume/stream`
+  return openResumeGenerateStreamUrl(url, handlers)
 }

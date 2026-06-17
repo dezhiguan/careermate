@@ -15,6 +15,16 @@
     <div v-else-if="card.type === 'GENERATE_FAILED'" class="chat-card-body">
       <p class="chat-card-error">{{ card.message || '生成失败，请重试' }}</p>
     </div>
+    <div v-else-if="card.type === 'CONFIRM_ACTION'" class="chat-card-body">
+      <p class="chat-card-title">{{ card.title || '请确认操作' }}</p>
+      <p v-if="card.summary" class="chat-card-text">{{ card.summary }}</p>
+      <p v-if="card.riskLabel" class="chat-card-risk">{{ card.riskLabel }}</p>
+      <p v-if="expiresHint" class="chat-card-expiry">{{ expiresHint }}</p>
+    </div>
+    <div v-else-if="card.type === 'ACTION_CANCELLED'" class="chat-card-body">
+      <p class="chat-card-title">{{ card.title || '操作已取消' }}</p>
+      <p v-if="card.summary" class="chat-card-text">{{ card.summary }}</p>
+    </div>
     <div v-if="actions.length" class="chat-card-actions">
       <button
         v-for="(act, idx) in actions"
@@ -45,6 +55,14 @@ defineEmits(['action'])
 
 const cardType = computed(() => (props.card?.type || 'unknown').toLowerCase())
 const actions = computed(() => (Array.isArray(props.card?.actions) ? props.card.actions : []))
+
+const expiresHint = computed(() => {
+  const raw = props.card?.expiresAt
+  if (!raw) return ''
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return ''
+  return `请在 ${date.toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 前确认`
+})
 
 function isActionLoading(act) {
   return (act?.action === 'DOWNLOAD_PDF' && props.pdfDownloading)
@@ -98,6 +116,17 @@ function actionLabel(act) {
   margin: 0 0 10px;
   color: #dc2626;
   font-size: 14px;
+}
+.chat-card-risk {
+  margin: 0 0 8px;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 600;
+}
+.chat-card-expiry {
+  margin: 0 0 10px;
+  color: #64748b;
+  font-size: 12px;
 }
 .chat-card-actions {
   display: flex;

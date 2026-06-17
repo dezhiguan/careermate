@@ -10,6 +10,9 @@ import com.careermate.workspace.dto.MessageVO;
 import com.careermate.workspace.dto.WorkspaceCreateRequest;
 import com.careermate.workspace.dto.WorkspaceCreateResponse;
 import com.careermate.workspace.dto.WorkspaceVO;
+import com.careermate.workspace.pending.ConfirmedPendingAction;
+import com.careermate.workspace.pending.PendingActionCreateResult;
+import com.careermate.workspace.pending.PendingActionService;
 import com.careermate.workspace.service.impl.WorkspaceServiceImpl;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,12 +46,19 @@ class WorkspaceServiceImplTest {
     private WorkspaceSessionRepository workspaceSessionRepository;
     @Mock
     private ResumeVersionService resumeVersionService;
+    @Mock
+    private PendingActionService pendingActionService;
 
     private WorkspaceServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new WorkspaceServiceImpl(workspaceSessionRepository, resumeVersionService, new ObjectMapper());
+        service = new WorkspaceServiceImpl(
+                workspaceSessionRepository,
+                resumeVersionService,
+                pendingActionService,
+                new ObjectMapper()
+        );
     }
 
     @Test
@@ -155,28 +165,66 @@ class WorkspaceServiceImplTest {
     }
 
     @Test
-    void actionGenerateResumeReturnsSseEndpoint() {
+    void actionGenerateResumeReturnsConfirmCardNotSse() {
         AgentSessionEntity session = baseSession(10L, 1L);
         when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        Map<String, Object> card = Map.of("type", "CONFIRM_ACTION", "actionId", "PA-1");
+        when(pendingActionService.createGenerateResumePendingAction(1L, "WS-abc", "doc-1"))
+                .thenReturn(new PendingActionCreateResult("PA-1", card, OffsetDateTime.now().plusMinutes(15)));
 
         ActionAckResponse ack = service.handleAction(1L, "WS-abc", "GENERATE_RESUME", "doc-1");
 
-        assertFalse(ack.noop());
-        assertEquals("/api/workspace/WS-abc/generate-resume/stream?jdId=doc-1", ack.sseEndpoint());
+        assertTrue(ack.noop());
+        assertEquals(null, ack.sseEndpoint());
+        assertEquals("CONFIRM_ACTION", ack.card().get("type"));
+        verify(workspaceSessionRepository).appendMessage(eq(1L), eq(session), eq("assistant"), anyString(),
+                eq("CARD"), anyString(), eq(null));
     }
 
     @Test
-    void actionRetryWithJsonPayloadReturnsSseEndpointWithJdId() {
+    void actionConfirmPendingActionReturnsSseEndpointWithPendingActionId() {
         AgentSessionEntity session = baseSession(10L, 1L);
         when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        when(pendingActionService.confirm(1L, "WS-abc", "PA-1"))
+                .thenReturn(new ConfirmedPendingAction("PA-1", "doc-1"));
+
+        ActionAckResponse ack = service.handleAction(1L, "WS-abc", "CONFIRM_PENDING_ACTION", "{\"actionId\":\"PA-1\"}");
+
+        assertFalse(ack.noop());
+        assertNotNull(ack.sseEndpoint());
+        assertTrue(ack.sseEndpoint().contains("pendingActionId=PA-1"));
+        assertTrue(ack.sseEndpoint().contains("jdId=doc-1"));
+    }
+
+    @Test
+    void actionCancelPendingActionReturnsCancelledCard() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        when(pendingActionService.buildCancelledCard("PA-1"))
+                .thenReturn(Map.of("type", "ACTION_CANCELLED", "actionId", "PA-1"));
+
+        ActionAckResponse ack = service.handleAction(1L, "WS-abc", "CANCEL_PENDING_ACTION", "{\"actionId\":\"PA-1\"}");
+
+        assertTrue(ack.noop());
+        assertEquals("ACTION_CANCELLED", ack.card().get("type"));
+        verify(pendingActionService).cancel(1L, "WS-abc", "PA-1");
+    }
+
+    @Test
+    void actionRetryWithJsonPayloadReturnsConfirmCard() {
+        AgentSessionEntity session = baseSession(10L, 1L);
+        when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        Map<String, Object> card = Map.of("type", "CONFIRM_ACTION", "actionId", "PA-2");
+        when(pendingActionService.createGenerateResumePendingAction(1L, "WS-abc", "doc-1"))
+                .thenReturn(new PendingActionCreateResult("PA-2", card, OffsetDateTime.now().plusMinutes(15)));
         String jsonPayload = """
                 {"sessionId":"WS-abc","jdId":"doc-1","failedStep":"LOAD_JD","retryable":true}
                 """;
 
         ActionAckResponse ack = service.handleAction(1L, "WS-abc", "RETRY", jsonPayload);
 
-        assertFalse(ack.noop());
-        assertEquals("/api/workspace/WS-abc/generate-resume/stream?jdId=doc-1", ack.sseEndpoint());
+        assertTrue(ack.noop());
+        assertEquals("CONFIRM_ACTION", ack.card().get("type"));
     }
 
     @Test
@@ -194,27 +242,31 @@ class WorkspaceServiceImplTest {
     }
 
     @Test
-    void actionGenerateResumeUrlEncodesSpecialCharactersInJdId() {
+    void actionGenerateResumeUsesSessionJdWhenPayloadBlank() {
         AgentSessionEntity session = baseSession(10L, 1L);
         when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
-        String jdId = "doc 中文";
+        when(pendingActionService.createGenerateResumePendingAction(1L, "WS-abc", "doc-1"))
+                .thenReturn(new PendingActionCreateResult("PA-3",
+                        Map.of("type", "CONFIRM_ACTION"), OffsetDateTime.now().plusMinutes(15)));
 
-        ActionAckResponse ack = service.handleAction(1L, "WS-abc", "GENERATE_RESUME", jdId);
+        ActionAckResponse ack = service.handleAction(1L, "WS-abc", "GENERATE_RESUME", null);
 
-        assertFalse(ack.noop());
-        assertTrue(ack.sseEndpoint().contains("?jdId="));
-        assertTrue(ack.sseEndpoint().contains("doc+%E4%B8%AD%E6%96%87"));
+        assertTrue(ack.noop());
+        assertEquals("CONFIRM_ACTION", ack.card().get("type"));
     }
 
     @Test
     void actionRetryWithInvalidJsonTreatedAsLegacyJdId() {
         AgentSessionEntity session = baseSession(10L, 1L);
         when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
+        when(pendingActionService.createGenerateResumePendingAction(1L, "WS-abc", "{not-json"))
+                .thenReturn(new PendingActionCreateResult("PA-4",
+                        Map.of("type", "CONFIRM_ACTION"), OffsetDateTime.now().plusMinutes(15)));
 
         ActionAckResponse ack = service.handleAction(1L, "WS-abc", "RETRY", "{not-json");
 
-        assertFalse(ack.noop());
-        assertEquals("/api/workspace/WS-abc/generate-resume/stream?jdId=%7Bnot-json", ack.sseEndpoint());
+        assertTrue(ack.noop());
+        assertEquals("CONFIRM_ACTION", ack.card().get("type"));
     }
 
     @Test

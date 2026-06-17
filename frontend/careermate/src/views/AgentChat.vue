@@ -189,7 +189,7 @@ import {
   getAgentTrace,
   sendAgentMessageStream,
 } from '../api/agent'
-import { getWorkspace, getMessages, postAction, openResumeGenerateStream, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
+import { getWorkspace, getMessages, postAction, openResumeGenerateStreamByEndpoint, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
 import { getOpportunityDetail } from '../api/opportunity'
 import { downloadVersionDocx, downloadVersionPdf, getVersion, listVersions } from '../api/resumeVersion'
 import { isCareerTaskToolName, notifyCareerTasksUpdated } from '../utils/agentToolDisplay'
@@ -667,7 +667,15 @@ async function handleCardAction(actionItem) {
   if (!action || !sessionId.value) return
 
   if (action === 'GENERATE_RESUME' || action === 'RETRY') {
-    await startResumeGeneration(payload)
+    await requestGenerateResumeConfirmation(payload)
+    return
+  }
+  if (action === 'CONFIRM_PENDING_ACTION') {
+    await confirmPendingResumeAction(payload)
+    return
+  }
+  if (action === 'CANCEL_PENDING_ACTION') {
+    await cancelPendingResumeAction(payload)
     return
   }
   if (action === 'VIEW_JD') {
@@ -772,7 +780,84 @@ async function copyResumeMarkdown(versionId) {
   }
 }
 
-async function startResumeGeneration(jdId) {
+function appendCardMessage(card) {
+  if (!card) return
+  messages.value.push({
+    id: `m_card_${Date.now()}`,
+    role: 'agent',
+    text: '',
+    card,
+    messageType: 'CARD',
+    streaming: false,
+    error: '',
+    toolCalls: [],
+  })
+  scrollBottom()
+}
+
+function resolveActionPayload(payload) {
+  if (payload == null) return {}
+  if (typeof payload === 'object') return payload
+  if (typeof payload === 'string' && payload.trim().startsWith('{')) {
+    try {
+      return JSON.parse(payload)
+    } catch {
+      return { actionId: payload }
+    }
+  }
+  return { actionId: payload }
+}
+
+async function requestGenerateResumeConfirmation(jdId) {
+  if (!sessionId.value || resumeGenerating.value) return
+  try {
+    const ack = await postAction(
+      sessionId.value,
+      'GENERATE_RESUME',
+      jdId || workspaceInfo.value?.jdId
+    )
+    if (ack?.card) {
+      appendCardMessage(ack.card)
+      return
+    }
+    if (ack?.sseEndpoint) {
+      await startResumeGenerationWithEndpoint(ack.sseEndpoint)
+      return
+    }
+    throw new Error('无法发起简历生成确认')
+  } catch (e) {
+    globalError.value = e?.message || '发起确认失败'
+  }
+}
+
+async function confirmPendingResumeAction(payload) {
+  if (!sessionId.value || resumeGenerating.value) return
+  const pl = resolveActionPayload(payload)
+  try {
+    const ack = await postAction(sessionId.value, 'CONFIRM_PENDING_ACTION', pl)
+    if (!ack?.sseEndpoint) {
+      throw new Error('确认失败，未获得生成流地址')
+    }
+    await startResumeGenerationWithEndpoint(ack.sseEndpoint)
+  } catch (e) {
+    globalError.value = e?.message || '确认生成失败'
+  }
+}
+
+async function cancelPendingResumeAction(payload) {
+  if (!sessionId.value) return
+  const pl = resolveActionPayload(payload)
+  try {
+    const ack = await postAction(sessionId.value, 'CANCEL_PENDING_ACTION', pl)
+    if (ack?.card) {
+      appendCardMessage(ack.card)
+    }
+  } catch (e) {
+    globalError.value = e?.message || '取消失败'
+  }
+}
+
+async function startResumeGenerationWithEndpoint(sseEndpoint) {
   if (!sessionId.value || resumeGenerating.value) return
   resumeGenerating.value = true
   streamState.value = 'streaming'
@@ -789,16 +874,11 @@ async function startResumeGeneration(jdId) {
   scrollBottom()
 
   try {
-    const ack = await postAction(sessionId.value, 'GENERATE_RESUME', jdId || workspaceInfo.value?.jdId)
-    if (ack?.noop) {
-      throw new Error('无法启动简历生成')
-    }
-
     if (activeResumeStream.value?.close) {
       activeResumeStream.value.close()
     }
 
-    activeResumeStream.value = openResumeGenerateStream(sessionId.value, {
+    activeResumeStream.value = openResumeGenerateStreamByEndpoint(sseEndpoint, {
       onResumeDelta(delta) {
         streamMsg.text += delta || ''
         scrollBottom()
