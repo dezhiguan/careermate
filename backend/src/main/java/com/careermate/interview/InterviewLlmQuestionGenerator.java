@@ -8,8 +8,8 @@ import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
 import com.careermate.model.entity.JobMatchEntity;
 import com.careermate.model.entity.ResumeEntity;
-import com.careermate.ragforge.RagForgeChunk;
-import com.careermate.ragforge.RagForgeClient;
+import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -61,20 +61,20 @@ public class InterviewLlmQuestionGenerator {
     private final LlmProperties llmProperties;
     private final ObjectMapper objectMapper;
     private final JobMatchJsonSupport jobMatchJsonSupport;
-    private final RagForgeClient ragForgeClient;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
 
     public InterviewLlmQuestionGenerator(
         LlmClient llmClient,
         LlmProperties llmProperties,
         ObjectMapper objectMapper,
         JobMatchJsonSupport jobMatchJsonSupport,
-        RagForgeClient ragForgeClient
+        KnowledgeRetrievalService knowledgeRetrievalService
     ) {
         this.llmClient = llmClient;
         this.llmProperties = llmProperties;
         this.objectMapper = objectMapper;
         this.jobMatchJsonSupport = jobMatchJsonSupport;
-        this.ragForgeClient = ragForgeClient;
+        this.knowledgeRetrievalService = knowledgeRetrievalService;
     }
 
     public Optional<List<GeneratedQuestionList.LlmQuestion>> tryGenerate(
@@ -189,15 +189,12 @@ public class InterviewLlmQuestionGenerator {
             String q = (jobTitle == null ? "" : jobTitle.trim() + " ")
                      + (missingSkills == null || missingSkills.isBlank() ? "" : missingSkills + " ")
                      + "面试考点";
-            List<RagForgeChunk> chunks = ragForgeClient.searchInterview(q.trim(), 3);
-            if (chunks == null || chunks.isEmpty()) return "";
-            StringBuilder sb = new StringBuilder("\n【面试题参考知识（来自 RAGForge）】\n");
-            for (RagForgeChunk c : chunks) {
-                String txt = c.content() == null ? "" : c.content();
-                if (txt.length() > 200) txt = txt.substring(0, 200) + "...";
-                sb.append("- ").append(txt).append("\n");
+            String context = knowledgeRetrievalService.retrieveContextText(
+                    RagRetrieveScene.INTERVIEW, q.trim(), 3);
+            if (context.isBlank()) {
+                return "";
             }
-            return sb.toString();
+            return "\n【面试题参考知识（来自 RAGForge）】\n- " + context.replace("\n", "\n- ") + "\n";
         } catch (Exception e) {
             return "";
         }

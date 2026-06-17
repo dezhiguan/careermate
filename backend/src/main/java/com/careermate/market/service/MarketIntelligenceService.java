@@ -1,5 +1,10 @@
 package com.careermate.market.service;
 
+import com.careermate.agent.tool.rag.RagRetrieveRequest;
+import com.careermate.agent.tool.rag.RagRetrieveResult;
+import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.knowledge.KnowledgeRetrievalService;
+import com.careermate.knowledge.KnowledgeRetrievalSupport;
 import com.careermate.llm.LlmClient;
 import com.careermate.llm.dto.ChatMessage;
 import com.careermate.llm.dto.ChatRequest;
@@ -9,19 +14,14 @@ import com.careermate.market.dto.CompanyInsightVO;
 import com.careermate.market.dto.ResumeGapVO;
 import com.careermate.market.dto.SalaryInsightVO;
 import com.careermate.market.dto.SkillTrendsVO;
-import com.careermate.ragforge.RagForgeChunk;
-import com.careermate.ragforge.RagForgeClient;
 import com.careermate.resume.ResumeContext;
 import com.careermate.resume.ResumeContextProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -34,18 +34,18 @@ public class MarketIntelligenceService {
     private static final String NO_DATA = "暂无数据";
     private static final Pattern JSON_BLOCK = Pattern.compile("\\{[\\s\\S]*\\}");
 
-    private final RagForgeClient ragForgeClient;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
     private final LlmClient llmClient;
     private final ResumeContextProvider resumeContextProvider;
     private final ObjectMapper objectMapper;
 
     public MarketIntelligenceService(
-            RagForgeClient ragForgeClient,
+            KnowledgeRetrievalService knowledgeRetrievalService,
             LlmClient llmClient,
             ResumeContextProvider resumeContextProvider,
             ObjectMapper objectMapper
     ) {
-        this.ragForgeClient = ragForgeClient;
+        this.knowledgeRetrievalService = knowledgeRetrievalService;
         this.llmClient = llmClient;
         this.resumeContextProvider = resumeContextProvider;
         this.objectMapper = objectMapper;
@@ -57,15 +57,23 @@ public class MarketIntelligenceService {
             String safeCity = defaultText(city, "广州");
             String safeYears = defaultText(years, "3-5年");
             String query = safeRole + " " + safeCity + " " + safeYears + " 薪资 月薪";
-            List<RagForgeChunk> chunks = ragForgeClient.searchJd(query, 30);
-            String context = buildContext(chunks);
+            RagRetrieveResult ragResult = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
+                    .query(query)
+                    .scene(RagRetrieveScene.MARKET)
+                    .topK(30)
+                    .build());
+            String context = toContextText(ragResult);
             if (context.isBlank()) {
                 log.warn("getSalaryInsight: empty rag context, role={}, city={}", safeRole, safeCity);
                 return fallbackSalaryInsight();
             }
             String prompt = MarketPrompts.salaryPrompt(safeRole, safeCity, safeYears, context);
             SalaryInsightVO parsed = parseLlmJson(prompt, SalaryInsightVO.class);
-            return parsed != null ? parsed : fallbackSalaryInsight();
+            if (parsed == null) {
+                return fallbackSalaryInsight();
+            }
+            attachSources(parsed, ragResult);
+            return parsed;
         } catch (Exception e) {
             log.warn("getSalaryInsight failed: {}", e.getMessage());
             return fallbackSalaryInsight();
@@ -76,15 +84,23 @@ public class MarketIntelligenceService {
         try {
             String safeRole = defaultText(role, "Java后端");
             String query = safeRole + " 技能要求 技术栈 必备";
-            List<RagForgeChunk> chunks = ragForgeClient.searchJd(query, 40);
-            String context = buildContext(chunks);
+            RagRetrieveResult ragResult = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
+                    .query(query)
+                    .scene(RagRetrieveScene.MARKET)
+                    .topK(40)
+                    .build());
+            String context = toContextText(ragResult);
             if (context.isBlank()) {
                 log.warn("getSkillTrends: empty rag context, role={}", safeRole);
                 return fallbackSkillTrends();
             }
             String prompt = MarketPrompts.skillTrendsPrompt(safeRole, context);
             SkillTrendsVO parsed = parseLlmJson(prompt, SkillTrendsVO.class);
-            return parsed != null ? parsed : fallbackSkillTrends();
+            if (parsed == null) {
+                return fallbackSkillTrends();
+            }
+            attachSources(parsed, ragResult);
+            return parsed;
         } catch (Exception e) {
             log.warn("getSkillTrends failed: {}", e.getMessage());
             return fallbackSkillTrends();
@@ -101,15 +117,23 @@ public class MarketIntelligenceService {
             }
             String role = extractRoleFromResume(resumeContext);
             String query = role + " 岗位要求 技术能力";
-            List<RagForgeChunk> chunks = ragForgeClient.searchJd(query, 30);
-            String context = buildContext(chunks);
+            RagRetrieveResult ragResult = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
+                    .query(query)
+                    .scene(RagRetrieveScene.OPPORTUNITY)
+                    .topK(30)
+                    .build());
+            String context = toContextText(ragResult);
             if (context.isBlank()) {
                 log.warn("getResumeGap: empty rag context, userId={}, role={}", userId, role);
                 return fallbackResumeGap();
             }
             String prompt = MarketPrompts.resumeGapPrompt(resumeContext.getContent(), context);
             ResumeGapVO parsed = parseLlmJson(prompt, ResumeGapVO.class);
-            return parsed != null ? parsed : fallbackResumeGap();
+            if (parsed == null) {
+                return fallbackResumeGap();
+            }
+            attachSources(parsed, ragResult);
+            return parsed;
         } catch (Exception e) {
             log.warn("getResumeGap failed: userId={}, err={}", userId, e.getMessage());
             return fallbackResumeGap();
@@ -123,10 +147,19 @@ public class MarketIntelligenceService {
                 return fallbackCompanyInsight("");
             }
             String safeCompany = company.trim();
-            List<RagForgeChunk> profileChunks = ragForgeClient.searchJd(safeCompany + " 公司 技术栈 规模", 20);
-            List<RagForgeChunk> jobChunks = ragForgeClient.searchJd(safeCompany + " 岗位 招聘", 10);
-            List<RagForgeChunk> merged = mergeDistinctChunks(profileChunks, jobChunks);
-            String context = buildContext(merged);
+            RagRetrieveResult ragResult = knowledgeRetrievalService.retrieveMerged(List.of(
+                    RagRetrieveRequest.builder()
+                            .query(safeCompany + " 公司 技术栈 规模")
+                            .scene(RagRetrieveScene.COMPANY)
+                            .topK(20)
+                            .build(),
+                    RagRetrieveRequest.builder()
+                            .query(safeCompany + " 岗位 招聘")
+                            .scene(RagRetrieveScene.COMPANY)
+                            .topK(10)
+                            .build()
+            ));
+            String context = toContextText(ragResult);
             if (context.isBlank()) {
                 log.warn("getCompanyInsight: empty rag context, company={}", safeCompany);
                 return fallbackCompanyInsight(safeCompany);
@@ -139,11 +172,42 @@ public class MarketIntelligenceService {
             if (parsed.getCompanyName() == null || parsed.getCompanyName().isBlank()) {
                 parsed.setCompanyName(safeCompany);
             }
+            attachSources(parsed, ragResult);
             return parsed;
         } catch (Exception e) {
             log.warn("getCompanyInsight failed: company={}, err={}", company, e.getMessage());
             return fallbackCompanyInsight(company == null ? "" : company.trim());
         }
+    }
+
+    private static String toContextText(RagRetrieveResult ragResult) {
+        if (ragResult == null || !ragResult.isSuccess()) {
+            return "";
+        }
+        return KnowledgeRetrievalSupport.joinChunkContents(
+                ragResult.getChunks(),
+                MAX_CONTEXT_CHARS
+        );
+    }
+
+    private void attachSources(SalaryInsightVO vo, RagRetrieveResult ragResult) {
+        vo.setCitations(knowledgeRetrievalService.toMarketCitations(ragResult));
+        vo.setSourceSummaries(knowledgeRetrievalService.toSourceSummaries(ragResult));
+    }
+
+    private void attachSources(SkillTrendsVO vo, RagRetrieveResult ragResult) {
+        vo.setCitations(knowledgeRetrievalService.toMarketCitations(ragResult));
+        vo.setSourceSummaries(knowledgeRetrievalService.toSourceSummaries(ragResult));
+    }
+
+    private void attachSources(ResumeGapVO vo, RagRetrieveResult ragResult) {
+        vo.setCitations(knowledgeRetrievalService.toMarketCitations(ragResult));
+        vo.setSourceSummaries(knowledgeRetrievalService.toSourceSummaries(ragResult));
+    }
+
+    private void attachSources(CompanyInsightVO vo, RagRetrieveResult ragResult) {
+        vo.setCitations(knowledgeRetrievalService.toMarketCitations(ragResult));
+        vo.setSourceSummaries(knowledgeRetrievalService.toSourceSummaries(ragResult));
     }
 
     private <T> T parseLlmJson(String userPrompt, Class<T> type) {
@@ -173,42 +237,6 @@ public class MarketIntelligenceService {
         } catch (Exception e) {
             log.warn("Market LLM JSON parse failed, type={}, err={}", type.getSimpleName(), e.getMessage());
             return null;
-        }
-    }
-
-    private static String buildContext(List<RagForgeChunk> chunks) {
-        if (chunks == null || chunks.isEmpty()) {
-            return "";
-        }
-        String joined = chunks.stream()
-                .map(RagForgeChunk::content)
-                .filter(content -> content != null && !content.isBlank())
-                .collect(Collectors.joining("\n"));
-        if (joined.length() <= MAX_CONTEXT_CHARS) {
-            return joined;
-        }
-        return joined.substring(0, MAX_CONTEXT_CHARS);
-    }
-
-    private static List<RagForgeChunk> mergeDistinctChunks(List<RagForgeChunk> first, List<RagForgeChunk> second) {
-        Map<String, RagForgeChunk> distinct = new LinkedHashMap<>();
-        appendDistinct(distinct, first);
-        appendDistinct(distinct, second);
-        return new ArrayList<>(distinct.values());
-    }
-
-    private static void appendDistinct(Map<String, RagForgeChunk> distinct, List<RagForgeChunk> chunks) {
-        if (chunks == null) {
-            return;
-        }
-        for (RagForgeChunk chunk : chunks) {
-            if (chunk == null) {
-                continue;
-            }
-            String key = chunk.chunkId() != null
-                    ? "id:" + chunk.chunkId()
-                    : "content:" + (chunk.content() == null ? "" : chunk.content());
-            distinct.putIfAbsent(key, chunk);
         }
     }
 
@@ -248,6 +276,8 @@ public class MarketIntelligenceService {
         vo.setP90(NO_DATA);
         vo.setTrend(NO_DATA);
         vo.setAiSummary(FALLBACK_SUMMARY);
+        vo.setCitations(Collections.emptyList());
+        vo.setSourceSummaries(Collections.emptyList());
         return vo;
     }
 
@@ -255,6 +285,8 @@ public class MarketIntelligenceService {
         SkillTrendsVO vo = new SkillTrendsVO();
         vo.setSkills(List.of());
         vo.setAiSummary(FALLBACK_SUMMARY);
+        vo.setCitations(Collections.emptyList());
+        vo.setSourceSummaries(Collections.emptyList());
         return vo;
     }
 
@@ -265,6 +297,8 @@ public class MarketIntelligenceService {
         vo.setMatchScore(0);
         vo.setTopSuggestion(NO_DATA);
         vo.setAiSummary(FALLBACK_SUMMARY);
+        vo.setCitations(Collections.emptyList());
+        vo.setSourceSummaries(Collections.emptyList());
         return vo;
     }
 
@@ -275,6 +309,8 @@ public class MarketIntelligenceService {
         vo.setMatchScore(0);
         vo.setTopSuggestion("");
         vo.setAiSummary("");
+        vo.setCitations(Collections.emptyList());
+        vo.setSourceSummaries(Collections.emptyList());
         return vo;
     }
 
@@ -286,6 +322,8 @@ public class MarketIntelligenceService {
         vo.setTechStack(List.of());
         vo.setCurrentJds(List.of());
         vo.setAiSummary(FALLBACK_SUMMARY);
+        vo.setCitations(Collections.emptyList());
+        vo.setSourceSummaries(Collections.emptyList());
         return vo;
     }
 }

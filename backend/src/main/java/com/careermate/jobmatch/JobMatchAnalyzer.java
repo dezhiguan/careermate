@@ -1,6 +1,7 @@
 package com.careermate.jobmatch;
 
-import com.careermate.ragforge.RagForgeClient;
+import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -13,11 +14,11 @@ import java.util.Set;
 @Component
 public class JobMatchAnalyzer {
 
-    private final RagForgeClient ragForgeClient;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
     private final JobMatchLlmAnalyzer llmAnalyzer;
 
-    public JobMatchAnalyzer(RagForgeClient ragForgeClient, JobMatchLlmAnalyzer llmAnalyzer) {
-        this.ragForgeClient = ragForgeClient;
+    public JobMatchAnalyzer(KnowledgeRetrievalService knowledgeRetrievalService, JobMatchLlmAnalyzer llmAnalyzer) {
+        this.knowledgeRetrievalService = knowledgeRetrievalService;
         this.llmAnalyzer = llmAnalyzer;
     }
 
@@ -105,18 +106,14 @@ public class JobMatchAnalyzer {
             if (jdContent != null && !jdContent.isBlank()) {
                 String preview = jdContent.length() > 200 ? jdContent.substring(0, 200) : jdContent;
                 String ragQuery = (title.isBlank() ? "" : title + " ") + preview;
-                java.util.List<com.careermate.ragforge.RagForgeChunk> chunks =
-                    ragForgeClient.searchJd(ragQuery, 3);
-                if (chunks != null && !chunks.isEmpty()) {
-                    StringBuilder ragSection = new StringBuilder();
-                    ragSection.append("\n\n【行业JD参考（来自 RAGForge）】\n");
-                    for (com.careermate.ragforge.RagForgeChunk c : chunks) {
-                        String txt = c.content() == null ? "" : c.content();
-                        if (txt.length() > 120) txt = txt.substring(0, 120) + "...";
-                        ragSection.append("- ").append(txt).append("\n");
-                    }
+                String ragSection = knowledgeRetrievalService.retrieveContextText(
+                        RagRetrieveScene.OPPORTUNITY, ragQuery.trim(), 3);
+                if (!ragSection.isBlank()) {
                     String oldSummary = result.getAnalysisSummary() == null ? "" : result.getAnalysisSummary();
-                    result.setAnalysisSummary(oldSummary + ragSection.toString());
+                    result.setAnalysisSummary(oldSummary
+                            + "\n\n【行业JD参考（来自 RAGForge）】\n- "
+                            + ragSection.replace("\n", "\n- ")
+                            + "\n");
                 }
             }
         } catch (Exception e) {

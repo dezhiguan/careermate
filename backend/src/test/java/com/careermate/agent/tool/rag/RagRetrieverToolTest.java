@@ -1,5 +1,6 @@
 package com.careermate.agent.tool.rag;
 
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import com.careermate.ragforge.RagForgeChunk;
 import com.careermate.ragforge.RagForgeClient;
 import com.careermate.ragforge.RagForgeProperties;
@@ -14,8 +15,9 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -31,6 +33,7 @@ class RagRetrieverToolTest {
     private RagForgeClient ragForgeClient;
 
     private RagForgeProperties properties;
+    private KnowledgeRetrievalService knowledgeRetrievalService;
     private RagRetrieverTool ragRetrieverTool;
 
     @BeforeEach
@@ -40,7 +43,8 @@ class RagRetrieverToolTest {
         properties.setJdKbId("16");
         properties.setInterviewKbId("21");
         properties.setPersonalKbId("31");
-        ragRetrieverTool = new RagRetrieverTool(ragForgeClient, properties);
+        knowledgeRetrievalService = new KnowledgeRetrievalService(ragForgeClient, properties);
+        ragRetrieverTool = new RagRetrieverTool(knowledgeRetrievalService);
     }
 
     @Test
@@ -66,6 +70,8 @@ class RagRetrieverToolTest {
         assertEquals("Redis 缓存一致性方案", chunk.getContent());
         assertEquals(0.91, chunk.getScore());
         assertEquals(RagRetrieverChunkType.INTERVIEW_QA, chunk.getChunkType());
+        assertNotNull(chunk.getCitation());
+        assertNotNull(chunk.getContentPreview());
         assertFalse(result.isFallbackUsed());
         verify(ragForgeClient).searchInterview("Redis 缓存一致性", 5);
     }
@@ -180,16 +186,19 @@ class RagRetrieverToolTest {
     }
 
     @Test
-    void toolDataContainsStructuredFields() {
+    void toolDataContainsStructuredFieldsWithoutFullContent() {
+        String longContent = "A".repeat(500);
         RagRetrieveResult result = RagRetrieveResult.builder()
                 .success(true)
                 .query("test")
-                .scene(RagRetrieveScene.GENERAL)
+                .scene(RagRetrieveScene.RESUME)
                 .chunks(List.of(RagRetrievedChunk.builder()
-                        .content("content")
+                        .content(longContent)
+                        .contentPreview("preview-only")
+                        .citation("RESUME@resume.md")
                         .chunkId(1L)
                         .docId(2L)
-                        .chunkType(RagRetrieverChunkType.GENERAL)
+                        .chunkType(RagRetrieverChunkType.RESUME)
                         .build()))
                 .fallbackUsed(false)
                 .latencyMs(12L)
@@ -198,9 +207,32 @@ class RagRetrieverToolTest {
         Map<String, Object> data = ragRetrieverTool.toToolData(result);
         assertEquals(true, data.get("success"));
         assertEquals("test", data.get("query"));
-        assertEquals("GENERAL", data.get("scene"));
+        assertEquals("RESUME", data.get("scene"));
         assertEquals(1, data.get("chunkCount"));
         assertEquals(false, data.get("fallbackUsed"));
         assertEquals(12L, data.get("latencyMs"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> chunks = (List<Map<String, Object>>) data.get("chunks");
+        Map<String, Object> row = chunks.get(0);
+        assertEquals("preview-only", row.get("contentPreview"));
+        assertEquals("RESUME@resume.md", row.get("citation"));
+        assertNull(row.get("content"));
+        assertFalse(data.toString().contains(longContent));
+    }
+
+    @Test
+    void generalSceneDoesNotQueryPersonalKb() {
+        when(ragForgeClient.searchJd("通用问题", 5)).thenReturn(List.of());
+        when(ragForgeClient.searchInterview("通用问题", 5)).thenReturn(List.of());
+
+        RagRetrieveResult result = ragRetrieverTool.retrieve(RagRetrieveRequest.builder()
+                .query("通用问题")
+                .scene(RagRetrieveScene.GENERAL)
+                .topK(5)
+                .build());
+
+        assertFalse(result.isSuccess());
+        verify(ragForgeClient, never()).search(anyLong(), anyString(), anyInt(), eq(List.of()));
     }
 }

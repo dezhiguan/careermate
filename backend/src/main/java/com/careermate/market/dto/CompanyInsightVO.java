@@ -12,4 +12,6 @@ public class CompanyInsightVO {
     private List<String> techStack;
     private List<String> currentJds;
     private String aiSummary;
+    private List<MarketSourceCitationVO> citations;
+    private List<String> sourceSummaries;
 }

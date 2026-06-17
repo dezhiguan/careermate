@@ -1,5 +1,6 @@
 package com.careermate.market.dto;
 
+import java.util.List;
 import lombok.Data;
 
 @Data
@@ -11,4 +12,6 @@ public class SalaryInsightVO {
     private String p90;
     private String trend;
     private String aiSummary;
+    private List<MarketSourceCitationVO> citations;
+    private List<String> sourceSummaries;
 }

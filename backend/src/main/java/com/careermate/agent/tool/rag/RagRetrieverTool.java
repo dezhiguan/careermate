@@ -9,21 +9,13 @@ import com.careermate.agent.tool.AgentToolParameterType;
 import com.careermate.agent.tool.AgentToolPermission;
 import com.careermate.agent.tool.AgentToolResult;
 import com.careermate.agent.tool.AgentToolRiskLevel;
-import com.careermate.ragforge.RagForgeChunk;
-import com.careermate.ragforge.RagForgeClient;
-import com.careermate.ragforge.RagForgeProperties;
-import lombok.extern.slf4j.Slf4j;
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 
-@Slf4j
 @Component
 public class RagRetrieverTool implements AgentTool {
 
@@ -32,17 +24,15 @@ public class RagRetrieverTool implements AgentTool {
     public static final int MAX_TOP_K = 20;
     public static final int MIN_TOP_K = 1;
 
-    static final String ERROR_RAGFORGE_DISABLED = "RAGFORGE_DISABLED";
-    static final String ERROR_KB_NOT_CONFIGURED = "KB_NOT_CONFIGURED";
-    static final String ERROR_EMPTY_RESULTS = "EMPTY_RESULTS";
-    static final String ERROR_QUERY_MISSING = "QUERY_MISSING";
+    static final String ERROR_RAGFORGE_DISABLED = KnowledgeRetrievalService.ERROR_RAGFORGE_DISABLED;
+    static final String ERROR_KB_NOT_CONFIGURED = KnowledgeRetrievalService.ERROR_KB_NOT_CONFIGURED;
+    static final String ERROR_EMPTY_RESULTS = KnowledgeRetrievalService.ERROR_EMPTY_RESULTS;
+    static final String ERROR_QUERY_MISSING = KnowledgeRetrievalService.ERROR_QUERY_MISSING;
 
-    private final RagForgeClient ragForgeClient;
-    private final RagForgeProperties ragForgeProperties;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
 
-    public RagRetrieverTool(RagForgeClient ragForgeClient, RagForgeProperties ragForgeProperties) {
-        this.ragForgeClient = ragForgeClient;
-        this.ragForgeProperties = ragForgeProperties;
+    public RagRetrieverTool(KnowledgeRetrievalService knowledgeRetrievalService) {
+        this.knowledgeRetrievalService = knowledgeRetrievalService;
     }
 
     @Override
@@ -75,7 +65,7 @@ public class RagRetrieverTool implements AgentTool {
                         .name("scene")
                         .type(AgentToolParameterType.STRING)
                         .required(false)
-                        .description("检索场景：OPPORTUNITY / INTERVIEW / MARKET / RESUME / GENERAL")
+                        .description("检索场景：OPPORTUNITY / INTERVIEW / MARKET / COMPANY / RESUME / GENERAL")
                         .build())
                 .parameter(AgentToolParameter.builder()
                         .name("topK")
@@ -128,41 +118,7 @@ public class RagRetrieverTool implements AgentTool {
     }
 
     public RagRetrieveResult retrieve(RagRetrieveRequest request) {
-        long start = System.currentTimeMillis();
-        String query = request.getQuery() == null ? "" : request.getQuery().trim();
-        RagRetrieveScene scene = request.getScene() == null ? RagRetrieveScene.GENERAL : request.getScene();
-        int topK = normalizeTopK(request.getTopK());
-
-        if (!StringUtils.hasText(query)) {
-            return RagRetrieveResult.fallback(query, scene, ERROR_QUERY_MISSING, elapsed(start));
-        }
-        if (!ragForgeProperties.isEnabled()) {
-            return RagRetrieveResult.fallback(query, scene, ERROR_RAGFORGE_DISABLED, elapsed(start));
-        }
-        Optional<String> configError = validateKbConfig(scene);
-        if (configError.isPresent()) {
-            return RagRetrieveResult.fallback(query, scene, configError.get(), elapsed(start));
-        }
-
-        try {
-            List<RagForgeChunk> rawChunks = searchByScene(scene, query, topK, request.chunkTypeFilters());
-            if (rawChunks == null || rawChunks.isEmpty()) {
-                return RagRetrieveResult.fallback(query, scene, ERROR_EMPTY_RESULTS, elapsed(start));
-            }
-            List<RagRetrievedChunk> chunks = mapChunks(rawChunks, scene);
-            return RagRetrieveResult.builder()
-                    .success(true)
-                    .query(query)
-                    .scene(scene)
-                    .chunks(chunks)
-                    .fallbackUsed(false)
-                    .errorCode(null)
-                    .latencyMs(elapsed(start))
-                    .build();
-        } catch (Exception e) {
-            log.warn("rag_retriever failed: scene={} queryLen={} err={}", scene, query.length(), e.getMessage());
-            return RagRetrieveResult.fallback(query, scene, ERROR_EMPTY_RESULTS, elapsed(start));
-        }
+        return knowledgeRetrievalService.retrieve(request);
     }
 
     private RagRetrieveRequest buildRequest(AgentToolContext context) {
@@ -176,128 +132,6 @@ public class RagRetrieverTool implements AgentTool {
                 .topK(topK)
                 .filters(Map.of())
                 .build();
-    }
-
-    private List<RagForgeChunk> searchByScene(
-            RagRetrieveScene scene,
-            String query,
-            int topK,
-            List<String> chunkTypes
-    ) {
-        return switch (scene) {
-            case INTERVIEW -> ragForgeClient.searchInterview(query, topK);
-            case OPPORTUNITY, MARKET -> ragForgeClient.searchJd(query, topK);
-            case RESUME -> searchKbId(ragForgeProperties.getPersonalKbId(), query, topK, chunkTypes);
-            case GENERAL -> searchGeneral(query, topK, chunkTypes);
-        };
-    }
-
-    private List<RagForgeChunk> searchGeneral(String query, int topK, List<String> chunkTypes) {
-        List<RagForgeChunk> jdChunks = ragForgeClient.searchJd(query, topK);
-        if (!jdChunks.isEmpty()) {
-            return jdChunks;
-        }
-        return searchKbId(ragForgeProperties.getPersonalKbId(), query, topK, chunkTypes);
-    }
-
-    private List<RagForgeChunk> searchKbId(String kbIdRaw, String query, int topK, List<String> chunkTypes) {
-        Long kbId = parseKbId(kbIdRaw);
-        if (kbId == null) {
-            return List.of();
-        }
-        return ragForgeClient.search(kbId, query, topK, chunkTypes);
-    }
-
-    private Optional<String> validateKbConfig(RagRetrieveScene scene) {
-        return switch (scene) {
-            case INTERVIEW -> kbConfigured(ragForgeProperties.getInterviewKbId())
-                    ? Optional.empty()
-                    : Optional.of(ERROR_KB_NOT_CONFIGURED);
-            case OPPORTUNITY, MARKET -> kbConfigured(ragForgeProperties.getJdKbId())
-                    ? Optional.empty()
-                    : Optional.of(ERROR_KB_NOT_CONFIGURED);
-            case RESUME -> kbConfigured(ragForgeProperties.getPersonalKbId())
-                    ? Optional.empty()
-                    : Optional.of(ERROR_KB_NOT_CONFIGURED);
-            case GENERAL -> {
-                if (kbConfigured(ragForgeProperties.getJdKbId())
-                        || kbConfigured(ragForgeProperties.getPersonalKbId())
-                        || kbConfigured(ragForgeProperties.getInterviewKbId())) {
-                    yield Optional.empty();
-                }
-                yield Optional.of(ERROR_KB_NOT_CONFIGURED);
-            }
-        };
-    }
-
-    private boolean kbConfigured(String kbIdRaw) {
-        return parseKbId(kbIdRaw) != null;
-    }
-
-    private Long parseKbId(String kbIdRaw) {
-        if (!StringUtils.hasText(kbIdRaw)) {
-            return null;
-        }
-        try {
-            long kbId = Long.parseLong(kbIdRaw.trim());
-            return kbId > 0 ? kbId : null;
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private List<RagRetrievedChunk> mapChunks(List<RagForgeChunk> rawChunks, RagRetrieveScene scene) {
-        List<RagRetrievedChunk> chunks = new ArrayList<>(rawChunks.size());
-        for (RagForgeChunk raw : rawChunks) {
-            if (raw == null) {
-                continue;
-            }
-            String fileName = raw.filename();
-            chunks.add(RagRetrievedChunk.builder()
-                    .content(raw.content())
-                    .chunkId(raw.chunkId())
-                    .docId(raw.docId())
-                    .sourceId(raw.docId() == null ? null : String.valueOf(raw.docId()))
-                    .sourceTitle(fileName)
-                    .fileName(fileName)
-                    .score(raw.finalScore())
-                    .chunkType(mapChunkType(raw.chunkType(), scene))
-                    .metadata(buildChunkMetadata(raw))
-                    .build());
-        }
-        return chunks;
-    }
-
-    private Map<String, Object> buildChunkMetadata(RagForgeChunk raw) {
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        if (raw.chunkType() != null) {
-            metadata.put("rawChunkType", raw.chunkType());
-        }
-        return metadata;
-    }
-
-    private RagRetrieverChunkType mapChunkType(String rawType, RagRetrieveScene scene) {
-        if (!StringUtils.hasText(rawType)) {
-            return defaultChunkType(scene);
-        }
-        String normalized = rawType.trim().toUpperCase(Locale.ROOT);
-        return switch (normalized) {
-            case "JD", "JD_PATTERN" -> RagRetrieverChunkType.JD;
-            case "INTERVIEW_QA", "INTERVIEW", "QA" -> RagRetrieverChunkType.INTERVIEW_QA;
-            case "MARKET_REPORT", "MARKET" -> RagRetrieverChunkType.MARKET_REPORT;
-            case "RESUME", "PERSONAL_RESUME" -> RagRetrieverChunkType.RESUME;
-            default -> defaultChunkType(scene);
-        };
-    }
-
-    private RagRetrieverChunkType defaultChunkType(RagRetrieveScene scene) {
-        return switch (scene) {
-            case INTERVIEW -> RagRetrieverChunkType.INTERVIEW_QA;
-            case OPPORTUNITY -> RagRetrieverChunkType.JD;
-            case MARKET -> RagRetrieverChunkType.MARKET_REPORT;
-            case RESUME -> RagRetrieverChunkType.RESUME;
-            case GENERAL -> RagRetrieverChunkType.GENERAL;
-        };
     }
 
     Map<String, Object> toToolData(RagRetrieveResult result) {
@@ -315,7 +149,8 @@ public class RagRetrieverTool implements AgentTool {
 
     private Map<String, Object> chunkToMap(RagRetrievedChunk chunk) {
         Map<String, Object> row = new LinkedHashMap<>();
-        row.put("content", chunk.getContent());
+        row.put("contentPreview", chunk.getContentPreview());
+        row.put("citation", chunk.getCitation());
         row.put("chunkId", chunk.getChunkId());
         row.put("docId", chunk.getDocId());
         row.put("sourceId", chunk.getSourceId());
@@ -377,9 +212,5 @@ public class RagRetrieverTool implements AgentTool {
             return DEFAULT_TOP_K;
         }
         return Math.min(topK, MAX_TOP_K);
-    }
-
-    private long elapsed(long startMs) {
-        return Math.max(0L, System.currentTimeMillis() - startMs);
     }
 }

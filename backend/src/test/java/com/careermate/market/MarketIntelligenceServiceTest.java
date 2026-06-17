@@ -1,5 +1,11 @@
 package com.careermate.market;
 
+import com.careermate.agent.tool.rag.RagRetrieveRequest;
+import com.careermate.agent.tool.rag.RagRetrieveResult;
+import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.agent.tool.rag.RagRetrievedChunk;
+import com.careermate.agent.tool.rag.RagRetrieverChunkType;
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import com.careermate.llm.LlmClient;
 import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
@@ -8,8 +14,6 @@ import com.careermate.market.dto.ResumeGapVO;
 import com.careermate.market.dto.SalaryInsightVO;
 import com.careermate.market.dto.SkillTrendsVO;
 import com.careermate.market.service.MarketIntelligenceService;
-import com.careermate.ragforge.RagForgeChunk;
-import com.careermate.ragforge.RagForgeClient;
 import com.careermate.resume.ResumeContext;
 import com.careermate.resume.ResumeContextProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,12 +25,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,7 +44,7 @@ class MarketIntelligenceServiceTest {
     private static final String NO_DATA = "暂无数据";
 
     @Mock
-    private RagForgeClient ragForgeClient;
+    private KnowledgeRetrievalService knowledgeRetrievalService;
     @Mock
     private LlmClient llmClient;
     @Mock
@@ -49,28 +55,54 @@ class MarketIntelligenceServiceTest {
     @BeforeEach
     void setUp() {
         service = new MarketIntelligenceService(
-                ragForgeClient,
+                knowledgeRetrievalService,
                 llmClient,
                 resumeContextProvider,
                 new ObjectMapper()
         );
+        lenient().when(knowledgeRetrievalService.toMarketCitations(any())).thenAnswer(invocation -> {
+            RagRetrieveResult result = invocation.getArgument(0);
+            if (result == null || !result.isSuccess() || result.getChunks() == null) {
+                return List.of();
+            }
+            return result.getChunks().stream().map(chunk -> {
+                com.careermate.market.dto.MarketSourceCitationVO citation =
+                        new com.careermate.market.dto.MarketSourceCitationVO();
+                citation.setCitation(chunk.getCitation());
+                citation.setContentPreview(chunk.getContentPreview());
+                citation.setSourceTitle(chunk.getFileName());
+                citation.setScore(chunk.getScore());
+                citation.setChunkType(chunk.getChunkType() == null ? null : chunk.getChunkType().name());
+                return citation;
+            }).toList();
+        });
+        lenient().when(knowledgeRetrievalService.toSourceSummaries(any())).thenAnswer(invocation -> {
+            RagRetrieveResult result = invocation.getArgument(0);
+            if (result == null || !result.isSuccess() || result.getChunks() == null) {
+                return List.of();
+            }
+            return result.getChunks().stream()
+                    .map(chunk -> "[" + chunk.getCitation() + "] " + chunk.getContentPreview())
+                    .toList();
+        });
     }
 
     @Test
     void getSalaryInsightReturnsFallbackWhenRagEmpty() {
-        when(ragForgeClient.searchJd(any(), eq(30))).thenReturn(List.of());
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(emptyResult(RagRetrieveScene.MARKET));
 
         SalaryInsightVO result = service.getSalaryInsight("Java后端", "广州", "3-5年");
 
         assertEquals(NO_DATA, result.getP25());
         assertEquals(NO_DATA, result.getP50());
         assertEquals(FALLBACK_SUMMARY, result.getAiSummary());
+        assertTrue(result.getCitations().isEmpty());
         verify(llmClient, never()).chat(any());
     }
 
     @Test
-    void getSalaryInsightParsesValidLlmJson() {
-        when(ragForgeClient.searchJd(contains("薪资"), eq(30))).thenReturn(sampleChunks("月薪 25K-35K"));
+    void getSalaryInsightParsesValidLlmJsonAndAttachesSafeCitations() {
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleMarketResult());
         when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
                 {"p25":"22K","p50":"28K","p75":"32K","p90":"38K","trend":"上涨","aiSummary":"薪资稳步上涨"}
                 """).build());
@@ -80,11 +112,15 @@ class MarketIntelligenceServiceTest {
         assertEquals("28K", result.getP50());
         assertEquals("上涨", result.getTrend());
         assertEquals("薪资稳步上涨", result.getAiSummary());
+        assertEquals(1, result.getCitations().size());
+        assertEquals("MARKET_REPORT@jd.md", result.getCitations().get(0).getCitation());
+        assertEquals("月薪 25K-35K", result.getCitations().get(0).getContentPreview());
+        assertFalse(result.getSourceSummaries().get(0).contains("完整敏感"));
     }
 
     @Test
     void getSalaryInsightReturnsFallbackWhenLlmReturnsNonJson() {
-        when(ragForgeClient.searchJd(any(), eq(30))).thenReturn(sampleChunks("JD"));
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleMarketResult());
         when(llmClient.chat(any(ChatRequest.class)))
                 .thenReturn(ChatResponse.builder().content("无法分析").build());
 
@@ -96,7 +132,7 @@ class MarketIntelligenceServiceTest {
 
     @Test
     void getSkillTrendsParsesValidLlmJson() {
-        when(ragForgeClient.searchJd(contains("技能要求"), eq(40))).thenReturn(sampleChunks("Spring Boot Redis"));
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleMarketResult());
         when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
                 {"skills":[{"rank":1,"name":"Java","level":"高频","growth":"稳定"}],"aiSummary":"Java 仍是核心"}
                 """).build());
@@ -107,11 +143,12 @@ class MarketIntelligenceServiceTest {
         assertEquals(1, result.getSkills().size());
         assertEquals("Java", result.getSkills().get(0).getName());
         assertEquals("Java 仍是核心", result.getAiSummary());
+        assertEquals(1, result.getCitations().size());
     }
 
     @Test
     void getSkillTrendsReturnsFallbackWhenLlmThrows() {
-        when(ragForgeClient.searchJd(any(), eq(40))).thenReturn(sampleChunks("JD"));
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleMarketResult());
         when(llmClient.chat(any(ChatRequest.class))).thenThrow(new RuntimeException("timeout"));
 
         SkillTrendsVO result = service.getSkillTrends("Java后端");
@@ -132,7 +169,7 @@ class MarketIntelligenceServiceTest {
         assertTrue(result.getHasSkills().isEmpty());
         assertTrue(result.getMissingSkills().isEmpty());
         assertEquals("", result.getAiSummary());
-        verify(ragForgeClient, never()).searchJd(any(), anyInt());
+        verify(knowledgeRetrievalService, never()).retrieve(any());
     }
 
     @Test
@@ -144,7 +181,7 @@ class MarketIntelligenceServiceTest {
                         .content("熟悉 Java Spring")
                         .build()
         );
-        when(ragForgeClient.searchJd(any(), eq(30))).thenReturn(List.of());
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(emptyResult(RagRetrieveScene.OPPORTUNITY));
 
         ResumeGapVO result = service.getResumeGap(1L);
 
@@ -161,7 +198,7 @@ class MarketIntelligenceServiceTest {
                         .content("熟悉 Java Spring Redis")
                         .build()
         );
-        when(ragForgeClient.searchJd(contains("岗位要求"), eq(30))).thenReturn(sampleChunks("要求 Redis K8s"));
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleOpportunityResult());
         when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
                 {"hasSkills":["Java","Spring"],"missingSkills":["K8s"],"matchScore":72,"topSuggestion":"补 K8s","aiSummary":"整体匹配良好"}
                 """).build());
@@ -179,12 +216,12 @@ class MarketIntelligenceServiceTest {
 
         assertEquals(NO_DATA, result.getCompanyName());
         assertEquals(FALLBACK_SUMMARY, result.getAiSummary());
-        verify(ragForgeClient, never()).searchJd(any(), anyInt());
+        verify(knowledgeRetrievalService, never()).retrieveMerged(any());
     }
 
     @Test
     void getCompanyInsightReturnsFallbackWhenRagEmpty() {
-        when(ragForgeClient.searchJd(any(), anyInt())).thenReturn(List.of());
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(emptyResult(RagRetrieveScene.COMPANY));
 
         CompanyInsightVO result = service.getCompanyInsight("腾讯");
 
@@ -194,11 +231,8 @@ class MarketIntelligenceServiceTest {
     }
 
     @Test
-    void getCompanyInsightParsesValidLlmJsonAndMergesSearches() {
-        when(ragForgeClient.searchJd(contains("公司 技术栈"), eq(20)))
-                .thenReturn(List.of(new RagForgeChunk(1L, 10L, "jd.md", "腾讯 大厂 Java", "JD", 0.9)));
-        when(ragForgeClient.searchJd(contains("岗位 招聘"), eq(10)))
-                .thenReturn(List.of(new RagForgeChunk(2L, 11L, "jd2.md", "Java 后端工程师", "JD", 0.8)));
+    void getCompanyInsightParsesValidLlmJsonAndAttachesCompanyCitations() {
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleCompanyResult());
         when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
                 {"companyName":"","scale":"大厂","stage":"上市","techStack":["Java"],"currentJds":["Java后端"],"aiSummary":"互联网大厂"}
                 """).build());
@@ -209,13 +243,13 @@ class MarketIntelligenceServiceTest {
         assertEquals("大厂", result.getScale());
         assertEquals("Java", result.getTechStack().get(0));
         assertEquals("Java后端", result.getCurrentJds().get(0));
-        verify(ragForgeClient).searchJd(contains("公司 技术栈"), eq(20));
-        verify(ragForgeClient).searchJd(contains("岗位 招聘"), eq(10));
+        assertEquals(RagRetrieverChunkType.COMPANY.name(), result.getCitations().get(0).getChunkType());
+        verify(knowledgeRetrievalService).retrieveMerged(any());
     }
 
     @Test
     void getCompanyInsightReturnsFallbackWhenLlmReturnsInvalidJson() {
-        when(ragForgeClient.searchJd(any(), anyInt())).thenReturn(sampleChunks("腾讯 JD"));
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleCompanyResult());
         when(llmClient.chat(any(ChatRequest.class)))
                 .thenReturn(ChatResponse.builder().content("not json").build());
 
@@ -225,7 +259,58 @@ class MarketIntelligenceServiceTest {
         assertEquals(FALLBACK_SUMMARY, result.getAiSummary());
     }
 
-    private static List<RagForgeChunk> sampleChunks(String content) {
-        return List.of(new RagForgeChunk(1L, 100L, "jd.md", content, "JD", 0.9));
+    private static RagRetrieveResult emptyResult(RagRetrieveScene scene) {
+        return RagRetrieveResult.fallback("q", scene, KnowledgeRetrievalService.ERROR_EMPTY_RESULTS, 1);
+    }
+
+    private static RagRetrieveResult sampleMarketResult() {
+        return RagRetrieveResult.builder()
+                .success(true)
+                .query("薪资")
+                .scene(RagRetrieveScene.MARKET)
+                .chunks(List.of(RagRetrievedChunk.builder()
+                        .content("月薪 25K-35K 完整敏感段落不应出现在 citations")
+                        .contentPreview("月薪 25K-35K")
+                        .citation("MARKET_REPORT@jd.md")
+                        .chunkType(RagRetrieverChunkType.MARKET_REPORT)
+                        .fileName("jd.md")
+                        .score(0.9)
+                        .build()))
+                .latencyMs(5L)
+                .build();
+    }
+
+    private static RagRetrieveResult sampleOpportunityResult() {
+        return RagRetrieveResult.builder()
+                .success(true)
+                .query("岗位要求")
+                .scene(RagRetrieveScene.OPPORTUNITY)
+                .chunks(List.of(RagRetrievedChunk.builder()
+                        .content("要求 Redis K8s")
+                        .contentPreview("要求 Redis K8s")
+                        .citation("JD@jd.md")
+                        .chunkType(RagRetrieverChunkType.JD)
+                        .fileName("jd.md")
+                        .score(0.8)
+                        .build()))
+                .latencyMs(5L)
+                .build();
+    }
+
+    private static RagRetrieveResult sampleCompanyResult() {
+        return RagRetrieveResult.builder()
+                .success(true)
+                .query("腾讯")
+                .scene(RagRetrieveScene.COMPANY)
+                .chunks(List.of(RagRetrievedChunk.builder()
+                        .content("腾讯 大厂 Java")
+                        .contentPreview("腾讯 大厂 Java")
+                        .citation("COMPANY@company.md")
+                        .chunkType(RagRetrieverChunkType.COMPANY)
+                        .fileName("company.md")
+                        .score(0.88)
+                        .build()))
+                .latencyMs(5L)
+                .build();
     }
 }

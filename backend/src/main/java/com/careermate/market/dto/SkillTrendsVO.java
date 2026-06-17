@@ -8,6 +8,8 @@ public class SkillTrendsVO {
 
     private List<SkillItem> skills;
     private String aiSummary;
+    private List<MarketSourceCitationVO> citations;
+    private List<String> sourceSummaries;
 
     @Data
     public static class SkillItem {

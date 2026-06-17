@@ -11,4 +11,6 @@ public class ResumeGapVO {
     private int matchScore;
     private String topSuggestion;
     private String aiSummary;
+    private List<MarketSourceCitationVO> citations;
+    private List<String> sourceSummaries;
 }

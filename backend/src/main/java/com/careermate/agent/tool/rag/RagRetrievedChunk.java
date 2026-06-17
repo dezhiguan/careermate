@@ -11,6 +11,8 @@ import java.util.Map;
 public class RagRetrievedChunk {
 
     private final String content;
+    private final String contentPreview;
+    private final String citation;
     private final Long chunkId;
     private final Long docId;
     private final String sourceId;

@@ -11,6 +11,10 @@ import com.careermate.opportunity.dto.OpportunityPrepareResponse;
 import com.careermate.opportunity.service.OpportunityService;
 import com.careermate.profile.service.CareerProfileService;
 import com.careermate.profile.dto.CareerProfileResponse;
+import com.careermate.agent.tool.rag.RagRetrieveRequest;
+import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.knowledge.KnowledgeRetrievalService;
+import com.careermate.knowledge.KnowledgeRetrievalSupport;
 import com.careermate.ragforge.RagForgeChunk;
 import com.careermate.ragforge.RagForgeClient;
 import com.careermate.model.entity.AgentSessionEntity;
@@ -58,6 +62,7 @@ public class OpportunityServiceImpl implements OpportunityService {
             "RAG", "向量检索", "AI", "Agent", "Vue", "TypeScript", "算法设计", "信号处理"
     );
 
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
     private final RagForgeClient ragForgeClient;
     private final ResumeService resumeService;
     private final CareerProfileService careerProfileService;
@@ -67,6 +72,7 @@ public class OpportunityServiceImpl implements OpportunityService {
     private final Optional<StringRedisTemplate> redisTemplate;
 
     public OpportunityServiceImpl(
+            KnowledgeRetrievalService knowledgeRetrievalService,
             RagForgeClient ragForgeClient,
             ResumeService resumeService,
             CareerProfileService careerProfileService,
@@ -74,6 +80,7 @@ public class OpportunityServiceImpl implements OpportunityService {
             ObjectMapper objectMapper,
             @Autowired(required = false) StringRedisTemplate redisTemplate
     ) {
+        this.knowledgeRetrievalService = knowledgeRetrievalService;
         this.ragForgeClient = ragForgeClient;
         this.resumeService = resumeService;
         this.careerProfileService = careerProfileService;
@@ -97,7 +104,7 @@ public class OpportunityServiceImpl implements OpportunityService {
             return paginate(cached, safeRequest.page(), safeRequest.size());
         }
 
-        List<RagForgeChunk> chunks = ragForgeClient.searchJd(query, SEARCH_TOP_K);
+        List<RagForgeChunk> chunks = searchOpportunityJd(query, SEARCH_TOP_K);
         if (chunks.isEmpty()) {
             log.info("opportunity list empty from ragforge, userId={}, query={}", userId, query);
             return PageResult.empty(safeRequest.page(), safeRequest.size(), false, SORT_LATEST);
@@ -423,13 +430,28 @@ public class OpportunityServiceImpl implements OpportunityService {
             return direct;
         }
 
-        List<RagForgeChunk> chunks = ragForgeClient.searchJd(DEFAULT_QUERY, DETAIL_SEARCH_TOP_K);
+        List<RagForgeChunk> chunks = searchOpportunityJd(DEFAULT_QUERY, DETAIL_SEARCH_TOP_K);
         List<RagForgeChunk> filtered = filterByDocId(chunks, docId);
         if (!filtered.isEmpty()) {
             return filtered;
         }
-        chunks = ragForgeClient.searchJd("工程师", DETAIL_SEARCH_TOP_K);
+        chunks = searchOpportunityJd("工程师", DETAIL_SEARCH_TOP_K);
         return filterByDocId(chunks, docId);
+    }
+
+    private List<RagForgeChunk> searchOpportunityJd(String query, int topK) {
+        var result = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
+                .query(query)
+                .scene(RagRetrieveScene.OPPORTUNITY)
+                .topK(topK)
+                .build());
+        if (!result.isSuccess()) {
+            return List.of();
+        }
+        return result.getChunks().stream()
+                .map(KnowledgeRetrievalSupport::toRagForgeChunk)
+                .filter(chunk -> chunk != null)
+                .toList();
     }
 
     private static List<RagForgeChunk> filterByDocId(List<RagForgeChunk> chunks, Long docId) {

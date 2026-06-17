@@ -440,6 +440,7 @@ class GenerateResumeWorkflowRunner {
             return mergeChunkContent(direct);
         }
 
+        // TODO(T10-follow-up): 迁移至 KnowledgeRetrievalService.retrieve(OPPORTUNITY, ...)
         List<RagForgeChunk> chunks = ragForgeClient.searchJd("工程师", JD_SEARCH_TOP_K);
         List<RagForgeChunk> filtered = filterByDocId(chunks, docId);
         if (filtered.isEmpty()) {

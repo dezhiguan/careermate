@@ -97,6 +97,15 @@ class AgentToolRouterTest {
     }
 
     @Test
+    void routesCompanyQuestionToRagRetriever() {
+        Optional<AgentToolRouter.RoutedTool> routed =
+                router.route("腾讯公司技术栈怎么样");
+        assertTrue(routed.isPresent());
+        assertEquals("rag_retriever", routed.get().toolName());
+        assertEquals("COMPANY", routed.get().args().get("scene"));
+    }
+
+    @Test
     void shortJdDoesNotRouteCreateJobMatch() {
         String shortJd = "岗位：Java 后端工程师\n公司：e2e_company\n招聘要求：Java Spring Boot";
         assertTrue(router.route(shortJd).isEmpty());

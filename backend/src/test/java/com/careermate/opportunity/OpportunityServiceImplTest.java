@@ -13,8 +13,10 @@ import com.careermate.opportunity.service.impl.OpportunityServiceImpl;
 import com.careermate.profile.service.CareerProfileService;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
 import com.careermate.profile.dto.CareerProfileResponse;
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import com.careermate.ragforge.RagForgeChunk;
 import com.careermate.ragforge.RagForgeClient;
+import com.careermate.ragforge.RagForgeProperties;
 import com.careermate.resume.service.ResumeService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,11 +75,17 @@ class OpportunityServiceImplTest {
 
     private OpportunityServiceImpl service;
     private ObjectMapper objectMapper;
+    private KnowledgeRetrievalService knowledgeRetrievalService;
 
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
+        RagForgeProperties properties = new RagForgeProperties();
+        properties.setEnabled(true);
+        properties.setJdKbId("16");
+        knowledgeRetrievalService = new KnowledgeRetrievalService(ragForgeClient, properties);
         service = new OpportunityServiceImpl(
+                knowledgeRetrievalService,
                 ragForgeClient,
                 resumeService,
                 careerProfileService,
@@ -209,6 +217,7 @@ class OpportunityServiceImplTest {
     @Test
     void listRedisUnavailableStillReturnsResult() {
         OpportunityServiceImpl degraded = new OpportunityServiceImpl(
+                knowledgeRetrievalService,
                 ragForgeClient,
                 resumeService,
                 careerProfileService,

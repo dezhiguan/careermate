@@ -4,6 +4,7 @@ public enum RagRetrieverChunkType {
     JD,
     INTERVIEW_QA,
     MARKET_REPORT,
+    COMPANY,
     RESUME,
     GENERAL
 }

@@ -2,6 +2,7 @@ package com.careermate.jobmatch;
 
 import com.careermate.llm.LlmClient;
 import com.careermate.llm.LlmProperties;
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import com.careermate.ragforge.RagForgeClient;
 import com.careermate.ragforge.RagForgeProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,12 +17,16 @@ class JobMatchAnalyzerTest {
     private final JobMatchAnalyzer analyzer;
 
     JobMatchAnalyzerTest() {
-        RagForgeClient ragClient = new RagForgeClient(new RagForgeProperties());
+        RagForgeProperties ragProps = new RagForgeProperties();
+        ragProps.setEnabled(false);
+        RagForgeClient ragClient = new RagForgeClient(ragProps);
+        KnowledgeRetrievalService knowledgeRetrievalService =
+                new KnowledgeRetrievalService(ragClient, ragProps);
         LlmProperties llmProps = new LlmProperties();
         llmProps.setProvider("mock");
         JobMatchLlmAnalyzer llmAnalyzer =
-            new JobMatchLlmAnalyzer(mock(LlmClient.class), llmProps, new ObjectMapper(), ragClient);
-        analyzer = new JobMatchAnalyzer(ragClient, llmAnalyzer);
+            new JobMatchLlmAnalyzer(mock(LlmClient.class), llmProps, new ObjectMapper(), knowledgeRetrievalService);
+        analyzer = new JobMatchAnalyzer(knowledgeRetrievalService, llmAnalyzer);
     }
 
     @Test

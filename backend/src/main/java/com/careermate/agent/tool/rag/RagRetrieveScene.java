@@ -4,6 +4,7 @@ public enum RagRetrieveScene {
     OPPORTUNITY,
     INTERVIEW,
     MARKET,
+    COMPANY,
     RESUME,
     GENERAL;
 

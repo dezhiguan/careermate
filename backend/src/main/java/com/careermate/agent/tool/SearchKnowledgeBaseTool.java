@@ -1,7 +1,10 @@
 package com.careermate.agent.tool;
 
-import com.careermate.ragforge.RagForgeChunk;
-import com.careermate.ragforge.RagForgeClient;
+import com.careermate.agent.tool.rag.RagRetrieveRequest;
+import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.agent.tool.rag.RagRetrieveResult;
+import com.careermate.agent.tool.rag.RagRetrievedChunk;
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,13 +13,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class SearchKnowledgeBaseTool implements AgentTool {
 
-    private static final int PREVIEW_CHARS = 200;
     private static final int DEFAULT_TOP_K = 5;
 
-    private final RagForgeClient ragForgeClient;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
 
-    public SearchKnowledgeBaseTool(RagForgeClient ragForgeClient) {
-        this.ragForgeClient = ragForgeClient;
+    public SearchKnowledgeBaseTool(KnowledgeRetrievalService knowledgeRetrievalService) {
+        this.knowledgeRetrievalService = knowledgeRetrievalService;
     }
 
     @Override
@@ -56,23 +58,34 @@ public class SearchKnowledgeBaseTool implements AgentTool {
         if (query == null || query.isBlank()) {
             return AgentToolResult.failure(name(), "未识别到检索关键词", "query 为空");
         }
-        List<RagForgeChunk> chunks = ragForgeClient.searchJd(query, DEFAULT_TOP_K);
-        if (chunks.isEmpty()) {
+        RagRetrieveResult result = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
+                .query(query)
+                .scene(RagRetrieveScene.OPPORTUNITY)
+                .topK(DEFAULT_TOP_K)
+                .build());
+        if (!result.isSuccess() || result.getChunks().isEmpty()) {
             return AgentToolResult.failure(name(), "知识库暂无相关内容", "RAGForge 未启用或检索返回空");
         }
 
+        List<RagRetrievedChunk> chunks = result.getChunks();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < chunks.size(); i++) {
-            RagForgeChunk c = chunks.get(i);
-            String content = c.content() == null ? "" : c.content();
-            String preview = content.length() > PREVIEW_CHARS
-                ? content.substring(0, PREVIEW_CHARS) + "..."
-                : content;
-            sb.append(i + 1).append(". ").append(preview).append("\n");
+            RagRetrievedChunk chunk = chunks.get(i);
+            String preview = chunk.getContentPreview() == null ? "" : chunk.getContentPreview();
+            String citation = chunk.getCitation() == null ? "" : chunk.getCitation();
+            sb.append(i + 1).append(". [").append(citation).append("] ").append(preview).append("\n");
         }
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("query", query);
         data.put("count", chunks.size());
+        data.put("previews", chunks.stream().map(chunk -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("contentPreview", chunk.getContentPreview());
+            row.put("citation", chunk.getCitation());
+            row.put("score", chunk.getScore());
+            row.put("chunkType", chunk.getChunkType() == null ? null : chunk.getChunkType().name());
+            return row;
+        }).toList());
         return AgentToolResult.success(name(),
             "已从 RAGForge 检索到 " + chunks.size() + " 条相关片段", data);
     }

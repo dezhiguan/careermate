@@ -91,6 +91,10 @@ public class AgentToolRouter {
                 && containsAny(lower, "最关键", "关键能力", "核心能力", "哪些能力", "重点")) {
             return true;
         }
+        if (containsAny(lower, "公司", "企业", "大厂")
+                && containsAny(lower, "情报", "技术栈", "规模", "怎么样", "如何")) {
+            return true;
+        }
         return containsAny(lower, "rag检索", "知识检索", "检索知识库");
     }
 
@@ -100,6 +104,8 @@ public class AgentToolRouter {
         String lower = text.toLowerCase(Locale.ROOT);
         if (containsAny(lower, "面试题", "面试问答", "面试参考") || lower.contains("面试")) {
             args.put("scene", "INTERVIEW");
+        } else if (containsAny(lower, "公司", "企业", "大厂") && containsAny(lower, "情报", "技术栈", "规模", "怎么样", "如何")) {
+            args.put("scene", "COMPANY");
         } else if (containsAny(lower, "行情", "薪资", "市场", "招聘趋势", "就业市场")) {
             args.put("scene", "MARKET");
         } else if (containsAny(lower, "jd", "岗位", "招聘要求", "任职要求", "岗位职责")) {

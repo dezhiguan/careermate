@@ -5,6 +5,7 @@ import com.careermate.llm.LlmProperties;
 import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
 import com.careermate.model.entity.InterviewQuestionEntity;
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import com.careermate.ragforge.RagForgeClient;
 import com.careermate.ragforge.RagForgeProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,12 +21,12 @@ import static org.mockito.Mockito.*;
 class InterviewLlmEvaluatorTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
-    private final RagForgeClient ragNoop;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
 
     InterviewLlmEvaluatorTest() {
         RagForgeProperties p = new RagForgeProperties();
         p.setEnabled(false);
-        this.ragNoop = new RagForgeClient(p);
+        this.knowledgeRetrievalService = new KnowledgeRetrievalService(new RagForgeClient(p), p);
     }
 
     private LlmProperties props(String provider) {
@@ -44,7 +45,7 @@ class InterviewLlmEvaluatorTest {
     @Test
     void mockProviderReturnsEmpty() {
         LlmClient mockLlm = mock(LlmClient.class);
-        InterviewLlmEvaluator e = new InterviewLlmEvaluator(mockLlm, props("mock"), mapper, ragNoop);
+        InterviewLlmEvaluator e = new InterviewLlmEvaluator(mockLlm, props("mock"), mapper, knowledgeRetrievalService);
         assertTrue(e.tryEvaluate(sampleQuestion(), "我用过 Kafka 做了消息队列削峰", List.of("项目", "难点")).isEmpty());
         verify(mockLlm, never()).chat(any());
     }
@@ -60,7 +61,7 @@ class InterviewLlmEvaluatorTest {
             """;
         when(mockLlm.chat(any(ChatRequest.class)))
             .thenReturn(ChatResponse.builder().content(json).build());
-        InterviewLlmEvaluator ev = new InterviewLlmEvaluator(mockLlm, props("qwen"), mapper, ragNoop);
+        InterviewLlmEvaluator ev = new InterviewLlmEvaluator(mockLlm, props("qwen"), mapper, knowledgeRetrievalService);
         Optional<EvaluationStructuredResult> r = ev.tryEvaluate(sampleQuestion(), "有详细回答...", List.of("项目", "难点"));
         assertTrue(r.isPresent());
         assertEquals(82, r.get().score());
@@ -72,7 +73,7 @@ class InterviewLlmEvaluatorTest {
         LlmClient mockLlm = mock(LlmClient.class);
         when(mockLlm.chat(any(ChatRequest.class)))
             .thenReturn(ChatResponse.builder().content("呃，我看不出问题").build());
-        InterviewLlmEvaluator ev = new InterviewLlmEvaluator(mockLlm, props("qwen"), mapper, ragNoop);
+        InterviewLlmEvaluator ev = new InterviewLlmEvaluator(mockLlm, props("qwen"), mapper, knowledgeRetrievalService);
         assertTrue(ev.tryEvaluate(sampleQuestion(), "ans", List.of()).isEmpty());
     }
 
@@ -81,7 +82,7 @@ class InterviewLlmEvaluatorTest {
         LlmClient mockLlm = mock(LlmClient.class);
         when(mockLlm.chat(any(ChatRequest.class)))
             .thenThrow(new RuntimeException("timeout"));
-        InterviewLlmEvaluator ev = new InterviewLlmEvaluator(mockLlm, props("qwen"), mapper, ragNoop);
+        InterviewLlmEvaluator ev = new InterviewLlmEvaluator(mockLlm, props("qwen"), mapper, knowledgeRetrievalService);
         assertTrue(ev.tryEvaluate(sampleQuestion(), "ans", List.of()).isEmpty());
     }
 
@@ -93,7 +94,7 @@ class InterviewLlmEvaluatorTest {
             """;
         when(mockLlm.chat(any(ChatRequest.class)))
             .thenReturn(ChatResponse.builder().content(badJson).build());
-        InterviewLlmEvaluator ev = new InterviewLlmEvaluator(mockLlm, props("qwen"), mapper, ragNoop);
+        InterviewLlmEvaluator ev = new InterviewLlmEvaluator(mockLlm, props("qwen"), mapper, knowledgeRetrievalService);
         assertTrue(ev.tryEvaluate(sampleQuestion(), "ans", List.of()).isEmpty());
     }
 }

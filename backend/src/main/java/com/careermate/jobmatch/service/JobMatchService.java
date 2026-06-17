@@ -13,6 +13,9 @@ import com.careermate.jobmatch.dto.JobMatchListItemResponse;
 import com.careermate.mapper.JobMatchMapper;
 import com.careermate.model.entity.JobMatchEntity;
 import com.careermate.model.entity.ResumeEntity;
+import com.careermate.agent.tool.rag.RagRetrieveRequest;
+import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import com.careermate.resume.service.ResumeService;
 import com.careermate.security.CurrentUserContext;
 import org.springframework.stereotype.Service;
@@ -32,20 +35,20 @@ public class JobMatchService {
     private final ResumeService resumeService;
     private final JobMatchAnalyzer jobMatchAnalyzer;
     private final JobMatchJsonSupport jobMatchJsonSupport;
-    private final com.careermate.ragforge.RagForgeClient ragForgeClient;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
 
     public JobMatchService(
             JobMatchMapper jobMatchMapper,
             ResumeService resumeService,
             JobMatchAnalyzer jobMatchAnalyzer,
             JobMatchJsonSupport jobMatchJsonSupport,
-            com.careermate.ragforge.RagForgeClient ragForgeClient
+            KnowledgeRetrievalService knowledgeRetrievalService
     ) {
         this.jobMatchMapper = jobMatchMapper;
         this.resumeService = resumeService;
         this.jobMatchAnalyzer = jobMatchAnalyzer;
         this.jobMatchJsonSupport = jobMatchJsonSupport;
-        this.ragForgeClient = ragForgeClient;
+        this.knowledgeRetrievalService = knowledgeRetrievalService;
     }
 
     public Optional<JobMatchEntity> getLatestActiveMatch(Long userId) {
@@ -205,10 +208,20 @@ public class JobMatchService {
             return List.of();
         }
         int limit = Math.min(Math.max(topK, 1), 10);
-        List<com.careermate.ragforge.RagForgeChunk> chunks =
-            ragForgeClient.searchJd(q.trim(), limit);
-        return chunks.stream()
-            .map(c -> new JdKbSearchResultItem(c.filename(), c.content(), c.finalScore()))
-            .toList();
+        var result = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
+                .query(q.trim())
+                .scene(RagRetrieveScene.OPPORTUNITY)
+                .topK(limit)
+                .build());
+        if (!result.isSuccess()) {
+            return List.of();
+        }
+        return result.getChunks().stream()
+                .map(chunk -> new JdKbSearchResultItem(
+                        chunk.getFileName(),
+                        chunk.getContentPreview(),
+                        chunk.getCitation(),
+                        chunk.getScore()))
+                .toList();
     }
 }

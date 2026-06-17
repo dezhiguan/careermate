@@ -5,8 +5,10 @@ import com.careermate.llm.LlmProperties;
 import com.careermate.llm.dto.ChatMessage;
 import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
-import com.careermate.ragforge.RagForgeChunk;
-import com.careermate.ragforge.RagForgeClient;
+import com.careermate.agent.tool.rag.RagRetrieveRequest;
+import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.agent.tool.rag.RagRetrieveResult;
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -53,18 +55,18 @@ public class JobMatchLlmAnalyzer {
     private final LlmClient llmClient;
     private final LlmProperties llmProperties;
     private final ObjectMapper objectMapper;
-    private final RagForgeClient ragForgeClient;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
 
     public JobMatchLlmAnalyzer(
         LlmClient llmClient,
         LlmProperties llmProperties,
         ObjectMapper objectMapper,
-        RagForgeClient ragForgeClient
+        KnowledgeRetrievalService knowledgeRetrievalService
     ) {
         this.llmClient = llmClient;
         this.llmProperties = llmProperties;
         this.objectMapper = objectMapper;
-        this.ragForgeClient = ragForgeClient;
+        this.knowledgeRetrievalService = knowledgeRetrievalService;
     }
 
     public Optional<JobMatchStructuredResult> tryAnalyze(
@@ -137,17 +139,12 @@ public class JobMatchLlmAnalyzer {
         try {
             String preview = jdContent.length() > 200 ? jdContent.substring(0, 200) : jdContent;
             String q = (jobTitle == null || jobTitle.isBlank() ? "" : jobTitle.trim() + " ") + preview;
-            List<RagForgeChunk> chunks = ragForgeClient.searchJd(q, 3);
-            if (chunks == null || chunks.isEmpty()) {
+            String context = knowledgeRetrievalService.retrieveContextText(
+                    RagRetrieveScene.OPPORTUNITY, q.trim(), 3);
+            if (context.isBlank()) {
                 return "";
             }
-            StringBuilder sb = new StringBuilder("\n【行业 JD 参考片段（来自 RAGForge）】\n");
-            for (RagForgeChunk c : chunks) {
-                String txt = c.content() == null ? "" : c.content();
-                if (txt.length() > 200) txt = txt.substring(0, 200) + "...";
-                sb.append("- ").append(txt).append("\n");
-            }
-            return sb.toString();
+            return "\n【行业 JD 参考片段（来自 RAGForge）】\n- " + context.replace("\n", "\n- ") + "\n";
         } catch (Exception e) {
             return "";
         }

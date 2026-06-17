@@ -6,8 +6,8 @@ import com.careermate.llm.dto.ChatMessage;
 import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
 import com.careermate.model.entity.InterviewQuestionEntity;
-import com.careermate.ragforge.RagForgeChunk;
-import com.careermate.ragforge.RagForgeClient;
+import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -51,18 +51,18 @@ public class InterviewLlmEvaluator {
     private final LlmClient llmClient;
     private final LlmProperties llmProperties;
     private final ObjectMapper objectMapper;
-    private final RagForgeClient ragForgeClient;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
 
     public InterviewLlmEvaluator(
         LlmClient llmClient,
         LlmProperties llmProperties,
         ObjectMapper objectMapper,
-        RagForgeClient ragForgeClient
+        KnowledgeRetrievalService knowledgeRetrievalService
     ) {
         this.llmClient = llmClient;
         this.llmProperties = llmProperties;
         this.objectMapper = objectMapper;
-        this.ragForgeClient = ragForgeClient;
+        this.knowledgeRetrievalService = knowledgeRetrievalService;
     }
 
     public Optional<EvaluationStructuredResult> tryEvaluate(
@@ -146,15 +146,12 @@ public class InterviewLlmEvaluator {
 
     private String buildRagContext(String questionText) {
         try {
-            List<RagForgeChunk> chunks = ragForgeClient.searchInterview(questionText, 3);
-            if (chunks == null || chunks.isEmpty()) return "";
-            StringBuilder sb = new StringBuilder("\n【参考答案知识点（来自 RAGForge）】\n");
-            for (RagForgeChunk c : chunks) {
-                String txt = c.content() == null ? "" : c.content();
-                if (txt.length() > 200) txt = txt.substring(0, 200) + "...";
-                sb.append("- ").append(txt).append("\n");
+            String context = knowledgeRetrievalService.retrieveContextText(
+                    RagRetrieveScene.INTERVIEW, questionText, 3);
+            if (context.isBlank()) {
+                return "";
             }
-            return sb.toString();
+            return "\n【参考答案知识点（来自 RAGForge）】\n- " + context.replace("\n", "\n- ") + "\n";
         } catch (Exception e) {
             return "";
         }

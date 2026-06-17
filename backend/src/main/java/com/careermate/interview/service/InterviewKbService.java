@@ -1,23 +1,20 @@
 package com.careermate.interview.service;
 
+import com.careermate.agent.tool.rag.RagRetrieveRequest;
+import com.careermate.agent.tool.rag.RagRetrieveScene;
 import com.careermate.interview.dto.CompanyPrepVO;
 import com.careermate.interview.dto.KbQuestionsVO;
 import com.careermate.interview.InterviewKbPrompts;
+import com.careermate.knowledge.KnowledgeRetrievalService;
 import com.careermate.llm.LlmClient;
 import com.careermate.llm.dto.ChatMessage;
 import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
-import com.careermate.ragforge.RagForgeChunk;
-import com.careermate.ragforge.RagForgeClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -28,16 +25,16 @@ public class InterviewKbService {
     private static final int MAX_CONTEXT_CHARS = 4000;
     private static final Pattern JSON_BLOCK = Pattern.compile("\\{[\\s\\S]*\\}");
 
-    private final RagForgeClient ragForgeClient;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
     private final LlmClient llmClient;
     private final ObjectMapper objectMapper;
 
     public InterviewKbService(
-            RagForgeClient ragForgeClient,
+            KnowledgeRetrievalService knowledgeRetrievalService,
             LlmClient llmClient,
             ObjectMapper objectMapper
     ) {
-        this.ragForgeClient = ragForgeClient;
+        this.knowledgeRetrievalService = knowledgeRetrievalService;
         this.llmClient = llmClient;
         this.objectMapper = objectMapper;
     }
@@ -45,8 +42,11 @@ public class InterviewKbService {
     public KbQuestionsVO getKbQuestions(String query) {
         try {
             String safeQuery = defaultText(query, "Java后端");
-            List<RagForgeChunk> chunks = ragForgeClient.searchInterview(safeQuery + " 面试题 考点", 20);
-            String context = buildContext(chunks);
+            String context = knowledgeRetrievalService.retrieveContextText(
+                    RagRetrieveScene.INTERVIEW,
+                    safeQuery + " 面试题 考点",
+                    20
+            );
             if (context.isBlank()) {
                 log.warn("getKbQuestions: empty rag context, query={}", safeQuery);
                 return fallbackKbQuestions(safeQuery);
@@ -76,10 +76,21 @@ public class InterviewKbService {
                 return fallbackCompanyPrep("");
             }
             String safeCompany = company.trim();
-            List<RagForgeChunk> jdChunks = ragForgeClient.searchJd(safeCompany + " 面试 技术", 20);
-            List<RagForgeChunk> interviewChunks = ragForgeClient.searchInterview(safeCompany + " 面经", 10);
-            List<RagForgeChunk> merged = mergeDistinctChunks(jdChunks, interviewChunks);
-            String context = buildContext(merged);
+            String context = knowledgeRetrievalService.retrieveMergedContextText(
+                    List.of(
+                            RagRetrieveRequest.builder()
+                                    .query(safeCompany + " 面试 技术")
+                                    .scene(RagRetrieveScene.COMPANY)
+                                    .topK(20)
+                                    .build(),
+                            RagRetrieveRequest.builder()
+                                    .query(safeCompany + " 面经")
+                                    .scene(RagRetrieveScene.INTERVIEW)
+                                    .topK(10)
+                                    .build()
+                    ),
+                    MAX_CONTEXT_CHARS
+            );
             if (context.isBlank()) {
                 log.warn("getCompanyPrep: empty rag context, company={}", safeCompany);
                 return fallbackCompanyPrep(safeCompany);
@@ -132,42 +143,6 @@ public class InterviewKbService {
         } catch (Exception e) {
             log.warn("Interview KB LLM JSON parse failed, type={}, err={}", type.getSimpleName(), e.getMessage());
             return null;
-        }
-    }
-
-    private static String buildContext(List<RagForgeChunk> chunks) {
-        if (chunks == null || chunks.isEmpty()) {
-            return "";
-        }
-        String joined = chunks.stream()
-                .map(RagForgeChunk::content)
-                .filter(content -> content != null && !content.isBlank())
-                .collect(Collectors.joining("\n"));
-        if (joined.length() <= MAX_CONTEXT_CHARS) {
-            return joined;
-        }
-        return joined.substring(0, MAX_CONTEXT_CHARS);
-    }
-
-    private static List<RagForgeChunk> mergeDistinctChunks(List<RagForgeChunk> first, List<RagForgeChunk> second) {
-        Map<String, RagForgeChunk> distinct = new LinkedHashMap<>();
-        appendDistinct(distinct, first);
-        appendDistinct(distinct, second);
-        return new ArrayList<>(distinct.values());
-    }
-
-    private static void appendDistinct(Map<String, RagForgeChunk> distinct, List<RagForgeChunk> chunks) {
-        if (chunks == null) {
-            return;
-        }
-        for (RagForgeChunk chunk : chunks) {
-            if (chunk == null) {
-                continue;
-            }
-            String key = chunk.chunkId() != null
-                    ? "id:" + chunk.chunkId()
-                    : "content:" + (chunk.content() == null ? "" : chunk.content());
-            distinct.putIfAbsent(key, chunk);
         }
     }
 
