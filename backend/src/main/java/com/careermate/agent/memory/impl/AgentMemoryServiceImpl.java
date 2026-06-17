@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -34,6 +36,20 @@ public class AgentMemoryServiceImpl implements AgentMemoryService {
     private static final int MEMORY_SUMMARY_MAX = 1000;
     private static final int KEYWORD_MAX = 80;
     private static final int QUESTION_TOPIC_MAX = 60;
+
+    private static final Pattern PHONE_PATTERN = Pattern.compile("(?<!\\d)1[3-9]\\d{9}(?!\\d)");
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("[\\w.%+-]+@[\\w.-]+\\.[A-Za-z]{2,}");
+    private static final Pattern ID_CARD_PATTERN = Pattern.compile("(?<!\\d)\\d{17}[\\dXx](?!\\d)");
+    private static final Pattern WECHAT_PATTERN = Pattern.compile(
+            "(?i)(微信[号]?|wechat)\\s*[:：]?\\s*[\\w\\-]{4,}"
+    );
+
+    private static final List<String> RESUME_SECTION_MARKERS = List.of(
+            "教育经历", "工作经历", "项目经历", "专业技能", "个人优势"
+    );
+    private static final List<String> JD_SECTION_MARKERS = List.of(
+            "岗位职责", "任职要求", "职位描述"
+    );
 
     private final CareerProfileMapper careerProfileMapper;
     private final AgentSessionMapper agentSessionMapper;
@@ -308,7 +324,126 @@ public class AgentMemoryServiceImpl implements AgentMemoryService {
         if (content.length() > 2000) {
             return null;
         }
-        return truncate(content.replace('\n', ' '), MESSAGE_SNIPPET_MAX);
+        if (shouldSkipSummaryContent(content)) {
+            return null;
+        }
+        String sanitized = sanitizeSensitiveText(content.replace('\n', ' '));
+        if (!isNotBlank(sanitized)) {
+            return null;
+        }
+        return truncate(sanitized, MESSAGE_SNIPPET_MAX);
+    }
+
+    private boolean shouldSkipSummaryContent(String content) {
+        return looksLikeResumeDocument(content)
+                || looksLikeJobDescription(content)
+                || looksLikeMarkdownDocument(content);
+    }
+
+    private boolean looksLikeResumeDocument(String content) {
+        return countSectionMarkers(content, RESUME_SECTION_MARKERS) >= 2;
+    }
+
+    private boolean looksLikeJobDescription(String content) {
+        return countSectionMarkers(content, JD_SECTION_MARKERS) >= 2;
+    }
+
+    private boolean looksLikeMarkdownDocument(String content) {
+        String[] lines = content.split("\n");
+        int markdownLines = 0;
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("#")
+                    || trimmed.startsWith("##")
+                    || trimmed.startsWith("- ")
+                    || trimmed.startsWith("* ")) {
+                markdownLines++;
+            }
+        }
+        return markdownLines >= 3;
+    }
+
+    private int countSectionMarkers(String content, List<String> markers) {
+        int count = 0;
+        for (String marker : markers) {
+            if (content.contains(marker)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private String sanitizeSensitiveText(String content) {
+        if (!isNotBlank(content)) {
+            return content;
+        }
+        String sanitized = content;
+        sanitized = maskPhones(sanitized);
+        sanitized = maskEmails(sanitized);
+        sanitized = maskIdCards(sanitized);
+        sanitized = maskWechatAccounts(sanitized);
+        return sanitized.trim();
+    }
+
+    private String maskPhones(String content) {
+        Matcher matcher = PHONE_PATTERN.matcher(content);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String phone = matcher.group();
+            String masked = phone.substring(0, 3) + "****" + phone.substring(7);
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(masked));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
+    private String maskEmails(String content) {
+        Matcher matcher = EMAIL_PATTERN.matcher(content);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String email = matcher.group();
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(maskEmail(email)));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
+    private String maskEmail(String email) {
+        int at = email.indexOf('@');
+        if (at <= 0) {
+            return "[EMAIL]";
+        }
+        String local = email.substring(0, at);
+        String domain = email.substring(at);
+        if (local.length() <= 2) {
+            return "[EMAIL]";
+        }
+        String maskedLocal = local.charAt(0)
+                + "*".repeat(local.length() - 2)
+                + local.charAt(local.length() - 1);
+        return maskedLocal + domain;
+    }
+
+    private String maskIdCards(String content) {
+        Matcher matcher = ID_CARD_PATTERN.matcher(content);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            matcher.appendReplacement(sb, "[ID_CARD]");
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
+    private String maskWechatAccounts(String content) {
+        Matcher matcher = WECHAT_PATTERN.matcher(content);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String matched = matcher.group();
+            String prefix = matched.split("[:：\\s]", 2)[0];
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(prefix + " [WECHAT]"));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 
     private boolean isTextLikeMessage(AgentMessageEntity message) {

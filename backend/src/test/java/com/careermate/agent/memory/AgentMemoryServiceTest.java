@@ -206,6 +206,123 @@ class AgentMemoryServiceTest {
         assertTrue(updated.getConversationSummary().contains("简历卡片"));
     }
 
+    @Test
+    void masksSensitiveInfoInConversationSummary() {
+        OffsetDateTime now = OffsetDateTime.now();
+        AgentSessionEntity session = createSession("memory-sensitive-session-" + System.nanoTime(), now);
+        String sessionId = session.getSessionId();
+
+        insertMessage(
+                session.getId(),
+                TestUsers.USER_A,
+                "user",
+                "联系我 18565040934 或 1309709821@qq.com，微信：amy_wechat_123",
+                1,
+                now
+        );
+        insertMessage(session.getId(), TestUsers.USER_A, "agent", "好的，已记录。", 2, now);
+
+        agentMemoryService.refreshConversationSummary(TestUsers.USER_A, sessionId);
+
+        AgentSessionEntity updated = agentSessionMapper.selectById(session.getId());
+        String summary = updated.getConversationSummary();
+        assertFalse(summary.contains("18565040934"));
+        assertTrue(summary.contains("185****0934"));
+        assertFalse(summary.contains("1309709821@qq.com"));
+        assertTrue(summary.contains("1********1@qq.com") || summary.contains("[EMAIL]"));
+        assertFalse(summary.contains("amy_wechat_123"));
+        assertTrue(summary.contains("[WECHAT]"));
+    }
+
+    @Test
+    void masksIdCardInConversationSummary() {
+        OffsetDateTime now = OffsetDateTime.now();
+        AgentSessionEntity session = createSession("memory-idcard-session-" + System.nanoTime(), now);
+        String sessionId = session.getSessionId();
+
+        insertMessage(
+                session.getId(),
+                TestUsers.USER_A,
+                "user",
+                "我的身份证号是 440106199001011234",
+                1,
+                now
+        );
+
+        agentMemoryService.refreshConversationSummary(TestUsers.USER_A, sessionId);
+
+        AgentSessionEntity updated = agentSessionMapper.selectById(session.getId());
+        assertFalse(updated.getConversationSummary().contains("440106199001011234"));
+        assertTrue(updated.getConversationSummary().contains("[ID_CARD]"));
+    }
+
+    @Test
+    void skipsResumeDocumentInConversationSummary() {
+        OffsetDateTime now = OffsetDateTime.now();
+        AgentSessionEntity session = createSession("memory-resume-session-" + System.nanoTime(), now);
+        String sessionId = session.getSessionId();
+
+        String resumeBody = """
+                教育经历
+                2018-2022 某大学 计算机科学
+                工作经历
+                2022-2024 某厂 Java 开发
+                项目经历
+                订单系统重构
+                专业技能
+                Java, Spring Boot
+                """;
+        insertMessage(session.getId(), TestUsers.USER_A, "user", resumeBody, 1, now);
+        insertMessage(session.getId(), TestUsers.USER_A, "agent", "已收到你的简历信息。", 2, now);
+
+        agentMemoryService.refreshConversationSummary(TestUsers.USER_A, sessionId);
+
+        AgentSessionEntity updated = agentSessionMapper.selectById(session.getId());
+        String summary = updated.getConversationSummary();
+        assertFalse(summary.contains("教育经历"));
+        assertFalse(summary.contains("工作经历"));
+        assertTrue(summary.contains("已收到你的简历信息"));
+    }
+
+    @Test
+    void skipsJobDescriptionInConversationSummary() {
+        OffsetDateTime now = OffsetDateTime.now();
+        AgentSessionEntity session = createSession("memory-jd-session-" + System.nanoTime(), now);
+        String sessionId = session.getSessionId();
+
+        String jdBody = """
+                岗位职责
+                1. 负责后端服务开发
+                2. 参与系统架构设计
+                任职要求
+                1. 熟悉 Java/Spring
+                2. 3 年以上经验
+                职位描述
+                互联网大厂核心岗位
+                """;
+        insertMessage(session.getId(), TestUsers.USER_A, "user", jdBody, 1, now);
+        insertMessage(session.getId(), TestUsers.USER_A, "agent", "已记录该岗位 JD。", 2, now);
+
+        agentMemoryService.refreshConversationSummary(TestUsers.USER_A, sessionId);
+
+        AgentSessionEntity updated = agentSessionMapper.selectById(session.getId());
+        String summary = updated.getConversationSummary();
+        assertFalse(summary.contains("岗位职责"));
+        assertFalse(summary.contains("任职要求"));
+        assertTrue(summary.contains("已记录该岗位 JD"));
+    }
+
+    private AgentSessionEntity createSession(String sessionId, OffsetDateTime now) {
+        AgentSessionEntity session = new AgentSessionEntity();
+        session.setSessionId(sessionId);
+        session.setUserId(TestUsers.USER_A);
+        session.setStatus("ACTIVE");
+        session.setCreatedAt(now);
+        session.setUpdatedAt(now);
+        agentSessionMapper.insert(session);
+        return session;
+    }
+
     private void insertMessage(
             Long sessionPk,
             Long userId,

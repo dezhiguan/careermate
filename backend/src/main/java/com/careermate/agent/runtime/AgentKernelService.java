@@ -338,6 +338,20 @@ public class AgentKernelService {
     }
 
     private void addMemoryContextTrace(AgentEventSink sink, CareerProfileContextResult result) {
+        if (result != null && result.isFailed()) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("available", false);
+            payload.put("errorCode", result.getErrorCode());
+            emit(sink, traceEvent(
+                    TRACE_MEMORY_CONTEXT_LOADED,
+                    "{}",
+                    writeJson(payload),
+                    "FAILED",
+                    null,
+                    result.getErrorCode()
+            ));
+            return;
+        }
         String status = result != null && result.isAvailable() ? "SUCCESS" : "EMPTY";
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("available", result != null && result.isAvailable());
