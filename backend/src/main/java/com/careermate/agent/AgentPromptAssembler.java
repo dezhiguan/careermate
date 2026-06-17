@@ -165,6 +165,24 @@ public final class AgentPromptAssembler {
         return specialistResult.getSummary() != null && !specialistResult.getSummary().isBlank();
     }
 
+    public static boolean hasUsableSpecialistResults(
+            List<com.careermate.agent.multiagent.SpecialistResult> specialistResults) {
+        if (specialistResults == null || specialistResults.isEmpty()) {
+            return false;
+        }
+        return specialistResults.stream().anyMatch(AgentPromptAssembler::shouldAppendSpecialistResult);
+    }
+
+    public static boolean shouldRunLegacyToolFallback(
+            boolean specialistBlocked,
+            List<com.careermate.agent.multiagent.SpecialistResult> specialistResults) {
+        return !specialistBlocked && !hasUsableSpecialistResults(specialistResults);
+    }
+
+    public static boolean shouldRunReAct(boolean specialistBlocked) {
+        return !specialistBlocked;
+    }
+
     public static String appendSpecialistResult(String prompt,
             com.careermate.agent.multiagent.SpecialistResult specialistResult) {
         if (!shouldAppendSpecialistResult(specialistResult)) {

@@ -72,7 +72,6 @@ public class AgentSupervisorRouter {
             domains.add(AgentDomain.JOB_MATCH);
             domains.add(AgentDomain.RESUME);
             domains.add(AgentDomain.INTERVIEW);
-            requiresCritic = true;
             return new AgentSupervisorRoute(
                     domains,
                     AgentDomain.RESUME,

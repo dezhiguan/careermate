@@ -21,8 +21,9 @@ class ReActTraceTest {
         assertTrue(trace.hasSteps());
         String text = trace.toContextText();
         assertTrue(text.contains("Round 1"));
-        assertTrue(text.contains("Thought: 思考"));
+        assertTrue(text.contains("Action: get_default_resume"));
         assertTrue(text.contains("Observation: 观察结果"));
+        assertFalse(text.contains("Thought"));
     }
 
     @Test

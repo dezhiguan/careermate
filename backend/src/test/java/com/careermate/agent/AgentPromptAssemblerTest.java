@@ -168,17 +168,46 @@ class AgentPromptAssemblerTest {
     }
 
     @Test
-    void appendReActTraceAddsReasoningChain() {
+    void appendReActTraceIncludesToolSummaryWithoutThought() {
         ReActTrace trace = new ReActTrace(
-                List.of(new ReActStep(1, "需要读简历", "get_default_resume", "已读取")),
+                List.of(new ReActStep(1, "需要读简历", "get_default_resume", "已读取默认简历")),
                 true,
                 1
         );
 
         String prompt = AgentPromptAssembler.appendReActTrace("base", trace);
 
-        assertTrue(prompt.contains("【ReAct 推理链】"));
+        assertTrue(prompt.contains("【工具执行摘要】"));
         assertTrue(prompt.contains("get_default_resume"));
+        assertTrue(prompt.contains("已读取默认简历"));
+        assertFalse(prompt.contains("Thought"));
+        assertFalse(prompt.contains("需要读简历"));
+        assertFalse(prompt.contains("推理链"));
+    }
+
+    @Test
+    void noActionSpecialistResultIsNotUsableForFallback() {
+        SpecialistResult noAction = SpecialistResult.builder()
+                .domain(AgentDomain.RESUME)
+                .status(com.careermate.agent.multiagent.SpecialistResultStatus.NO_ACTION)
+                .summary("skipped")
+                .build();
+
+        assertFalse(AgentPromptAssembler.shouldAppendSpecialistResult(noAction));
+        assertFalse(AgentPromptAssembler.hasUsableSpecialistResults(List.of(noAction)));
+        assertTrue(AgentPromptAssembler.shouldRunLegacyToolFallback(false, List.of(noAction)));
+    }
+
+    @Test
+    void blockedSpecialistSkipsFallbackAndReAct() {
+        SpecialistResult blocked = SpecialistResult.builder()
+                .domain(AgentDomain.CRITIC)
+                .status(com.careermate.agent.multiagent.SpecialistResultStatus.BLOCKED)
+                .summary("blocked")
+                .build();
+
+        assertFalse(AgentPromptAssembler.shouldRunLegacyToolFallback(true, List.of(blocked)));
+        assertFalse(AgentPromptAssembler.shouldRunReAct(true));
     }
 
     @Test

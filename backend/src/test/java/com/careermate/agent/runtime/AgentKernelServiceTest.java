@@ -128,7 +128,7 @@ class AgentKernelServiceTest {
                 .build());
 
         if (result.getReactTrace() != null && result.getReactTrace().hasSteps()) {
-            assertTrue(result.getSystemPrompt().contains("ReAct 推理链")
+            assertTrue(result.getSystemPrompt().contains("工具执行摘要")
                     || result.getSystemPrompt().contains(AgentPromptAssembler.buildBaseSystemPrompt()));
         }
     }

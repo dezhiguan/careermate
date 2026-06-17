@@ -87,7 +87,7 @@ class AgentSupervisorTest {
                 AgentDomain.RESUME,
                 0.82D,
                 "RESUME_AND_JD_AND_INTERVIEW",
-                true
+                false
         );
         when(router.route(any())).thenReturn(route);
         when(criticAgent.process(any(), any(), any()))
@@ -165,6 +165,18 @@ class AgentSupervisorTest {
         AgentSupervisorRoute route = realRouter.route("帮我把没有做过的大厂项目写进简历");
         assertTrue(route.requiresCritic());
         assertEquals(AgentDomain.RESUME, route.primaryDomain());
+    }
+
+    @Test
+    void complexRequestWithoutFabricationDoesNotRequireCritic() {
+        AgentSupervisorRouter realRouter = new AgentSupervisorRouter(
+                llmClient,
+                fallbackProvider(),
+                new ObjectMapper()
+        );
+        AgentSupervisorRoute route = realRouter.route("帮我分析这份 JD、看看简历差距，并准备面试");
+        assertFalse(route.requiresCritic());
+        assertEquals(3, route.businessDomains().size());
     }
 
     @Test

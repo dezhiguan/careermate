@@ -193,7 +193,7 @@ public class AgentKernelService {
                 systemPrompt = AgentPromptAssembler.appendSpecialistResult(systemPrompt, specialistResult);
             }
         }
-        if (!specialistBlocked && specialistResults.isEmpty()) {
+        if (AgentPromptAssembler.shouldRunLegacyToolFallback(specialistBlocked, specialistResults)) {
             AgentToolResult toolResult = executeRoutedToolIfAny(userId, sessionId, userMessage, sink);
             if (toolResult != null) {
                 toolResults.add(toolResult);
@@ -201,16 +201,21 @@ public class AgentKernelService {
             }
         }
 
-        AgentToolContext reactCtx = AgentToolContext.builder()
-                .userId(userId)
-                .sessionId(sessionId)
-                .userMessage(userMessage)
-                .build();
-        ReActTrace reactTrace = reactEngine.run(reactCtx, userMessage, systemPrompt);
-        if (reactTrace.hasSteps()) {
-            systemPrompt = AgentPromptAssembler.appendReActTrace(systemPrompt, reactTrace);
-            debugMetadata.put("reactRounds", reactTrace.rounds());
-            debugMetadata.put("reactReachedFinalAnswer", reactTrace.reachedFinalAnswer());
+        ReActTrace reactTrace;
+        if (AgentPromptAssembler.shouldRunReAct(specialistBlocked)) {
+            AgentToolContext reactCtx = AgentToolContext.builder()
+                    .userId(userId)
+                    .sessionId(sessionId)
+                    .userMessage(userMessage)
+                    .build();
+            reactTrace = reactEngine.run(reactCtx, userMessage, systemPrompt);
+            if (reactTrace.hasSteps()) {
+                systemPrompt = AgentPromptAssembler.appendReActTrace(systemPrompt, reactTrace);
+                debugMetadata.put("reactRounds", reactTrace.rounds());
+                debugMetadata.put("reactReachedFinalAnswer", reactTrace.reachedFinalAnswer());
+            }
+        } else {
+            reactTrace = new ReActTrace(List.of(), false, 0);
         }
 
         ChatRequest chatRequest = ChatRequest.builder()

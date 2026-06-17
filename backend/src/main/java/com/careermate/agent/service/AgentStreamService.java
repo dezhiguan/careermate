@@ -482,7 +482,7 @@ public class AgentStreamService {
                 systemPrompt = AgentPromptAssembler.appendSpecialistResult(systemPrompt, sr);
             }
         }
-        if (!specialistBlocked && specialistResults.isEmpty()) {
+        if (AgentPromptAssembler.shouldRunLegacyToolFallback(specialistBlocked, specialistResults)) {
             AgentToolResult toolResult = executeRoutedToolIfAny(userId, sessionId, userMessage);
             if (toolResult != null) {
                 systemPrompt = AgentPromptAssembler.appendToolResult(systemPrompt, toolResult);
@@ -491,17 +491,19 @@ public class AgentStreamService {
         logPhase(sessionId, "supervisor_dispatch", phaseStart);
 
         phaseStart = System.currentTimeMillis();
-        AgentToolContext reactCtx = AgentToolContext.builder()
-                .userId(userId)
-                .sessionId(sessionId)
-                .userMessage(userMessage)
-                .build();
-        com.careermate.agent.react.ReActTrace reactTrace =
-                reactEngine.run(reactCtx, userMessage, systemPrompt);
-        if (reactTrace.hasSteps()) {
-            systemPrompt = AgentPromptAssembler.appendReActTrace(systemPrompt, reactTrace);
-            log.info("ReAct trace injected: rounds={} reachedFinalAnswer={}",
-                    reactTrace.rounds(), reactTrace.reachedFinalAnswer());
+        if (AgentPromptAssembler.shouldRunReAct(specialistBlocked)) {
+            AgentToolContext reactCtx = AgentToolContext.builder()
+                    .userId(userId)
+                    .sessionId(sessionId)
+                    .userMessage(userMessage)
+                    .build();
+            com.careermate.agent.react.ReActTrace reactTrace =
+                    reactEngine.run(reactCtx, userMessage, systemPrompt);
+            if (reactTrace.hasSteps()) {
+                systemPrompt = AgentPromptAssembler.appendReActTrace(systemPrompt, reactTrace);
+                log.info("ReAct trace injected: rounds={} reachedFinalAnswer={}",
+                        reactTrace.rounds(), reactTrace.reachedFinalAnswer());
+            }
         }
         logPhase(sessionId, "react_reasoning", phaseStart);
 
