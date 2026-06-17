@@ -124,6 +124,10 @@ jobs:
           TEST_DB_PASSWORD: careermate
         run: mvn -B clean verify -Dmaven.test.failure.ignore=true
 
+      - name: Run Agent Eval suite
+        working-directory: backend
+        run: mvn -B -Dtest=AgentEvalTest test
+
       - name: Upload backend coverage report
         uses: actions/upload-artifact@v4
         if: ${{ always() }}
@@ -139,6 +143,17 @@ jobs:
         with:
           name: backend-unit-test-reports
           path: backend/target/surefire-reports/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload Agent Eval reports
+        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: agent-eval-reports
+          path: |
+            backend/target/agent-eval-report.json
+            backend/target/agent-eval-report.md
           retention-days: 14
           if-no-files-found: ignore
 
