@@ -84,7 +84,7 @@ export async function postAction(sessionId, action, payload) {
   })
 }
 
-/** 按后端返回的相对路径打开简历生成 SSE */
+/** 打开简历生成 SSE 流（必须带后端返回的 sseEndpoint，含 pendingActionId） */
 export function openResumeGenerateStreamByEndpoint(sseEndpoint, handlers = {}) {
   const path = sseEndpoint?.startsWith('/') ? sseEndpoint : `/${sseEndpoint || ''}`
   const url = `${API_BASE_URL}${path}`
@@ -149,10 +149,4 @@ function openResumeGenerateStreamUrl(url, handlers = {}) {
 
   run()
   return { close, get closed() { return closed } }
-}
-
-/** 打开简历生成 SSE 流（无 pendingActionId，兼容旧入口） */
-export function openResumeGenerateStream(sessionId, handlers = {}) {
-  const url = `${API_BASE_URL}/workspace/${encodeURIComponent(sessionId)}/generate-resume/stream`
-  return openResumeGenerateStreamUrl(url, handlers)
 }

@@ -2,6 +2,7 @@ package com.careermate.workspace.controller;
 
 import com.careermate.agent.sse.SseEmitterService;
 import com.careermate.common.api.ApiResponse;
+import com.careermate.common.exception.BizException;
 import com.careermate.model.entity.AgentSessionEntity;
 import com.careermate.resume.version.workflow.GenerateResumeFromJdWorkflow;
 import com.careermate.security.CurrentUserContext;
@@ -95,11 +96,12 @@ public class WorkspaceController {
             @RequestParam(required = false) String pendingActionId
     ) {
         Long userId = CurrentUserContext.getUserId();
+        if (pendingActionId == null || pendingActionId.isBlank()) {
+            throw new BizException(403, "简历生成需要先确认");
+        }
         AgentSessionEntity session = workspaceService.requireOwnedSession(userId, sessionId);
         String targetJdId = resolveJdId(jdId, session);
-        if (pendingActionId != null && !pendingActionId.isBlank()) {
-            pendingActionService.validateAndConsumeConfirmed(userId, sessionId, pendingActionId, targetJdId);
-        }
+        pendingActionService.validateAndConsumeConfirmed(userId, sessionId, pendingActionId.trim(), targetJdId);
         log.info("generate resume stream: sessionId={}, userId={}, jdId={}, pendingActionId={}",
                 sessionId, userId, targetJdId, pendingActionId);
 

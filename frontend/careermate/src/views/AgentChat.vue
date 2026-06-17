@@ -820,10 +820,6 @@ async function requestGenerateResumeConfirmation(jdId) {
       appendCardMessage(ack.card)
       return
     }
-    if (ack?.sseEndpoint) {
-      await startResumeGenerationWithEndpoint(ack.sseEndpoint)
-      return
-    }
     throw new Error('无法发起简历生成确认')
   } catch (e) {
     globalError.value = e?.message || '发起确认失败'
