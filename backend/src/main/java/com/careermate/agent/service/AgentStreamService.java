@@ -43,6 +43,8 @@ import com.careermate.llm.LlmProperties;
 import com.careermate.model.entity.AgentSessionEntity;
 import com.careermate.observability.AgentTracing;
 import com.careermate.observability.MdcKeys;
+import com.careermate.prompt.PromptRenderResult;
+import com.careermate.prompt.PromptTemplateService;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
 import org.slf4j.MDC;
 import lombok.extern.slf4j.Slf4j;
@@ -86,6 +88,7 @@ public class AgentStreamService {
     private final WorkspaceSessionRepository workspaceSessionRepository;
     private final AgentKernelService agentKernelService;
     private final AgentKernelProperties agentKernelProperties;
+    private final PromptTemplateService promptTemplateService;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -116,7 +119,8 @@ public class AgentStreamService {
             com.careermate.agent.react.ReActEngine reactEngine,
             WorkspaceSessionRepository workspaceSessionRepository,
             AgentKernelService agentKernelService,
-            AgentKernelProperties agentKernelProperties
+            AgentKernelProperties agentKernelProperties,
+            PromptTemplateService promptTemplateService
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -140,6 +144,7 @@ public class AgentStreamService {
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.agentKernelService = agentKernelService;
         this.agentKernelProperties = agentKernelProperties;
+        this.promptTemplateService = promptTemplateService;
     }
 
     public SseEmitter stream(Long userId, String sessionId, AgentMessageRequest request) {
@@ -447,7 +452,8 @@ public class AgentStreamService {
         recordConversationContextTrace(userId, sessionId, conversationContext);
         logPhase(sessionId, "load_conversation_context", phaseStart);
 
-        String systemPrompt = AgentPromptAssembler.buildBaseSystemPrompt();
+        PromptRenderResult basePrompt = promptTemplateService.render("agent-base");
+        String systemPrompt = AgentPromptAssembler.buildBaseSystemPrompt(basePrompt.content());
         systemPrompt = AgentPromptAssembler.appendCareerProfileContext(systemPrompt, careerProfileContext);
         systemPrompt = AgentPromptAssembler.appendResumeContext(systemPrompt, resumeContext);
         systemPrompt = AgentPromptAssembler.appendJobMatchContext(systemPrompt, jobMatchContext);

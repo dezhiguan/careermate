@@ -30,6 +30,9 @@ import com.careermate.llm.dto.ChatRequest;
 import com.careermate.observability.AgentTracing;
 import com.careermate.profile.CareerProfileUpdateResult;
 import com.careermate.profile.service.CareerProfileAutoUpdateService;
+import com.careermate.prompt.PromptProperties;
+import com.careermate.prompt.PromptTemplateRegistry;
+import com.careermate.prompt.PromptTemplateService;
 import com.careermate.resume.ResumeContext;
 import com.careermate.resume.ResumeContextProvider;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
@@ -129,7 +132,8 @@ class AgentStreamServiceLegacyPrepareRunTest {
                 reactEngine,
                 workspaceSessionRepository,
                 agentKernelService,
-                agentKernelProperties
+                agentKernelProperties,
+                new PromptTemplateService(new PromptTemplateRegistry(), new PromptProperties())
         );
         stubContextLoaders();
     }

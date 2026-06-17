@@ -3,6 +3,9 @@ package com.careermate.jobmatch;
 import com.careermate.llm.LlmClient;
 import com.careermate.llm.LlmProperties;
 import com.careermate.knowledge.KnowledgeRetrievalService;
+import com.careermate.prompt.PromptProperties;
+import com.careermate.prompt.PromptTemplateRegistry;
+import com.careermate.prompt.PromptTemplateService;
 import com.careermate.ragforge.RagForgeClient;
 import com.careermate.ragforge.RagForgeProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,7 +28,13 @@ class JobMatchAnalyzerTest {
         LlmProperties llmProps = new LlmProperties();
         llmProps.setProvider("mock");
         JobMatchLlmAnalyzer llmAnalyzer =
-            new JobMatchLlmAnalyzer(mock(LlmClient.class), llmProps, new ObjectMapper(), knowledgeRetrievalService);
+            new JobMatchLlmAnalyzer(
+                    mock(LlmClient.class),
+                    llmProps,
+                    new ObjectMapper(),
+                    knowledgeRetrievalService,
+                    new PromptTemplateService(new PromptTemplateRegistry(), new PromptProperties())
+            );
         analyzer = new JobMatchAnalyzer(knowledgeRetrievalService, llmAnalyzer);
     }
 

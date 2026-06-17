@@ -9,6 +9,8 @@ import com.careermate.agent.tool.rag.RagRetrieveRequest;
 import com.careermate.agent.tool.rag.RagRetrieveScene;
 import com.careermate.agent.tool.rag.RagRetrieveResult;
 import com.careermate.knowledge.KnowledgeRetrievalService;
+import com.careermate.prompt.PromptRenderResult;
+import com.careermate.prompt.PromptTemplateService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -29,44 +31,24 @@ public class JobMatchLlmAnalyzer {
     /** 严格提取响应里第一个 {...} JSON 块，兼容 LLM 偶尔带 markdown 围栏的情况 */
     private static final Pattern JSON_BLOCK = Pattern.compile("\\{[\\s\\S]*\\}");
 
-    private static final String SYSTEM_PROMPT = """
-        你是资深招聘顾问，擅长基于简历与 JD 做语义匹配分析。请严格输出 JSON，不要任何解释文字、不要 markdown 围栏。
-
-        输出 Schema：
-        {
-          "matchScore": 整数 0~100,
-          "matchLevel": "HIGH" | "MEDIUM" | "LOW",
-          "matchedSkills": ["...", ...],
-          "missingSkills": ["...", ...],
-          "strengths": ["...一句话...", ...],
-          "risks": ["...一句话...", ...],
-          "suggestions": ["...具体可执行...", ...],
-          "analysisSummary": "100~200 字总结"
-        }
-
-        分析要求：
-        1. matchScore 必须基于「JD 要求覆盖度 + 简历项目相关度」综合给出
-        2. 如果 JD 提到「消息中间件」而简历有 Kafka/RocketMQ → 必须算命中（语义等价）
-        3. matchLevel：>=80 HIGH，>=60 MEDIUM，否则 LOW
-        4. matchedSkills / missingSkills 用最常见的技术名词形式（Java / Spring Boot / Kubernetes 等）
-        5. analysisSummary 必须包含分数 + 等级 + 关键命中 + 关键缺失
-        """;
-
     private final LlmClient llmClient;
     private final LlmProperties llmProperties;
     private final ObjectMapper objectMapper;
     private final KnowledgeRetrievalService knowledgeRetrievalService;
+    private final PromptTemplateService promptTemplateService;
 
     public JobMatchLlmAnalyzer(
         LlmClient llmClient,
         LlmProperties llmProperties,
         ObjectMapper objectMapper,
-        KnowledgeRetrievalService knowledgeRetrievalService
+        KnowledgeRetrievalService knowledgeRetrievalService,
+        PromptTemplateService promptTemplateService
     ) {
         this.llmClient = llmClient;
         this.llmProperties = llmProperties;
         this.objectMapper = objectMapper;
         this.knowledgeRetrievalService = knowledgeRetrievalService;
+        this.promptTemplateService = promptTemplateService;
     }
 
     public Optional<JobMatchStructuredResult> tryAnalyze(
@@ -87,11 +69,14 @@ public class JobMatchLlmAnalyzer {
         String userPrompt = buildUserPrompt(resumeContent, jdContent, jobTitle, ragSection);
 
         // 4. 调 LLM
+        PromptRenderResult systemPrompt = promptTemplateService.render("job-match-analyze");
+        log.info("JobMatch prompt template: promptId={} version={}",
+                systemPrompt.promptId(), systemPrompt.version());
         ChatResponse response;
         try {
             ChatRequest request = ChatRequest.builder()
                 .messages(List.of(
-                    ChatMessage.builder().role("system").content(SYSTEM_PROMPT).build(),
+                    ChatMessage.builder().role("system").content(systemPrompt.content()).build(),
                     ChatMessage.builder().role("user").content(userPrompt).build()
                 ))
                 .temperature(0.3)

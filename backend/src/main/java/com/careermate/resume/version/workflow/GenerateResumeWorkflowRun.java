@@ -32,6 +32,8 @@ public class GenerateResumeWorkflowRun {
     private List<Map<String, Object>> optimizationNotes = List.of();
     private ResumeVersionVO savedVersion;
     private Map<String, Object> card;
+    private String resumePromptId;
+    private String resumePromptVersion;
 
     public GenerateResumeWorkflowRun(Long userId, String sessionId, String jdId, SseEmitterService sseEmitterService) {
         this.userId = userId;
@@ -166,5 +168,21 @@ public class GenerateResumeWorkflowRun {
 
     public void setCard(Map<String, Object> card) {
         this.card = card;
+    }
+
+    public String resumePromptId() {
+        return resumePromptId;
+    }
+
+    public void setResumePromptId(String resumePromptId) {
+        this.resumePromptId = resumePromptId;
+    }
+
+    public String resumePromptVersion() {
+        return resumePromptVersion;
+    }
+
+    public void setResumePromptVersion(String resumePromptVersion) {
+        this.resumePromptVersion = resumePromptVersion;
     }
 }

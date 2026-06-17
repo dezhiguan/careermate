@@ -3,6 +3,9 @@ package com.careermate.jobmatch;
 import com.careermate.knowledge.KnowledgeRetrievalService;
 import com.careermate.llm.LlmClient;
 import com.careermate.llm.LlmProperties;
+import com.careermate.prompt.PromptProperties;
+import com.careermate.prompt.PromptTemplateRegistry;
+import com.careermate.prompt.PromptTemplateService;
 import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
 import com.careermate.ragforge.RagForgeClient;
@@ -20,6 +23,8 @@ class JobMatchLlmAnalyzerTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final KnowledgeRetrievalService knowledgeRetrievalService;
+    private final PromptTemplateService promptTemplateService =
+            new PromptTemplateService(new PromptTemplateRegistry(), new PromptProperties());
 
     JobMatchLlmAnalyzerTest() {
         RagForgeProperties p = new RagForgeProperties();
@@ -36,7 +41,8 @@ class JobMatchLlmAnalyzerTest {
     @Test
     void mockProviderReturnsEmpty() {
         LlmClient mockLlm = mock(LlmClient.class);
-        JobMatchLlmAnalyzer analyzer = new JobMatchLlmAnalyzer(mockLlm, props("mock"), mapper, knowledgeRetrievalService);
+        JobMatchLlmAnalyzer analyzer = new JobMatchLlmAnalyzer(
+                mockLlm, props("mock"), mapper, knowledgeRetrievalService, promptTemplateService);
         Optional<JobMatchStructuredResult> r = analyzer.tryAnalyze("resume", "jd", "后端");
         assertTrue(r.isEmpty());
         verify(mockLlm, never()).chat(any());
@@ -53,7 +59,8 @@ class JobMatchLlmAnalyzerTest {
             """;
         when(mockLlm.chat(any(ChatRequest.class)))
             .thenReturn(ChatResponse.builder().content(json).build());
-        JobMatchLlmAnalyzer analyzer = new JobMatchLlmAnalyzer(mockLlm, props("qwen"), mapper, knowledgeRetrievalService);
+        JobMatchLlmAnalyzer analyzer = new JobMatchLlmAnalyzer(
+                mockLlm, props("qwen"), mapper, knowledgeRetrievalService, promptTemplateService);
         Optional<JobMatchStructuredResult> r = analyzer.tryAnalyze("我用过 Kafka", "需要 Java", "后端");
         assertTrue(r.isPresent());
         assertEquals(78, r.get().matchScore());
@@ -66,7 +73,8 @@ class JobMatchLlmAnalyzerTest {
         LlmClient mockLlm = mock(LlmClient.class);
         when(mockLlm.chat(any(ChatRequest.class)))
             .thenReturn(ChatResponse.builder().content("我不知道怎么分析").build());
-        JobMatchLlmAnalyzer analyzer = new JobMatchLlmAnalyzer(mockLlm, props("qwen"), mapper, knowledgeRetrievalService);
+        JobMatchLlmAnalyzer analyzer = new JobMatchLlmAnalyzer(
+                mockLlm, props("qwen"), mapper, knowledgeRetrievalService, promptTemplateService);
         assertTrue(analyzer.tryAnalyze("r", "j", "后端").isEmpty());
     }
 
@@ -75,7 +83,8 @@ class JobMatchLlmAnalyzerTest {
         LlmClient mockLlm = mock(LlmClient.class);
         when(mockLlm.chat(any(ChatRequest.class)))
             .thenThrow(new RuntimeException("network timeout"));
-        JobMatchLlmAnalyzer analyzer = new JobMatchLlmAnalyzer(mockLlm, props("qwen"), mapper, knowledgeRetrievalService);
+        JobMatchLlmAnalyzer analyzer = new JobMatchLlmAnalyzer(
+                mockLlm, props("qwen"), mapper, knowledgeRetrievalService, promptTemplateService);
         assertTrue(analyzer.tryAnalyze("r", "j", "后端").isEmpty());
     }
 
@@ -87,7 +96,8 @@ class JobMatchLlmAnalyzerTest {
             """;
         when(mockLlm.chat(any(ChatRequest.class)))
             .thenReturn(ChatResponse.builder().content(badJson).build());
-        JobMatchLlmAnalyzer analyzer = new JobMatchLlmAnalyzer(mockLlm, props("qwen"), mapper, knowledgeRetrievalService);
+        JobMatchLlmAnalyzer analyzer = new JobMatchLlmAnalyzer(
+                mockLlm, props("qwen"), mapper, knowledgeRetrievalService, promptTemplateService);
         assertTrue(analyzer.tryAnalyze("r", "j", "后端").isEmpty());
     }
 }

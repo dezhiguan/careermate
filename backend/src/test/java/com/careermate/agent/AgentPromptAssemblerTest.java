@@ -8,6 +8,10 @@ import com.careermate.agent.react.ReActStep;
 import com.careermate.agent.react.ReActTrace;
 import com.careermate.agent.tool.AgentToolResult;
 import com.careermate.jobmatch.JobMatchContext;
+import com.careermate.prompt.PromptProperties;
+import com.careermate.prompt.PromptRenderResult;
+import com.careermate.prompt.PromptTemplateRegistry;
+import com.careermate.prompt.PromptTemplateService;
 import com.careermate.resume.ResumeContext;
 import org.junit.jupiter.api.Test;
 
@@ -20,15 +24,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgentPromptAssemblerTest {
 
+    private final PromptTemplateService promptTemplateService =
+            new PromptTemplateService(new PromptTemplateRegistry(), new PromptProperties());
+
     @Test
     void buildBaseSystemPromptContainsCareerMateIdentity() {
-        String prompt = AgentPromptAssembler.buildBaseSystemPrompt();
+        PromptRenderResult rendered = promptTemplateService.render("agent-base");
+        String prompt = AgentPromptAssembler.buildBaseSystemPrompt(rendered.content());
         assertTrue(prompt.contains("CareerMate"));
         assertTrue(prompt.contains("小职"));
+        assertEquals("agent-base", rendered.promptId());
+        assertEquals("v1", rendered.version());
     }
 
     @Test
     void buildSystemPromptAppendsResumeAndJobMatch() {
+        PromptRenderResult rendered = promptTemplateService.render("agent-base");
         ResumeContext resume = ResumeContext.builder()
                 .available(true)
                 .contextText("用户默认简历：\n标题：Java 后端")
@@ -38,7 +49,7 @@ class AgentPromptAssemblerTest {
                 .contextText("最近岗位匹配结果：\n岗位：Java 工程师")
                 .build();
 
-        String prompt = AgentPromptAssembler.buildSystemPrompt(resume, jobMatch);
+        String prompt = AgentPromptAssembler.buildSystemPrompt(rendered.content(), resume, jobMatch);
 
         assertTrue(prompt.contains("CareerMate"));
         assertTrue(prompt.contains("Java 后端"));

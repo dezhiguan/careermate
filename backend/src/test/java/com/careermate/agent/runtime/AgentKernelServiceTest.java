@@ -7,6 +7,10 @@ import com.careermate.mapper.UserMapper;
 import com.careermate.mapper.UserProfileMapper;
 import com.careermate.profile.dto.CareerProfileUpsertRequest;
 import com.careermate.profile.service.CareerProfileService;
+import com.careermate.prompt.PromptProperties;
+import com.careermate.prompt.PromptRenderResult;
+import com.careermate.prompt.PromptTemplateRegistry;
+import com.careermate.prompt.PromptTemplateService;
 import com.careermate.resume.dto.ResumeCreateRequest;
 import com.careermate.resume.service.ResumeService;
 import com.careermate.security.CurrentUser;
@@ -128,9 +132,25 @@ class AgentKernelServiceTest {
                 .build());
 
         if (result.getReactTrace() != null && result.getReactTrace().hasSteps()) {
+            PromptRenderResult basePrompt = new PromptTemplateService(
+                    new PromptTemplateRegistry(), new PromptProperties()
+            ).render("agent-base");
             assertTrue(result.getSystemPrompt().contains("工具执行摘要")
-                    || result.getSystemPrompt().contains(AgentPromptAssembler.buildBaseSystemPrompt()));
+                    || result.getSystemPrompt().contains(AgentPromptAssembler.buildBaseSystemPrompt(basePrompt.content())));
         }
+    }
+
+    @Test
+    void prepareRunRecordsPromptTemplateTrace() {
+        AgentRunResult result = agentKernelService.prepareRun(AgentRunRequest.builder()
+                .userId(TestUsers.USER_A)
+                .sessionId("kernel-prompt-session")
+                .userMessage("请帮我分析当前求职进展")
+                .build());
+
+        assertEquals("agent-base", result.getDebugMetadata().get("promptId"));
+        assertEquals("v1", result.getDebugMetadata().get("promptVersion"));
+        assertTrue(result.getEvents().stream().anyMatch(e -> traceNamed(e, AgentKernelService.TRACE_PROMPT_TEMPLATE)));
     }
 
     @Test

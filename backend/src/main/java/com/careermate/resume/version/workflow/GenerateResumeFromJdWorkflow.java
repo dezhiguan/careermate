@@ -5,6 +5,7 @@ import com.careermate.agent.sse.SseEmitterService;
 import com.careermate.agent.sse.SseEventType;
 import com.careermate.common.exception.BizException;
 import com.careermate.llm.LlmClient;
+import com.careermate.prompt.PromptTemplateService;
 import com.careermate.ragforge.RagForgeClient;
 import com.careermate.resume.ResumeContextProvider;
 import com.careermate.resume.version.export.MarkdownExportSupport;
@@ -33,7 +34,8 @@ public class GenerateResumeFromJdWorkflow {
             LlmClient llmClient,
             ResumeVersionService resumeVersionService,
             AgentSessionService agentSessionService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            PromptTemplateService promptTemplateService
     ) {
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.agentSessionService = agentSessionService;
@@ -44,7 +46,8 @@ public class GenerateResumeFromJdWorkflow {
                 ragForgeClient,
                 llmClient,
                 resumeVersionService,
-                objectMapper
+                objectMapper,
+                promptTemplateService
         );
     }
 

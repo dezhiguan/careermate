@@ -9,6 +9,8 @@ import com.careermate.llm.dto.ChatResponse;
 import com.careermate.model.entity.AgentSessionEntity;
 import com.careermate.ragforge.RagForgeChunk;
 import com.careermate.ragforge.RagForgeClient;
+import com.careermate.prompt.PromptRenderResult;
+import com.careermate.prompt.PromptTemplateService;
 import com.careermate.resume.ResumeContext;
 import com.careermate.resume.ResumeContextProvider;
 import com.careermate.resume.version.dto.ResumeVersionVO;
@@ -31,25 +33,7 @@ import java.util.stream.Collectors;
 @Slf4j
 class GenerateResumeWorkflowRunner {
 
-    static final String SYSTEM_PROMPT = """
-            你是简历操盘手小职。基于目标 JD 优化用户简历。
-            规则:① 关键词对齐 JD ② 不许虚构经历 ③ 突出匹配项弱化无关项
-                 ④ 输出纯 Markdown，结构固定为：
-                   # 姓名
-                   电话/邮箱/城市/求职岗位（仅写用户原文有的信息，没有的不要编造）
-                   ## 个人优势
-                   ## 专业技能
-                   ## 工作经历
-                   ## 项目经历
-                   ## 教育经历
-                 ⑤ 正文不得出现「优化说明」「修改说明」「changes」「meta」等字样，不得输出裸 JSON
-                 ⑥ 简历正文结束后，单独追加一个系统解析用 meta 块，格式固定为：
-                   ```meta
-                   {"changes":["改动说明1","改动说明2"]}
-                   ```
-                   meta 块仅用于系统记录优化项，不属于简历正文；changes 元素为简短字符串
-                 ⑦ 除上述 meta 块外，禁止任何 JSON 输出""";
-
+    static final String RESUME_PROMPT_ID = "resume-generate-from-jd";
     private static final int JD_SEARCH_TOP_K = 50;
     private static final int PREVIEW_MAX = 300;
     static final String RESUME_GENERATED_CARD_TITLE = "简历已生成";
@@ -69,6 +53,7 @@ class GenerateResumeWorkflowRunner {
     private final LlmClient llmClient;
     private final ResumeVersionService resumeVersionService;
     private final ObjectMapper objectMapper;
+    private final PromptTemplateService promptTemplateService;
 
     GenerateResumeWorkflowRunner(
             WorkspaceSessionRepository workspaceSessionRepository,
@@ -76,7 +61,8 @@ class GenerateResumeWorkflowRunner {
             RagForgeClient ragForgeClient,
             LlmClient llmClient,
             ResumeVersionService resumeVersionService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            PromptTemplateService promptTemplateService
     ) {
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.resumeContextProvider = resumeContextProvider;
@@ -84,6 +70,7 @@ class GenerateResumeWorkflowRunner {
         this.llmClient = llmClient;
         this.resumeVersionService = resumeVersionService;
         this.objectMapper = objectMapper;
+        this.promptTemplateService = promptTemplateService;
     }
 
     GenerateResumeWorkflowResult execute(GenerateResumeWorkflowRun run, GenerateResumeWorkflowEventSink eventSink) {
@@ -161,12 +148,16 @@ class GenerateResumeWorkflowRunner {
     }
 
     private void stepGenerateResume(GenerateResumeWorkflowRun run) {
+        PromptRenderResult resumePrompt = promptTemplateService.render(RESUME_PROMPT_ID);
+        run.setResumePromptId(resumePrompt.promptId());
+        run.setResumePromptVersion(resumePrompt.version());
+
         String userPrompt = "目标 JD:\n" + run.jdContent()
                 + "\n\n用户简历:\n" + run.resumeContext().getContent()
                 + "\n\n差距摘要:\n" + run.gapSummary();
         ChatRequest request = ChatRequest.builder()
                 .messages(List.of(
-                        ChatMessage.builder().role("system").content(SYSTEM_PROMPT).build(),
+                        ChatMessage.builder().role("system").content(resumePrompt.content()).build(),
                         ChatMessage.builder().role("user").content(userPrompt).build()
                 ))
                 .build();
@@ -408,7 +399,11 @@ class GenerateResumeWorkflowRunner {
             );
             case LOAD_JD -> summaryOf("jdChars", safeLength(run.jdContent()), "versionName", run.versionName());
             case ANALYZE_GAP -> summaryOf("gapSummary", run.gapSummary());
-            case GENERATE_RESUME -> summaryOf("outputChars", safeLength(run.rawLlmOutput()));
+            case GENERATE_RESUME -> summaryOf(
+                    "outputChars", safeLength(run.rawLlmOutput()),
+                    "promptId", run.resumePromptId(),
+                    "promptVersion", run.resumePromptVersion()
+            );
             case QUALITY_CHECK -> summaryOf(
                     "markdownChars", safeLength(run.markdown()),
                     "notesCount", run.optimizationNotes() != null ? run.optimizationNotes().size() : 0

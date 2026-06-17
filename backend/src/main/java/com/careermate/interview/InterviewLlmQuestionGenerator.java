@@ -10,6 +10,8 @@ import com.careermate.model.entity.JobMatchEntity;
 import com.careermate.model.entity.ResumeEntity;
 import com.careermate.agent.tool.rag.RagRetrieveScene;
 import com.careermate.knowledge.KnowledgeRetrievalService;
+import com.careermate.prompt.PromptRenderResult;
+import com.careermate.prompt.PromptTemplateService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -31,50 +33,27 @@ public class InterviewLlmQuestionGenerator {
     private static final Set<String> VALID_TYPES =
         Set.of("PROJECT", "SKILL", "GAP", "SYSTEM_DESIGN", "BEHAVIOR");
 
-    private static final String SYSTEM_PROMPT = """
-        你是资深技术面试官，需要为候选人生成 5 道针对性面试题。请严格输出 JSON，不要任何解释文字、不要 markdown 围栏。
-
-        输出 Schema：
-        {
-          "questions": [
-            { "questionNo": 1, "questionType": "PROJECT", "questionText": "...", "referencePoints": ["..."] },
-            ... 恰好 5 道
-          ]
-        }
-
-        题目分布（必须按此顺序与类型）：
-        1. PROJECT：基于简历真实项目，让候选人讲解最有挑战的一个
-        2. SKILL：技术深度题，从命中技能里挑一个最重要的考
-        3. GAP：技能缺口题，从缺失技能里挑一个考，验证候选人学习能力
-        4. SYSTEM_DESIGN：贴合目标岗位场景的系统设计题
-        5. BEHAVIOR：行为/沟通/团队协作类问题
-
-        要求：
-        - questionText 必须有具体场景，不能是空泛的"请介绍 XX"
-        - referencePoints 是评分参考要点（3~5 条），用于后续打分
-        - 题目必须围绕候选人简历和目标岗位，不要通用模板题
-        - questionNo 严格 1 到 5
-        - questionType 只能用大写枚举值：PROJECT / SKILL / GAP / SYSTEM_DESIGN / BEHAVIOR
-        """;
-
     private final LlmClient llmClient;
     private final LlmProperties llmProperties;
     private final ObjectMapper objectMapper;
     private final JobMatchJsonSupport jobMatchJsonSupport;
     private final KnowledgeRetrievalService knowledgeRetrievalService;
+    private final PromptTemplateService promptTemplateService;
 
     public InterviewLlmQuestionGenerator(
         LlmClient llmClient,
         LlmProperties llmProperties,
         ObjectMapper objectMapper,
         JobMatchJsonSupport jobMatchJsonSupport,
-        KnowledgeRetrievalService knowledgeRetrievalService
+        KnowledgeRetrievalService knowledgeRetrievalService,
+        PromptTemplateService promptTemplateService
     ) {
         this.llmClient = llmClient;
         this.llmProperties = llmProperties;
         this.objectMapper = objectMapper;
         this.jobMatchJsonSupport = jobMatchJsonSupport;
         this.knowledgeRetrievalService = knowledgeRetrievalService;
+        this.promptTemplateService = promptTemplateService;
     }
 
     public Optional<List<GeneratedQuestionList.LlmQuestion>> tryGenerate(
@@ -93,11 +72,14 @@ public class InterviewLlmQuestionGenerator {
         );
         String userPrompt = buildUserPrompt(resume, latestJobMatch, ragSection);
 
+        PromptRenderResult systemPrompt = promptTemplateService.render("interview-question-generate");
+        log.info("InterviewQ prompt template: promptId={} version={}",
+                systemPrompt.promptId(), systemPrompt.version());
         ChatResponse response;
         try {
             ChatRequest request = ChatRequest.builder()
                 .messages(List.of(
-                    ChatMessage.builder().role("system").content(SYSTEM_PROMPT).build(),
+                    ChatMessage.builder().role("system").content(systemPrompt.content()).build(),
                     ChatMessage.builder().role("user").content(userPrompt).build()
                 ))
                 .temperature(0.5)

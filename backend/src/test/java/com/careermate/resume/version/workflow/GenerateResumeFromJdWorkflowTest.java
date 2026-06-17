@@ -10,6 +10,9 @@ import com.careermate.llm.dto.ChatRequest;
 import com.careermate.llm.dto.ChatResponse;
 import com.careermate.model.entity.AgentMessageEntity;
 import com.careermate.model.entity.AgentSessionEntity;
+import com.careermate.prompt.PromptProperties;
+import com.careermate.prompt.PromptTemplateRegistry;
+import com.careermate.prompt.PromptTemplateService;
 import com.careermate.ragforge.RagForgeChunk;
 import com.careermate.ragforge.RagForgeClient;
 import com.careermate.resume.ResumeContext;
@@ -68,6 +71,8 @@ class GenerateResumeFromJdWorkflowTest {
 
     private GenerateResumeFromJdWorkflow workflow;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final PromptTemplateService promptTemplateService =
+            new PromptTemplateService(new PromptTemplateRegistry(), new PromptProperties());
 
     @BeforeEach
     void setUp() {
@@ -78,7 +83,8 @@ class GenerateResumeFromJdWorkflowTest {
                 llmClient,
                 resumeVersionService,
                 agentSessionService,
-                objectMapper
+                objectMapper,
+                promptTemplateService
         );
     }
 

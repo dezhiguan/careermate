@@ -24,6 +24,8 @@ import com.careermate.profile.CareerProfileUpdateResult;
 import com.careermate.profile.service.CareerProfileAutoUpdateService;
 import com.careermate.resume.ResumeContext;
 import com.careermate.resume.ResumeContextProvider;
+import com.careermate.prompt.PromptRenderResult;
+import com.careermate.prompt.PromptTemplateService;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,6 +46,7 @@ public class AgentKernelService {
     static final String TRACE_CAREER_PROFILE_CONTEXT = "career_profile_context";
     static final String TRACE_MEMORY_CONTEXT_LOADED = "memory_context_loaded";
     static final String TRACE_CAREER_PROFILE_UPDATE = "career_profile_update";
+    static final String TRACE_PROMPT_TEMPLATE = "prompt_template";
 
     private final ResumeContextProvider resumeContextProvider;
     private final JobMatchContextProvider jobMatchContextProvider;
@@ -57,6 +60,7 @@ public class AgentKernelService {
     private final AgentSupervisor agentSupervisor;
     private final ReActEngine reactEngine;
     private final WorkspaceSessionRepository workspaceSessionRepository;
+    private final PromptTemplateService promptTemplateService;
 
     public AgentKernelService(
             ResumeContextProvider resumeContextProvider,
@@ -70,7 +74,8 @@ public class AgentKernelService {
             AgentTracing agentTracing,
             AgentSupervisor agentSupervisor,
             ReActEngine reactEngine,
-            WorkspaceSessionRepository workspaceSessionRepository
+            WorkspaceSessionRepository workspaceSessionRepository,
+            PromptTemplateService promptTemplateService
     ) {
         this.resumeContextProvider = resumeContextProvider;
         this.jobMatchContextProvider = jobMatchContextProvider;
@@ -84,6 +89,7 @@ public class AgentKernelService {
         this.agentSupervisor = agentSupervisor;
         this.reactEngine = reactEngine;
         this.workspaceSessionRepository = workspaceSessionRepository;
+        this.promptTemplateService = promptTemplateService;
     }
 
     public AgentRunResult prepareRun(AgentRunRequest request) {
@@ -158,7 +164,8 @@ public class AgentKernelService {
         );
         addConversationContextTrace(sink, conversationContext);
 
-        String systemPrompt = AgentPromptAssembler.buildBaseSystemPrompt();
+        PromptRenderResult basePrompt = promptTemplateService.render("agent-base");
+        String systemPrompt = AgentPromptAssembler.buildBaseSystemPrompt(basePrompt.content());
         systemPrompt = AgentPromptAssembler.appendCareerProfileContext(systemPrompt, careerProfileContext);
         systemPrompt = AgentPromptAssembler.appendResumeContext(systemPrompt, resumeContext);
         systemPrompt = AgentPromptAssembler.appendJobMatchContext(systemPrompt, jobMatchContext);
@@ -217,6 +224,10 @@ public class AgentKernelService {
         } else {
             reactTrace = new ReActTrace(List.of(), false, 0);
         }
+
+        addPromptTemplateTrace(sink, basePrompt.promptId(), basePrompt.version());
+        debugMetadata.put("promptId", basePrompt.promptId());
+        debugMetadata.put("promptVersion", basePrompt.version());
 
         ChatRequest chatRequest = ChatRequest.builder()
                 .messages(List.of(
@@ -463,6 +474,22 @@ public class AgentKernelService {
                 "{}",
                 writeJson(payload),
                 status,
+                null,
+                null
+        ));
+    }
+
+    private void addPromptTemplateTrace(AgentEventSink sink, String promptId, String version) {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("promptId", promptId);
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("promptId", promptId);
+        response.put("version", version);
+        emit(sink, traceEvent(
+                TRACE_PROMPT_TEMPLATE,
+                writeJson(request),
+                writeJson(response),
+                "SUCCESS",
                 null,
                 null
         ));
