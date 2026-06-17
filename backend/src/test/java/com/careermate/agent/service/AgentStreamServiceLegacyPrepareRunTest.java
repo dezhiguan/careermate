@@ -40,6 +40,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -57,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -136,6 +138,39 @@ class AgentStreamServiceLegacyPrepareRunTest {
                 new PromptTemplateService(new PromptTemplateRegistry(), new PromptProperties())
         );
         stubContextLoaders();
+    }
+
+    @Test
+    void legacyPrepareRunRecordsPromptTemplateTrace() throws Exception {
+        when(agentSupervisor.dispatch(any(), anyString()))
+                .thenReturn(List.of());
+
+        invokePrepareLegacyRun(1L, "legacy-prompt-trace", "请帮我分析当前求职进展");
+
+        ArgumentCaptor<String> requestSummaryCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> responseSummaryCaptor = ArgumentCaptor.forClass(String.class);
+        verify(agentSessionService).recordTrace(
+                eq(1L),
+                eq("legacy-prompt-trace"),
+                eq("prompt_template"),
+                requestSummaryCaptor.capture(),
+                responseSummaryCaptor.capture(),
+                eq("SUCCESS"),
+                isNull(),
+                isNull()
+        );
+
+        String requestSummary = requestSummaryCaptor.getValue();
+        String responseSummary = responseSummaryCaptor.getValue();
+        assertTrue(requestSummary.contains("\"promptId\":\"agent-base\""));
+        assertTrue(responseSummary.contains("\"promptId\":\"agent-base\""));
+        assertTrue(responseSummary.contains("\"version\":\"v1\""));
+        assertFalse(requestSummary.contains("CareerMate"));
+        assertFalse(requestSummary.contains("小职"));
+        assertFalse(responseSummary.contains("CareerMate"));
+        assertFalse(responseSummary.contains("小职"));
+        assertFalse(requestSummary.contains("【上下文规则】"));
+        assertFalse(responseSummary.contains("【上下文规则】"));
     }
 
     @Test

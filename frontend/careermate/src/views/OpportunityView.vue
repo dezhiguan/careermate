@@ -108,14 +108,6 @@
           >
             准备面试
           </button>
-          <button
-            type="button"
-            class="btn-ghost"
-            :disabled="!item.externalUrl"
-            @click="openExternal(item.externalUrl)"
-          >
-            外链投递
-          </button>
         </div>
       </article>
     </div>
@@ -225,10 +217,6 @@ function buildJdTitle(item) {
   const title = item?.title?.trim()
   if (company && title) return `${company} ${title}`
   return title || company || 'JD 准备空间'
-}
-
-function openExternal(url) {
-  if (url) window.open(url, '_blank', 'noopener')
 }
 
 function goUploadResume() {
@@ -544,21 +532,6 @@ onMounted(fetchList)
 
 .btn-action:disabled {
   opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-ghost {
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  color: #64748b;
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.btn-ghost:disabled {
-  opacity: 0.45;
   cursor: not-allowed;
 }
 

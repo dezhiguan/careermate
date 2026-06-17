@@ -96,6 +96,7 @@ public class AgentStreamService {
     private static final String TRACE_CAREER_PROFILE_CONTEXT = "career_profile_context";
     private static final String TRACE_MEMORY_CONTEXT_LOADED = "memory_context_loaded";
     private static final String TRACE_CAREER_PROFILE_UPDATE = "career_profile_update";
+    private static final String TRACE_PROMPT_TEMPLATE = "prompt_template";
 
     public AgentStreamService(
             LlmClient llmClient,
@@ -453,6 +454,7 @@ public class AgentStreamService {
         logPhase(sessionId, "load_conversation_context", phaseStart);
 
         PromptRenderResult basePrompt = promptTemplateService.render("agent-base");
+        recordPromptTemplateTrace(userId, sessionId, basePrompt.promptId(), basePrompt.version());
         String systemPrompt = AgentPromptAssembler.buildBaseSystemPrompt(basePrompt.content());
         systemPrompt = AgentPromptAssembler.appendCareerProfileContext(systemPrompt, careerProfileContext);
         systemPrompt = AgentPromptAssembler.appendResumeContext(systemPrompt, resumeContext);
@@ -736,6 +738,24 @@ public class AgentStreamService {
         } catch (Exception e) {
             log.warn("Failed to refresh conversation summary: userId={}, sessionId={}", userId, sessionId, e);
         }
+    }
+
+    private void recordPromptTemplateTrace(Long userId, String sessionId, String promptId, String version) {
+        Map<String, Object> request = new java.util.LinkedHashMap<>();
+        request.put("promptId", promptId);
+        Map<String, Object> response = new java.util.LinkedHashMap<>();
+        response.put("promptId", promptId);
+        response.put("version", version);
+        agentSessionService.recordTrace(
+                userId,
+                sessionId,
+                TRACE_PROMPT_TEMPLATE,
+                writeJson(request),
+                writeJson(response),
+                "SUCCESS",
+                null,
+                null
+        );
     }
 
     private void recordCareerProfileContextTrace(
