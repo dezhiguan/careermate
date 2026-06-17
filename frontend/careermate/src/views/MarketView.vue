@@ -215,6 +215,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { getSalaryInsight, getSkillTrends, getResumeGap } from '../api/market'
 import { getCareerProfile } from '../api/profile'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
+import { stripMarkdown } from '../utils/markdown'
 
 const router = useRouter()
 const route = useRoute()
@@ -363,6 +364,10 @@ function marketSources(data) {
   const citations = Array.isArray(data?.citations) ? data.citations : []
   return citations
     .filter((source) => source?.contentPreview || source?.citation)
+    .map((source) => ({
+      ...source,
+      contentPreview: stripMarkdown(source.contentPreview || source.citation || ''),
+    }))
     .slice(0, 2)
 }
 

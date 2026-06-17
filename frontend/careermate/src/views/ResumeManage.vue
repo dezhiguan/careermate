@@ -150,7 +150,11 @@
           {{ resumeModalError }}
         </div>
         <template v-else>
-          <div v-if="resumeModalMode === 'preview'" class="modal-body modal-preview">{{ resumeModalContent }}</div>
+          <div
+            v-if="resumeModalMode === 'preview'"
+            class="modal-body modal-preview markdown-preview"
+            v-html="renderMarkdown(resumeModalContent)"
+          ></div>
           <div v-else class="modal-edit">
             <label class="edit-label">标题</label>
             <input v-model="editTitle" class="edit-title" type="text" maxlength="128">
@@ -213,6 +217,7 @@ import {
   listVersions,
   updateVersion,
 } from '../api/resumeVersion'
+import { renderMarkdown } from '../utils/markdown'
 
 const router = useRouter()
 
@@ -843,7 +848,6 @@ onMounted(async () => {
   padding: 16px;
   overflow: auto;
   margin: 0;
-  white-space: pre-wrap;
   font-size: 13px;
   line-height: 1.6;
   color: #334155;
@@ -853,6 +857,35 @@ onMounted(async () => {
 
 .modal-preview {
   max-height: 60vh;
+}
+
+.markdown-preview {
+  white-space: normal;
+}
+
+.markdown-preview :deep(p) {
+  margin: 0 0 10px;
+}
+
+.markdown-preview :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.markdown-preview :deep(ul),
+.markdown-preview :deep(ol) {
+  margin: 6px 0 10px 18px;
+  padding: 0;
+}
+
+.markdown-preview :deep(li) {
+  margin-bottom: 5px;
+}
+
+.markdown-preview :deep(h1),
+.markdown-preview :deep(h2),
+.markdown-preview :deep(h3) {
+  margin: 12px 0 6px;
+  color: #0f172a;
 }
 
 .modal-edit {

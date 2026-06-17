@@ -86,9 +86,17 @@ export async function postAction(sessionId, action, payload) {
 
 /** 打开简历生成 SSE 流（必须带后端返回的 sseEndpoint，含 pendingActionId） */
 export function openResumeGenerateStreamByEndpoint(sseEndpoint, handlers = {}) {
-  const path = sseEndpoint?.startsWith('/') ? sseEndpoint : `/${sseEndpoint || ''}`
+  const path = normalizeSseEndpointPath(sseEndpoint)
   const url = `${API_BASE_URL}${path}`
   return openResumeGenerateStreamUrl(url, handlers)
+}
+
+function normalizeSseEndpointPath(sseEndpoint) {
+  const rawPath = sseEndpoint?.startsWith('/') ? sseEndpoint : `/${sseEndpoint || ''}`
+  if (API_BASE_URL.endsWith('/api') && rawPath.startsWith('/api/')) {
+    return rawPath.slice('/api'.length)
+  }
+  return rawPath
 }
 
 function openResumeGenerateStreamUrl(url, handlers = {}) {

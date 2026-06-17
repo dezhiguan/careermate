@@ -28,8 +28,16 @@ export async function createAgentSession() {
   return payload.data?.sessionId
 }
 
-export async function listAgentSessions() {
-  return request('/agent/sessions')
+export async function listAgentSessions(params = {}) {
+  const query = new URLSearchParams()
+  if (params.taskType) {
+    query.set('taskType', params.taskType)
+  }
+  if (params.limit) {
+    query.set('limit', String(params.limit))
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : ''
+  return request(`/agent/sessions${suffix}`)
 }
 
 export async function getAgentSession(sessionId) {

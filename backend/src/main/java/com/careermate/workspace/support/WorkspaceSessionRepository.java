@@ -119,6 +119,7 @@ public class WorkspaceSessionRepository {
         session.setSessionId(sessionId);
         session.setUserId(userId);
         session.setStatus(STATUS_ACTIVE);
+        session.setTaskType(WORKSPACE_JD_PREP);
         session.setWorkspaceType(WORKSPACE_JD_PREP);
         session.setJdId(jdId);
         session.setJdSnapshot(jdSnapshotJson);
@@ -151,6 +152,7 @@ public class WorkspaceSessionRepository {
         session.setSessionId(sessionId);
         session.setUserId(userId);
         session.setStatus(STATUS_ACTIVE);
+        session.setTaskType(normalizedType);
         session.setWorkspaceType(normalizedType);
         session.setTitle(title);
         session.setGoalText(resolveGoalText(goalText, title));

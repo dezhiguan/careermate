@@ -34,6 +34,7 @@ import org.commonmark.node.ThematicBreak;
 import org.springframework.stereotype.Component;
 
 import java.awt.Color;
+import java.io.File;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,7 +59,7 @@ public class ResumeVersionPdfRenderer {
         String source = MarkdownExportSupport.stripOptimizationMetaFromMarkdown(markdown);
         ResumeStructureParser.ResumeStructure structure = ResumeStructureParser.parse(source);
 
-        BaseFont baseFont = BaseFont.createFont("STSong-Light", "UniGB-UCS2-H", BaseFont.NOT_EMBEDDED);
+        BaseFont baseFont = createChineseBaseFont();
         Fonts fonts = new Fonts(baseFont);
 
         Document pdf = new Document(PageSize.A4, MARGIN, MARGIN, MARGIN, MARGIN);
@@ -87,14 +88,14 @@ public class ResumeVersionPdfRenderer {
     }
 
     private void renderHeader(Document pdf, ResumeStructureParser.ResumeStructure structure, Fonts fonts) throws Exception {
-        Paragraph nameParagraph = new Paragraph(structure.name(), fonts.name);
+        Paragraph nameParagraph = new Paragraph(sanitizePdfText(structure.name()), fonts.name);
         nameParagraph.setAlignment(Element.ALIGN_LEFT);
         nameParagraph.setSpacingAfter(4f);
         pdf.add(nameParagraph);
 
         if (!structure.contactParts().isEmpty()) {
             String contactLine = String.join(" / ", structure.contactParts());
-            Paragraph contactParagraph = new Paragraph(contactLine, fonts.contact);
+            Paragraph contactParagraph = new Paragraph(sanitizePdfText(contactLine), fonts.contact);
             contactParagraph.setAlignment(Element.ALIGN_LEFT);
             contactParagraph.setSpacingAfter(10f);
             pdf.add(contactParagraph);
@@ -104,7 +105,7 @@ public class ResumeVersionPdfRenderer {
     }
 
     private void renderSectionTitle(Document pdf, String title, Fonts fonts) throws Exception {
-        Paragraph titleParagraph = new Paragraph(title, fonts.sectionTitle);
+        Paragraph titleParagraph = new Paragraph(sanitizePdfText(title), fonts.sectionTitle);
         titleParagraph.setSpacingBefore(6f);
         titleParagraph.setSpacingAfter(2f);
         pdf.add(titleParagraph);
@@ -125,7 +126,7 @@ public class ResumeVersionPdfRenderer {
         } else {
             String[] lines = text.split("\n", -1);
             for (int i = 0; i < lines.length; i++) {
-                paragraph.add(new Chunk(stripMarkdownLine(lines[i]), bodyFont));
+                paragraph.add(new Chunk(sanitizePdfText(stripMarkdownLine(lines[i])), bodyFont));
                 if (i < lines.length - 1) {
                     paragraph.add(Chunk.NEWLINE);
                 }
@@ -146,6 +147,56 @@ public class ResumeVersionPdfRenderer {
                 .replaceAll("\\*\\*(.+?)\\*\\*", "$1")
                 .replaceAll("\\*(.+?)\\*", "$1")
                 .replaceAll("`([^`]+)`", "$1");
+    }
+
+    private static BaseFont createChineseBaseFont() throws Exception {
+        for (String path : candidateFontPaths()) {
+            File file = new File(fontFilePath(path));
+            if (file.isFile() && file.canRead()) {
+                return BaseFont.createFont(path, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+            }
+        }
+        return BaseFont.createFont("STSong-Light", "UniGB-UCS2-H", BaseFont.EMBEDDED);
+    }
+
+    private static String fontFilePath(String path) {
+        int comma = path.indexOf(',');
+        return comma > 0 ? path.substring(0, comma) : path;
+    }
+
+    private static List<String> candidateFontPaths() {
+        return List.of(
+                "/System/Library/Fonts/PingFang.ttc,0",
+                "/System/Library/Fonts/Hiragino Sans GB.ttc,0",
+                "/Library/Fonts/Arial Unicode.ttf",
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc,0",
+                "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc,0",
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf",
+                "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+                "C:/Windows/Fonts/msyh.ttc,0",
+                "C:/Windows/Fonts/simsun.ttc,0"
+        );
+    }
+
+    private static String sanitizePdfText(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        return text
+                .replace("\uFE0F", "")
+                .replace("✅", "")
+                .replace("❌", "")
+                .replace("⭐", "")
+                .replace("📌", "")
+                .replace("📍", "")
+                .replace("📄", "")
+                .replace("📋", "")
+                .replace("💡", "")
+                .replace("🚀", "")
+                .replace("→", "->")
+                .replace("～", "~")
+                .replaceAll("[\\p{So}\\p{Cn}]", "")
+                .trim();
     }
 
     private static final class Fonts {
@@ -241,7 +292,7 @@ public class ResumeVersionPdfRenderer {
         }
 
         private void renderPlainTextBlock(String literal) {
-            String content = literal == null ? "" : literal.replaceAll("\n$", "").strip();
+            String content = literal == null ? "" : sanitizePdfText(literal.replaceAll("\n$", "").strip());
             if (content.isBlank()) {
                 return;
             }
@@ -285,14 +336,14 @@ public class ResumeVersionPdfRenderer {
                     paragraph.setLeading(0, LINE_MULTIPLIER);
                     paragraph.setIndentationLeft(8f);
                     paragraph.add(new Chunk("• ", fonts.body));
-                    paragraph.add(new Chunk(line, fonts.body));
+                    paragraph.add(new Chunk(sanitizePdfText(line), fonts.body));
                     paragraph.setSpacingAfter(1.5f);
                     addParagraph(paragraph);
                 }
             }
             if (rows.size() == 1) {
                 String line = String.join(" / ", headers);
-                Paragraph paragraph = new Paragraph(line, fonts.body);
+                Paragraph paragraph = new Paragraph(sanitizePdfText(line), fonts.body);
                 paragraph.setSpacingAfter(3f);
                 addParagraph(paragraph);
             }
@@ -357,24 +408,24 @@ public class ResumeVersionPdfRenderer {
         private void appendInlines(Node parent, Paragraph paragraph, Font normalFont, Font boldFont) {
             for (Node child = parent.getFirstChild(); child != null; child = child.getNext()) {
                 if (child instanceof Text textNode) {
-                    paragraph.add(new Chunk(textNode.getLiteral(), normalFont));
+                    paragraph.add(new Chunk(sanitizePdfText(textNode.getLiteral()), normalFont));
                 } else if (child instanceof StrongEmphasis emphasis) {
                     appendInlines(emphasis, paragraph, boldFont, boldFont);
                 } else if (child instanceof org.commonmark.node.Emphasis emphasis) {
                     appendInlines(emphasis, paragraph, normalFont, boldFont);
                 } else if (child instanceof Code code) {
-                    paragraph.add(new Chunk(code.getLiteral(), normalFont));
+                    paragraph.add(new Chunk(sanitizePdfText(code.getLiteral()), normalFont));
                 } else if (child instanceof Link link) {
                     int before = paragraph.size();
                     appendInlines(link, paragraph, normalFont, boldFont);
                     if (paragraph.size() == before && link.getDestination() != null) {
-                        paragraph.add(new Chunk(link.getDestination(), normalFont));
+                        paragraph.add(new Chunk(sanitizePdfText(link.getDestination()), normalFont));
                     }
                 } else if (child instanceof Image image) {
                     int before = paragraph.size();
                     appendInlines(image, paragraph, normalFont, boldFont);
                     if (paragraph.size() == before && image.getDestination() != null) {
-                        paragraph.add(new Chunk(image.getDestination(), normalFont));
+                        paragraph.add(new Chunk(sanitizePdfText(image.getDestination()), normalFont));
                     }
                 } else if (child instanceof SoftLineBreak || child instanceof HardLineBreak) {
                     paragraph.add(Chunk.NEWLINE);

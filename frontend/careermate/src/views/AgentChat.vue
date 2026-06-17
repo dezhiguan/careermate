@@ -101,8 +101,8 @@
                   />
                 </div>
                 <div v-if="msg.text || msg.html" class="md-body">
-                  <span v-if="msg.streaming || !msg.html" class="md-plain">{{ msg.text }}</span>
-                  <div v-else v-html="msg.html"></div>
+                  <div v-if="msg.html" v-html="msg.html"></div>
+                  <span v-else class="md-plain">{{ msg.text }}</span>
                 </div>
                 <ChatCard
                   v-if="msg.card"
@@ -141,7 +141,7 @@
           <span>JD 详情</span>
           <button type="button" class="modal-close" @click="jdViewerOpen = false">×</button>
         </div>
-        <pre class="modal-body">{{ jdViewerContent }}</pre>
+        <div class="modal-body markdown-preview" v-html="renderMd(jdViewerContent)"></div>
       </div>
     </div>
 
@@ -151,7 +151,7 @@
           <span>{{ resumeViewerTitle }}</span>
           <button type="button" class="modal-close" @click="resumeViewerOpen = false">×</button>
         </div>
-        <pre class="modal-body">{{ resumeViewerContent }}</pre>
+        <div class="modal-body markdown-preview" v-html="renderMd(resumeViewerContent)"></div>
       </div>
     </div>
 
@@ -182,11 +182,12 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { marked } from 'marked'
 import { authStore } from '../stores/authStore'
 import {
   createAgentSession,
+  getAgentSession,
   getAgentTrace,
+  listAgentSessions,
   sendAgentMessageStream,
 } from '../api/agent'
 import { getWorkspace, getMessages, postAction, openResumeGenerateStreamByEndpoint, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
@@ -196,34 +197,13 @@ import { isCareerTaskToolName, notifyCareerTasksUpdated } from '../utils/agentTo
 import ToolCallCard from '../components/agent/ToolCallCard.vue'
 import ChatCard from '../components/ChatCard.vue'
 import { getToolLabel, isBusinessToolName, sanitizeToolSummary } from '../utils/agentToolDisplay'
+import { renderMarkdown } from '../utils/markdown'
 
 const route = useRoute()
 const router = useRouter()
 
-marked.setOptions({
-  breaks: true,
-  gfm: true,
-  async: false,
-})
-
-function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
 function renderMd(text) {
-  if (text == null || text === '') return ''
-  const raw = typeof text === 'string' ? text : String(text)
-  try {
-    const html = marked.parse(raw, { async: false })
-    if (html instanceof Promise) return `<p>${escapeHtml(raw)}</p>`
-    return String(html)
-  } catch {
-    return `<p>${escapeHtml(raw).replace(/\n/g, '<br>')}</p>`
-  }
+  return renderMarkdown(text)
 }
 
 function withMarkdown(msg) {
@@ -877,6 +857,7 @@ async function startResumeGenerationWithEndpoint(sseEndpoint) {
     activeResumeStream.value = openResumeGenerateStreamByEndpoint(sseEndpoint, {
       onResumeDelta(delta) {
         streamMsg.text += delta || ''
+        streamMsg.html = renderMd(streamMsg.text)
         scrollBottom()
       },
       onCard(card) {
@@ -970,9 +951,45 @@ async function createNewSession({ withWelcome = true } = {}) {
   }
 }
 
+async function restoreLatestChatSession() {
+  sessionCreating.value = true
+  globalError.value = ''
+  streamState.value = 'session_creating'
+  try {
+    const sessions = await listAgentSessions({ taskType: 'CHAT', limit: 1 })
+    const latest = Array.isArray(sessions) ? sessions[0] : null
+    if (!latest?.sessionId) {
+      return false
+    }
+    const restoredSession = await getAgentSession(latest.sessionId)
+    if (!restoredSession?.sessionId) {
+      return false
+    }
+    sessionId.value = restoredSession.sessionId
+    const restoredMessages = mapServerMessages(restoredSession.messages)
+    messages.value = restoredMessages.length > 0 ? restoredMessages : [defaultWelcomeMessage()]
+    scheduleMarkdownForMessages(messages.value)
+    streamState.value = 'idle'
+    scrollBottom()
+    return true
+  } catch (e) {
+    console.warn('[agent] restore latest chat session failed', e)
+    return false
+  } finally {
+    sessionCreating.value = false
+    if (streamState.value === 'session_creating') {
+      streamState.value = 'idle'
+    }
+  }
+}
+
 async function bootstrapChat() {
   if (workspaceId.value) {
     await loadWorkspaceContext(workspaceId.value)
+    return
+  }
+  const restored = await restoreLatestChatSession()
+  if (restored) {
     return
   }
   await createNewSession({ withWelcome: true })
@@ -1051,11 +1068,13 @@ async function sendMessage() {
       onToken(data) {
         const token = data?.content || ''
         agentMessage.text += token
+        agentMessage.html = renderMd(agentMessage.text)
         scrollBottom()
       },
       onMessage(data) {
         if (data?.content) {
           agentMessage.text = data.content
+          agentMessage.html = renderMd(agentMessage.text)
         }
         finalizeRunningToolCalls(agentMessage, true)
       },
@@ -1220,6 +1239,35 @@ onBeforeUnmount(() => {
   font-size: 13px;
   line-height: 1.6;
   color: #334155;
+}
+
+.markdown-preview {
+  white-space: normal;
+}
+
+.markdown-preview :deep(p) {
+  margin: 0 0 10px;
+}
+
+.markdown-preview :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.markdown-preview :deep(ul),
+.markdown-preview :deep(ol) {
+  margin: 6px 0 10px 18px;
+  padding: 0;
+}
+
+.markdown-preview :deep(li) {
+  margin-bottom: 5px;
+}
+
+.markdown-preview :deep(h1),
+.markdown-preview :deep(h2),
+.markdown-preview :deep(h3) {
+  margin: 12px 0 6px;
+  color: #0f172a;
 }
 
 .versions-list {

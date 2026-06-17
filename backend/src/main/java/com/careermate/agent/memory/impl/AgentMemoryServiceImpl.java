@@ -146,7 +146,7 @@ public class AgentMemoryServiceImpl implements AgentMemoryService {
             return;
         }
 
-        String summary = truncate(String.join("；", parts), CONVERSATION_SUMMARY_MAX);
+        String summary = buildRollingConversationSummary(session.getConversationSummary(), parts);
         OffsetDateTime now = OffsetDateTime.now();
         agentSessionMapper.update(null, new LambdaUpdateWrapper<AgentSessionEntity>()
                 .eq(AgentSessionEntity::getId, session.getId())
@@ -154,6 +154,27 @@ public class AgentMemoryServiceImpl implements AgentMemoryService {
                 .set(AgentSessionEntity::getConversationSummary, summary)
                 .set(AgentSessionEntity::getConversationSummaryUpdatedAt, now)
                 .set(AgentSessionEntity::getUpdatedAt, now));
+    }
+
+    private String buildRollingConversationSummary(String previousSummary, List<String> newParts) {
+        Set<String> segments = new LinkedHashSet<>();
+        if (isNotBlank(previousSummary)) {
+            for (String segment : previousSummary.split("；")) {
+                String sanitized = sanitizeSensitiveText(segment);
+                if (isNotBlank(sanitized)) {
+                    segments.add(sanitized.trim());
+                }
+            }
+        }
+        if (newParts != null) {
+            for (String part : newParts) {
+                String sanitized = sanitizeSensitiveText(part);
+                if (isNotBlank(sanitized)) {
+                    segments.add(sanitized.trim());
+                }
+            }
+        }
+        return truncate(String.join("；", segments), CONVERSATION_SUMMARY_MAX);
     }
 
     @Override
