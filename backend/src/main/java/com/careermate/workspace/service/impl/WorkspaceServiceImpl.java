@@ -110,7 +110,7 @@ public class WorkspaceServiceImpl implements WorkspaceService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ActionAckResponse handleAction(Long userId, String sessionId, String action, String payload) {
         workspaceSessionRepository.requireSession(userId, sessionId);
         if (action == null || action.isBlank()) {

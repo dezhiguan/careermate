@@ -34,8 +34,7 @@ test.describe('Agent 追踪回归', () => {
   test.beforeAll(async ({ request }) => {
     logEnv();
     await assertBackendReady(request);
-    assertUserFlowEnvironment();
-    detectedAuthMode = await detectAuthMode(request);
+    await assertUserFlowEnvironment(request);
   });
 
   test('健康检查响应头含 X-Request-Id 与 X-Trace-Id', async ({ request }) => {

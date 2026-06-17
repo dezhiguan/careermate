@@ -65,7 +65,6 @@ test.describe('Agent LLM 收口回归', () => {
     logEnv();
     await assertBackendReady(request);
     await assertUserFlowEnvironment(request);
-    detectedAuthMode = await detectAuthMode(request);
     await cleanupPrefixedTasks(request);
   });
 

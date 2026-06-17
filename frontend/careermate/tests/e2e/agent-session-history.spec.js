@@ -58,7 +58,6 @@ test.describe('Agent session history V1', () => {
     logEnv();
     await assertBackendReady(request);
     await assertUserFlowEnvironment(request);
-    detectedAuthMode = await detectAuthMode(request);
   });
 
   test.beforeEach(({ page }, testInfo) => {

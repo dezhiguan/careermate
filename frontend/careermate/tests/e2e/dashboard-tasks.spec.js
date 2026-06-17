@@ -51,7 +51,6 @@ test.describe('Dashboard career tasks V1', () => {
     logEnv();
     await assertBackendReady(request);
     await assertUserFlowEnvironment(request);
-    detectedAuthMode = await detectAuthMode(request);
   });
 
   test.beforeEach(({ page }, testInfo) => {

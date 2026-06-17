@@ -22,6 +22,8 @@ const ROUND_TIMEOUT_MS = Number(process.env.AGENT_STRESS_ROUND_TIMEOUT_MS || 90_
 const PARALLEL_USERS = process.env.AGENT_STRESS_PARALLEL !== '0';
 /** 1=只跑用户A（单会话压力）；2=双用户（默认） */
 const USER_COUNT = Number(process.env.AGENT_STRESS_USER_COUNT || 2);
+/** @type {string} */
+const AUTH_MODE = 'jwt';
 
 
 function createStressAccount(userLabel) {
@@ -163,7 +165,7 @@ async function runUserStress(browser, request, userLabel) {
     await waitAgentSessionReady(page);
 
     console.log(
-      `[stress:${userLabel}] 开始多轮对话，上限 ${MAX_ROUNDS} 轮，账号 ${account.username}，模式 ${authMode}`
+      `[stress:${userLabel}] 开始多轮对话，上限 ${MAX_ROUNDS} 轮，账号 ${account.username}，模式 ${AUTH_MODE}`
     );
 
     for (let round = 1; round <= MAX_ROUNDS; round++) {
@@ -219,8 +221,7 @@ test.describe('Agent 对话台多轮压力（双用户）', () => {
     logEnv();
     await assertBackendReady(request);
     await assertUserFlowEnvironment(request);
-    authMode = await detectAuthMode(request);
-    console.log(`[stress] 认证模式: ${authMode}，双用户并行: ${PARALLEL_USERS}`);
+    console.log(`[stress] 认证模式: ${AUTH_MODE}，双用户并行: ${PARALLEL_USERS}`);
   });
 
   test.afterAll(() => {
