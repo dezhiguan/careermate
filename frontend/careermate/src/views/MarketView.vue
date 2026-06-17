@@ -64,6 +64,17 @@
             <span class="ai-label">⚡ AI 解读</span>
             <p class="ai-text">{{ salaryData.aiSummary }}</p>
           </div>
+          <div v-if="marketSources(salaryData).length" class="source-strip">
+            <div class="source-title">来源摘要</div>
+            <div
+              v-for="source in marketSources(salaryData)"
+              :key="source.citation || source.contentPreview"
+              class="source-row"
+            >
+              <span class="source-chip">{{ sourceLabel(source) }}</span>
+              <span class="source-preview">{{ source.contentPreview }}</span>
+            </div>
+          </div>
           <p class="disclaimer">基于 AI 分析，仅供参考</p>
         </template>
         <div v-else class="empty-tip">暂无薪资数据</div>
@@ -126,6 +137,17 @@
             <span class="ai-label">⚡ AI 解读</span>
             <p class="ai-text">{{ skillsData.aiSummary }}</p>
           </div>
+          <div v-if="marketSources(skillsData).length" class="source-strip">
+            <div class="source-title">来源摘要</div>
+            <div
+              v-for="source in marketSources(skillsData)"
+              :key="source.citation || source.contentPreview"
+              class="source-row"
+            >
+              <span class="source-chip">{{ sourceLabel(source) }}</span>
+              <span class="source-preview">{{ source.contentPreview }}</span>
+            </div>
+          </div>
         </template>
         <div v-else class="empty-tip">暂无技能数据</div>
       </section>
@@ -167,6 +189,17 @@
           <div v-if="gapData.aiSummary" class="ai-box" style="margin-top:10px">
             <span class="ai-label">⚡ AI 解读</span>
             <p class="ai-text">{{ gapData.aiSummary }}</p>
+          </div>
+          <div v-if="marketSources(gapData).length" class="source-strip">
+            <div class="source-title">来源摘要</div>
+            <div
+              v-for="source in marketSources(gapData)"
+              :key="source.citation || source.contentPreview"
+              class="source-row"
+            >
+              <span class="source-chip">{{ sourceLabel(source) }}</span>
+              <span class="source-preview">{{ source.contentPreview }}</span>
+            </div>
           </div>
         </template>
         <div v-else class="empty-tip">请先上传简历以获取 Gap 分析</div>
@@ -326,6 +359,19 @@ function growthClass(growth) {
   return { 快涨: 'tag-fast', 上涨: 'tag-up', 稳定: 'tag-flat', 下降: 'tag-down' }[growth] || 'tag-flat'
 }
 
+function marketSources(data) {
+  const citations = Array.isArray(data?.citations) ? data.citations : []
+  return citations
+    .filter((source) => source?.contentPreview || source?.citation)
+    .slice(0, 2)
+}
+
+function sourceLabel(source) {
+  const type = source?.chunkType || 'RAG'
+  const score = typeof source?.score === 'number' ? ` · ${(source.score * 100).toFixed(0)}%` : ''
+  return `${type}${score}`
+}
+
 function buildMarketContextMetadata() {
   return {
     city: city.value,
@@ -408,6 +454,47 @@ async function enterMarketWorkspace(entryAction) {
 .ai-label { font-size: 10px; font-weight: 700; color: #4338ca; display: block; margin-bottom: 4px; }
 .ai-text { font-size: 12px; color: #1e1b4b; line-height: 1.6; margin: 0; }
 .disclaimer { font-size: 10px; color: #94a3b8; margin: 8px 0 0; }
+.source-strip {
+  margin-top: 10px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.source-title {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 700;
+}
+.source-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.source-chip {
+  max-width: 96px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.source-preview {
+  min-width: 0;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
 /* CTA */
 .market-cta-row {
