@@ -64,7 +64,7 @@ class JobMatchSpecialistAgentTest {
         SpecialistResult result = agent.process(context, "看看岗位匹配");
 
         assertNull(result.toolName());
-        assertTrue(result.success());
+        assertEquals(SpecialistResultStatus.NO_ACTION, result.getStatus());
     }
 
     @Test

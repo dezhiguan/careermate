@@ -6,9 +6,24 @@ import com.careermate.agent.tool.AgentToolResult;
 import com.careermate.jobmatch.JobMatchContext;
 import com.careermate.resume.ResumeContext;
 
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class AgentPromptAssembler {
+
+    private static final Set<String> SAFE_STRUCTURED_KEYS = Set.of(
+            "toolName", "success", "count", "chunkCount", "citation", "citations",
+            "contentPreview", "sourceTitle", "score", "scene", "queryLength",
+            "workflowId", "artifactId", "queryPreview", "reasonCode", "blocked",
+            "fallbackUsed", "errorCode", "latencyMs"
+    );
+
+    private static final Set<String> SENSITIVE_STRUCTURED_KEYS = Set.of(
+            "content", "jdContent", "resumeContent", "fullText", "rawOutput",
+            "chunks", "previews", "query"
+    );
 
     private static final String BASE_SYSTEM_PROMPT = """
             你是小职，CareerMate 的 AI 求职助手。
@@ -136,12 +151,83 @@ public final class AgentPromptAssembler {
         return sb.toString();
     }
 
+    public static boolean shouldAppendSpecialistResult(
+            com.careermate.agent.multiagent.SpecialistResult specialistResult) {
+        if (specialistResult == null) {
+            return false;
+        }
+        if (specialistResult.getStatus() == com.careermate.agent.multiagent.SpecialistResultStatus.BLOCKED) {
+            return true;
+        }
+        if (specialistResult.getStatus() == com.careermate.agent.multiagent.SpecialistResultStatus.NO_ACTION) {
+            return false;
+        }
+        return specialistResult.getSummary() != null && !specialistResult.getSummary().isBlank();
+    }
+
     public static String appendSpecialistResult(String prompt,
-            com.careermate.agent.multiagent.SpecialistResult sr) {
-        if (sr == null || sr.toolSummary() == null || sr.toolSummary().isBlank()) {
+            com.careermate.agent.multiagent.SpecialistResult specialistResult) {
+        if (!shouldAppendSpecialistResult(specialistResult)) {
             return prompt;
         }
-        return prompt + "\n\n【专家 Agent 结果 - " + sr.domain().name() + "】\n" + sr.toolSummary();
+        StringBuilder sb = new StringBuilder(prompt == null ? "" : prompt);
+        sb.append("\n\n【专家协作结果 - ").append(specialistResult.getDomain().name()).append("】\n");
+        if (specialistResult.getAgentName() != null && !specialistResult.getAgentName().isBlank()) {
+            sb.append("专家：").append(specialistResult.getAgentName()).append('\n');
+        }
+        sb.append("状态：").append(specialistResult.getStatus().name()).append('\n');
+        if (specialistResult.getSummary() != null && !specialistResult.getSummary().isBlank()) {
+            sb.append("摘要：").append(specialistResult.getSummary()).append('\n');
+        }
+        if (specialistResult.getToolName() != null && !specialistResult.getToolName().isBlank()) {
+            sb.append("工具：").append(specialistResult.getToolName()).append('\n');
+        }
+        if (specialistResult.getWarnings() != null && !specialistResult.getWarnings().isEmpty()) {
+            sb.append("警告：").append(String.join("；", specialistResult.getWarnings())).append('\n');
+        }
+        if (specialistResult.getCitations() != null && !specialistResult.getCitations().isEmpty()) {
+            sb.append("引用：").append(String.join("；", specialistResult.getCitations())).append('\n');
+        }
+        appendSafeStructuredData(sb, specialistResult.getStructuredData());
+        if (specialistResult.getStatus() == com.careermate.agent.multiagent.SpecialistResultStatus.BLOCKED) {
+            sb.append("约束：不得执行会写入或编造虚假经历的工具；只能基于真实经历给出优化建议。\n");
+        }
+        return sb.toString();
+    }
+
+    private static void appendSafeStructuredData(StringBuilder sb, Map<String, Object> structuredData) {
+        if (structuredData == null || structuredData.isEmpty()) {
+            return;
+        }
+        sb.append("结构化字段：\n");
+        for (Map.Entry<String, Object> entry : structuredData.entrySet()) {
+            String key = entry.getKey();
+            if (SAFE_STRUCTURED_KEYS.contains(key)) {
+                sb.append("- ").append(key).append("：").append(entry.getValue()).append('\n');
+                continue;
+            }
+            if (SENSITIVE_STRUCTURED_KEYS.contains(key)) {
+                sb.append("- ").append(key).append("Length：")
+                        .append(lengthOf(entry.getValue()))
+                        .append('\n');
+            }
+        }
+    }
+
+    private static int lengthOf(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        if (value instanceof String text) {
+            return text.length();
+        }
+        if (value instanceof List<?> list) {
+            return list.size();
+        }
+        if (value instanceof Map<?, ?> map) {
+            return map.size();
+        }
+        return String.valueOf(value).length();
     }
 
     public static String appendReActTrace(String systemPrompt,

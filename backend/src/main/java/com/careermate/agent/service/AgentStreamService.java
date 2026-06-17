@@ -475,12 +475,14 @@ public class AgentStreamService {
                 .build();
         List<com.careermate.agent.multiagent.SpecialistResult> specialistResults =
                 agentSupervisor.dispatch(toolCtx, userMessage);
+        boolean specialistBlocked = specialistResults.stream()
+                .anyMatch(result -> result.getStatus() == com.careermate.agent.multiagent.SpecialistResultStatus.BLOCKED);
         for (com.careermate.agent.multiagent.SpecialistResult sr : specialistResults) {
-            if (sr.toolSummary() != null && !sr.toolSummary().isBlank()) {
+            if (AgentPromptAssembler.shouldAppendSpecialistResult(sr)) {
                 systemPrompt = AgentPromptAssembler.appendSpecialistResult(systemPrompt, sr);
             }
         }
-        if (specialistResults.isEmpty()) {
+        if (!specialistBlocked && specialistResults.isEmpty()) {
             AgentToolResult toolResult = executeRoutedToolIfAny(userId, sessionId, userMessage);
             if (toolResult != null) {
                 systemPrompt = AgentPromptAssembler.appendToolResult(systemPrompt, toolResult);
@@ -528,6 +530,17 @@ public class AgentStreamService {
         }
         if (AgentKernelEventTypes.TOOL_START.equals(event.getType())) {
             sseEmitterService.send(sessionId, SseEventType.TOOL_START, event.getPayload());
+            Map<String, Object> payload = event.getPayload();
+            agentSessionService.recordTrace(
+                    userId,
+                    sessionId,
+                    String.valueOf(payload.get("toolName")),
+                    "{}",
+                    "{}",
+                    "RUNNING",
+                    null,
+                    null
+            );
             return;
         }
         if (AgentKernelEventTypes.TOOL_RESULT.equals(event.getType())) {

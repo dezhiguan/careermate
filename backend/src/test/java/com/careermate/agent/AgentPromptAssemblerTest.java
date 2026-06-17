@@ -122,6 +122,49 @@ class AgentPromptAssemblerTest {
 
         assertTrue(prompt.contains("RESUME"));
         assertTrue(prompt.contains("已读取简历"));
+        assertTrue(prompt.contains("状态：SUCCESS"));
+    }
+
+    @Test
+    void appendSpecialistResultDoesNotLeakSensitiveStructuredData() {
+        SpecialistResult specialist = SpecialistResult.builder()
+                .domain(AgentDomain.MARKET)
+                .agentName("MarketSpecialistAgent")
+                .summary("市场参考")
+                .status(com.careermate.agent.multiagent.SpecialistResultStatus.SUCCESS)
+                .structuredData(java.util.Map.of(
+                        "content", "完整敏感内容不应出现",
+                        "jdContent", "完整JD",
+                        "chunkCount", 2,
+                        "scene", "MARKET"
+                ))
+                .build();
+
+        String prompt = AgentPromptAssembler.appendSpecialistResult("base", specialist);
+
+        assertTrue(prompt.contains("chunkCount"));
+        assertTrue(prompt.contains("scene"));
+        assertFalse(prompt.contains("完整敏感内容不应出现"));
+        assertFalse(prompt.contains("完整JD"));
+        assertTrue(prompt.contains("contentLength"));
+    }
+
+    @Test
+    void criticBlockedResultAddsConstraintToPrompt() {
+        SpecialistResult specialist = SpecialistResult.builder()
+                .domain(AgentDomain.CRITIC)
+                .agentName("CriticAgent")
+                .summary("不能编造经历")
+                .status(com.careermate.agent.multiagent.SpecialistResultStatus.BLOCKED)
+                .riskLevel(com.careermate.agent.multiagent.SpecialistRiskLevel.HIGH)
+                .warnings(java.util.List.of("不得执行写简历工具"))
+                .build();
+
+        String prompt = AgentPromptAssembler.appendSpecialistResult("base", specialist);
+
+        assertTrue(prompt.contains("BLOCKED"));
+        assertTrue(prompt.contains("不得执行会写入或编造虚假经历的工具"));
+        assertTrue(AgentPromptAssembler.shouldAppendSpecialistResult(specialist));
     }
 
     @Test

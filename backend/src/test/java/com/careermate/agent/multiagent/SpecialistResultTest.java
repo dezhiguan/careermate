@@ -15,11 +15,29 @@ class SpecialistResultTest {
         SpecialistResult withTool = SpecialistResult.withTool(AgentDomain.RESUME, "tool", "summary");
         SpecialistResult failed = SpecialistResult.failed(AgentDomain.INTERVIEW, "reason");
 
-        assertTrue(noTool.success());
+        assertEquals(SpecialistResultStatus.NO_ACTION, noTool.getStatus());
         assertNull(noTool.toolName());
         assertEquals("tool", withTool.toolName());
         assertEquals("summary", withTool.toolSummary());
+        assertTrue(withTool.success());
         assertFalse(failed.success());
+        assertEquals(SpecialistResultStatus.FAILED, failed.getStatus());
         assertEquals("reason", failed.toolSummary());
+    }
+
+    @Test
+    void builderSupportsStructuredFields() {
+        SpecialistResult blocked = SpecialistResult.builder()
+                .domain(AgentDomain.CRITIC)
+                .agentName("CriticAgent")
+                .status(SpecialistResultStatus.BLOCKED)
+                .riskLevel(SpecialistRiskLevel.HIGH)
+                .summary("blocked")
+                .warnings(java.util.List.of("no fabrication"))
+                .structuredData(java.util.Map.of("reasonCode", "FABRICATION_REQUEST"))
+                .build();
+
+        assertEquals(SpecialistRiskLevel.HIGH, blocked.getRiskLevel());
+        assertEquals("FABRICATION_REQUEST", blocked.getStructuredData().get("reasonCode"));
     }
 }

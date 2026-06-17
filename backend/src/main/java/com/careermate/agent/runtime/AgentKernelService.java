@@ -186,12 +186,14 @@ public class AgentKernelService {
                 .userMessage(userMessage)
                 .build();
         List<SpecialistResult> specialistResults = agentSupervisor.dispatch(toolCtx, userMessage);
+        boolean specialistBlocked = specialistResults.stream()
+                .anyMatch(result -> result.getStatus() == com.careermate.agent.multiagent.SpecialistResultStatus.BLOCKED);
         for (SpecialistResult specialistResult : specialistResults) {
-            if (specialistResult.toolSummary() != null && !specialistResult.toolSummary().isBlank()) {
+            if (AgentPromptAssembler.shouldAppendSpecialistResult(specialistResult)) {
                 systemPrompt = AgentPromptAssembler.appendSpecialistResult(systemPrompt, specialistResult);
             }
         }
-        if (specialistResults.isEmpty()) {
+        if (!specialistBlocked && specialistResults.isEmpty()) {
             AgentToolResult toolResult = executeRoutedToolIfAny(userId, sessionId, userMessage, sink);
             if (toolResult != null) {
                 toolResults.add(toolResult);
