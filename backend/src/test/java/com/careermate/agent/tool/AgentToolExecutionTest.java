@@ -217,6 +217,63 @@ class AgentToolExecutionTest {
         assertTrue(req.path("args").path("jdContentLength").asInt() > 80);
     }
 
+    @Test
+    void ragRetrieverReturnsStructuredFallbackWithoutThrowing() {
+        AgentToolResult result = executeForUser(
+                TestUsers.USER_A,
+                "帮我查一下 Redis 缓存一致性面试题",
+                "rag_retriever",
+                Map.of("query", "Redis 缓存一致性", "scene", "INTERVIEW", "topK", 5)
+        );
+        assertEquals("rag_retriever", result.getToolName());
+        assertFalse(result.isSuccess());
+        assertTrue(result.getData().containsKey("chunks"));
+        assertEquals(0, result.getData().get("chunkCount"));
+        assertEquals(true, result.getData().get("fallbackUsed"));
+        assertTrue(result.getData().get("errorCode") != null);
+    }
+
+    @Test
+    void ragRetrieverTraceDoesNotLeakChunkContent() throws Exception {
+        String sessionId = agentSessionService.createSession(TestUsers.USER_A).getSessionId();
+        AgentToolContext context = AgentToolContext.builder()
+                .userId(TestUsers.USER_A)
+                .sessionId(sessionId)
+                .userMessage("帮我查一下 Redis 缓存一致性面试题")
+                .args(Map.of("query", "Redis 缓存一致性", "scene", "INTERVIEW"))
+                .build();
+        AgentToolResult result = agentToolExecutionService.execute(context, "rag_retriever");
+
+        String requestSummary = AgentToolTraceSupport.buildRequestSummary(
+                "rag_retriever",
+                context.getArgs(),
+                context.getUserMessage()
+        );
+        String responseSummary = AgentToolTraceSupport.buildResponseSummary(result, objectMapper);
+        agentSessionService.recordTrace(
+                TestUsers.USER_A,
+                sessionId,
+                "rag_retriever",
+                requestSummary,
+                responseSummary,
+                result.isSuccess() ? "SUCCESS" : "FAILED",
+                5L,
+                result.getErrorMessage()
+        );
+
+        AgentTraceResponse trace = agentSessionService.getTrace(TestUsers.USER_A, sessionId).stream()
+                .filter(t -> "rag_retriever".equals(t.getToolName()))
+                .findFirst()
+                .orElseThrow();
+        assertFalse(trace.getResponseSummary().contains("Redis 缓存一致性方案"));
+        JsonNode response = objectMapper.readTree(trace.getResponseSummary());
+        assertTrue(response.path("data").path("chunkCount").isNumber()
+                || response.path("data").path("fallbackUsed").isBoolean());
+        JsonNode request = objectMapper.readTree(trace.getRequestSummary());
+        assertTrue(request.path("args").path("queryLength").asInt() > 0);
+        assertFalse(request.path("args").has("query"));
+    }
+
     private AgentToolResult executeForUser(
             Long userId,
             String userMessage,

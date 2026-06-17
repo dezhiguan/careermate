@@ -70,6 +70,33 @@ class AgentToolRouterTest {
     }
 
     @Test
+    void routesInterviewQuestionToRagRetriever() {
+        Optional<AgentToolRouter.RoutedTool> routed =
+                router.route("帮我查一下 Redis 缓存一致性面试题");
+        assertTrue(routed.isPresent());
+        assertEquals("rag_retriever", routed.get().toolName());
+        assertEquals("INTERVIEW", routed.get().args().get("scene"));
+    }
+
+    @Test
+    void routesMarketQuestionToRagRetriever() {
+        Optional<AgentToolRouter.RoutedTool> routed =
+                router.route("广州 Java 后端行情怎么样");
+        assertTrue(routed.isPresent());
+        assertEquals("rag_retriever", routed.get().toolName());
+        assertEquals("MARKET", routed.get().args().get("scene"));
+    }
+
+    @Test
+    void routesJdCapabilityQuestionToRagRetriever() {
+        Optional<AgentToolRouter.RoutedTool> routed =
+                router.route("这份 JD 要求里哪些能力最关键");
+        assertTrue(routed.isPresent());
+        assertEquals("rag_retriever", routed.get().toolName());
+        assertEquals("OPPORTUNITY", routed.get().args().get("scene"));
+    }
+
+    @Test
     void shortJdDoesNotRouteCreateJobMatch() {
         String shortJd = "岗位：Java 后端工程师\n公司：e2e_company\n招聘要求：Java Spring Boot";
         assertTrue(router.route(shortJd).isEmpty());

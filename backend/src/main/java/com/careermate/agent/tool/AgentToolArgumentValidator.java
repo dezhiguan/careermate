@@ -75,6 +75,10 @@ public class AgentToolArgumentValidator {
             return hasArgValue(context.getArgs(), "jdContent")
                     || StringUtils.hasText(context.getUserMessage());
         }
+        if ("rag_retriever".equals(toolName) && "query".equals(parameterName)) {
+            return hasArgValue(context.getArgs(), "query")
+                    || StringUtils.hasText(context.getUserMessage());
+        }
         return false;
     }
 

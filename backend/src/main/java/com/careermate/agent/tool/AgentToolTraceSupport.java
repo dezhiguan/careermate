@@ -22,6 +22,8 @@ public final class AgentToolTraceSupport {
                 if ("jdContent".equals(key) && value != null) {
                     String text = String.valueOf(value);
                     safeArgs.put("jdContentLength", text.length());
+                } else if ("query".equals(key) && value != null) {
+                    safeArgs.put("queryLength", String.valueOf(value).length());
                 } else {
                     safeArgs.put(key, value);
                 }
@@ -49,6 +51,15 @@ public final class AgentToolTraceSupport {
                 if ("contentPreview".equals(key) && value != null) {
                     String text = String.valueOf(value);
                     safeData.put("contentPreviewLength", text.length());
+                } else if ("chunks".equals(key) && value instanceof java.util.List<?> list) {
+                    safeData.put("chunkCount", list.size());
+                } else if ("chunkCount".equals(key) || "fallbackUsed".equals(key)
+                        || "latencyMs".equals(key) || "errorCode".equals(key) || "scene".equals(key)) {
+                    safeData.put(key, value);
+                } else if ("query".equals(key) && value != null) {
+                    safeData.put("queryLength", String.valueOf(value).length());
+                } else if ("content".equals(key) && value != null) {
+                    safeData.put("contentLength", String.valueOf(value).length());
                 } else if ("jdContent".equals(key) && value != null) {
                     safeData.put("jdContentLength", String.valueOf(value).length());
                 } else if ("tasks".equals(key) && value instanceof java.util.List<?> list) {

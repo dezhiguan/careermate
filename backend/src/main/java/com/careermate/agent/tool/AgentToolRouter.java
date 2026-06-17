@@ -20,6 +20,7 @@ public class AgentToolRouter {
     private static final String TOOL_GET_CAREER_TASKS = "get_career_tasks";
     private static final String TOOL_CREATE_CAREER_TASK = "create_career_task";
     private static final String TOOL_MARK_CAREER_TASK_DONE = "mark_career_task_done";
+    private static final String TOOL_RAG_RETRIEVER = "rag_retriever";
     private static final String TOOL_SEARCH_KNOWLEDGE_BASE = "search_knowledge_base";
     private static final String TOOL_GENERATE_RESUME_FROM_JD = "generate_resume_from_jd";
 
@@ -67,11 +68,46 @@ public class AgentToolRouter {
         if (containsAny(lower, "求职进展", "看板", "当前状态", "看一下求职")) {
             return Optional.of(new RoutedTool(TOOL_GET_DASHBOARD_OVERVIEW, Map.of()));
         }
+        if (shouldRouteRagRetriever(lower, text)) {
+            return Optional.of(new RoutedTool(TOOL_RAG_RETRIEVER, buildRagRetrieverArgs(text)));
+        }
         if (containsAny(lower, "搜索知识库", "查找相关岗位", "找找类似jd",
                         "行业参考", "类似岗位要求", "搜一下行业")) {
             return Optional.of(new RoutedTool(TOOL_SEARCH_KNOWLEDGE_BASE, Map.of()));
         }
         return Optional.empty();
+    }
+
+    private boolean shouldRouteRagRetriever(String lower, String text) {
+        if (containsAny(lower, "面试题", "面试问答", "面试参考", "查一下", "帮我查")
+                && containsAny(lower, "面试", "redis", "缓存", "jvm", "spring", "kafka", "mysql")) {
+            return true;
+        }
+        if (containsAny(lower, "行情", "薪资", "市场", "招聘趋势", "就业市场")
+                && containsAny(lower, "怎么样", "如何", "多少", "趋势", "行情")) {
+            return true;
+        }
+        if (containsAny(lower, "jd", "岗位", "招聘要求", "任职要求", "岗位职责")
+                && containsAny(lower, "最关键", "关键能力", "核心能力", "哪些能力", "重点")) {
+            return true;
+        }
+        return containsAny(lower, "rag检索", "知识检索", "检索知识库");
+    }
+
+    private Map<String, Object> buildRagRetrieverArgs(String text) {
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("query", text.length() > 200 ? text.substring(0, 200) : text);
+        String lower = text.toLowerCase(Locale.ROOT);
+        if (containsAny(lower, "面试题", "面试问答", "面试参考") || lower.contains("面试")) {
+            args.put("scene", "INTERVIEW");
+        } else if (containsAny(lower, "行情", "薪资", "市场", "招聘趋势", "就业市场")) {
+            args.put("scene", "MARKET");
+        } else if (containsAny(lower, "jd", "岗位", "招聘要求", "任职要求", "岗位职责")) {
+            args.put("scene", "OPPORTUNITY");
+        } else {
+            args.put("scene", "GENERAL");
+        }
+        return args;
     }
 
     private boolean shouldGetCareerTasks(String lower, String text) {

@@ -27,6 +27,7 @@ class AgentToolRegistryTest {
             "create_career_task",
             "mark_career_task_done",
             "search_knowledge_base",
+            "rag_retriever",
             "generate_resume_from_jd"
     );
 
@@ -36,7 +37,7 @@ class AgentToolRegistryTest {
     @Test
     void listDefinitionsContainsAllTools() {
         List<AgentToolDefinition> definitions = registry.listDefinitions();
-        assertEquals(10, definitions.size());
+        assertEquals(11, definitions.size());
         Set<String> names = definitions.stream()
                 .map(AgentToolDefinition::getName)
                 .collect(java.util.stream.Collectors.toSet());
@@ -44,7 +45,7 @@ class AgentToolRegistryTest {
     }
 
     @Test
-    void knownToolNamesContainsAllTenTools() {
+    void knownToolNamesContainsAllElevenTools() {
         assertEquals(EXPECTED_TOOLS, registry.knownToolNames());
     }
 
@@ -57,6 +58,16 @@ class AgentToolRegistryTest {
         assertEquals(AgentToolRiskLevel.MEDIUM, definition.getRiskLevel());
         assertTrue(definition.getParameters().stream()
                 .anyMatch(p -> "jdContent".equals(p.getName()) && p.isRequired()));
+    }
+
+    @Test
+    void ragRetrieverDefinitionContainsSchemaFields() {
+        AgentToolDefinition definition = registry.definitionOf("rag_retriever").orElseThrow();
+        assertEquals("rag_retriever", definition.getName());
+        assertEquals(AgentToolDomain.KNOWLEDGE, definition.getDomain());
+        assertTrue(definition.getParameters().stream().anyMatch(p -> "query".equals(p.getName())));
+        assertTrue(definition.getParameters().stream().anyMatch(p -> "scene".equals(p.getName())));
+        assertTrue(definition.getParameters().stream().anyMatch(p -> "topK".equals(p.getName())));
     }
 
     @Test
