@@ -10,7 +10,7 @@
     <div v-else-if="card.type === 'RESUME_GENERATED'" class="chat-card-body">
       <p class="chat-card-title">✅ {{ card.title || '简历已生成' }}</p>
       <p v-if="card.versionName" class="chat-card-subtitle">{{ card.versionName }}</p>
-      <pre v-if="card.previewMarkdown" class="chat-card-preview">{{ card.previewMarkdown }}</pre>
+      <div v-if="card.previewMarkdown" class="chat-card-preview" v-html="previewHtml"></div>
     </div>
     <div v-else-if="card.type === 'GENERATE_FAILED'" class="chat-card-body">
       <p class="chat-card-error">{{ card.message || '生成失败，请重试' }}</p>
@@ -43,6 +43,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { renderMarkdown } from '../utils/markdown'
 
 const props = defineProps({
   card: { type: Object, required: true },
@@ -55,6 +56,7 @@ defineEmits(['action'])
 
 const cardType = computed(() => (props.card?.type || 'unknown').toLowerCase())
 const actions = computed(() => (Array.isArray(props.card?.actions) ? props.card.actions : []))
+const previewHtml = computed(() => renderMarkdown(props.card?.previewMarkdown || ''))
 
 const expiresHint = computed(() => {
   const raw = props.card?.expiresAt
@@ -107,10 +109,20 @@ function actionLabel(act) {
   border-radius: 8px;
   font-size: 12px;
   line-height: 1.5;
-  white-space: pre-wrap;
   max-height: 120px;
   overflow: auto;
   color: #475569;
+}
+.chat-card-preview :deep(p) {
+  margin: 0 0 6px;
+}
+.chat-card-preview :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.chat-card-preview :deep(ul),
+.chat-card-preview :deep(ol) {
+  margin: 4px 0 6px 18px;
+  padding: 0;
 }
 .chat-card-error {
   margin: 0 0 10px;
