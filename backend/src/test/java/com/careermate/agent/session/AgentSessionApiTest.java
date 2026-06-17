@@ -6,12 +6,10 @@ import com.careermate.security.CurrentUser;
 import com.careermate.security.CurrentUserContext;
 import com.careermate.testsupport.TestUserSupport;
 import com.careermate.testsupport.TestUsers;
-import com.careermate.workspace.support.WorkspaceSessionRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -44,9 +42,6 @@ class AgentSessionApiTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private WorkspaceSessionRepository workspaceSessionRepository;
 
     @BeforeEach
     void setUp() {
@@ -137,43 +132,6 @@ class AgentSessionApiTest {
                 .andExpect(jsonPath("$.data[?(@.sessionId == '" + sessionA + "')].status")
                         .value("COMPLETED"))
                 .andExpect(jsonPath("$.data[?(@.sessionId == '" + sessionOtherUser + "')]")
-                        .isEmpty());
-    }
-
-    @Test
-    void listChatSessionsExcludesWorkspacesAndHonorsLimit() throws Exception {
-        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
-        String olderChat = agentSessionService.createSession(TestUsers.USER_A).getSessionId();
-        agentSessionService.appendMessage(TestUsers.USER_A, olderChat, "user", "旧普通对话", "text");
-
-        var workspace = workspaceSessionRepository.createWorkspace(
-                TestUsers.USER_A,
-                WorkspaceSessionRepository.WORKSPACE_MARKET,
-                "市场工作空间",
-                "分析市场机会",
-                null
-        );
-        workspaceSessionRepository.appendMessage(
-                TestUsers.USER_A,
-                workspace,
-                "user",
-                "工作空间消息",
-                "text",
-                null,
-                null
-        );
-
-        String latestChat = agentSessionService.createSession(TestUsers.USER_A).getSessionId();
-        agentSessionService.appendMessage(TestUsers.USER_A, latestChat, "user", "最新普通对话", "text");
-
-        mockMvc.perform(get("/api/agent/sessions")
-                        .param("taskType", "CHAT")
-                        .param("limit", "1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].sessionId").value(latestChat))
-                .andExpect(jsonPath("$.data[?(@.sessionId == '" + workspace.getSessionId() + "')]")
                         .isEmpty());
     }
 

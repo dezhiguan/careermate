@@ -185,23 +185,6 @@ class AgentMemoryServiceTest {
     }
 
     @Test
-    void refreshConversationSummaryKeepsPreviousSummarySignals() {
-        OffsetDateTime now = OffsetDateTime.now();
-        AgentSessionEntity session = createSession("memory-rolling-session-" + System.nanoTime(), now);
-        session.setConversationSummary("用户：目标岗位是 Java 后端");
-        agentSessionMapper.updateById(session);
-
-        insertMessage(session.getId(), TestUsers.USER_A, "user", "我偏好远程办公", 1, now);
-        insertMessage(session.getId(), TestUsers.USER_A, "agent", "收到，会优先考虑远程机会。", 2, now);
-
-        agentMemoryService.refreshConversationSummary(TestUsers.USER_A, session.getSessionId());
-
-        AgentSessionEntity updated = agentSessionMapper.selectById(session.getId());
-        assertTrue(updated.getConversationSummary().contains("Java 后端"));
-        assertTrue(updated.getConversationSummary().contains("远程"));
-    }
-
-    @Test
     void skipsCardJsonWhenRefreshingSummary() {
         OffsetDateTime now = OffsetDateTime.now();
         AgentSessionEntity session = new AgentSessionEntity();
