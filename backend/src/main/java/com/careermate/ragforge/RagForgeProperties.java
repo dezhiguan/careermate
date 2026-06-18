@@ -15,7 +15,7 @@ public class RagForgeProperties {
     /** X-API-Key */
     private String apiKey = "";
     /** 单次请求超时（毫秒） */
-    private int timeoutMs = 5000;
+    private int timeoutMs = 1500;
     /** RAGForge 中 JD Pattern KB 的 id；空则禁用 JD 搜索能力 */
     private String jdKbId = "";
     /** RAGForge 中 Interview Q&A KB 的 id；空则禁用面试题 RAG 增强 */

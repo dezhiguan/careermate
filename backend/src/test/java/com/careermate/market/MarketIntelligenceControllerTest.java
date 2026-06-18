@@ -78,7 +78,7 @@ class MarketIntelligenceControllerTest {
         item.setGrowth("稳定");
         vo.setSkills(List.of(item));
         vo.setAiSummary("Java 需求高");
-        when(marketIntelligenceService.getSkillTrends("Java后端")).thenReturn(vo);
+        when(marketIntelligenceService.getSkillTrends("广州", "Java后端")).thenReturn(vo);
 
         mockMvc.perform(get("/api/market/skill-trends"))
                 .andExpect(status().isOk())
@@ -94,7 +94,7 @@ class MarketIntelligenceControllerTest {
         vo.setMatchScore(70);
         vo.setTopSuggestion("补 K8s");
         vo.setAiSummary("匹配一般");
-        when(marketIntelligenceService.getResumeGap(1L)).thenReturn(vo);
+        when(marketIntelligenceService.getResumeGap(1L, "default")).thenReturn(vo);
 
         mockMvc.perform(get("/api/market/resume-gap"))
                 .andExpect(status().isOk())

@@ -309,7 +309,7 @@ async function loadMarketData() {
 
   if (role.value) {
     tasks.push(
-      getSkillTrends({ role: role.value })
+      getSkillTrends({ city: city.value || '广州', role: role.value })
         .then((r) => { skillsData.value = r })
         .catch(() => {})
         .finally(() => { skillsLoading.value = false })

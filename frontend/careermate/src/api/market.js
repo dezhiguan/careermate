@@ -4,8 +4,8 @@ export function getSalaryInsight({ role = 'Java后端', city = '广州', years =
   return request(`/market/salary-insight?role=${encodeURIComponent(role)}&city=${encodeURIComponent(city)}&years=${encodeURIComponent(years)}`)
 }
 
-export function getSkillTrends({ role = 'Java后端' } = {}) {
-  return request(`/market/skill-trends?role=${encodeURIComponent(role)}`)
+export function getSkillTrends({ city = '广州', role = 'Java后端' } = {}) {
+  return request(`/market/skill-trends?city=${encodeURIComponent(city)}&role=${encodeURIComponent(role)}`)
 }
 
 export function getResumeGap() {
