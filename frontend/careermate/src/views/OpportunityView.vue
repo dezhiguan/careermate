@@ -23,7 +23,7 @@
 
     <div v-if="loading || degraded" class="card-list">
       <div v-if="degraded" class="degraded-hint">
-        AI 正在为你抓取最新机会，约 3 秒后自动刷新
+        AI 正在抓取最新机会，可以先逛其他 tab，回来就有结果
       </div>
       <div v-for="n in 3" :key="n" class="skeleton-card">
         <div class="skeleton-line wide" />
@@ -192,13 +192,16 @@ async function fetchList({ autoRefresh = false } = {}) {
   }
 }
 
+const DEGRADED_REFETCH_MAX = 6
+const DEGRADED_REFETCH_DELAY_MS = 3000
+
 function scheduleDegradedRefresh() {
-  if (degradedRetryCount.value >= 2) return
+  if (degradedRetryCount.value >= DEGRADED_REFETCH_MAX) return
   degradedRetryCount.value += 1
   clearDegradedRefreshTimer()
   degradedRefreshTimer = window.setTimeout(() => {
     fetchList({ autoRefresh: true })
-  }, 3000)
+  }, DEGRADED_REFETCH_DELAY_MS)
 }
 
 function clearDegradedRefreshTimer() {

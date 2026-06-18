@@ -37,6 +37,7 @@
           <button type="button" class="more-btn" @click="moreOpen = true">更多</button>
         </div>
         <div v-if="snapshotLoading" class="skeleton-group">
+          <div class="loading-hint">AI 正在抓取最新行情，可以先逛其他 tab，回来就有结果</div>
           <div class="skeleton" style="height:36px;width:50%;margin-bottom:8px" />
           <div class="skeleton" style="height:14px;width:80%" />
           <div class="skeleton" style="height:34px;margin-top:12px" />
@@ -235,7 +236,7 @@ const META_STATE = {
   EMPTY: 'EMPTY',
 }
 const LOADING_REFETCH_DELAY_MS = 3000
-const LOADING_REFETCH_MAX = 2
+const LOADING_REFETCH_MAX = 6
 
 const city = ref('')
 const role = ref('')
@@ -729,6 +730,16 @@ async function enterMarketWorkspace(entryAction) {
 
 /* 骨架屏 */
 .skeleton-group { display: flex; flex-direction: column; }
+
+.loading-hint {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+}
 .skeleton { background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
