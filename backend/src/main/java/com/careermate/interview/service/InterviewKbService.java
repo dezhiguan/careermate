@@ -75,7 +75,7 @@ public class InterviewKbService {
             return cached;
         }
         refreshAsync(() -> self().computeKbQuestions(safeQuery));
-        return fallbackKbQuestions(safeQuery);
+        return loadingKbQuestions(safeQuery);
     }
 
     @Cacheable(
@@ -235,6 +235,15 @@ public class InterviewKbService {
         vo.setQuestions(Collections.emptyList());
         vo.setAiSummary("暂无相关面试资料");
         vo.setMeta(CacheMeta.degraded());
+        return vo;
+    }
+
+    private static KbQuestionsVO loadingKbQuestions(String query) {
+        KbQuestionsVO vo = new KbQuestionsVO();
+        vo.setQuery(query);
+        vo.setQuestions(Collections.emptyList());
+        vo.setAiSummary("");
+        vo.setMeta(CacheMeta.loading());
         return vo;
     }
 
