@@ -255,6 +255,7 @@ import { listResumes } from '../api/resume'
 import { listVersions } from '../api/resumeVersion'
 import { listInterviewSessions } from '../api/interview'
 import { authStore } from '../stores/authStore'
+import { homeStore } from '../stores/homeStore'
 import { computeProfileCompleteness } from '../utils/profileCompleteness'
 
 const router = useRouter()
@@ -363,6 +364,7 @@ async function saveCareer() {
   try {
     const updated = await updateCareerProfile(editCareer.value)
     profile.value = { ...profile.value, ...updated }
+    homeStore.updateCareerProfile(profile.value)
     editingCareer.value = false
     careerSaveMsg.value = '已更新，市场行情与面试题将使用新设置'
     setTimeout(() => { careerSaveMsg.value = '' }, 3000)
@@ -395,6 +397,7 @@ async function saveSkills() {
   try {
     const updated = await updateCareerProfile({ skillKeywords: editSkills.value })
     profile.value.skillKeywords = updated.skillKeywords || editSkills.value
+    homeStore.updateCareerProfile(profile.value)
     editingSkills.value = false
   } catch (e) {
     profileMessage.value = e?.message || '技能保存失败'
@@ -549,26 +552,48 @@ function handleLogout() {
 }
 
 onMounted(async () => {
-  try {
-    await authStore.fetchCurrentUser()
-  } catch {
-    // 未登录时保持现状
+  if (homeStore.state.user) {
+    authStore.applyUserProfile(homeStore.state.user)
+  }
+  if (homeStore.state.careerProfile) {
+    profile.value = { ...profile.value, ...homeStore.state.careerProfile }
+  }
+  if (homeStore.state.defaultResume) {
+    resumes.value = [homeStore.state.defaultResume]
   }
 
-  const [profileResult, resumesResult, versionsResult, sessionsResult, artifactsResult] = await Promise.allSettled([
-    getCareerProfile(),
-    listResumes(),
+  const tasks = [
     listVersions(),
     listInterviewSessions(),
     listRecentArtifacts(5),
-  ])
+  ]
+  if (!homeStore.state.careerProfile) {
+    tasks.unshift(getCareerProfile())
+  }
+  if (!homeStore.state.defaultResume) {
+    tasks.unshift(listResumes())
+  }
+  const results = await Promise.allSettled(tasks)
+  let cursor = 0
 
-  if (profileResult.status === 'fulfilled' && profileResult.value) {
-    profile.value = { ...profile.value, ...profileResult.value }
+  if (!homeStore.state.defaultResume) {
+    const resumesResult = results[cursor++]
+    if (resumesResult.status === 'fulfilled') {
+      resumes.value = Array.isArray(resumesResult.value) ? resumesResult.value : []
+      homeStore.updateDefaultResume(resumes.value.find((r) => r.isDefault) || null)
+    }
   }
-  if (resumesResult.status === 'fulfilled') {
-    resumes.value = Array.isArray(resumesResult.value) ? resumesResult.value : []
+  if (!homeStore.state.careerProfile) {
+    const profileResult = results[cursor++]
+    if (profileResult.status === 'fulfilled' && profileResult.value) {
+      profile.value = { ...profile.value, ...profileResult.value }
+      homeStore.updateCareerProfile(profileResult.value)
+    }
   }
+  const versionsResult = results[cursor++]
+  const sessionsResult = results[cursor++]
+  const artifactsResult = results[cursor++]
+
   if (versionsResult.status === 'fulfilled') {
     versions.value = Array.isArray(versionsResult.value) ? versionsResult.value : []
   }

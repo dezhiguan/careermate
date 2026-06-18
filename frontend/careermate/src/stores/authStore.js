@@ -69,6 +69,9 @@ async function init() {
       clearAuth()
       return
     }
+    if (state.currentUser?.authenticated) {
+      return
+    }
     await fetchCurrentUser()
   } catch (e) {
     clearAuth()

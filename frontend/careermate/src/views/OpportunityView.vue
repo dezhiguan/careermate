@@ -122,6 +122,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { listOpportunities, prepareWithAi } from '../api/opportunity'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
+import { homeStore } from '../stores/homeStore'
 
 const router = useRouter()
 const route = useRoute()
@@ -150,20 +151,33 @@ async function fetchList() {
   loading.value = true
   error.value = ''
   try {
+    const hasDefaultResume = !!homeStore.state.defaultResume
     const data = await listOpportunities({
       keyword: activeKeyword.value || undefined,
-      mode: hasResume.value ? undefined : 'demo',
+      mode: hasDefaultResume ? undefined : 'demo',
       page: 1,
       size: 10,
     })
     items.value = data?.items || []
     hasResume.value = !!data?.hasResume
+    if (!activeKeyword.value) {
+      homeStore.updateTopOpportunities(items.value)
+    }
   } catch (e) {
     error.value = e.message || '加载失败'
     items.value = []
   } finally {
     loading.value = false
   }
+}
+
+function hydrateFromBootstrap() {
+  items.value = Array.isArray(homeStore.state.topOpportunities)
+    ? homeStore.state.topOpportunities
+    : []
+  hasResume.value = !!homeStore.state.defaultResume
+  loading.value = false
+  error.value = ''
 }
 
 async function handleWorkspaceAction(item, entryAction) {
@@ -241,7 +255,13 @@ function tierClass(tier) {
   return 'tier-unknown'
 }
 
-onMounted(fetchList)
+onMounted(() => {
+  if (!activeKeyword.value && homeStore.state.initialized && homeStore.state.topOpportunities.length > 0) {
+    hydrateFromBootstrap()
+    return
+  }
+  fetchList()
+})
 </script>
 
 <style scoped>

@@ -10,6 +10,8 @@ public interface OpportunityService {
 
     PageResult<OpportunityListItemVO> list(Long userId, OpportunityListRequest request);
 
+    PageResult<OpportunityListItemVO> listCached(Long userId, OpportunityListRequest request);
+
     OpportunityDetailVO detail(Long userId, String jdId);
 
     OpportunityPrepareResponse prepare(Long userId, String jdId);

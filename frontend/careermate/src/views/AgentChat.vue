@@ -241,6 +241,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authStore } from '../stores/authStore'
+import { homeStore } from '../stores/homeStore'
 import {
   createAgentSession,
   getAgentSession,
@@ -1110,6 +1111,15 @@ async function sendExamplePrompt(prompt) {
 }
 
 async function loadCareerProfileBanner() {
+  const cachedProfile = homeStore.state.careerProfile
+  if (cachedProfile) {
+    careerProfile.value = {
+      ...careerProfile.value,
+      ...cachedProfile,
+      skillKeywords: Array.isArray(cachedProfile.skillKeywords) ? cachedProfile.skillKeywords : [],
+    }
+    return
+  }
   try {
     const profile = await getCareerProfile()
     if (profile) {
@@ -1118,6 +1128,7 @@ async function loadCareerProfileBanner() {
         ...profile,
         skillKeywords: Array.isArray(profile.skillKeywords) ? profile.skillKeywords : [],
       }
+      homeStore.updateCareerProfile(profile)
     }
   } catch {
     // profile banner is non-blocking

@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { authStore } from '../stores/authStore'
+import { homeStore } from '../stores/homeStore'
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
@@ -70,6 +71,12 @@ router.beforeEach(async (to) => {
   }
 
   if (!authenticated) {
+    return '/login'
+  }
+  try {
+    await homeStore.fetchBootstrap()
+  } catch (e) {
+    authStore.logout()
     return '/login'
   }
   return true

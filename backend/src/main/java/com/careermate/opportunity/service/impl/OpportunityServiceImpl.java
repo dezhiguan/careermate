@@ -141,6 +141,41 @@ public class OpportunityServiceImpl implements OpportunityService {
         );
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public PageResult<OpportunityListItemVO> listCached(Long userId, OpportunityListRequest request) {
+        OpportunityListRequest safeRequest = request == null
+                ? new OpportunityListRequest(null, null, null, null, 1, 10)
+                : request;
+        ResumeContext resumeContext = resolveResumeContext(userId);
+        boolean demoMode = isDemoMode(safeRequest, resumeContext);
+        SearchCriteria criteria = resolveSearchCriteria(userId, safeRequest);
+        String cacheKey = CacheKeys.opportunityList(
+                demoMode ? "广州" : criteria.city(),
+                demoMode ? "Java" : criteria.role(),
+                demoMode ? "3-5年" : criteria.years(),
+                demoMode ? "demo" : criteria.keyword()
+        );
+
+        CachedOpportunityList cached = readListCache(cacheKey);
+        if (cached == null) {
+            return PageResult.degradedEmpty(
+                    safeRequest.page(),
+                    safeRequest.size(),
+                    resumeContext.hasResume(),
+                    SORT_LATEST
+            );
+        }
+        return buildListPage(
+                cached.items(),
+                resumeContext,
+                demoMode,
+                safeRequest.page(),
+                safeRequest.size(),
+                new CacheMeta(false, cached.cachedAt())
+        );
+    }
+
     private PageResult<OpportunityListItemVO> buildListPage(
             List<OpportunityListItemVO> items,
             ResumeContext resumeContext,
