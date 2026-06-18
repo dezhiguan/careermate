@@ -209,6 +209,10 @@
           <span>{{ resumeViewerTitle }}</span>
           <button type="button" class="modal-close" @click="resumeViewerOpen = false">×</button>
         </div>
+        <div v-if="resumeViewerSummary" class="viewer-summary-banner">
+          <span class="viewer-summary-kicker">改写说明</span>
+          <span>{{ resumeViewerSummary }}</span>
+        </div>
         <div class="modal-body markdown-preview" v-html="renderMd(resumeViewerContent)"></div>
       </div>
     </div>
@@ -335,6 +339,7 @@ const jdViewerContent = ref('')
 const resumeViewerOpen = ref(false)
 const resumeViewerTitle = ref('')
 const resumeViewerContent = ref('')
+const resumeViewerSummary = ref('')
 const versionsDrawerOpen = ref(false)
 const workspaceVersions = ref([])
 const pdfDownloading = ref(false)
@@ -850,6 +855,7 @@ async function openResumeVersion(versionId) {
     const detail = await getVersion(versionId)
     resumeViewerTitle.value = detail?.versionName || '简历预览'
     resumeViewerContent.value = detail?.contentMarkdown || ''
+    resumeViewerSummary.value = detail?.changeSummary || ''
     resumeViewerOpen.value = true
     versionsDrawerOpen.value = false
   } catch (e) {
@@ -1369,6 +1375,26 @@ onBeforeUnmount(() => {
   font-size: 22px;
   cursor: pointer;
   color: #64748b;
+}
+
+.viewer-summary-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 16px 0;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #334155;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.viewer-summary-kicker {
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .modal-body {

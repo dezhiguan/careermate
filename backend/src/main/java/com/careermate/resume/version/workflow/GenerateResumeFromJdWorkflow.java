@@ -148,7 +148,7 @@ public class GenerateResumeFromJdWorkflow {
     static MetaParseResult parseMetaBlock(String raw) {
         MarkdownExportSupport.OptimizationMetaStripResult result =
                 MarkdownExportSupport.stripOptimizationMeta(raw);
-        return new MetaParseResult(result.markdown(), result.changes());
+        return new MetaParseResult(result.markdown(), result.changes(), result.changeSummary());
     }
 
     private String writeJson(Object value) {
@@ -159,6 +159,6 @@ public class GenerateResumeFromJdWorkflow {
         }
     }
 
-    record MetaParseResult(String markdown, List<Map<String, Object>> changes) {
+    record MetaParseResult(String markdown, List<Map<String, Object>> changes, String changeSummary) {
     }
 }

@@ -14,6 +14,7 @@ public record ResumeVersionVO(
         String targetCompany,
         String targetJdTitle,
         Integer versionSeq,
+        String changeSummary,
         String contentMarkdown,
         List<Map<String, Object>> optimizationNotes,
         BigDecimal aiScore,

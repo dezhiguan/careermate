@@ -84,33 +84,46 @@
 
       <div v-else class="version-list">
         <div v-for="v in versions" :key="v.versionId" class="version-row">
-          <div class="version-row-left">
-            <span class="badge-custom">定制</span>
-            <div class="version-info">
-              <div class="version-name">{{ v.versionName || '历史定制简历' }}</div>
-              <div class="version-meta">{{ formatGeneratedAt(v.createdAt) }}</div>
+          <div class="version-row-main">
+            <div class="version-row-left">
+              <span class="badge-custom">定制</span>
+              <div class="version-info">
+                <div class="version-name">{{ v.versionName || '历史定制简历' }}</div>
+                <div class="version-meta">{{ formatGeneratedAt(v.createdAt) }}</div>
+              </div>
+            </div>
+            <div class="version-row-right">
+              <span v-if="v.aiScore != null" class="ats-chip">ATS {{ Math.round(v.aiScore) }}</span>
+              <button type="button" class="action-btn" @click="openModal('custom', v, 'preview')">预览</button>
+              <button
+                type="button"
+                class="action-btn"
+                :disabled="downloadingKey === `version-pdf-${v.versionId}`"
+                @click="handleDownloadVersion(v, 'pdf')"
+              >
+                {{ downloadingKey === `version-pdf-${v.versionId}` ? '...' : 'PDF' }}
+              </button>
+              <button
+                type="button"
+                class="action-btn"
+                :disabled="downloadingKey === `version-docx-${v.versionId}`"
+                @click="handleDownloadVersion(v, 'docx')"
+              >
+                {{ downloadingKey === `version-docx-${v.versionId}` ? '...' : 'Word' }}
+              </button>
+              <button type="button" class="action-btn action-btn--danger" @click="handleDeleteVersion(v)">删除</button>
             </div>
           </div>
-          <div class="version-row-right">
-            <span v-if="v.aiScore != null" class="ats-chip">ATS {{ Math.round(v.aiScore) }}</span>
-            <button type="button" class="action-btn" @click="openModal('custom', v, 'preview')">预览</button>
-            <button
-              type="button"
-              class="action-btn"
-              :disabled="downloadingKey === `version-pdf-${v.versionId}`"
-              @click="handleDownloadVersion(v, 'pdf')"
-            >
-              {{ downloadingKey === `version-pdf-${v.versionId}` ? '...' : 'PDF' }}
-            </button>
-            <button
-              type="button"
-              class="action-btn"
-              :disabled="downloadingKey === `version-docx-${v.versionId}`"
-              @click="handleDownloadVersion(v, 'docx')"
-            >
-              {{ downloadingKey === `version-docx-${v.versionId}` ? '...' : 'Word' }}
-            </button>
-            <button type="button" class="action-btn action-btn--danger" @click="handleDeleteVersion(v)">删除</button>
+          <button
+            type="button"
+            class="summary-toggle"
+            :aria-expanded="expandedSummaryId === v.versionId"
+            @click="toggleSummary(v.versionId)"
+          >
+            查看改写说明
+          </button>
+          <div v-if="expandedSummaryId === v.versionId" class="change-summary">
+            {{ v.changeSummary || '暂无改写说明' }}
           </div>
         </div>
       </div>
@@ -150,6 +163,13 @@
           {{ resumeModalError }}
         </div>
         <template v-else>
+          <div
+            v-if="resumeModalMode === 'preview' && resumeModalType === 'custom' && resumeModalMeta.changeSummary"
+            class="change-summary-banner"
+          >
+            <span class="change-summary-kicker">改写说明</span>
+            <span>{{ resumeModalMeta.changeSummary }}</span>
+          </div>
           <div
             v-if="resumeModalMode === 'preview'"
             class="modal-body modal-preview markdown-preview"
@@ -240,7 +260,8 @@ const editContent = ref('')
 const resumeModalLoading = ref(false)
 const resumeModalError = ref('')
 const resumeSaving = ref(false)
-const resumeModalMeta = ref({ targetJdLabel: '', aiScore: null })
+const resumeModalMeta = ref({ targetJdLabel: '', aiScore: null, changeSummary: '' })
+const expandedSummaryId = ref('')
 
 const createModalOpen = ref(false)
 const createTitle = ref('')
@@ -339,6 +360,10 @@ function buildPreviewContent(type, detail) {
   return meta.length ? `${meta.join('\n')}\n\n${body}` : body
 }
 
+function toggleSummary(versionId) {
+  expandedSummaryId.value = expandedSummaryId.value === versionId ? '' : versionId
+}
+
 async function openModal(type, item, mode = 'preview') {
   if (!item) return
   resumeModalType.value = type
@@ -367,6 +392,7 @@ async function openModal(type, item, mode = 'preview') {
       resumeModalMeta.value = {
         targetJdLabel: detail.targetJdLabel || '',
         aiScore: detail.aiScore ?? null,
+        changeSummary: detail.changeSummary || item.changeSummary || '',
       }
     }
     resumeModalContent.value = buildPreviewContent(type, detail)
@@ -419,6 +445,7 @@ async function saveResume() {
           targetCompany: updated.targetCompany ?? versions.value[idx].targetCompany,
           targetJdTitle: updated.targetJdTitle ?? versions.value[idx].targetJdTitle,
           versionSeq: updated.versionSeq ?? versions.value[idx].versionSeq,
+          changeSummary: updated.changeSummary ?? versions.value[idx].changeSummary,
         }
       }
       resumeModalItem.value = { ...resumeModalItem.value, versionName: updated.versionName }
@@ -431,6 +458,7 @@ async function saveResume() {
           contentMarkdown: content,
           targetJdLabel: resumeModalMeta.value.targetJdLabel,
           aiScore: resumeModalMeta.value.aiScore,
+          changeSummary: resumeModalMeta.value.changeSummary,
         })
     resumeModalMode.value = 'preview'
   } catch (e) {
@@ -734,15 +762,21 @@ onMounted(async () => {
 
 .version-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   padding: 10px 0;
   border-bottom: 1px solid #f1f5f9;
 }
 
 .version-row:last-child {
   border-bottom: none;
+}
+
+.version-row-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
 .version-row-left {
@@ -785,6 +819,48 @@ onMounted(async () => {
   padding: 2px 6px;
   border-radius: 4px;
   font-weight: 600;
+}
+
+.summary-toggle {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.change-summary {
+  border-left: 3px solid #a5b4fc;
+  background: #f8fafc;
+  color: #334155;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.change-summary-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 16px 0;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #334155;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.change-summary-kicker {
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 /* 弹层 */
@@ -874,6 +950,10 @@ onMounted(async () => {
 
 .modal-preview {
   max-height: 60vh;
+}
+
+.change-summary-banner + .modal-preview {
+  max-height: calc(60vh - 80px);
 }
 
 .markdown-preview {

@@ -24,6 +24,7 @@ public interface ResumeVersionService {
             String targetCompany,
             String targetJdTitle,
             String contentMarkdown,
+            String changeSummary,
             List<Map<String, Object>> optimizationNotes
     );
 

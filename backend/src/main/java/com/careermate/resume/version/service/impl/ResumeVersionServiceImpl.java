@@ -103,6 +103,7 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
             String targetCompany,
             String targetJdTitle,
             String contentMarkdown,
+            String changeSummary,
             List<Map<String, Object>> optimizationNotes
     ) {
         LocalDateTime now = LocalDateTime.now();
@@ -123,6 +124,7 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
         entity.setTargetJdTitle(safeTitle);
         entity.setVersionSeq(versionSeq);
         entity.setVersionName(generatedDisplayName);
+        entity.setChangeSummary(normalizeChangeSummary(changeSummary, optimizationNotes));
         entity.setContentMarkdown(contentMarkdown);
         entity.setOptimizationNotes(writeNotesJson(optimizationNotes));
         entity.setCreatedAt(now);
@@ -251,6 +253,7 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
                 entity.getTargetJdId(),
                 entity.getTargetJdTitle(),
                 entity.getVersionSeq(),
+                normalizeChangeSummary(entity.getChangeSummary(), parseNotes(entity.getOptimizationNotes())),
                 toOffsetDateTime(entity.getCreatedAt())
         );
     }
@@ -265,6 +268,7 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
                 entity.getTargetCompany(),
                 entity.getTargetJdTitle(),
                 entity.getVersionSeq(),
+                normalizeChangeSummary(entity.getChangeSummary(), parseNotes(entity.getOptimizationNotes())),
                 entity.getContentMarkdown(),
                 parseNotes(entity.getOptimizationNotes()),
                 entity.getAiScore(),
@@ -357,6 +361,44 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
             log.warn("write optimization_notes failed: {}", e.getMessage());
             return "[]";
         }
+    }
+
+    private static String normalizeChangeSummary(String summary, List<Map<String, Object>> notes) {
+        String text = fallbackText(summary, "");
+        if (text.isBlank()) {
+            text = buildSummaryFromNotes(notes);
+        }
+        if (text.isBlank()) {
+            text = "对比原简历，我已根据目标 JD 调整表达重点，突出更匹配的技能、项目经历和岗位关键词。";
+        }
+        text = text.replaceAll("\\s+", " ").trim();
+        return text.length() <= 200 ? text : text.substring(0, 200);
+    }
+
+    private static String buildSummaryFromNotes(List<Map<String, Object>> notes) {
+        if (notes == null || notes.isEmpty()) {
+            return "";
+        }
+        List<String> changes = notes.stream()
+                .map(ResumeVersionServiceImpl::noteText)
+                .filter(text -> text != null && !text.isBlank())
+                .limit(3)
+                .toList();
+        if (changes.isEmpty()) {
+            return "";
+        }
+        return "对比原简历，我做了 " + changes.size() + " 处改动：" + String.join("；", changes) + "。";
+    }
+
+    private static String noteText(Map<String, Object> note) {
+        if (note == null) {
+            return "";
+        }
+        Object text = note.get("text");
+        if (text == null) {
+            text = note.get("summary");
+        }
+        return text == null ? "" : String.valueOf(text).trim();
     }
 
     private OffsetDateTime toOffsetDateTime(LocalDateTime value) {

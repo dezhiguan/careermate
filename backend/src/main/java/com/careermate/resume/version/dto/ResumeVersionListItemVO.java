@@ -10,6 +10,7 @@ public record ResumeVersionListItemVO(
         Long targetJdId,
         String targetJdTitle,
         Integer versionSeq,
+        String changeSummary,
         OffsetDateTime createdAt
 ) {
 }

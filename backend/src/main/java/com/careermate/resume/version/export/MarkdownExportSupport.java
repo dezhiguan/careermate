@@ -38,7 +38,11 @@ public final class MarkdownExportSupport {
     private MarkdownExportSupport() {
     }
 
-    public record OptimizationMetaStripResult(String markdown, List<Map<String, Object>> changes) {
+    public record OptimizationMetaStripResult(
+            String markdown,
+            List<Map<String, Object>> changes,
+            String changeSummary
+    ) {
     }
 
     public static Parser parser() {
@@ -84,14 +88,17 @@ public final class MarkdownExportSupport {
      */
     public static OptimizationMetaStripResult stripOptimizationMeta(String raw) {
         if (raw == null) {
-            return new OptimizationMetaStripResult("", List.of());
+            return new OptimizationMetaStripResult("", List.of(), "");
         }
         String markdown = raw;
         List<Map<String, Object>> changes = new ArrayList<>();
+        String changeSummary = "";
 
         Matcher metaMatcher = META_BLOCK_PATTERN.matcher(markdown);
         if (metaMatcher.find()) {
-            changes.addAll(extractOptimizationChanges(metaMatcher.group(1).trim()));
+            OptimizationMeta meta = extractOptimizationMeta(metaMatcher.group(1).trim());
+            changes.addAll(meta.changes());
+            changeSummary = meta.changeSummary();
             markdown = metaMatcher.replaceFirst("").trim();
         }
 
@@ -100,8 +107,11 @@ public final class MarkdownExportSupport {
         TrailingOptimizationStrip trailing = stripTrailingOptimizationJson(markdown);
         markdown = trailing.markdown();
         changes.addAll(trailing.changes());
+        if (changeSummary.isBlank()) {
+            changeSummary = trailing.changeSummary();
+        }
 
-        return new OptimizationMetaStripResult(markdown.strip(), List.copyOf(changes));
+        return new OptimizationMetaStripResult(markdown.strip(), List.copyOf(changes), normalizeSummary(changeSummary));
     }
 
     /** 导出层防御：仅返回剥离 meta 后的 Markdown。 */
@@ -133,46 +143,50 @@ public final class MarkdownExportSupport {
                 || compactTail.contains("'meta':");
     }
 
-    private record TrailingOptimizationStrip(String markdown, List<Map<String, Object>> changes) {
+    private record TrailingOptimizationStrip(
+            String markdown,
+            List<Map<String, Object>> changes,
+            String changeSummary
+    ) {
     }
 
     private static TrailingOptimizationStrip stripTrailingOptimizationJson(String markdown) {
         if (markdown == null || markdown.isBlank()) {
-            return new TrailingOptimizationStrip(markdown == null ? "" : markdown, List.of());
+            return new TrailingOptimizationStrip(markdown == null ? "" : markdown, List.of(), "");
         }
         String trimmed = markdown.stripTrailing();
 
         Matcher fenceMatcher = TRAILING_FENCED_JSON.matcher(trimmed);
         if (fenceMatcher.find()) {
             String jsonContent = fenceMatcher.group(2).trim();
-            List<Map<String, Object>> changes = extractOptimizationChanges(jsonContent);
-            if (!changes.isEmpty()) {
+            OptimizationMeta meta = extractOptimizationMeta(jsonContent);
+            if (!meta.changes().isEmpty() || !meta.changeSummary().isBlank()) {
                 String without = trimmed.substring(0, fenceMatcher.start()).stripTrailing();
-                return new TrailingOptimizationStrip(without, changes);
+                return new TrailingOptimizationStrip(without, meta.changes(), meta.changeSummary());
             }
         }
 
         int lastBrace = trimmed.lastIndexOf('}');
         if (lastBrace < 0) {
-            return new TrailingOptimizationStrip(markdown, List.of());
+            return new TrailingOptimizationStrip(markdown, List.of(), "");
         }
         if (!trimmed.substring(lastBrace + 1).isBlank()) {
-            return new TrailingOptimizationStrip(markdown, List.of());
+            return new TrailingOptimizationStrip(markdown, List.of(), "");
         }
 
         int openBrace = findMatchingOpenBrace(trimmed, lastBrace);
         if (openBrace < 0) {
-            return new TrailingOptimizationStrip(markdown, List.of());
+            return new TrailingOptimizationStrip(markdown, List.of(), "");
         }
 
         String jsonCandidate = trimmed.substring(openBrace, lastBrace + 1);
-        List<Map<String, Object>> changes = extractOptimizationChanges(jsonCandidate);
-        if (changes.isEmpty()) {
-            return new TrailingOptimizationStrip(markdown, List.of());
+        OptimizationMeta meta = extractOptimizationMeta(jsonCandidate);
+        if (meta.changes().isEmpty() && meta.changeSummary().isBlank()) {
+            return new TrailingOptimizationStrip(markdown, List.of(), "");
         }
 
         String without = trimmed.substring(0, openBrace).stripTrailing();
-        return new TrailingOptimizationStrip(without, changes);
+        return new TrailingOptimizationStrip(without, meta.changes(), meta.changeSummary());
     }
 
     private static int findMatchingOpenBrace(String text, int closeIndex) {
@@ -192,25 +206,45 @@ public final class MarkdownExportSupport {
     }
 
     static List<Map<String, Object>> extractOptimizationChanges(String json) {
+        return extractOptimizationMeta(json).changes();
+    }
+
+    private record OptimizationMeta(List<Map<String, Object>> changes, String changeSummary) {
+    }
+
+    static OptimizationMeta extractOptimizationMeta(String json) {
         if (json == null || json.isBlank()) {
-            return List.of();
+            return new OptimizationMeta(List.of(), "");
         }
         try {
             JsonNode root = OBJECT_MAPPER.readTree(json);
             JsonNode changesNode = root.get("changes");
+            JsonNode summaryNode = root.get("change_summary");
             if ((changesNode == null || !changesNode.isArray()) && root.has("meta")) {
                 JsonNode meta = root.get("meta");
                 if (meta != null && meta.isObject()) {
                     changesNode = meta.get("changes");
+                    if (summaryNode == null || !summaryNode.isTextual()) {
+                        summaryNode = meta.get("change_summary");
+                    }
                 }
             }
-            if (changesNode == null || !changesNode.isArray()) {
-                return List.of();
-            }
-            return parseChangesArray(changesNode);
+            List<Map<String, Object>> changes = changesNode == null || !changesNode.isArray()
+                    ? List.of()
+                    : parseChangesArray(changesNode);
+            String summary = summaryNode != null && summaryNode.isTextual() ? summaryNode.asText() : "";
+            return new OptimizationMeta(changes, normalizeSummary(summary));
         } catch (Exception e) {
-            return List.of();
+            return new OptimizationMeta(List.of(), "");
         }
+    }
+
+    private static String normalizeSummary(String summary) {
+        if (summary == null || summary.isBlank()) {
+            return "";
+        }
+        String normalized = summary.replaceAll("\\s+", " ").trim();
+        return normalized.length() <= 200 ? normalized : normalized.substring(0, 200);
     }
 
     private static List<Map<String, Object>> parseChangesArray(JsonNode array) {

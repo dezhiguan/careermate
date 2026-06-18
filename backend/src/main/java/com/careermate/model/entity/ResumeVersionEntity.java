@@ -29,6 +29,7 @@ public class ResumeVersionEntity {
     private String targetJdTitle;
     private Integer versionSeq;
     private String versionName;
+    private String changeSummary;
     private String contentMarkdown;
     @TableField(value = "optimization_notes", typeHandler = JsonbStringTypeHandler.class)
     private String optimizationNotes;
