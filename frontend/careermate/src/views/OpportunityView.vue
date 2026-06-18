@@ -49,6 +49,14 @@
         :class="{ 'jd-card-high': item.matchTier === 'HIGH' }"
       >
         <div v-if="item.matchTier === 'HIGH'" class="high-badge">⭐ AI 强推{{ index === 0 ? ' TOP 1' : '' }}</div>
+        <button
+          v-if="item.isDemo"
+          type="button"
+          class="demo-badge"
+          @click.stop="goUploadResume"
+        >
+          示例 · 上传简历看真实匹配分
+        </button>
 
         <div class="card-head">
           <div class="company-avatar">{{ companyInitial(item.company) }}</div>
@@ -60,13 +68,13 @@
               <template v-if="item.city"> · {{ item.city }}</template>
             </div>
           </div>
-          <div v-if="hasResume" class="match-badge">
+          <div v-if="item.matchScore != null" class="match-badge">
             <div class="match-label">AI 匹配分</div>
-            <div class="match-score">{{ item.matchScore ?? '—' }}</div>
+            <div class="match-score">{{ item.matchScore }}</div>
           </div>
         </div>
 
-        <div v-if="hasResume" class="tier-row">
+        <div v-if="item.matchScore != null" class="tier-row">
           <span class="tier-chip" :class="tierClass(item.matchTier)">{{ tierLabel(item.matchTier) }}</span>
           <span v-for="reason in (item.matchReasons || []).slice(0, 1)" :key="reason" class="reason-text">
             {{ reason }}
@@ -152,6 +160,7 @@ async function fetchList() {
   try {
     const data = await listOpportunities({
       keyword: searchInput.value.trim() || undefined,
+      mode: hasResume.value ? undefined : 'demo',
       page: 1,
       size: 10,
     })
@@ -376,11 +385,32 @@ onMounted(fetchList)
   font-weight: 700;
 }
 
+.demo-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  max-width: calc(100% - 24px);
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+  white-space: normal;
+}
+
+.demo-badge:hover {
+  background: #dbeafe;
+}
+
 .card-head {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 6px 0 10px;
+  margin: 16px 0 10px;
 }
 
 .company-avatar {

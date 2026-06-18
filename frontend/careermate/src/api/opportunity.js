@@ -3,6 +3,7 @@ import { request } from './http'
 export async function listOpportunities(params = {}) {
   const query = new URLSearchParams()
   if (params.keyword) query.set('keyword', params.keyword)
+  if (params.mode) query.set('mode', params.mode)
   if (params.page) query.set('page', String(params.page))
   if (params.size) query.set('size', String(params.size))
   const qs = query.toString()

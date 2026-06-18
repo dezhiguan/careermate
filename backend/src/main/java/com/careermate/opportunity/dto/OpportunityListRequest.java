@@ -7,6 +7,7 @@ public record OpportunityListRequest(
         String keyword,
         String city,
         String position,
+        String mode,
         @Min(1) Integer page,
         @Min(1) @Max(20) Integer size
 ) {

@@ -100,7 +100,7 @@ class OpportunityServiceImplTest {
         when(careerProfileService.getProfile(1L)).thenReturn(emptyProfile());
         when(ragForgeClient.searchJd("Java 后端", 30)).thenReturn(List.of());
 
-        service.list(1L, new OpportunityListRequest(null, null, null, 1, 10));
+        service.list(1L, new OpportunityListRequest(null, null, null, null, 1, 10));
 
         verify(ragForgeClient).searchJd("Java 后端", 30);
     }
@@ -113,7 +113,7 @@ class OpportunityServiceImplTest {
                 .build());
         when(ragForgeClient.searchJd("Java 后端 北京", 30)).thenReturn(List.of());
 
-        service.list(2L, new OpportunityListRequest(null, null, null, 1, 10));
+        service.list(2L, new OpportunityListRequest(null, null, null, null, 1, 10));
 
         verify(ragForgeClient).searchJd("Java 后端 北京", 30);
     }
@@ -122,7 +122,7 @@ class OpportunityServiceImplTest {
     void listKeywordPassedThrough() {
         when(ragForgeClient.searchJd("Redis", 30)).thenReturn(List.of());
 
-        service.list(1L, new OpportunityListRequest("Redis", null, null, 1, 10));
+        service.list(1L, new OpportunityListRequest("Redis", null, null, null, 1, 10));
 
         verify(ragForgeClient).searchJd("Redis", 30);
         verify(careerProfileService, times(0)).getProfile(any());
@@ -133,7 +133,7 @@ class OpportunityServiceImplTest {
         when(ragForgeClient.searchJd(anyString(), eq(30))).thenReturn(List.of());
 
         PageResult<OpportunityListItemVO> result =
-                service.list(1L, new OpportunityListRequest("test", null, null, 1, 10));
+                service.list(1L, new OpportunityListRequest("test", null, null, null, 1, 10));
 
         assertEquals(0, result.total());
         assertTrue(result.items().isEmpty());
@@ -148,7 +148,7 @@ class OpportunityServiceImplTest {
         when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
 
         PageResult<OpportunityListItemVO> result =
-                service.list(1L, new OpportunityListRequest("Java", null, null, 1, 10));
+                service.list(1L, new OpportunityListRequest("Java", null, null, null, 1, 10));
 
         assertEquals(1, result.total());
         assertEquals("星天科技", result.items().get(0).company());
@@ -166,7 +166,7 @@ class OpportunityServiceImplTest {
         when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.of(resume));
 
         PageResult<OpportunityListItemVO> result =
-                service.list(1L, new OpportunityListRequest("Java", null, null, 1, 10));
+                service.list(1L, new OpportunityListRequest("Java", null, null, null, 1, 10));
 
         assertTrue(result.hasResume());
         assertEquals("MATCH", result.sortStrategy());
@@ -183,13 +183,30 @@ class OpportunityServiceImplTest {
         when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
 
         PageResult<OpportunityListItemVO> result =
-                service.list(1L, new OpportunityListRequest("Java", null, null, 1, 10));
+                service.list(1L, new OpportunityListRequest("Java", null, null, null, 1, 10));
 
         assertFalse(result.hasResume());
         assertEquals("LATEST", result.sortStrategy());
         assertNull(result.items().get(0).matchScore());
         assertEquals("UNKNOWN", result.items().get(0).matchTier());
         assertEquals(0.9, result.items().get(0).ragScore());
+    }
+
+    @Test
+    void listDemoModeWithoutResumeUsesDefaultDemoQueryAndMarksItems() {
+        when(ragForgeClient.searchJd("广州 Java 3-5年", 30)).thenReturn(List.of(
+                chunk(1L, 1L, SAMPLE_JD, 0.8)
+        ));
+        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
+
+        PageResult<OpportunityListItemVO> result =
+                service.list(1L, new OpportunityListRequest(null, null, null, "demo", 1, 10));
+
+        assertFalse(result.hasResume());
+        assertEquals(1, result.total());
+        assertTrue(result.items().get(0).isDemo());
+        assertNull(result.items().get(0).matchScore());
+        verify(ragForgeClient).searchJd("广州 Java 3-5年", 30);
     }
 
     @Test
@@ -202,14 +219,14 @@ class OpportunityServiceImplTest {
                 List.of(new OpportunityListItemVO(
                         "doc-1", 1L, "星天科技", "算法工程师", null, "北京",
                         "1-3年", 1, 3, "硕士", "100-499人", "2026-06-09",
-                        null, "UNKNOWN", List.of(), List.of("Java"), 0.8, null
+                        null, "UNKNOWN", List.of(), List.of("Java"), 0.8, null, false
                 ))
         );
         String cachedJson = objectMapper.writeValueAsString(cached);
         when(valueOps.get(anyString())).thenReturn(cachedJson);
 
-        service.list(1L, new OpportunityListRequest("cached-query", null, null, 1, 10));
-        service.list(1L, new OpportunityListRequest("cached-query", null, null, 1, 10));
+        service.list(1L, new OpportunityListRequest("cached-query", null, null, null, 1, 10));
+        service.list(1L, new OpportunityListRequest("cached-query", null, null, null, 1, 10));
 
         verify(ragForgeClient, times(0)).searchJd(anyString(), any(Integer.class));
     }
@@ -229,7 +246,7 @@ class OpportunityServiceImplTest {
         when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
 
         PageResult<OpportunityListItemVO> result =
-                degraded.list(1L, new OpportunityListRequest("Java", null, null, 1, 10));
+                degraded.list(1L, new OpportunityListRequest("Java", null, null, null, 1, 10));
 
         assertEquals(1, result.total());
     }
@@ -320,7 +337,7 @@ class OpportunityServiceImplTest {
         when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.of(resume));
 
         PageResult<OpportunityListItemVO> result =
-                service.list(1L, new OpportunityListRequest("Java", null, null, 1, 10));
+                service.list(1L, new OpportunityListRequest("Java", null, null, null, 1, 10));
 
         int score = result.items().get(0).matchScore();
         assertTrue(score >= 0 && score <= 100);
@@ -334,7 +351,7 @@ class OpportunityServiceImplTest {
         when(ragForgeClient.searchJd("Java", 30)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.6)));
         when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
 
-        service.list(1L, new OpportunityListRequest("Java", null, null, 1, 10));
+        service.list(1L, new OpportunityListRequest("Java", null, null, null, 1, 10));
 
         verify(valueOps, atLeastOnce()).set(anyString(), anyString(), any(Duration.class));
     }

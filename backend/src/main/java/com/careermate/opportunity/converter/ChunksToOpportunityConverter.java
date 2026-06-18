@@ -69,7 +69,8 @@ public class ChunksToOpportunityConverter {
                 List.of(),
                 parsed.skills(),
                 ragScore,
-                null
+                null,
+                false
         );
     }
 }

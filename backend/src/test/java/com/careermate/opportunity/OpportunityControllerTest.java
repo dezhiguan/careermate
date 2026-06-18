@@ -62,7 +62,7 @@ class OpportunityControllerTest {
                         "doc-100", 100L, "星天科技", "算法工程师", null, "北京",
                         "1-3年", 1, 3, "硕士", "100-499人", "2026-06-09",
                         87, "HIGH", List.of("技能命中 Java"), List.of("Java", "Redis"),
-                        0.87, null
+                        0.87, null, false
                 ))
         ));
 

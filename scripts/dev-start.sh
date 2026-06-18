@@ -10,12 +10,20 @@ if [[ -x /usr/libexec/java_home ]]; then
   export PATH="${JAVA_HOME}/bin:${PATH}"
 fi
 
+if [[ -f "${REPO_ROOT}/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "${REPO_ROOT}/.env"
+  set +a
+fi
+
 cd "${BACKEND_DIR}"
 
 mvn clean package -DskipTests
 
 SPRING_PROFILES_ACTIVE=dev \
 SERVER_PORT=8082 \
+RAGFORGE_TIMEOUT_MS=15000 \
 ALIYUN_SMS_ENABLED=true \
 ALIYUN_SMS_MOCK_ENABLED=true \
 java -jar target/*.jar

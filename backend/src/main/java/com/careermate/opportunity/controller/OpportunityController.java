@@ -34,10 +34,11 @@ public class OpportunityController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String city,
             @RequestParam(required = false) String position,
+            @RequestParam(required = false) String mode,
             @RequestParam(defaultValue = "1") @Min(1) Integer page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(20) Integer size
     ) {
-        OpportunityListRequest request = new OpportunityListRequest(keyword, city, position, page, size);
+        OpportunityListRequest request = new OpportunityListRequest(keyword, city, position, mode, page, size);
         return ApiResponse.success(opportunityService.list(CurrentUserContext.getUserId(), request));
     }
 

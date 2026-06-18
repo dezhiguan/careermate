@@ -49,6 +49,8 @@ import java.util.stream.Collectors;
 public class OpportunityServiceImpl implements OpportunityService {
 
     private static final String DEFAULT_QUERY = "Java 后端";
+    private static final String DEMO_QUERY = "广州 Java 3-5年";
+    private static final String MODE_DEMO = "demo";
     private static final int SEARCH_TOP_K = 30;
     private static final int DETAIL_SEARCH_TOP_K = 50;
     private static final Duration LIST_CACHE_TTL = Duration.ofMinutes(5);
@@ -93,10 +95,12 @@ public class OpportunityServiceImpl implements OpportunityService {
     @Transactional(readOnly = true)
     public PageResult<OpportunityListItemVO> list(Long userId, OpportunityListRequest request) {
         OpportunityListRequest safeRequest = request == null
-                ? new OpportunityListRequest(null, null, null, 1, 10)
+                ? new OpportunityListRequest(null, null, null, null, 1, 10)
                 : request;
-        String query = resolveQuery(userId, safeRequest.keyword());
-        String cacheKey = OpportunityCacheKeys.listKey(userId, sha256Hex(query));
+        ResumeContext resumeContext = resolveResumeContext(userId);
+        boolean demoMode = isDemoMode(safeRequest, resumeContext);
+        String query = demoMode ? DEMO_QUERY : resolveQuery(userId, safeRequest.keyword());
+        String cacheKey = OpportunityCacheKeys.listKey(userId, sha256Hex((demoMode ? "demo:" : "normal:") + query));
 
         PageResult<OpportunityListItemVO> cached = readListCache(cacheKey);
         if (cached != null) {
@@ -107,13 +111,13 @@ public class OpportunityServiceImpl implements OpportunityService {
         List<RagForgeChunk> chunks = searchOpportunityJd(query, SEARCH_TOP_K);
         if (chunks.isEmpty()) {
             log.info("opportunity list empty from ragforge, userId={}, query={}", userId, query);
-            return PageResult.empty(safeRequest.page(), safeRequest.size(), false, SORT_LATEST);
+            return PageResult.empty(safeRequest.page(), safeRequest.size(), resumeContext.hasResume(), SORT_LATEST);
         }
 
         List<OpportunityListItemVO> items = converter.convert(chunks);
-        ResumeContext resumeContext = resolveResumeContext(userId);
         List<OpportunityListItemVO> enriched = items.stream()
                 .map(item -> applyMatch(item, resumeContext))
+                .map(item -> demoMode ? asDemoItem(item) : item)
                 .toList();
 
         String sortStrategy;
@@ -420,8 +424,39 @@ public class OpportunityServiceImpl implements OpportunityService {
                 matchReasons,
                 item.skills(),
                 item.ragScore(),
-                item.externalUrl()
+                item.externalUrl(),
+                item.isDemo()
         );
+    }
+
+    private static OpportunityListItemVO asDemoItem(OpportunityListItemVO item) {
+        return new OpportunityListItemVO(
+                item.jdId(),
+                item.docId(),
+                item.company(),
+                item.title(),
+                item.level(),
+                item.city(),
+                item.experienceRange(),
+                item.experienceMin(),
+                item.experienceMax(),
+                item.education(),
+                item.companySize(),
+                item.publishedAt(),
+                null,
+                "UNKNOWN",
+                List.of(),
+                item.skills(),
+                item.ragScore(),
+                item.externalUrl(),
+                true
+        );
+    }
+
+    private static boolean isDemoMode(OpportunityListRequest request, ResumeContext resumeContext) {
+        return request != null
+                && MODE_DEMO.equalsIgnoreCase(request.mode())
+                && !resumeContext.hasResume();
     }
 
     private List<RagForgeChunk> fetchChunksByDocId(Long docId) {
