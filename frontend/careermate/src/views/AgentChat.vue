@@ -249,6 +249,7 @@ import { homeStore } from '../stores/homeStore'
 import {
   createAgentSession,
   getAgentSession,
+  getAgentStreamStatus,
   getAgentTrace,
   listAgentSessions,
   sendAgentMessageStream,
@@ -1085,6 +1086,8 @@ async function restoreLatestChatSession() {
     scheduleMarkdownForMessages(messages.value)
     streamState.value = 'idle'
     scrollBottom()
+    // U3 断点续传：如果最后一条是 user 消息（没等到 agent 回复），server 可能还在写
+    void resumePendingAgentReplyIfAny(restoredSession.sessionId)
     return true
   } catch (e) {
     console.warn('[agent] restore latest chat session failed', e)
@@ -1094,6 +1097,66 @@ async function restoreLatestChatSession() {
     if (streamState.value === 'session_creating') {
       streamState.value = 'idle'
     }
+  }
+}
+
+const RESUME_POLL_INTERVAL_MS = 2000
+const RESUME_POLL_MAX_ATTEMPTS = 20 // 最多等 40s
+
+async function resumePendingAgentReplyIfAny(targetSessionId) {
+  const last = messages.value[messages.value.length - 1]
+  if (!last || last.role !== 'user') return
+  let status = null
+  try {
+    status = await getAgentStreamStatus(targetSessionId)
+  } catch (e) {
+    return
+  }
+  if (!status?.running) return
+
+  const placeholderId = `m_resume_${Date.now()}`
+  messages.value.push(withMarkdown({
+    id: placeholderId,
+    role: 'agent',
+    text: '上次的回复还在 server 上继续生成，稍候为你恢复…',
+    streaming: true,
+    error: '',
+    toolCalls: [],
+  }))
+  scrollBottom()
+
+  const userMsgCountBefore = messages.value.filter((m) => m.role === 'user').length
+  for (let i = 0; i < RESUME_POLL_MAX_ATTEMPTS; i++) {
+    await new Promise((resolve) => setTimeout(resolve, RESUME_POLL_INTERVAL_MS))
+    if (sessionId.value !== targetSessionId) return // 会话已切换
+    try {
+      const refreshed = await getAgentSession(targetSessionId)
+      const refreshedMessages = mapServerMessages(refreshed?.messages)
+      const refreshedAgentAfterUser = refreshedMessages
+        .slice(refreshedMessages.findIndex((m) => m.role === 'user' && userMsgCountBefore > 0) + 1)
+        .find((m) => m.role === 'agent')
+      if (refreshedAgentAfterUser) {
+        messages.value = refreshedMessages
+        scheduleMarkdownForMessages(messages.value)
+        scrollBottom()
+        return
+      }
+      const stillRunning = (await getAgentStreamStatus(targetSessionId).catch(() => null))?.running
+      if (!stillRunning) {
+        // server 已结束但未产出 agent 消息，移除 placeholder
+        messages.value = messages.value.filter((m) => m.id !== placeholderId)
+        return
+      }
+    } catch (e) {
+      // 忽略单次失败，继续轮询
+    }
+  }
+  // 超时
+  const placeholder = messages.value.find((m) => m.id === placeholderId)
+  if (placeholder) {
+    placeholder.streaming = false
+    placeholder.text = '恢复超时，可重新提问继续对话。'
+    placeholder.error = '恢复超时'
   }
 }
 

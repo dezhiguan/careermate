@@ -49,6 +49,10 @@ export async function listAgentSessions(params = {}) {
   return request(`/agent/sessions${suffix}`)
 }
 
+export async function getAgentStreamStatus(sessionId) {
+  return request(`/agent/sessions/${sessionId}/stream/status`)
+}
+
 export async function getAgentSession(sessionId) {
   return request(`/agent/sessions/${sessionId}`)
 }

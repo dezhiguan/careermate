@@ -49,8 +49,8 @@ public class SseEmitterService {
         });
 
         emitter.onError((Throwable error) -> {
-            log.warn("SSE error: sessionId={}", sessionId, error);
-            taskRegistry.cancel(sessionId);
+            // U3 断点续传：客户端断开不取消 server-side 任务，让 onComplete 完成持久化
+            log.warn("SSE error (task continues): sessionId={}", sessionId, error);
             cleanup(sessionId, emitter);
         });
 
