@@ -25,7 +25,7 @@
         type="button"
         class="nav-item"
         :class="{ active: isActive('/interview') }"
-        aria-label="面试题：出题 · 判题 · 解题 · 复盘"
+        aria-label="面试准备：出题 · 判题 · 解题 · 复盘"
         :aria-current="isActive('/interview') ? 'page' : undefined"
         @click="go('/interview')"
       >
@@ -33,19 +33,23 @@
           <polyline points="9 11 12 14 22 4" />
           <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
         </svg>
-        <span class="nav-label">面试题</span>
+        <span class="nav-label">面试准备</span>
         <span class="nav-tagline">出题 · 判题 · 解题 · 复盘</span>
       </button>
 
       <button
         type="button"
-        class="nav-item center-ai"
-        aria-label="AI 小职：求职军师 · 一句话办求职事"
+        class="nav-item"
+        :class="{ active: isActive('/chat') }"
+        aria-label="小职：求职军师 · 一句话办求职事"
+        :aria-current="isActive('/chat') ? 'page' : undefined"
         @click="go('/chat')"
       >
-        <span class="ai-fab" aria-hidden="true">职</span>
-        <span class="nav-label nav-ai-label" :class="{ active: isActive('/chat') }">AI 小职</span>
-        <span class="nav-tagline nav-ai-tagline">求职军师 · 一句话办求职事</span>
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        <span class="nav-label">小职</span>
+        <span class="nav-tagline">求职军师 · 一句话办求职事</span>
       </button>
 
       <button
@@ -217,63 +221,9 @@ function go(path) {
   color: #818cf8;
 }
 
-.nav-item.center-ai {
-  position: relative;
-  color: #4f46e5;
-  font-weight: 700;
-  /* 仅 FAB 圆钮可点，避免透明区域挡住页面内按钮 */
-  pointer-events: none;
-}
-
-.nav-item.center-ai .ai-fab,
-.nav-item.center-ai .nav-ai-label,
-.nav-item.center-ai .nav-ai-tagline {
-  pointer-events: auto;
-  cursor: pointer;
-}
-
-.ai-fab {
-  position: absolute;
-  top: -22px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 54px;
-  height: 54px;
-  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  box-shadow: 0 8px 22px rgba(99, 102, 241, 0.55);
-  border: 4px solid #fff;
-  font-weight: 800;
-  font-size: 18px;
-  line-height: 1;
-}
-
-.nav-ai-label {
-  margin-top: 30px;
-  color: #94a3b8;
-}
-
-.nav-ai-label.active {
-  color: #4f46e5;
-}
-
-.nav-ai-tagline {
-  margin-top: 0;
-  color: #a5b4fc;
-  font-weight: 600;
-}
-
 @media (max-width: 360px) {
   .nav-tagline {
     display: none;
-  }
-
-  .nav-item.center-ai .nav-ai-tagline {
-    display: block;
-    font-size: 6px;
   }
 
   .shell-mobile {

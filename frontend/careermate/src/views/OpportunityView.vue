@@ -9,17 +9,10 @@
           </p>
         </div>
       </div>
-      <div class="search-row">
-        <input
-          v-model="searchInput"
-          class="search-input"
-          type="search"
-          placeholder="搜索：Redis / Java / 算法..."
-          @keydown.enter="handleSearch"
-        />
-        <button type="button" class="search-btn" :disabled="loading" @click="handleSearch">
-          {{ loading ? '搜索中...' : '搜索' }}
-        </button>
+      <div class="filter-chip-row" aria-label="机会筛选条件">
+        <span class="filter-chip">城市 · {{ activeCity }}</span>
+        <span class="filter-chip">年限 · {{ activeYears }}</span>
+        <span class="filter-chip">岗位 · {{ activeRole }}</span>
       </div>
     </header>
 
@@ -125,7 +118,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { listOpportunities, prepareWithAi } from '../api/opportunity'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
@@ -133,22 +126,21 @@ import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 const router = useRouter()
 const route = useRoute()
 
-const searchInput = ref('')
 const items = ref([])
 const hasResume = ref(false)
 const loading = ref(true)
 const error = ref('')
 const preparingId = ref('')
 
-function handleSearch() {
-  fetchList()
-}
+const activeKeyword = computed(() => String(route.query.keyword || '').trim())
+const activeCity = computed(() => String(route.query.city || '不限').trim())
+const activeYears = computed(() => String(route.query.years || '不限').trim())
+const activeRole = computed(() => activeKeyword.value || String(route.query.position || '全部').trim())
 
 watch(
   () => [route.query.keyword, route.query.t],
-  ([keyword]) => {
-    if (keyword !== undefined) {
-      searchInput.value = String(keyword)
+  () => {
+    if (route.path === '/opportunity') {
       fetchList()
     }
   }
@@ -159,7 +151,7 @@ async function fetchList() {
   error.value = ''
   try {
     const data = await listOpportunities({
-      keyword: searchInput.value.trim() || undefined,
+      keyword: activeKeyword.value || undefined,
       mode: hasResume.value ? undefined : 'demo',
       page: 1,
       size: 10,
@@ -282,40 +274,25 @@ onMounted(fetchList)
   color: #64748b;
 }
 
-.search-row {
+.filter-chip-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
   align-items: center;
 }
 
-.search-input {
-  flex: 1;
-  min-width: 0;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #0f172a;
-  background: #fff;
-}
-
-.search-btn {
-  flex-shrink: 0;
-  border: 0;
-  background: #4f46e5;
-  color: #fff;
-  border-radius: 8px;
-  padding: 8px 16px;
-  font-size: 13px;
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
   font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.search-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  line-height: 1.2;
 }
 
 .resume-banner {

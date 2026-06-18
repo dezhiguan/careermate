@@ -14,7 +14,7 @@ const routes = [
     path: '/interview',
     name: 'interview',
     component: () => import('../views/InterviewPrep.vue'),
-    meta: { title: '面试题' },
+    meta: { title: '面试准备' },
   },
   {
     path: '/chat',

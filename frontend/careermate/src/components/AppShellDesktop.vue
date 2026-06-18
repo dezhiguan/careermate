@@ -57,13 +57,6 @@
         </button>
       </div>
 
-      <button type="button" class="sidebar-ai-fab" aria-label="打开 AI 小职" @click="go('/chat')">
-        <svg class="sidebar-ai-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-        </svg>
-        <span class="sidebar-ai-badge">3</span>
-      </button>
-
       <button type="button" class="sidebar-avatar" aria-label="我的" @click="go('/mine')">
         {{ avatarInitial }}
         <span class="online-dot" aria-hidden="true" />
@@ -227,43 +220,6 @@ watch(
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.sidebar-ai-fab {
-  position: relative;
-  margin-top: 8px;
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
-  border: none;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.45);
-  cursor: pointer;
-}
-
-.sidebar-ai-icon {
-  width: 18px;
-  height: 18px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.sidebar-ai-badge {
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  background: #ef4444;
-  color: #fff;
-  font-size: 8px;
-  padding: 1px 5px;
-  border-radius: 8px;
-  line-height: 1.2;
 }
 
 .sidebar-avatar {

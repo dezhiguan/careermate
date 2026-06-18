@@ -14,8 +14,8 @@
         </div>
         <nav class="drawer-nav">
           <button type="button" class="drawer-link" @click="navigateFromDrawer('/opportunity')">机会</button>
-          <button type="button" class="drawer-link active" @click="drawerOpen = false">AI 小职 · 当前</button>
-          <button type="button" class="drawer-link" @click="navigateFromDrawer('/interview')">面试题</button>
+          <button type="button" class="drawer-link active" @click="drawerOpen = false">小职 · 当前</button>
+          <button type="button" class="drawer-link" @click="navigateFromDrawer('/interview')">面试准备</button>
           <button type="button" class="drawer-link" @click="navigateFromDrawer('/market')">市场</button>
           <button type="button" class="drawer-link" @click="navigateFromDrawer('/mine')">我的</button>
         </nav>
