@@ -29,6 +29,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -102,12 +103,13 @@ public class OpportunityServiceImpl implements OpportunityService {
         ResumeContext resumeContext = resolveResumeContext(userId);
         boolean demoMode = isDemoMode(safeRequest, resumeContext);
         SearchCriteria criteria = resolveSearchCriteria(userId, safeRequest);
-        String query = demoMode ? DEMO_QUERY : criteria.query();
+        DemoSearchCriteria demoCriteria = resolveDemoSearchCriteria(safeRequest);
+        String query = demoMode ? demoCriteria.query() : criteria.query();
         String cacheKey = CacheKeys.opportunityList(
-                demoMode ? "广州" : criteria.city(),
-                demoMode ? "Java" : criteria.role(),
-                demoMode ? "3-5年" : criteria.years(),
-                demoMode ? "demo" : criteria.keyword()
+                demoMode ? demoCriteria.city() : criteria.city(),
+                demoMode ? demoCriteria.role() : criteria.role(),
+                demoMode ? demoCriteria.years() : criteria.years(),
+                demoMode ? demoCriteria.keyword() : criteria.keyword()
         );
 
         CachedOpportunityList cached = readListCache(cacheKey);
@@ -150,11 +152,12 @@ public class OpportunityServiceImpl implements OpportunityService {
         ResumeContext resumeContext = resolveResumeContext(userId);
         boolean demoMode = isDemoMode(safeRequest, resumeContext);
         SearchCriteria criteria = resolveSearchCriteria(userId, safeRequest);
+        DemoSearchCriteria demoCriteria = resolveDemoSearchCriteria(safeRequest);
         String cacheKey = CacheKeys.opportunityList(
-                demoMode ? "广州" : criteria.city(),
-                demoMode ? "Java" : criteria.role(),
-                demoMode ? "3-5年" : criteria.years(),
-                demoMode ? "demo" : criteria.keyword()
+                demoMode ? demoCriteria.city() : criteria.city(),
+                demoMode ? demoCriteria.role() : criteria.role(),
+                demoMode ? demoCriteria.years() : criteria.years(),
+                demoMode ? demoCriteria.keyword() : criteria.keyword()
         );
 
         CachedOpportunityList cached = readListCache(cacheKey);
@@ -453,6 +456,15 @@ public class OpportunityServiceImpl implements OpportunityService {
         );
     }
 
+    private DemoSearchCriteria resolveDemoSearchCriteria(OpportunityListRequest request) {
+        String city = nullToDefault(request.city(), "广州");
+        String role = nullToDefault(request.position(), "Java");
+        String years = "3-5年";
+        String keyword = StringUtils.hasText(request.keyword()) ? request.keyword().trim() : "";
+        String query = (keyword.isBlank() ? "" : keyword + " ") + city + " " + role + " " + years;
+        return new DemoSearchCriteria(city, role, years, keyword, query);
+    }
+
     private ResumeContext resolveResumeContext(Long userId) {
         try {
             Optional<com.careermate.model.entity.ResumeEntity> resumeOpt =
@@ -722,7 +734,14 @@ public class OpportunityServiceImpl implements OpportunityService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    private static String nullToDefault(String value, String fallback) {
+        return StringUtils.hasText(value) ? value.trim() : fallback;
+    }
+
     private record SearchCriteria(String city, String role, String years, String keyword, String query) {
+    }
+
+    private record DemoSearchCriteria(String city, String role, String years, String keyword, String query) {
     }
 
     private record CachedOpportunityList(List<OpportunityListItemVO> items, Long cachedAt) {
