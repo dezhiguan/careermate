@@ -140,6 +140,45 @@ class ResumeVersionServiceImplTest {
     }
 
     @Test
+    void createVersionIncrementsSeqWithinSameUserAndTargetJd() {
+        ResumeVersionEntity existing = new ResumeVersionEntity();
+        existing.setVersionSeq(1);
+        when(resumeVersionMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(List.of(existing))
+                .thenReturn(List.of());
+
+        var second = service.createVersion(
+                1L,
+                "WS-a",
+                99L,
+                "doc-1",
+                "腾讯 Java",
+                "腾讯",
+                "Java",
+                "腾讯 - Java",
+                "# 简历 A2",
+                List.of()
+        );
+        var firstForOtherJd = service.createVersion(
+                1L,
+                "WS-b",
+                99L,
+                "doc-2",
+                "阿里 Java",
+                "阿里",
+                "Java",
+                "阿里 - Java",
+                "# 简历 B1",
+                List.of()
+        );
+
+        assertEquals("针对【腾讯】Java · v2", second.versionName());
+        assertEquals(2, second.versionSeq());
+        assertEquals("针对【阿里】Java · v1", firstForOtherJd.versionName());
+        assertEquals(1, firstForOtherJd.versionSeq());
+    }
+
+    @Test
     void tenantIsolationForbidden() {
         ResumeVersionEntity entity = entity("v-1", LocalDateTime.now());
         entity.setUserId(1L);

@@ -33,8 +33,8 @@ const LOGIN_PAGE_TITLE = '账号登录';
 const SMS_LOGIN_PAGE_TITLE = '手机号登录';
 const REGISTER_PAGE_TITLE = '创建账号';
 const FORGOT_PASSWORD_PAGE_TITLE = '找回密码';
-const POST_LOGIN_TITLE = '今天的机会';
-const POST_LOGIN_URL = /#\/opportunity/;
+const POST_LOGIN_TITLE = '小职';
+const POST_LOGIN_URL = /#\/chat/;
 const MOCK_SMS_CODE = '123456';
 const FATAL_AUTH_ERROR = /系统异常|登录失败|会话创建失败/;
 const FATAL_APP_ERROR = /系统异常|会话创建失败|流式请求失败/;
@@ -327,7 +327,7 @@ async function sendAgentMessageAndExpectMockReply(page, message = '帮我分析�
  */
 async function assertAuthenticatedLanding(page) {
   await expect(page).toHaveURL(POST_LOGIN_URL, { timeout: 25_000 });
-  await expect(page.getByRole('heading', { name: POST_LOGIN_TITLE })).toBeVisible({ timeout: 25_000 });
+  await expect(page.locator('.header-title', { hasText: POST_LOGIN_TITLE })).toBeVisible({ timeout: 25_000 });
 }
 
 /**

@@ -278,9 +278,9 @@ function formatGeneratedAt(value) {
 }
 
 function versionDisplayName(version) {
-  const company = version?.targetCompany?.trim() || '未知公司'
-  const title = version?.targetJdTitle?.trim()
-    || version?.targetJdLabel?.trim()
+  const company = normalizedLegacyVersionName(version?.targetCompany) || '未知公司'
+  const title = normalizedLegacyVersionName(version?.targetJdTitle)
+    || normalizedLegacyVersionName(version?.targetJdLabel)
     || normalizedLegacyVersionName(version?.versionName)
     || '历史定制简历'
   const seq = Number(version?.versionSeq)
@@ -289,7 +289,7 @@ function versionDisplayName(version) {
 
 function normalizedLegacyVersionName(value) {
   const text = value?.trim()
-  if (!text || text === '定制简历版') return ''
+  if (!text || text.includes('定制简历版') || text === '定制简历') return ''
   return text
 }
 

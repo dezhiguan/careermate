@@ -320,8 +320,8 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     }
 
     private static String buildDisplayName(String company, String title, Integer versionSeq) {
-        return "针对【" + fallbackText(company, "未知公司") + "】"
-                + fallbackText(title, "历史定制简历")
+        return "针对【" + fallbackDisplayText(company, "未知公司") + "】"
+                + fallbackDisplayText(title, "历史定制简历")
                 + " · v" + (versionSeq == null || versionSeq < 1 ? 1 : versionSeq);
     }
 
@@ -330,6 +330,14 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
             return fallback;
         }
         return value.trim();
+    }
+
+    private static String fallbackDisplayText(String value, String fallback) {
+        String text = fallbackText(value, "");
+        if (text.isBlank() || "定制简历版".equals(text) || "定制简历".equals(text)) {
+            return fallback;
+        }
+        return text;
     }
 
     private List<Map<String, Object>> parseNotes(String json) {

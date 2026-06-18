@@ -129,8 +129,11 @@ class ResumeDownloadSecurityTest {
         entity.setTenantId(1L);
         entity.setSessionId("test-download");
         entity.setSourceResumeId(resumeId);
-        entity.setTargetJdId("test-jd");
+        entity.setTargetJdId(1L);
         entity.setTargetJdLabel("测试 JD");
+        entity.setTargetCompany("测试公司");
+        entity.setTargetJdTitle("测试 JD");
+        entity.setVersionSeq(1);
         entity.setVersionName("定制下载测试");
         entity.setContentMarkdown("# 定制下载测试\n\n- Java\n- Spring Boot");
         entity.setOptimizationNotes("[]");
