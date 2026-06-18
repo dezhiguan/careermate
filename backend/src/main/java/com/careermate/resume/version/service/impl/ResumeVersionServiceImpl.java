@@ -102,7 +102,6 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
             String targetJdLabel,
             String targetCompany,
             String targetJdTitle,
-            String versionName,
             String contentMarkdown,
             List<Map<String, Object>> optimizationNotes
     ) {
@@ -111,6 +110,7 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
         int versionSeq = nextVersionSeq(userId, targetJdDocId);
         String safeCompany = fallbackText(targetCompany, "未知公司");
         String safeTitle = fallbackText(targetJdTitle, fallbackText(targetJdLabel, "历史定制简历"));
+        String generatedDisplayName = buildDisplayName(safeCompany, safeTitle, versionSeq);
         ResumeVersionEntity entity = new ResumeVersionEntity();
         entity.setVersionId(UUID.randomUUID().toString());
         entity.setUserId(userId);
@@ -122,7 +122,7 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
         entity.setTargetCompany(safeCompany);
         entity.setTargetJdTitle(safeTitle);
         entity.setVersionSeq(versionSeq);
-        entity.setVersionName(versionName);
+        entity.setVersionName(generatedDisplayName);
         entity.setContentMarkdown(contentMarkdown);
         entity.setOptimizationNotes(writeNotesJson(optimizationNotes));
         entity.setCreatedAt(now);
@@ -137,7 +137,7 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
                 safeCompany,
                 safeTitle,
                 versionSeq,
-                displayName(entity),
+                generatedDisplayName,
                 entity.getVersionId()
         );
         return toDetailVO(entity);
@@ -184,12 +184,9 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
             String targetCompany,
             String targetJdTitle,
             Integer versionSeq,
-            String versionName,
+            String displayName,
             String versionId
     ) {
-        String displayName = versionName != null && !versionName.isBlank()
-                ? versionName.trim()
-                : buildDisplayName(targetCompany, targetJdTitle, versionSeq);
         String summary = targetJdTitle != null && !targetJdTitle.isBlank()
                 ? "针对 " + fallbackText(targetCompany, "未知公司") + " " + targetJdTitle.trim() + " 生成的简历版本"
                 : "AI 生成的简历版本";

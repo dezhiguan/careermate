@@ -255,6 +255,7 @@ import { listResumes } from '../api/resume'
 import { listVersions } from '../api/resumeVersion'
 import { listInterviewSessions } from '../api/interview'
 import { authStore } from '../stores/authStore'
+import { computeProfileCompleteness } from '../utils/profileCompleteness'
 
 const router = useRouter()
 
@@ -328,15 +329,7 @@ watch(displayName, (value) => {
   }
 })
 
-const profileCompleteness = computed(() => {
-  let score = 0
-  if (profile.value.targetRole?.trim()) score += 20
-  if (profile.value.targetCity?.trim()) score += 20
-  if (profile.value.seniority?.trim()) score += 20
-  if (profile.value.workMode?.trim()) score += 20
-  if (profile.value.skillKeywords?.length > 0) score += 20
-  return score
-})
+const profileCompleteness = computed(() => computeProfileCompleteness(profile.value))
 
 const resumeCount = computed(() => resumes.value.length + versions.value.length)
 

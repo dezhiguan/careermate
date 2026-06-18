@@ -257,6 +257,7 @@ import ToolCallCard from '../components/agent/ToolCallCard.vue'
 import ChatCard from '../components/ChatCard.vue'
 import { getToolLabel, isBusinessToolName, sanitizeToolSummary } from '../utils/agentToolDisplay'
 import { renderMarkdown } from '../utils/markdown'
+import { computeProfileCompleteness } from '../utils/profileCompleteness'
 
 const route = useRoute()
 const router = useRouter()
@@ -378,15 +379,7 @@ function clearGlobalError() {
 
 const hasResumeVersion = computed(() => workspaceVersions.value.length > 0)
 
-const profileCompleteness = computed(() => {
-  let score = 0
-  if (careerProfile.value.targetRole?.trim()) score += 20
-  if (careerProfile.value.targetCity?.trim()) score += 20
-  if (careerProfile.value.seniority?.trim()) score += 20
-  if (careerProfile.value.workMode?.trim()) score += 20
-  if (careerProfile.value.skillKeywords?.length > 0) score += 20
-  return score
-})
+const profileCompleteness = computed(() => computeProfileCompleteness(careerProfile.value))
 
 const showProfileBanner = computed(() => profileCompleteness.value < 80)
 

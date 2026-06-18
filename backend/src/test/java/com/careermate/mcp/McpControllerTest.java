@@ -90,7 +90,6 @@ class McpControllerTest {
                 "MCP B JD",
                 "MCP Company",
                 "MCP B JD",
-                "MCP User B Version",
                 "# User B Resume",
                 List.of()
         );

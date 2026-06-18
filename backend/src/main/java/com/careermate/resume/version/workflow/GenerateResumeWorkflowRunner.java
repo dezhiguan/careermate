@@ -217,7 +217,6 @@ class GenerateResumeWorkflowRunner {
                 run.targetLabel(),
                 run.company(),
                 run.title(),
-                run.versionName(),
                 run.markdown(),
                 run.optimizationNotes()
         );

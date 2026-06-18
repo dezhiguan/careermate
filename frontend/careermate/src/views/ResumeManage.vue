@@ -87,7 +87,7 @@
           <div class="version-row-left">
             <span class="badge-custom">定制</span>
             <div class="version-info">
-              <div class="version-name">{{ versionDisplayName(v) }}</div>
+              <div class="version-name">{{ v.versionName || '历史定制简历' }}</div>
               <div class="version-meta">{{ formatGeneratedAt(v.createdAt) }}</div>
             </div>
           </div>
@@ -277,22 +277,6 @@ function formatGeneratedAt(value) {
   })}`
 }
 
-function versionDisplayName(version) {
-  const company = normalizedLegacyVersionName(version?.targetCompany) || '未知公司'
-  const title = normalizedLegacyVersionName(version?.targetJdTitle)
-    || normalizedLegacyVersionName(version?.targetJdLabel)
-    || normalizedLegacyVersionName(version?.versionName)
-    || '历史定制简历'
-  const seq = Number(version?.versionSeq)
-  return `针对【${company}】${title} · v${Number.isFinite(seq) && seq > 0 ? seq : 1}`
-}
-
-function normalizedLegacyVersionName(value) {
-  const text = value?.trim()
-  if (!text || text.includes('定制简历版') || text === '定制简历') return ''
-  return text
-}
-
 function triggerUpload() {
   fileInputRef.value?.click()
 }
@@ -374,7 +358,7 @@ async function openModal(type, item, mode = 'preview') {
 
     resumeModalTitle.value = type === 'default'
       ? (detail.title || '默认简历')
-      : versionDisplayName(detail)
+      : (detail.versionName || '历史定制简历')
     editTitle.value = resumeModalTitle.value
     editContent.value = type === 'default'
       ? (detail.content || '')
@@ -409,6 +393,7 @@ async function saveResume() {
   resumeSaving.value = true
   resumeModalError.value = ''
   try {
+    let savedTitle = title
     if (resumeModalType.value === 'default') {
       const updated = await updateResume(resumeModalItem.value.id, { title, content })
       const idx = resumes.value.findIndex((r) => r.id === resumeModalItem.value.id)
@@ -425,6 +410,7 @@ async function saveResume() {
         versionName: title,
         contentMarkdown: content,
       })
+      savedTitle = updated.versionName || resumeModalTitle.value || '历史定制简历'
       const idx = versions.value.findIndex((v) => v.versionId === resumeModalItem.value.versionId)
       if (idx >= 0) {
         versions.value[idx] = {
@@ -438,7 +424,7 @@ async function saveResume() {
       resumeModalItem.value = { ...resumeModalItem.value, versionName: updated.versionName }
     }
 
-    resumeModalTitle.value = title
+    resumeModalTitle.value = savedTitle
     resumeModalContent.value = resumeModalType.value === 'default'
       ? content
       : buildPreviewContent('custom', {
@@ -477,9 +463,9 @@ async function handleDownloadVersion(version, format) {
   uploadError.value = ''
   try {
     if (format === 'docx') {
-      await downloadVersionDocx(version.versionId, versionDisplayName(version))
+      await downloadVersionDocx(version.versionId, version.versionName || '历史定制简历')
     } else {
-      await downloadVersionPdf(version.versionId, versionDisplayName(version))
+      await downloadVersionPdf(version.versionId, version.versionName || '历史定制简历')
     }
   } catch (e) {
     uploadError.value = e?.message || '下载失败'
@@ -505,7 +491,7 @@ async function handleDeleteDefault() {
 
 async function handleDeleteVersion(v) {
   if (!v?.versionId || deleting.value) return
-  if (!window.confirm(`确定删除「${versionDisplayName(v)}」吗？`)) return
+  if (!window.confirm(`确定删除「${v.versionName || '历史定制简历'}」吗？`)) return
   deleting.value = true
   uploadError.value = ''
   try {

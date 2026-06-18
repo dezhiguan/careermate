@@ -62,7 +62,6 @@ class ResumeVersionServiceImplTest {
                 "腾讯 算法工程师",
                 "腾讯",
                 "算法工程师",
-                "腾讯 - 算法工程师",
                 "# 简历\n内容",
                 List.of(Map.of("field", "技能", "change", "对齐 JD"))
         );
@@ -77,6 +76,7 @@ class ResumeVersionServiceImplTest {
         assertEquals("腾讯", saved.getTargetCompany());
         assertEquals("算法工程师", saved.getTargetJdTitle());
         assertEquals(1, saved.getVersionSeq());
+        assertEquals("针对【腾讯】算法工程师 · v1", saved.getVersionName());
         assertNotNull(saved.getVersionId());
         assertEquals("# 简历\n内容", saved.getContentMarkdown());
         assertNotNull(saved.getOptimizationNotes());
@@ -120,7 +120,6 @@ class ResumeVersionServiceImplTest {
                 "腾讯 算法工程师",
                 "腾讯",
                 "算法工程师",
-                "腾讯 - 算法工程师",
                 "# 简历\n内容",
                 List.of()
         );
@@ -155,7 +154,6 @@ class ResumeVersionServiceImplTest {
                 "腾讯 Java",
                 "腾讯",
                 "Java",
-                "腾讯 - Java",
                 "# 简历 A2",
                 List.of()
         );
@@ -167,7 +165,6 @@ class ResumeVersionServiceImplTest {
                 "阿里 Java",
                 "阿里",
                 "Java",
-                "阿里 - Java",
                 "# 简历 B1",
                 List.of()
         );
