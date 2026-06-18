@@ -28,22 +28,20 @@
     </header>
 
     <div class="market-content">
-
-      <!-- 薪资分位 -->
-      <section class="card">
-        <div class="card-title">薪资分位分布</div>
+      <section class="card snapshot-card">
+        <div class="snapshot-head">
+          <div>
+            <div class="card-title">市场快照</div>
+            <p class="snapshot-sub">P50 / P75 薪资 + 技能 TOP5</p>
+          </div>
+          <button type="button" class="more-btn" @click="moreOpen = true">更多</button>
+        </div>
         <div v-if="salaryLoading" class="skeleton-group">
           <div class="skeleton" style="height:36px;width:50%;margin-bottom:8px" />
           <div class="skeleton" style="height:14px;width:80%" />
         </div>
-        <template v-else-if="salaryData">
-          <div class="salary-main">{{ salaryData.p50 }}</div>
-          <div class="salary-sub">市场中位薪资（P50）</div>
-          <div class="percentile-row">
-            <div class="p-item">
-              <div class="p-label">P25</div>
-              <div class="p-val">{{ salaryData.p25 }}</div>
-            </div>
+        <template v-else-if="salaryData || topSkills.length">
+          <div v-if="salaryData" class="salary-summary-grid">
             <div class="p-item">
               <div class="p-label">P50</div>
               <div class="p-val highlight">{{ salaryData.p50 }}</div>
@@ -52,66 +50,15 @@
               <div class="p-label">P75</div>
               <div class="p-val">{{ salaryData.p75 }}</div>
             </div>
-            <div class="p-item">
-              <div class="p-label">P90</div>
-              <div class="p-val">{{ salaryData.p90 }}</div>
+            <div class="trend-tag" :class="salaryData.trend === '上涨' ? 'tag-up' : 'tag-flat'">
+              {{ salaryData.trend || '稳定' }}
             </div>
           </div>
-          <div class="trend-tag" :class="salaryData.trend === '上涨' ? 'tag-up' : 'tag-flat'">
-            {{ salaryData.trend }}
+          <div v-if="skillsLoading" class="skeleton-group skill-skeleton">
+            <div v-for="i in 3" :key="i" class="skeleton" style="height:34px;margin-bottom:8px" />
           </div>
-          <div class="ai-box">
-            <span class="ai-label">⚡ AI 解读</span>
-            <p class="ai-text">{{ salaryData.aiSummary }}</p>
-          </div>
-          <div v-if="marketSources(salaryData).length" class="source-strip">
-            <div class="source-title">来源摘要</div>
-            <div
-              v-for="source in marketSources(salaryData)"
-              :key="source.citation || source.contentPreview"
-              class="source-row"
-            >
-              <span class="source-chip">{{ sourceLabel(source) }}</span>
-              <span class="source-preview">{{ source.contentPreview }}</span>
-            </div>
-          </div>
-          <p class="disclaimer">基于 AI 分析，仅供参考</p>
-        </template>
-        <div v-else class="empty-tip">暂无薪资数据</div>
-      </section>
-
-      <!-- 跳转谈薪 -->
-      <div class="market-cta-row">
-        <button
-          type="button"
-          class="cta-btn secondary"
-          :disabled="!!workspaceLoading"
-          @click="enterMarketWorkspace('EXPLAIN_MARKET')"
-        >
-          解读行情
-        </button>
-        <button
-          type="button"
-          class="cta-btn"
-          :disabled="!!workspaceLoading"
-          @click="enterMarketWorkspace('NEGOTIATION_SCRIPT')"
-        >
-          生成谈薪脚本 →
-        </button>
-      </div>
-
-      <!-- 技能热榜 -->
-      <section class="card">
-        <div class="card-title">
-          技能需求热榜
-          <span v-if="role" class="card-context">· {{ role }}</span>
-        </div>
-        <div v-if="skillsLoading" class="skeleton-group">
-          <div v-for="i in 4" :key="i" class="skeleton" style="height:44px;margin-bottom:8px" />
-        </div>
-        <template v-else-if="skillsData?.skills?.length">
-          <div class="skill-list">
-            <div v-for="s in skillsData.skills" :key="s.rank" class="skill-item">
+          <div v-else-if="topSkills.length" class="skill-list compact">
+            <div v-for="s in topSkills" :key="s.rank" class="skill-item">
               <div class="skill-row">
                 <div class="skill-left">
                   <span class="rank-badge" :class="s.rank <= 2 ? 'rank-hot' : 'rank-normal'">
@@ -133,78 +80,117 @@
               </div>
             </div>
           </div>
-          <div v-if="skillsData.aiSummary" class="ai-box" style="margin-top:12px">
-            <span class="ai-label">⚡ AI 解读</span>
+        </template>
+        <div v-else class="compact-empty">当前筛选暂无缓存数据，换个城市/岗位试试。</div>
+        <div class="market-cta-row">
+          <button
+            type="button"
+            class="cta-btn secondary"
+            :disabled="!!workspaceLoading"
+            @click="enterMarketWorkspace('EXPLAIN_MARKET')"
+          >
+            解读行情
+          </button>
+          <button
+            type="button"
+            class="cta-btn"
+            :disabled="!!workspaceLoading"
+            @click="enterMarketWorkspace('NEGOTIATION_SCRIPT')"
+          >
+            生成谈薪脚本 →
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div v-if="moreOpen" class="drawer-overlay" @click.self="moreOpen = false">
+      <aside class="more-drawer" aria-label="市场更多分析">
+        <div class="drawer-header">
+          <div>
+            <div class="drawer-title">更多市场分析</div>
+            <div class="drawer-sub">{{ filterTitle }}</div>
+          </div>
+          <button type="button" class="drawer-close" @click="moreOpen = false">×</button>
+        </div>
+
+        <section v-if="salaryData" class="drawer-section">
+          <div class="card-title">薪资分位分布</div>
+          <div class="salary-main">{{ salaryData.p50 }}</div>
+          <div class="salary-sub">市场中位薪资（P50）</div>
+          <div class="percentile-row">
+            <div class="p-item"><div class="p-label">P25</div><div class="p-val">{{ salaryData.p25 }}</div></div>
+            <div class="p-item"><div class="p-label">P50</div><div class="p-val highlight">{{ salaryData.p50 }}</div></div>
+            <div class="p-item"><div class="p-label">P75</div><div class="p-val">{{ salaryData.p75 }}</div></div>
+            <div class="p-item"><div class="p-label">P90</div><div class="p-val">{{ salaryData.p90 }}</div></div>
+          </div>
+          <div v-if="salaryData.aiSummary" class="ai-box">
+            <span class="ai-label">AI 解读</span>
+            <p class="ai-text">{{ salaryData.aiSummary }}</p>
+          </div>
+          <div v-if="marketSources(salaryData).length" class="source-strip">
+            <div class="source-title">来源摘要</div>
+            <div v-for="source in marketSources(salaryData)" :key="source.citation || source.contentPreview" class="source-row">
+              <span class="source-chip">{{ sourceLabel(source) }}</span>
+              <span class="source-preview">{{ source.contentPreview }}</span>
+            </div>
+          </div>
+          <p class="disclaimer">基于 AI 分析，仅供参考</p>
+        </section>
+
+        <section v-if="skillsData?.skills?.length" class="drawer-section">
+          <div class="card-title">完整技能热榜<span v-if="role" class="card-context"> · {{ role }}</span></div>
+          <div class="skill-list">
+            <div v-for="s in skillsData.skills" :key="s.rank" class="skill-item">
+              <div class="skill-row">
+                <div class="skill-left">
+                  <span class="rank-badge" :class="s.rank <= 2 ? 'rank-hot' : 'rank-normal'">{{ s.rank }}</span>
+                  <span class="skill-name">{{ s.name }}</span>
+                  <span class="own-chip" :class="isOwned(s.name) ? 'chip-has' : 'chip-miss'">{{ isOwned(s.name) ? '你有' : '你没' }}</span>
+                </div>
+                <span class="growth-tag" :class="growthClass(s.growth)">{{ s.growth }}</span>
+              </div>
+              <div class="skill-bar">
+                <div class="skill-bar-fill" :class="isOwned(s.name) ? 'bar-purple' : 'bar-green'" :style="{ width: barWidth(s.rank) + '%' }" />
+              </div>
+            </div>
+          </div>
+          <div v-if="skillsData.aiSummary" class="ai-box drawer-ai">
+            <span class="ai-label">AI 解读</span>
             <p class="ai-text">{{ skillsData.aiSummary }}</p>
           </div>
-          <div v-if="marketSources(skillsData).length" class="source-strip">
-            <div class="source-title">来源摘要</div>
-            <div
-              v-for="source in marketSources(skillsData)"
-              :key="source.citation || source.contentPreview"
-              class="source-row"
-            >
-              <span class="source-chip">{{ sourceLabel(source) }}</span>
-              <span class="source-preview">{{ source.contentPreview }}</span>
-            </div>
-          </div>
-        </template>
-        <div v-else class="empty-tip">暂无技能数据</div>
-      </section>
+        </section>
 
-      <!-- 简历 Gap 分析 -->
-      <section class="card">
-        <div class="card-title">
-          简历 Gap 分析
-          <span v-if="gapContext" class="card-context">· {{ gapContext }}</span>
-        </div>
-        <div v-if="gapLoading" class="skeleton-group">
-          <div class="skeleton" style="height:14px;width:70%;margin-bottom:8px" />
-          <div class="skeleton" style="height:14px;width:90%;margin-bottom:8px" />
-          <div class="skeleton" style="height:14px;width:60%" />
-        </div>
-        <template v-else-if="gapData">
-          <div class="score-row">
-            <div class="score-circle">
-              <span class="score-num">{{ gapData.matchScore }}</span>
-              <span class="score-unit">分</span>
+        <section class="drawer-section">
+          <div class="card-title">简历 Gap 分析<span v-if="gapContext" class="card-context"> · {{ gapContext }}</span></div>
+          <div v-if="gapLoading" class="skeleton-group">
+            <div class="skeleton" style="height:14px;width:70%;margin-bottom:8px" />
+            <div class="skeleton" style="height:14px;width:90%;margin-bottom:8px" />
+          </div>
+          <template v-else-if="gapData">
+            <div class="score-row">
+              <div class="score-circle">
+                <span class="score-num">{{ gapData.matchScore }}</span>
+                <span class="score-unit">分</span>
+              </div>
+              <div class="score-desc">市场匹配度</div>
             </div>
-            <div class="score-desc">市场匹配度</div>
-          </div>
-          <div v-if="gapData.hasSkills?.length" class="gap-group">
-            <div class="gap-label has">✓ 你已具备</div>
-            <div class="chip-row">
-              <span v-for="s in gapData.hasSkills" :key="s" class="chip chip-has">{{ s }}</span>
+            <div v-if="gapData.hasSkills?.length" class="gap-group">
+              <div class="gap-label has">你已具备</div>
+              <div class="chip-row">
+                <span v-for="s in gapData.hasSkills" :key="s" class="chip chip-has">{{ s }}</span>
+              </div>
             </div>
-          </div>
-          <div v-if="gapData.missingSkills?.length" class="gap-group">
-            <div class="gap-label miss">⚠ 建议补齐</div>
-            <div class="chip-row">
-              <span v-for="s in gapData.missingSkills" :key="s" class="chip chip-miss">{{ s }}</span>
+            <div v-if="gapData.missingSkills?.length" class="gap-group">
+              <div class="gap-label miss">建议补齐</div>
+              <div class="chip-row">
+                <span v-for="s in gapData.missingSkills" :key="s" class="chip chip-miss">{{ s }}</span>
+              </div>
             </div>
-          </div>
-          <div v-if="gapData.topSuggestion" class="suggest-box">
-            🎯 {{ gapData.topSuggestion }}
-          </div>
-          <div v-if="gapData.aiSummary" class="ai-box" style="margin-top:10px">
-            <span class="ai-label">⚡ AI 解读</span>
-            <p class="ai-text">{{ gapData.aiSummary }}</p>
-          </div>
-          <div v-if="marketSources(gapData).length" class="source-strip">
-            <div class="source-title">来源摘要</div>
-            <div
-              v-for="source in marketSources(gapData)"
-              :key="source.citation || source.contentPreview"
-              class="source-row"
-            >
-              <span class="source-chip">{{ sourceLabel(source) }}</span>
-              <span class="source-preview">{{ source.contentPreview }}</span>
-            </div>
-          </div>
-        </template>
-        <div v-else class="empty-tip">请先上传简历以获取 Gap 分析</div>
-      </section>
-
+            <div v-if="gapData.topSuggestion" class="suggest-box">{{ gapData.topSuggestion }}</div>
+          </template>
+          <div v-else class="compact-empty">上传简历后可查看 Gap 分析。</div>
+        </section>
+      </aside>
     </div>
   </div>
 </template>
@@ -244,6 +230,7 @@ const salaryData = ref(null)
 const skillsData = ref(null)
 const gapData = ref(null)
 const workspaceLoading = ref('')
+const moreOpen = ref(false)
 
 const filterTitle = computed(() => {
   const parts = [city.value, role.value, years.value].filter(Boolean)
@@ -265,6 +252,7 @@ const roleOptions = computed(() => {
 })
 
 const gapContext = computed(() => [city.value, role.value].filter(Boolean).join(' · '))
+const topSkills = computed(() => (skillsData.value?.skills || []).slice(0, 5))
 
 function applyFilters() {
   router.replace({
@@ -441,16 +429,38 @@ async function enterMarketWorkspace(entryAction) {
 .card { background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #e2e8f0; }
 .card-title { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
 .card-context { font-weight: 500; color: #64748b; font-size: 12px; }
+.snapshot-card { min-height: 260px; }
+.snapshot-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.snapshot-sub { margin: -8px 0 0; color: #64748b; font-size: 11px; }
+.more-btn {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.more-btn:hover { border-color: #cbd5e1; background: #f1f5f9; }
 
 /* 薪资 */
 .salary-main { font-size: 36px; font-weight: 800; color: #4f46e5; line-height: 1; }
 .salary-sub { font-size: 11px; color: #64748b; margin: 4px 0 14px; }
+.salary-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 14px;
+}
 .percentile-row { display: flex; justify-content: space-between; margin-bottom: 12px; }
-.p-item { text-align: center; }
+.p-item { text-align: center; background: #f8fafc; border-radius: 10px; padding: 10px 8px; min-width: 0; }
 .p-label { font-size: 10px; color: #64748b; font-weight: 600; }
 .p-val { font-size: 13px; font-weight: 700; color: #334155; margin-top: 2px; }
 .p-val.highlight { color: #4f46e5; font-size: 15px; }
-.trend-tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; margin-bottom: 12px; }
+.trend-tag { display: inline-flex; align-items: center; justify-content: center; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
 .tag-up { background: #dcfce7; color: #15803d; }
 .tag-flat { background: #f1f5f9; color: #475569; }
 
@@ -505,6 +515,7 @@ async function enterMarketWorkspace(entryAction) {
 .market-cta-row {
   display: flex;
   gap: 8px;
+  margin-top: 14px;
 }
 
 .cta-btn {
@@ -532,6 +543,8 @@ async function enterMarketWorkspace(entryAction) {
 
 /* 技能 */
 .skill-list { display: flex; flex-direction: column; gap: 10px; }
+.skill-list.compact { gap: 8px; }
+.skill-skeleton { margin-top: 10px; }
 .skill-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .skill-left { display: flex; align-items: center; gap: 6px; }
 .rank-badge { width: 18px; height: 18px; border-radius: 4px; display: grid; place-items: center; font-size: 10px; font-weight: 700; }
@@ -563,6 +576,55 @@ async function enterMarketWorkspace(entryAction) {
 .chip { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 500; }
 .chip-tech { background: #eef2ff; color: #4338ca; }
 .suggest-box { background: linear-gradient(135deg,#fef3c7,#fde68a); border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #78350f; line-height: 1.6; margin-top: 4px; }
+.drawer-ai { margin-top: 12px; }
+
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 420;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.more-drawer {
+  width: min(420px, 100%);
+  height: 100%;
+  background: #fff;
+  box-shadow: -18px 0 36px rgba(15, 23, 42, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.drawer-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.drawer-title { color: #0f172a; font-size: 15px; font-weight: 800; }
+.drawer-sub { color: #64748b; font-size: 11px; margin-top: 3px; }
+.drawer-close {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.drawer-section {
+  padding: 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
 
 /* 骨架屏 */
 .skeleton-group { display: flex; flex-direction: column; }
@@ -570,4 +632,23 @@ async function enterMarketWorkspace(entryAction) {
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 .empty-tip { text-align: center; color: #94a3b8; font-size: 13px; padding: 20px 0; }
+.compact-empty {
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+@media (max-width: 520px) {
+  .salary-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .salary-summary-grid .trend-tag {
+    grid-column: 1 / -1;
+    min-height: 30px;
+  }
+}
 </style>
