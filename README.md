@@ -137,6 +137,22 @@ Playwright：见 [docs/TESTING.md](docs/TESTING.md)。
 
 步骤：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)、[docs/deployment-careermate.md](docs/deployment-careermate.md)。
 
+### SSE 反向代理注意事项
+
+Agent 对话使用 SSE 流式响应。生产 Nginx / 网关必须对 `/api/agent/` 关闭 buffering 和 gzip，否则 token 流可能被缓存到请求结束才一次性返回，表现为“小职卡住不流式”。
+
+参考配置见 [deploy/nginx.conf.sample](deploy/nginx.conf.sample)，核心项：
+
+```nginx
+location /api/agent/ {
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 600s;
+    gzip off;
+    chunked_transfer_encoding on;
+}
+```
+
 ---
 
 ## 目录结构
