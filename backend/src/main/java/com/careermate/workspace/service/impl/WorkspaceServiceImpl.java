@@ -271,10 +271,34 @@ public class WorkspaceServiceImpl implements WorkspaceService {
                 ? Collections.emptyMap()
                 : request.contextMetadata();
 
+        AgentSessionEntity existing = workspaceSessionRepository.findReusableWorkspace(
+                userId, normalizedType, contextMetadata
+        );
+        if (existing != null) {
+            appendWorkspaceEntryCard(userId, existing, normalizedType, entryAction, title, contextMetadata, null);
+            String redirectPath = "/chat/" + existing.getSessionId();
+            return new WorkspaceCreateResponse(existing.getSessionId(), redirectPath, normalizedType);
+        }
+
         AgentSessionEntity session = workspaceSessionRepository.createWorkspace(
                 userId, normalizedType, title, goalText, contextMetadata
         );
 
+        appendWorkspaceEntryCard(userId, session, normalizedType, entryAction, title, contextMetadata, 1);
+
+        String redirectPath = "/chat/" + session.getSessionId();
+        return new WorkspaceCreateResponse(session.getSessionId(), redirectPath, normalizedType);
+    }
+
+    private void appendWorkspaceEntryCard(
+            Long userId,
+            AgentSessionEntity session,
+            String normalizedType,
+            String entryAction,
+            String title,
+            Map<String, Object> contextMetadata,
+            Integer sequenceNo
+    ) {
         WelcomeCard welcomeCard = buildWelcomeCard(
                 normalizedType, entryAction, title, contextMetadata
         );
@@ -286,11 +310,8 @@ public class WorkspaceServiceImpl implements WorkspaceService {
                 welcomeCard.content(),
                 "CARD",
                 welcomeMetadata,
-                1
+                sequenceNo
         );
-
-        String redirectPath = "/chat/" + session.getSessionId();
-        return new WorkspaceCreateResponse(session.getSessionId(), redirectPath, normalizedType);
     }
 
     private String resolveCreateTitle(WorkspaceCreateRequest request, String normalizedType) {
@@ -374,14 +395,12 @@ public class WorkspaceServiceImpl implements WorkspaceService {
             case WorkspaceSessionRepository.WORKSPACE_JD_PREP -> {
                 List<Map<String, Object>> actions = new ArrayList<>();
                 String jdId = stringMeta(contextMetadata, "jdId", "");
-                if ("GENERATE_RESUME".equals(entryAction) || entryAction.isBlank()) {
+                if (!jdId.isBlank()) {
                     actions.add(Map.of(
                             "label", "生成定制简历",
                             "action", "GENERATE_RESUME",
                             "payload", jdId
                     ));
-                }
-                if (!jdId.isBlank()) {
                     actions.add(Map.of(
                             "label", "查看 JD",
                             "action", "VIEW_JD",
