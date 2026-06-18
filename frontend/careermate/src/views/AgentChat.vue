@@ -47,7 +47,7 @@
             </div>
           </div>
           <div class="header-actions">
-            <div v-if="currentTraceId" class="trace-id-chip" title="SkyWalking Trace ID">
+            <div v-if="showTraceId && currentTraceId" class="trace-id-chip" title="SkyWalking Trace ID">
               <span class="trace-id-label">Trace ID</span>
               <code class="trace-id-value">{{ currentTraceId }}</code>
               <button type="button" class="trace-id-copy" @click="copyTraceId">复制</button>
@@ -280,6 +280,7 @@ const wordDownloading = ref(false)
 const currentTraceId = ref('')
 
 const STREAM_UI_IDLE_NOTICE_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_IDLE_NOTICE_MS || 90000)
+const showTraceId = import.meta.env.VITE_SHOW_TRACE_ID === 'true'
 
 const hasResumeVersion = computed(() => workspaceVersions.value.length > 0)
 
