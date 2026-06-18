@@ -43,7 +43,8 @@
             {{ tag }}
           </button>
         </div>
-        <div v-if="kbLoading" class="skeleton-group">
+        <div v-if="kbLoading || kbDataLoading" class="skeleton-group">
+          <div v-if="kbDataLoading" class="kb-loading-hint">AI 正在抓取考题，稍候片刻，可以先逛其他 tab</div>
           <div v-for="i in 3" :key="i" class="skeleton" style="height:52px;margin-bottom:8px" />
         </div>
         <template v-else-if="kbData">
@@ -293,7 +294,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   completeInterviewSession,
@@ -313,6 +314,7 @@ const companyQuery = ref('')
 const kbLoading = ref(false)
 const companyLoading = ref(false)
 const kbData = ref(null)
+const kbDataLoading = computed(() => kbData.value?.meta?.state === 'LOADING')
 const companyData = ref(null)
 const expandedAnswers = ref(new Set())
 
@@ -436,19 +438,57 @@ function truncateText(text, max) {
   return t.length <= max ? t : `${t.slice(0, max)}…`
 }
 
+const KB_LOADING_REFETCH_MAX = 6
+const KB_LOADING_REFETCH_DELAY_MS = 3000
+let kbLoadingRefetchTimer = null
+let kbLoadingRefetchCount = 0
+let kbActiveQuery = ''
+
+function clearKbLoadingRefetch() {
+  if (kbLoadingRefetchTimer) {
+    clearTimeout(kbLoadingRefetchTimer)
+    kbLoadingRefetchTimer = null
+  }
+  kbLoadingRefetchCount = 0
+}
+
+async function fetchKbOnce(query, { isRefetch = false } = {}) {
+  try {
+    const data = await getKbQuestions(query)
+    if (query !== kbActiveQuery) return
+    kbData.value = data
+    const state = data?.meta?.state
+    if (state === 'LOADING' && kbLoadingRefetchCount < KB_LOADING_REFETCH_MAX) {
+      kbLoadingRefetchCount += 1
+      kbLoadingRefetchTimer = setTimeout(() => {
+        kbLoadingRefetchTimer = null
+        fetchKbOnce(query, { isRefetch: true })
+      }, KB_LOADING_REFETCH_DELAY_MS)
+    } else {
+      clearKbLoadingRefetch()
+    }
+  } catch (e) {
+    if (query !== kbActiveQuery) return
+    if (!isRefetch) {
+      kbData.value = { query, questions: [], aiSummary: e?.message || '搜索失败，请稍后重试' }
+    }
+    clearKbLoadingRefetch()
+  } finally {
+    if (!isRefetch) {
+      kbLoading.value = false
+    }
+  }
+}
+
 async function searchKb() {
   const q = kbQuery.value.trim()
   if (!q) return
+  clearKbLoadingRefetch()
+  kbActiveQuery = q
   kbLoading.value = true
   pageError.value = ''
   expandedAnswers.value = new Set()
-  try {
-    kbData.value = await getKbQuestions(q)
-  } catch (e) {
-    kbData.value = { query: q, questions: [], aiSummary: e?.message || '搜索失败，请稍后重试' }
-  } finally {
-    kbLoading.value = false
-  }
+  await fetchKbOnce(q)
 }
 
 async function searchCompany() {
@@ -579,6 +619,10 @@ async function completeSession() {
 
 onMounted(() => {
   loadSessions()
+})
+
+onBeforeUnmount(() => {
+  clearKbLoadingRefetch()
 })
 </script>
 
@@ -943,6 +987,16 @@ onMounted(() => {
 .status-active { color: #7c3aed; font-weight: 600; }
 
 .skeleton-group { display: flex; flex-direction: column; }
+
+.kb-loading-hint {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+}
 
 .skeleton {
   background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
