@@ -3,7 +3,7 @@ import { authStore } from '../stores/authStore'
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
-  { path: '/', redirect: '/opportunity' },
+  { path: '/', redirect: '/chat' },
   {
     path: '/opportunity',
     name: 'opportunity',
@@ -64,7 +64,7 @@ router.beforeEach(async (to) => {
   const authenticated = authStore.isAuthenticated()
   if (to.path === '/login') {
     if (authenticated) {
-      return '/opportunity'
+      return '/chat'
     }
     return true
   }

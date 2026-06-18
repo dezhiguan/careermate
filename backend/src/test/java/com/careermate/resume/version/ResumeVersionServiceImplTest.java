@@ -60,6 +60,8 @@ class ResumeVersionServiceImplTest {
                 99L,
                 "doc-1",
                 "腾讯 算法工程师",
+                "腾讯",
+                "算法工程师",
                 "腾讯 - 算法工程师",
                 "# 简历\n内容",
                 List.of(Map.of("field", "技能", "change", "对齐 JD"))
@@ -71,7 +73,10 @@ class ResumeVersionServiceImplTest {
         assertEquals(1L, saved.getUserId());
         assertEquals("WS-abc", saved.getSessionId());
         assertEquals(99L, saved.getSourceResumeId());
-        assertEquals("doc-1", saved.getTargetJdId());
+        assertEquals(1L, saved.getTargetJdId());
+        assertEquals("腾讯", saved.getTargetCompany());
+        assertEquals("算法工程师", saved.getTargetJdTitle());
+        assertEquals(1, saved.getVersionSeq());
         assertNotNull(saved.getVersionId());
         assertEquals("# 简历\n内容", saved.getContentMarkdown());
         assertNotNull(saved.getOptimizationNotes());
@@ -98,7 +103,7 @@ class ResumeVersionServiceImplTest {
 
         var updated = service.updateVersion(1L, "v-1", "新标题", "# 新内容");
 
-        assertEquals("新标题", updated.versionName());
+        assertEquals("针对【腾讯】算法工程师 · v1", updated.versionName());
         assertEquals("# 新内容", updated.contentMarkdown());
         verify(resumeVersionMapper).updateById(entity);
         assertEquals("新标题", entity.getVersionName());
@@ -113,6 +118,8 @@ class ResumeVersionServiceImplTest {
                 99L,
                 "doc-1",
                 "腾讯 算法工程师",
+                "腾讯",
+                "算法工程师",
                 "腾讯 - 算法工程师",
                 "# 简历\n内容",
                 List.of()
@@ -129,7 +136,7 @@ class ResumeVersionServiceImplTest {
         assertEquals(ArtifactConstants.REF_RESUME_VERSION, artifact.refType());
         assertEquals(versionId, artifact.refId());
         assertEquals("WS-session", artifact.sessionId());
-        assertEquals("腾讯 - 算法工程师", artifact.title());
+        assertEquals("针对【腾讯】算法工程师 · v1", artifact.title());
     }
 
     @Test
@@ -147,6 +154,9 @@ class ResumeVersionServiceImplTest {
         entity.setUserId(1L);
         entity.setVersionName("测试版");
         entity.setTargetJdLabel("腾讯 算法工程师");
+        entity.setTargetCompany("腾讯");
+        entity.setTargetJdTitle("算法工程师");
+        entity.setVersionSeq(1);
         entity.setContentMarkdown("md");
         entity.setCreatedAt(createdAt);
         return entity;

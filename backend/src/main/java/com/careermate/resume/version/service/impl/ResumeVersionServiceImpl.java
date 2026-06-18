@@ -100,26 +100,46 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
             Long sourceResumeId,
             String targetJdId,
             String targetJdLabel,
+            String targetCompany,
+            String targetJdTitle,
             String versionName,
             String contentMarkdown,
             List<Map<String, Object>> optimizationNotes
     ) {
         LocalDateTime now = LocalDateTime.now();
+        Long targetJdDocId = parseTargetJdId(targetJdId);
+        int versionSeq = nextVersionSeq(userId, targetJdDocId);
+        String safeCompany = fallbackText(targetCompany, "未知公司");
+        String safeTitle = fallbackText(targetJdTitle, fallbackText(targetJdLabel, "历史定制简历"));
         ResumeVersionEntity entity = new ResumeVersionEntity();
         entity.setVersionId(UUID.randomUUID().toString());
         entity.setUserId(userId);
         entity.setTenantId(DEFAULT_TENANT_ID);
         entity.setSessionId(sessionId);
         entity.setSourceResumeId(sourceResumeId);
-        entity.setTargetJdId(targetJdId);
+        entity.setTargetJdId(targetJdDocId);
         entity.setTargetJdLabel(targetJdLabel);
+        entity.setTargetCompany(safeCompany);
+        entity.setTargetJdTitle(safeTitle);
+        entity.setVersionSeq(versionSeq);
         entity.setVersionName(versionName);
         entity.setContentMarkdown(contentMarkdown);
         entity.setOptimizationNotes(writeNotesJson(optimizationNotes));
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         resumeVersionMapper.insert(entity);
-        registerResumeVersionArtifact(userId, sessionId, sourceResumeId, targetJdId, targetJdLabel, versionName, entity.getVersionId());
+        registerResumeVersionArtifact(
+                userId,
+                sessionId,
+                sourceResumeId,
+                targetJdDocId,
+                targetJdLabel,
+                safeCompany,
+                safeTitle,
+                versionSeq,
+                displayName(entity),
+                entity.getVersionId()
+        );
         return toDetailVO(entity);
     }
 
@@ -159,32 +179,47 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
             Long userId,
             String sessionId,
             Long sourceResumeId,
-            String targetJdId,
+            Long targetJdId,
             String targetJdLabel,
+            String targetCompany,
+            String targetJdTitle,
+            Integer versionSeq,
             String versionName,
             String versionId
     ) {
-        String summary = targetJdLabel != null && !targetJdLabel.isBlank()
-                ? "针对 " + targetJdLabel.trim() + " 生成的简历版本"
+        String displayName = versionName != null && !versionName.isBlank()
+                ? versionName.trim()
+                : buildDisplayName(targetCompany, targetJdTitle, versionSeq);
+        String summary = targetJdTitle != null && !targetJdTitle.isBlank()
+                ? "针对 " + fallbackText(targetCompany, "未知公司") + " " + targetJdTitle.trim() + " 生成的简历版本"
                 : "AI 生成的简历版本";
         Map<String, Object> metadata = new java.util.LinkedHashMap<>();
         if (sourceResumeId != null) {
             metadata.put("sourceResumeId", sourceResumeId);
         }
-        if (targetJdId != null && !targetJdId.isBlank()) {
+        if (targetJdId != null) {
             metadata.put("targetJdId", targetJdId);
         }
         if (targetJdLabel != null && !targetJdLabel.isBlank()) {
             metadata.put("targetJdLabel", targetJdLabel);
         }
-        if (versionName != null && !versionName.isBlank()) {
-            metadata.put("versionName", versionName);
+        if (targetCompany != null && !targetCompany.isBlank()) {
+            metadata.put("targetCompany", targetCompany);
+        }
+        if (targetJdTitle != null && !targetJdTitle.isBlank()) {
+            metadata.put("targetJdTitle", targetJdTitle);
+        }
+        if (versionSeq != null) {
+            metadata.put("versionSeq", versionSeq);
+        }
+        if (!displayName.isBlank()) {
+            metadata.put("versionName", displayName);
         }
         agentArtifactService.create(new CreateAgentArtifactCommand(
                 userId,
                 sessionId,
                 ArtifactConstants.TYPE_RESUME_VERSION,
-                versionName,
+                displayName,
                 summary,
                 ArtifactConstants.REF_RESUME_VERSION,
                 versionId,
@@ -213,8 +248,12 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     private ResumeVersionListItemVO toListItemVO(ResumeVersionEntity entity) {
         return new ResumeVersionListItemVO(
                 entity.getVersionId(),
-                entity.getVersionName(),
+                displayName(entity),
                 entity.getTargetJdLabel(),
+                entity.getTargetCompany(),
+                entity.getTargetJdId(),
+                entity.getTargetJdTitle(),
+                entity.getVersionSeq(),
                 toOffsetDateTime(entity.getCreatedAt())
         );
     }
@@ -222,15 +261,75 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     private ResumeVersionVO toDetailVO(ResumeVersionEntity entity) {
         return new ResumeVersionVO(
                 entity.getVersionId(),
-                entity.getVersionName(),
+                displayName(entity),
                 entity.getSessionId(),
                 entity.getTargetJdId(),
                 entity.getTargetJdLabel(),
+                entity.getTargetCompany(),
+                entity.getTargetJdTitle(),
+                entity.getVersionSeq(),
                 entity.getContentMarkdown(),
                 parseNotes(entity.getOptimizationNotes()),
                 entity.getAiScore(),
                 toOffsetDateTime(entity.getCreatedAt())
         );
+    }
+
+    private int nextVersionSeq(Long userId, Long targetJdId) {
+        LambdaQueryWrapper<ResumeVersionEntity> wrapper = new LambdaQueryWrapper<ResumeVersionEntity>()
+                .eq(ResumeVersionEntity::getUserId, userId);
+        if (targetJdId == null) {
+            wrapper.isNull(ResumeVersionEntity::getTargetJdId);
+        } else {
+            wrapper.eq(ResumeVersionEntity::getTargetJdId, targetJdId);
+        }
+        List<ResumeVersionEntity> existing = resumeVersionMapper.selectList(wrapper);
+        if (existing == null || existing.isEmpty()) {
+            return 1;
+        }
+        return existing.stream()
+                .map(ResumeVersionEntity::getVersionSeq)
+                .filter(seq -> seq != null)
+                .max(Integer::compareTo)
+                .orElse(0) + 1;
+    }
+
+    private static Long parseTargetJdId(String targetJdId) {
+        if (targetJdId == null || targetJdId.isBlank()) {
+            return null;
+        }
+        String raw = targetJdId.trim();
+        if (raw.startsWith("doc-")) {
+            raw = raw.substring(4).trim();
+        }
+        if (raw.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(raw);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static String displayName(ResumeVersionEntity entity) {
+        if (entity == null) {
+            return "针对【未知公司】历史定制简历 · v1";
+        }
+        return buildDisplayName(entity.getTargetCompany(), entity.getTargetJdTitle(), entity.getVersionSeq());
+    }
+
+    private static String buildDisplayName(String company, String title, Integer versionSeq) {
+        return "针对【" + fallbackText(company, "未知公司") + "】"
+                + fallbackText(title, "历史定制简历")
+                + " · v" + (versionSeq == null || versionSeq < 1 ? 1 : versionSeq);
+    }
+
+    private static String fallbackText(String value, String fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        return value.trim();
     }
 
     private List<Map<String, Object>> parseNotes(String json) {

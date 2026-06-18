@@ -87,8 +87,8 @@
           <div class="version-row-left">
             <span class="badge-custom">定制</span>
             <div class="version-info">
-              <div class="version-name">{{ v.versionName || '定制简历' }}</div>
-              <div class="version-meta">{{ v.targetJdLabel || '针对 JD 定制' }}</div>
+              <div class="version-name">{{ versionDisplayName(v) }}</div>
+              <div class="version-meta">{{ formatGeneratedAt(v.createdAt) }}</div>
             </div>
           </div>
           <div class="version-row-right">
@@ -265,6 +265,34 @@ function formatRelativeTime(value) {
   return `${month}/${day}`
 }
 
+function formatGeneratedAt(value) {
+  if (!value) return '生成时间未知'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '生成时间未知'
+  return `生成于 ${date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`
+}
+
+function versionDisplayName(version) {
+  const company = version?.targetCompany?.trim() || '未知公司'
+  const title = version?.targetJdTitle?.trim()
+    || version?.targetJdLabel?.trim()
+    || normalizedLegacyVersionName(version?.versionName)
+    || '历史定制简历'
+  const seq = Number(version?.versionSeq)
+  return `针对【${company}】${title} · v${Number.isFinite(seq) && seq > 0 ? seq : 1}`
+}
+
+function normalizedLegacyVersionName(value) {
+  const text = value?.trim()
+  if (!text || text === '定制简历版') return ''
+  return text
+}
+
 function triggerUpload() {
   fileInputRef.value?.click()
 }
@@ -346,7 +374,7 @@ async function openModal(type, item, mode = 'preview') {
 
     resumeModalTitle.value = type === 'default'
       ? (detail.title || '默认简历')
-      : (detail.versionName || '定制简历')
+      : versionDisplayName(detail)
     editTitle.value = resumeModalTitle.value
     editContent.value = type === 'default'
       ? (detail.content || '')
@@ -402,6 +430,9 @@ async function saveResume() {
         versions.value[idx] = {
           ...versions.value[idx],
           versionName: updated.versionName,
+          targetCompany: updated.targetCompany ?? versions.value[idx].targetCompany,
+          targetJdTitle: updated.targetJdTitle ?? versions.value[idx].targetJdTitle,
+          versionSeq: updated.versionSeq ?? versions.value[idx].versionSeq,
         }
       }
       resumeModalItem.value = { ...resumeModalItem.value, versionName: updated.versionName }
@@ -446,9 +477,9 @@ async function handleDownloadVersion(version, format) {
   uploadError.value = ''
   try {
     if (format === 'docx') {
-      await downloadVersionDocx(version.versionId, version.versionName)
+      await downloadVersionDocx(version.versionId, versionDisplayName(version))
     } else {
-      await downloadVersionPdf(version.versionId, version.versionName)
+      await downloadVersionPdf(version.versionId, versionDisplayName(version))
     }
   } catch (e) {
     uploadError.value = e?.message || '下载失败'
@@ -474,7 +505,7 @@ async function handleDeleteDefault() {
 
 async function handleDeleteVersion(v) {
   if (!v?.versionId || deleting.value) return
-  if (!window.confirm(`确定删除「${v.versionName || '定制简历'}」吗？`)) return
+  if (!window.confirm(`确定删除「${versionDisplayName(v)}」吗？`)) return
   deleting.value = true
   uploadError.value = ''
   try {

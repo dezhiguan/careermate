@@ -88,6 +88,8 @@ class McpControllerTest {
                 userBResumeId,
                 "doc-mcp-b",
                 "MCP B JD",
+                "MCP Company",
+                "MCP B JD",
                 "MCP User B Version",
                 "# User B Resume",
                 List.of()

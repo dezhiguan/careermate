@@ -77,6 +77,16 @@
           </span>
         </div>
 
+        <button
+          v-if="showProfileBanner"
+          type="button"
+          class="profile-aha-banner"
+          @click="router.push('/mine')"
+        >
+          <span class="profile-aha-main">画像完整度 {{ profileCompleteness }}%</span>
+          <span class="profile-aha-sub">补全画像 → AI 匹配更准</span>
+        </button>
+
         <div v-if="globalError" class="global-error">
           <div>{{ globalError }}</div>
           <details v-if="errorDetail" class="error-detail">
@@ -103,6 +113,31 @@
         </div>
 
         <div class="messages-area" ref="msgContainer">
+          <section v-if="showZeroStateExample" class="zero-chat-card">
+            <div class="zero-chat-label">示例 · 点 chip 开始真实对话</div>
+            <div class="zero-chat-bubbles">
+              <div class="zero-bubble agent">
+                小职：广州 Java 3 年的同学，我可以先帮你看 JD 要求，再把你的简历改成更贴近岗位的一版。
+              </div>
+              <div class="zero-bubble user">我想尽快知道下一步该做什么。</div>
+              <div class="zero-bubble agent">
+                小职：可以。我会把 JD 拆成技能、项目证据和面试风险，再给你一版可下载的定制简历。
+              </div>
+            </div>
+            <div class="zero-chip-row">
+              <button
+                v-for="chip in zeroStatePrompts"
+                :key="chip.label"
+                type="button"
+                class="zero-prompt-chip"
+                :disabled="sessionCreating || streamState === 'streaming'"
+                @click="sendExamplePrompt(chip.prompt)"
+              >
+                {{ chip.label }}
+              </button>
+            </div>
+          </section>
+
           <div v-for="msg in messages" :key="msg.id" class="msg-wrapper">
             <div v-if="msg.role === 'user'" class="msg-row user-row">
               <div class="msg-bubble user-bubble">{{ msg.text }}</div>
@@ -216,6 +251,7 @@ import {
 import { getWorkspace, getMessages, postAction, openResumeGenerateStreamByEndpoint, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
 import { getOpportunityDetail } from '../api/opportunity'
 import { downloadVersionDocx, downloadVersionPdf, getVersion, listVersions } from '../api/resumeVersion'
+import { getCareerProfile } from '../api/profile'
 import { isCareerTaskToolName, notifyCareerTasksUpdated } from '../utils/agentToolDisplay'
 import ToolCallCard from '../components/agent/ToolCallCard.vue'
 import ChatCard from '../components/ChatCard.vue'
@@ -302,6 +338,19 @@ const workspaceVersions = ref([])
 const pdfDownloading = ref(false)
 const wordDownloading = ref(false)
 const currentTraceId = ref('')
+const careerProfile = ref({
+  targetRole: '',
+  targetCity: '',
+  seniority: '',
+  workMode: '',
+  skillKeywords: [],
+})
+
+const zeroStatePrompts = [
+  { label: '帮我看 JD', prompt: '帮我看 JD，告诉我该怎么判断是否值得投递。' },
+  { label: '改我的简历', prompt: '改我的简历，帮我把项目经历写得更贴近目标岗位。' },
+  { label: '练一道面试题', prompt: '练一道 Java 后端面试题，并根据我的回答追问。' },
+]
 
 const STREAM_UI_IDLE_NOTICE_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_IDLE_NOTICE_MS || 90000)
 const showTraceId = import.meta.env.VITE_SHOW_TRACE_ID === 'true'
@@ -328,6 +377,25 @@ function clearGlobalError() {
 }
 
 const hasResumeVersion = computed(() => workspaceVersions.value.length > 0)
+
+const profileCompleteness = computed(() => {
+  let score = 0
+  if (careerProfile.value.targetRole?.trim()) score += 20
+  if (careerProfile.value.targetCity?.trim()) score += 20
+  if (careerProfile.value.seniority?.trim()) score += 20
+  if (careerProfile.value.workMode?.trim()) score += 20
+  if (careerProfile.value.skillKeywords?.length > 0) score += 20
+  return score
+})
+
+const showProfileBanner = computed(() => profileCompleteness.value < 80)
+
+const showZeroStateExample = computed(() => (
+  !workspaceInfo.value
+  && !sessionId.value
+  && messages.value.length === 0
+  && !sessionCreating.value
+))
 
 const workspaceSubText = computed(() => {
   if (!workspaceInfo.value) return ''
@@ -1038,7 +1106,29 @@ async function bootstrapChat() {
   if (restored) {
     return
   }
-  await createNewSession({ withWelcome: true })
+  sessionId.value = ''
+  messages.value = []
+  streamState.value = 'idle'
+}
+
+async function sendExamplePrompt(prompt) {
+  inputText.value = prompt
+  await sendMessage()
+}
+
+async function loadCareerProfileBanner() {
+  try {
+    const profile = await getCareerProfile()
+    if (profile) {
+      careerProfile.value = {
+        ...careerProfile.value,
+        ...profile,
+        skillKeywords: Array.isArray(profile.skillKeywords) ? profile.skillKeywords : [],
+      }
+    }
+  } catch {
+    // profile banner is non-blocking
+  }
 }
 
 async function sendMessage() {
@@ -1210,7 +1300,7 @@ watch(() => route.params.wsId, async (rawWsId) => {
 onMounted(async () => {
   updateViewport()
   window.addEventListener('resize', updateViewport)
-  await bootstrapChat()
+  await Promise.allSettled([bootstrapChat(), loadCareerProfileBanner()])
   scrollBottom()
 })
 
@@ -1370,6 +1460,35 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid #c7d2fe;
   flex-shrink: 0;
   overflow-x: auto;
+}
+
+.profile-aha-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 16px 0;
+  padding: 9px 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.profile-aha-main {
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.profile-aha-sub {
+  min-width: 0;
+  font-size: 12px;
+  color: #c2410c;
+  overflow-wrap: anywhere;
 }
 
 .ctx-chip {
@@ -1641,6 +1760,82 @@ onBeforeUnmount(() => {
   gap: 4px;
 }
 
+.zero-chat-card {
+  width: min(680px, 100%);
+  margin: 4px auto 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.zero-chat-label {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.zero-chat-bubbles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zero-bubble {
+  max-width: 84%;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.zero-bubble.agent {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+}
+
+.zero-bubble.user {
+  align-self: flex-end;
+  background: #4f46e5;
+  color: #fff;
+}
+
+.zero-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.zero-prompt-chip {
+  border: 1px solid #c7d2fe;
+  background: #fff;
+  color: #4338ca;
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.zero-prompt-chip:hover {
+  background: #eef2ff;
+}
+
+.zero-prompt-chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .msg-wrapper { margin-bottom: 6px; }
 .msg-row { display: flex; }
 .user-row { justify-content: flex-end; }
@@ -1894,6 +2089,22 @@ onBeforeUnmount(() => {
 
   .messages-area {
     padding: 12px 6px 12px 4px;
+  }
+
+  .profile-aha-banner {
+    margin: 8px 8px 0;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .zero-chat-card {
+    margin-top: 0;
+    padding: 10px;
+  }
+
+  .zero-bubble {
+    max-width: 92%;
   }
 
   .agent-row {
