@@ -81,7 +81,7 @@ public class InterviewKbService {
     @Cacheable(
             cacheNames = "interview:kb-questions",
             key = "T(com.careermate.cache.CacheKeys).interviewKbQuestions(#tag)",
-            unless = "#result == null || (#result.meta != null && #result.meta.degraded())"
+            unless = "#result == null || (#result.meta != null && #result.meta.state().name() == 'DEGRADED')"
     )
     public KbQuestionsVO computeKbQuestions(String tag) {
         try {
@@ -106,7 +106,7 @@ public class InterviewKbService {
             if (parsed.getQuestions() == null) {
                 parsed.setQuestions(Collections.emptyList());
             }
-            parsed.setMeta(CacheMeta.freshNow());
+            parsed.setMeta(CacheMeta.fresh());
             return parsed;
         } catch (Exception e) {
             log.warn("getKbQuestions failed: query={}, err={}", tag, e.getMessage());
@@ -225,7 +225,7 @@ public class InterviewKbService {
 
     private static void ensureFreshMeta(KbQuestionsVO vo) {
         if (vo.getMeta() == null) {
-            vo.setMeta(CacheMeta.freshNow());
+            vo.setMeta(CacheMeta.fresh());
         }
     }
 
@@ -234,7 +234,7 @@ public class InterviewKbService {
         vo.setQuery(query);
         vo.setQuestions(Collections.emptyList());
         vo.setAiSummary("暂无相关面试资料");
-        vo.setMeta(CacheMeta.degradedNow());
+        vo.setMeta(CacheMeta.degraded());
         return vo;
     }
 

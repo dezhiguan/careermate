@@ -168,7 +168,7 @@ async function fetchList({ autoRefresh = false } = {}) {
       size: 10,
     })
     const meta = data?._meta || data?.meta || null
-    if (meta?.degraded === true) {
+    if (meta?.state === 'LOADING') {
       items.value = []
       hasResume.value = !!data?.hasResume
       degraded.value = true

@@ -20,7 +20,7 @@ public record PageResult<T>(
             String sortStrategy,
             List<T> items
     ) {
-        this(total, page, size, hasResume, sortStrategy, items, CacheMeta.freshNow());
+        this(total, page, size, hasResume, sortStrategy, items, CacheMeta.fresh());
     }
 
     public PageResult<T> withMeta(CacheMeta meta) {
@@ -32,6 +32,6 @@ public record PageResult<T>(
     }
 
     public static <T> PageResult<T> degradedEmpty(int page, int size, boolean hasResume, String sortStrategy) {
-        return new PageResult<>(0, page, size, hasResume, sortStrategy, List.of(), CacheMeta.degradedNow());
+        return new PageResult<>(0, page, size, hasResume, sortStrategy, List.of(), CacheMeta.loading());
     }
 }

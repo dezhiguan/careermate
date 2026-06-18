@@ -1,29 +1,16 @@
-const { test, expect } = require('@playwright/test');
-const {
-  assertBackendReady,
-  attachDiagnostics,
-  createTestPhone,
-  gotoApp,
-  loginViaSmsUi,
-  MOCK_SMS_CODE,
-  waitStable,
-} = require('./e2e-env');
+const { test, expect } = require('@playwright/test')
 
-test.describe('P0 login default route', () => {
-  test.beforeAll(async ({ request }) => {
-    await assertBackendReady(request);
-  });
-
-  test.beforeEach(({ page }) => {
-    attachDiagnostics(page);
-  });
-
-  test('mock SMS login lands on chat via root redirect', async ({ page }) => {
-    await gotoApp(page, '/login');
-    await waitStable(page);
-
-    await loginViaSmsUi(page, createTestPhone(), MOCK_SMS_CODE);
-
-    expect(page.url()).toContain('/#/chat');
-  });
-});
+test('login redirects to /chat (P0-5)', async ({ page }) => {
+  await page.goto('http://127.0.0.1:5174/')
+  await page.waitForURL(/#\/login/)
+  await page.locator('input[type="tel"]').first().fill('13977833599')
+  const sentResp = page.waitForResponse((r) => r.url().includes('/auth/sms/send'))
+  await page.getByRole('button', { name: /发送验证码/ }).click()
+  await sentResp
+  await page.waitForTimeout(1500)
+  await page.locator('.sms-row input').first().fill('123456')
+  await page.getByRole('button', { name: /登录\/注册/ }).click()
+  await page.waitForLoadState('networkidle')
+  await page.waitForTimeout(2000)
+  expect(page.url()).toContain('/#/chat')
+})

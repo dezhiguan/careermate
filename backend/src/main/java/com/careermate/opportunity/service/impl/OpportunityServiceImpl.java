@@ -169,7 +169,7 @@ public class OpportunityServiceImpl implements OpportunityService {
                 plan.demoMode(),
                 safeRequest.page(),
                 safeRequest.size(),
-                new CacheMeta(false, cached.cachedAt())
+                new CacheMeta(CacheMeta.State.FRESH, cached.cachedAt())
         );
         if (!cacheFacadeEnabled()) {
             writeListCache(plan.cacheKey(), cached);
@@ -215,7 +215,7 @@ public class OpportunityServiceImpl implements OpportunityService {
                     plan.demoMode(),
                     safeRequest.page(),
                     safeRequest.size(),
-                    new CacheMeta(false, cached.cachedAt())
+                    new CacheMeta(CacheMeta.State.FRESH, cached.cachedAt())
             );
         }
 
@@ -234,7 +234,7 @@ public class OpportunityServiceImpl implements OpportunityService {
                 plan.demoMode(),
                 safeRequest.page(),
                 safeRequest.size(),
-                new CacheMeta(false, cached.cachedAt())
+                new CacheMeta(CacheMeta.State.FRESH, cached.cachedAt())
         );
     }
 
