@@ -14,8 +14,8 @@
         </div>
         <nav class="drawer-nav">
           <button type="button" class="drawer-link" @click="navigateFromDrawer('/opportunity')">机会</button>
-          <button type="button" class="drawer-link active" @click="drawerOpen = false">AI 小职 · 当前</button>
-          <button type="button" class="drawer-link" @click="navigateFromDrawer('/interview')">面试题</button>
+          <button type="button" class="drawer-link active" @click="drawerOpen = false">小职 · 当前</button>
+          <button type="button" class="drawer-link" @click="navigateFromDrawer('/interview')">面试准备</button>
           <button type="button" class="drawer-link" @click="navigateFromDrawer('/market')">市场</button>
           <button type="button" class="drawer-link" @click="navigateFromDrawer('/mine')">我的</button>
         </nav>
@@ -47,7 +47,7 @@
             </div>
           </div>
           <div class="header-actions">
-            <div v-if="currentTraceId" class="trace-id-chip" title="SkyWalking Trace ID">
+            <div v-if="showTraceId && currentTraceId" class="trace-id-chip" title="SkyWalking Trace ID">
               <span class="trace-id-label">Trace ID</span>
               <code class="trace-id-value">{{ currentTraceId }}</code>
               <button type="button" class="trace-id-copy" @click="copyTraceId">复制</button>
@@ -77,9 +77,67 @@
           </span>
         </div>
 
-        <div v-if="globalError" class="global-error">{{ globalError }}</div>
+        <button
+          v-if="showProfileBanner"
+          type="button"
+          class="profile-aha-banner"
+          @click="router.push('/mine')"
+        >
+          <span class="profile-aha-main">画像完整度 {{ profileCompleteness }}%</span>
+          <span class="profile-aha-sub">补全画像 → AI 匹配更准</span>
+        </button>
+
+        <div v-if="globalError" class="global-error">
+          <div>{{ globalError }}</div>
+          <details v-if="errorDetail" class="error-detail">
+            <summary>错误详情</summary>
+            <dl>
+              <div v-if="errorDetail.status">
+                <dt>HTTP</dt>
+                <dd>{{ errorDetail.status }}</dd>
+              </div>
+              <div v-if="errorDetail.code">
+                <dt>Code</dt>
+                <dd>{{ errorDetail.code }}</dd>
+              </div>
+              <div v-if="errorDetail.traceId">
+                <dt>Trace ID</dt>
+                <dd><code>{{ errorDetail.traceId }}</code></dd>
+              </div>
+              <div v-if="errorDetail.requestId">
+                <dt>Request ID</dt>
+                <dd><code>{{ errorDetail.requestId }}</code></dd>
+              </div>
+            </dl>
+          </details>
+        </div>
 
         <div class="messages-area" ref="msgContainer">
+          <section v-if="showZeroStateExample" class="zero-chat-card">
+            <div class="zero-chat-label">示例 · 点 chip 开始真实对话</div>
+            <div class="zero-chat-bubbles">
+              <div class="zero-bubble agent">
+                小职：广州 Java 3 年的同学，我可以先帮你看 JD 要求，再把你的简历改成更贴近岗位的一版。
+              </div>
+              <div class="zero-bubble user">我想尽快知道下一步该做什么。</div>
+              <div class="zero-bubble agent">
+                小职：可以。我会把 JD 拆成技能、项目证据和面试风险，再给你一版可下载的定制简历。
+              </div>
+            </div>
+            <div class="zero-chip-row">
+              <button
+                v-for="chip in zeroStatePrompts"
+                :key="chip.label"
+                type="button"
+                class="zero-prompt-chip"
+                :disabled="sessionCreating || streamState === 'streaming'"
+                @click="sendExamplePrompt(chip.prompt)"
+              >
+                {{ chip.label }}
+              </button>
+            </div>
+          </section>
+
           <div v-for="msg in messages" :key="msg.id" class="msg-wrapper">
             <div v-if="msg.role === 'user'" class="msg-row user-row">
               <div class="msg-bubble user-bubble">{{ msg.text }}</div>
@@ -151,6 +209,10 @@
           <span>{{ resumeViewerTitle }}</span>
           <button type="button" class="modal-close" @click="resumeViewerOpen = false">×</button>
         </div>
+        <div v-if="resumeViewerSummary" class="viewer-summary-banner">
+          <span class="viewer-summary-kicker">改写说明</span>
+          <span>{{ resumeViewerSummary }}</span>
+        </div>
         <div class="modal-body markdown-preview" v-html="renderMd(resumeViewerContent)"></div>
       </div>
     </div>
@@ -183,6 +245,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authStore } from '../stores/authStore'
+import { homeStore } from '../stores/homeStore'
 import {
   createAgentSession,
   getAgentSession,
@@ -193,11 +256,13 @@ import {
 import { getWorkspace, getMessages, postAction, openResumeGenerateStreamByEndpoint, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
 import { getOpportunityDetail } from '../api/opportunity'
 import { downloadVersionDocx, downloadVersionPdf, getVersion, listVersions } from '../api/resumeVersion'
+import { getCareerProfile } from '../api/profile'
 import { isCareerTaskToolName, notifyCareerTasksUpdated } from '../utils/agentToolDisplay'
 import ToolCallCard from '../components/agent/ToolCallCard.vue'
 import ChatCard from '../components/ChatCard.vue'
 import { getToolLabel, isBusinessToolName, sanitizeToolSummary } from '../utils/agentToolDisplay'
 import { renderMarkdown } from '../utils/markdown'
+import { computeProfileCompleteness } from '../utils/profileCompleteness'
 
 const route = useRoute()
 const router = useRouter()
@@ -261,6 +326,7 @@ const sessionId = ref('')
 const streamState = ref('idle')
 const sessionCreating = ref(false)
 const globalError = ref('')
+const errorDetail = ref(null)
 const idSeed = ref(0)
 const activeStreamController = ref(null)
 const activeStreamTimer = ref(null)
@@ -273,15 +339,62 @@ const jdViewerContent = ref('')
 const resumeViewerOpen = ref(false)
 const resumeViewerTitle = ref('')
 const resumeViewerContent = ref('')
+const resumeViewerSummary = ref('')
 const versionsDrawerOpen = ref(false)
 const workspaceVersions = ref([])
 const pdfDownloading = ref(false)
 const wordDownloading = ref(false)
 const currentTraceId = ref('')
+const careerProfile = ref({
+  targetRole: '',
+  targetCity: '',
+  seniority: '',
+  workMode: '',
+  skillKeywords: [],
+})
+
+const zeroStatePrompts = [
+  { label: '帮我看 JD', prompt: '帮我看 JD，告诉我该怎么判断是否值得投递。' },
+  { label: '改我的简历', prompt: '改我的简历，帮我把项目经历写得更贴近目标岗位。' },
+  { label: '练一道面试题', prompt: '练一道 Java 后端面试题，并根据我的回答追问。' },
+]
 
 const STREAM_UI_IDLE_NOTICE_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_IDLE_NOTICE_MS || 90000)
+const showTraceId = import.meta.env.VITE_SHOW_TRACE_ID === 'true'
+
+function resolveErrorDetail(error) {
+  if (!error) return null
+  const detail = {
+    status: error.status || error.payload?.status || null,
+    code: error.code || error.payload?.code || null,
+    traceId: error.traceId || error.payload?.traceId || null,
+    requestId: error.requestId || null,
+  }
+  return Object.values(detail).some(Boolean) ? detail : null
+}
+
+function setGlobalError(message, error = null) {
+  globalError.value = message || error?.message || '系统异常'
+  errorDetail.value = resolveErrorDetail(error)
+}
+
+function clearGlobalError() {
+  globalError.value = ''
+  errorDetail.value = null
+}
 
 const hasResumeVersion = computed(() => workspaceVersions.value.length > 0)
+
+const profileCompleteness = computed(() => computeProfileCompleteness(careerProfile.value))
+
+const showProfileBanner = computed(() => profileCompleteness.value < 80)
+
+const showZeroStateExample = computed(() => (
+  !workspaceInfo.value
+  && !sessionId.value
+  && messages.value.length === 0
+  && !sessionCreating.value
+))
 
 const workspaceSubText = computed(() => {
   if (!workspaceInfo.value) return ''
@@ -478,7 +591,7 @@ function markStreamInterrupted(agentMessage, message) {
   finishStreaming(agentMessage)
   finalizeRunningToolCalls(agentMessage, false)
   agentMessage.error = message
-  globalError.value = message
+  setGlobalError(message)
 }
 
 function abortActiveStream(reason = '当前流式请求已取消') {
@@ -497,7 +610,7 @@ function startStreamWatchdog(agentMessage) {
     if (streamState.value !== 'streaming' || !agentMessage?.streaming) return
     const message = `Agent 已超过 ${Math.round(STREAM_UI_IDLE_NOTICE_MS / 1000)} 秒未返回结束事件，仍在等待后端完成。`
     agentMessage.error = message
-    globalError.value = message
+    setGlobalError(message)
   }, STREAM_UI_IDLE_NOTICE_MS)
 }
 
@@ -593,7 +706,7 @@ async function loadWorkspaceContext(wsId) {
   if (!normalizedWsId) return
   const seq = ++workspaceLoadSeq
   sessionCreating.value = true
-  globalError.value = ''
+  clearGlobalError()
   try {
     const [ws, msgs, versions] = await Promise.all([
       getWorkspace(normalizedWsId),
@@ -625,7 +738,7 @@ async function loadWorkspaceContext(wsId) {
         lastCreateWorkspaceId,
       })
     }
-    globalError.value = msg
+    setGlobalError(msg, e)
     messages.value = [withMarkdown({
       id: `m_err_${Date.now()}`,
       role: 'agent',
@@ -742,6 +855,7 @@ async function openResumeVersion(versionId) {
     const detail = await getVersion(versionId)
     resumeViewerTitle.value = detail?.versionName || '简历预览'
     resumeViewerContent.value = detail?.contentMarkdown || ''
+    resumeViewerSummary.value = detail?.changeSummary || ''
     resumeViewerOpen.value = true
     versionsDrawerOpen.value = false
   } catch (e) {
@@ -927,7 +1041,7 @@ async function refreshTraceFromServer(agentMessage = null) {
 
 async function createNewSession({ withWelcome = true } = {}) {
   sessionCreating.value = true
-  globalError.value = ''
+  clearGlobalError()
   streamState.value = 'session_creating'
   try {
     sessionId.value = await createAgentSession()
@@ -937,7 +1051,7 @@ async function createNewSession({ withWelcome = true } = {}) {
     }
   } catch (e) {
     streamState.value = 'error'
-    globalError.value = e?.message || '会话创建失败'
+    setGlobalError(e?.message || '会话创建失败', e)
     messages.value.push(withMarkdown({
       id: `m_${Date.now()}`,
       role: 'agent',
@@ -953,7 +1067,7 @@ async function createNewSession({ withWelcome = true } = {}) {
 
 async function restoreLatestChatSession() {
   sessionCreating.value = true
-  globalError.value = ''
+  clearGlobalError()
   streamState.value = 'session_creating'
   try {
     const sessions = await listAgentSessions({ taskType: 'CHAT', limit: 1 })
@@ -992,7 +1106,39 @@ async function bootstrapChat() {
   if (restored) {
     return
   }
-  await createNewSession({ withWelcome: true })
+  sessionId.value = ''
+  messages.value = []
+  streamState.value = 'idle'
+}
+
+async function sendExamplePrompt(prompt) {
+  inputText.value = prompt
+  await sendMessage()
+}
+
+async function loadCareerProfileBanner() {
+  const cachedProfile = homeStore.state.careerProfile
+  if (cachedProfile) {
+    careerProfile.value = {
+      ...careerProfile.value,
+      ...cachedProfile,
+      skillKeywords: Array.isArray(cachedProfile.skillKeywords) ? cachedProfile.skillKeywords : [],
+    }
+    return
+  }
+  try {
+    const profile = await getCareerProfile()
+    if (profile) {
+      careerProfile.value = {
+        ...careerProfile.value,
+        ...profile,
+        skillKeywords: Array.isArray(profile.skillKeywords) ? profile.skillKeywords : [],
+      }
+      homeStore.updateCareerProfile(profile)
+    }
+  } catch {
+    // profile banner is non-blocking
+  }
 }
 
 async function sendMessage() {
@@ -1002,7 +1148,7 @@ async function sendMessage() {
     await createNewSession({ withWelcome: false })
     if (!sessionId.value) return
   }
-  globalError.value = ''
+  clearGlobalError()
   currentTraceId.value = ''
 
   messages.value.push({
@@ -1091,7 +1237,7 @@ async function sendMessage() {
         finalizeRunningToolCalls(agentMessage, false)
         finishStreaming(agentMessage)
         agentMessage.error = error?.message || '流式调用失败'
-        globalError.value = agentMessage.error
+        setGlobalError(agentMessage.error, error)
       },
     }, {
       signal: streamController.signal,
@@ -1104,7 +1250,7 @@ async function sendMessage() {
     streamState.value = 'error'
     finishStreaming(agentMessage)
     agentMessage.error = e?.message || '流式请求失败'
-    globalError.value = agentMessage.error
+    setGlobalError(agentMessage.error, e)
   } finally {
     clearStreamWatchdog()
     if (activeStreamController.value === streamController) {
@@ -1123,7 +1269,7 @@ async function sendMessage() {
       finalizeRunningToolCalls(agentMessage, false)
       finishStreaming(agentMessage)
       agentMessage.error = '流式响应未正常结束，请重试。'
-      globalError.value = agentMessage.error
+      setGlobalError(agentMessage.error)
     }
     if (!agentMessage.text) {
       agentMessage.text = '暂未收到回复，请稍后重试。'
@@ -1139,7 +1285,7 @@ async function resetChat() {
     markStreamInterrupted(activeAgentMessage.value, '当前流式请求已停止，已切换到新会话。')
   }
   activeAgentMessage.value = null
-  globalError.value = ''
+  clearGlobalError()
   streamState.value = 'idle'
   sessionId.value = ''
   messages.value = [withMarkdown({
@@ -1164,7 +1310,7 @@ watch(() => route.params.wsId, async (rawWsId) => {
 onMounted(async () => {
   updateViewport()
   window.addEventListener('resize', updateViewport)
-  await bootstrapChat()
+  await Promise.allSettled([bootstrapChat(), loadCareerProfileBanner()])
   scrollBottom()
 })
 
@@ -1229,6 +1375,26 @@ onBeforeUnmount(() => {
   font-size: 22px;
   cursor: pointer;
   color: #64748b;
+}
+
+.viewer-summary-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 16px 0;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #334155;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.viewer-summary-kicker {
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .modal-body {
@@ -1324,6 +1490,35 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid #c7d2fe;
   flex-shrink: 0;
   overflow-x: auto;
+}
+
+.profile-aha-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 16px 0;
+  padding: 9px 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.profile-aha-main {
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.profile-aha-sub {
+  min-width: 0;
+  font-size: 12px;
+  color: #c2410c;
+  overflow-wrap: anywhere;
 }
 
 .ctx-chip {
@@ -1541,6 +1736,40 @@ onBeforeUnmount(() => {
   border-radius: 8px;
 }
 
+.error-detail {
+  margin-top: 6px;
+  color: #7f1d1d;
+}
+
+.error-detail summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.error-detail dl {
+  margin: 6px 0 0;
+  display: grid;
+  gap: 4px;
+}
+
+.error-detail dl > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.error-detail dt {
+  font-weight: 600;
+  color: #991b1b;
+}
+
+.error-detail dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .chat-main {
   display: flex;
   flex-direction: column;
@@ -1559,6 +1788,82 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.zero-chat-card {
+  width: min(680px, 100%);
+  margin: 4px auto 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.zero-chat-label {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.zero-chat-bubbles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zero-bubble {
+  max-width: 84%;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.zero-bubble.agent {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+}
+
+.zero-bubble.user {
+  align-self: flex-end;
+  background: #4f46e5;
+  color: #fff;
+}
+
+.zero-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.zero-prompt-chip {
+  border: 1px solid #c7d2fe;
+  background: #fff;
+  color: #4338ca;
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.zero-prompt-chip:hover {
+  background: #eef2ff;
+}
+
+.zero-prompt-chip:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .msg-wrapper { margin-bottom: 6px; }
@@ -1814,6 +2119,22 @@ onBeforeUnmount(() => {
 
   .messages-area {
     padding: 12px 6px 12px 4px;
+  }
+
+  .profile-aha-banner {
+    margin: 8px 8px 0;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .zero-chat-card {
+    margin-top: 0;
+    padding: 10px;
+  }
+
+  .zero-bubble {
+    max-width: 92%;
   }
 
   .agent-row {

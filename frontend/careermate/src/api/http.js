@@ -71,15 +71,32 @@ export async function requestWithMeta(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(payload?.message || `请求失败: ${response.status}`)
+    const error = new Error(payload?.message || `请求失败: ${response.status}`)
+    error.status = response.status
+    error.code = payload?.code
+    error.traceId = traceId || payload?.traceId || null
+    error.requestId = requestId || null
+    error.payload = payload
+    throw error
   }
 
   if (!payload || typeof payload.code === 'undefined') {
-    throw new Error('响应结构不合法')
+    const error = new Error('响应结构不合法')
+    error.status = response.status
+    error.traceId = traceId || null
+    error.requestId = requestId || null
+    error.payload = payload
+    throw error
   }
 
   if (payload.code !== 0) {
-    throw new Error(payload.message || '请求失败')
+    const error = new Error(payload.message || '请求失败')
+    error.status = response.status
+    error.code = payload.code
+    error.traceId = traceId || payload.traceId || null
+    error.requestId = requestId || null
+    error.payload = payload
+    throw error
   }
 
   return {

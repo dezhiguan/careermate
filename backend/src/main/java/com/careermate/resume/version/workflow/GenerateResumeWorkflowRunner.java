@@ -205,6 +205,7 @@ class GenerateResumeWorkflowRunner {
         String markdown = meta.markdown();
         validateMarkdownQuality(markdown);
         run.setMarkdown(markdown);
+        run.setChangeSummary(meta.changeSummary());
         run.setOptimizationNotes(meta.changes());
     }
 
@@ -215,8 +216,10 @@ class GenerateResumeWorkflowRunner {
                 run.resumeContext().getResumeId(),
                 run.jdId(),
                 run.targetLabel(),
-                run.versionName(),
+                run.company(),
+                run.title(),
                 run.markdown(),
+                run.changeSummary(),
                 run.optimizationNotes()
         );
         run.setSavedVersion(saved);

@@ -33,14 +33,17 @@ public class MarketIntelligenceController {
 
     @GetMapping("/skill-trends")
     public ApiResponse<SkillTrendsVO> skillTrends(
+            @RequestParam(defaultValue = "广州") String city,
             @RequestParam(defaultValue = "Java后端") String role
     ) {
-        return ApiResponse.success(marketIntelligenceService.getSkillTrends(role));
+        return ApiResponse.success(marketIntelligenceService.getSkillTrends(city, role));
     }
 
     @GetMapping("/resume-gap")
-    public ApiResponse<ResumeGapVO> resumeGap() {
-        return ApiResponse.success(marketIntelligenceService.getResumeGap(CurrentUserContext.getUserId()));
+    public ApiResponse<ResumeGapVO> resumeGap(
+            @RequestParam(defaultValue = "default") String jdId
+    ) {
+        return ApiResponse.success(marketIntelligenceService.getResumeGap(CurrentUserContext.getUserId(), jdId));
     }
 
     @GetMapping("/company-insight")

@@ -151,9 +151,9 @@ class GenerateResumeWorkflowRunnerTest {
         when(ragForgeClient.searchJd(anyString(), eq(50))).thenReturn(List.of(
                 new RagForgeChunk(1L, 1L, "jd.md", "# JD 内容", "JD", 0.9)
         ));
-        when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new ResumeVersionVO(
-                        "ver-1", "腾讯 - 算法", "WS-abc", "doc-1", "腾讯 算法",
+                        "ver-1", "针对【腾讯】算法 · v1", "WS-abc", 1L, "腾讯 算法", "腾讯", "算法", 1,
                         "# 简历", List.of(), null, OffsetDateTime.now()
                 ));
         when(workspaceSessionRepository.appendMessage(any(), any(), any(), any(), any(), any(), any()))

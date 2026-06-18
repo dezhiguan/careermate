@@ -115,7 +115,7 @@ class WorkspaceServiceImplTest {
         session.setJdSnapshot("{}");
         when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
         when(resumeVersionService.listBySession(1L, "WS-abc")).thenReturn(List.of(
-                new ResumeVersionListItemVO("v1", "定制简历 A", "腾讯 Java", OffsetDateTime.now())
+                new ResumeVersionListItemVO("v1", "针对【腾讯】Java · v1", "腾讯 Java", "腾讯", 1L, "Java", 1, OffsetDateTime.now())
         ));
 
         WorkspaceVO vo = service.getWorkspace(1L, "WS-abc");

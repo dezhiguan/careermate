@@ -3,6 +3,8 @@ package com.careermate.market.service;
 import com.careermate.agent.tool.rag.RagRetrieveRequest;
 import com.careermate.agent.tool.rag.RagRetrieveResult;
 import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.cache.CacheKeys;
+import com.careermate.common.api.CacheMeta;
 import com.careermate.knowledge.KnowledgeRetrievalService;
 import com.careermate.knowledge.KnowledgeRetrievalSupport;
 import com.careermate.llm.LlmClient;
@@ -20,9 +22,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -38,25 +47,100 @@ public class MarketIntelligenceService {
     private final LlmClient llmClient;
     private final ResumeContextProvider resumeContextProvider;
     private final ObjectMapper objectMapper;
+    private final CacheManager cacheManager;
+    private final ApplicationContext applicationContext;
 
+    /** Unit-test constructor: no Spring proxy/cache, keep synchronous behavior. */
     public MarketIntelligenceService(
             KnowledgeRetrievalService knowledgeRetrievalService,
             LlmClient llmClient,
             ResumeContextProvider resumeContextProvider,
             ObjectMapper objectMapper
     ) {
+        this(knowledgeRetrievalService, llmClient, resumeContextProvider, objectMapper, null, null);
+    }
+
+    @Autowired
+    public MarketIntelligenceService(
+            KnowledgeRetrievalService knowledgeRetrievalService,
+            LlmClient llmClient,
+            ResumeContextProvider resumeContextProvider,
+            ObjectMapper objectMapper,
+            ObjectProvider<CacheManager> cacheManagerProvider,
+            ApplicationContext applicationContext
+    ) {
         this.knowledgeRetrievalService = knowledgeRetrievalService;
         this.llmClient = llmClient;
         this.resumeContextProvider = resumeContextProvider;
         this.objectMapper = objectMapper;
+        this.cacheManager = cacheManagerProvider == null ? null : cacheManagerProvider.getIfAvailable();
+        this.applicationContext = applicationContext;
     }
 
     public SalaryInsightVO getSalaryInsight(String role, String city, String years) {
+        String safeRole = defaultText(role, "Java后端");
+        String safeCity = defaultText(city, "广州");
+        String safeYears = defaultText(years, "3-5年");
+        if (!cacheFacadeEnabled()) {
+            return computeSalaryInsight(safeCity, safeRole, safeYears);
+        }
+        String cacheKey = CacheKeys.marketSalary(safeCity, safeRole, safeYears);
+        SalaryInsightVO cached = cacheValue("market:salary", cacheKey, SalaryInsightVO.class);
+        if (cached != null) {
+            ensureFreshMeta(cached);
+            return cached;
+        }
+        refreshAsync(() -> self().computeSalaryInsight(safeCity, safeRole, safeYears));
+        return degradedSalaryInsight();
+    }
+
+    public SkillTrendsVO getSkillTrends(String role) {
+        return getSkillTrends("广州", role);
+    }
+
+    public SkillTrendsVO getSkillTrends(String city, String role) {
+        String safeCity = defaultText(city, "广州");
+        String safeRole = defaultText(role, "Java后端");
+        if (!cacheFacadeEnabled()) {
+            return computeSkillTrends(safeCity, safeRole);
+        }
+        String cacheKey = CacheKeys.marketSkillTrends(safeCity, safeRole);
+        SkillTrendsVO cached = cacheValue("market:skill-trends", cacheKey, SkillTrendsVO.class);
+        if (cached != null) {
+            ensureFreshMeta(cached);
+            return cached;
+        }
+        refreshAsync(() -> self().computeSkillTrends(safeCity, safeRole));
+        return degradedSkillTrends();
+    }
+
+    public ResumeGapVO getResumeGap(Long userId) {
+        return getResumeGap(userId, "default");
+    }
+
+    public ResumeGapVO getResumeGap(Long userId, String jdId) {
+        String safeJdId = defaultText(jdId, "default");
+        if (!cacheFacadeEnabled()) {
+            return computeResumeGap(userId, safeJdId);
+        }
+        String cacheKey = CacheKeys.marketResumeGap(userId, safeJdId);
+        ResumeGapVO cached = cacheValue("market:resume-gap", cacheKey, ResumeGapVO.class);
+        if (cached != null) {
+            ensureFreshMeta(cached);
+            return cached;
+        }
+        refreshAsync(() -> self().computeResumeGap(userId, safeJdId));
+        return degradedResumeGap();
+    }
+
+    @Cacheable(
+            cacheNames = "market:salary",
+            key = "T(com.careermate.cache.CacheKeys).marketSalary(#city, #role, #years)",
+            unless = "#result.meta != null && #result.meta.degraded"
+    )
+    public SalaryInsightVO computeSalaryInsight(String city, String role, String years) {
         try {
-            String safeRole = defaultText(role, "Java后端");
-            String safeCity = defaultText(city, "广州");
-            String safeYears = defaultText(years, "3-5年");
-            String query = safeRole + " " + safeCity + " " + safeYears + " 薪资 月薪";
+            String query = role + " " + city + " " + years + " 薪资 月薪";
             RagRetrieveResult ragResult = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
                     .query(query)
                     .scene(RagRetrieveScene.MARKET)
@@ -64,15 +148,16 @@ public class MarketIntelligenceService {
                     .build());
             String context = toContextText(ragResult);
             if (context.isBlank()) {
-                log.warn("getSalaryInsight: empty rag context, role={}, city={}", safeRole, safeCity);
+                log.warn("getSalaryInsight: empty rag context, role={}, city={}", role, city);
                 return fallbackSalaryInsight();
             }
-            String prompt = MarketPrompts.salaryPrompt(safeRole, safeCity, safeYears, context);
+            String prompt = MarketPrompts.salaryPrompt(role, city, years, context);
             SalaryInsightVO parsed = parseLlmJson(prompt, SalaryInsightVO.class);
             if (parsed == null) {
                 return fallbackSalaryInsight();
             }
             attachSources(parsed, ragResult);
+            parsed.setMeta(CacheMeta.freshNow());
             return parsed;
         } catch (Exception e) {
             log.warn("getSalaryInsight failed: {}", e.getMessage());
@@ -80,10 +165,14 @@ public class MarketIntelligenceService {
         }
     }
 
-    public SkillTrendsVO getSkillTrends(String role) {
+    @Cacheable(
+            cacheNames = "market:skill-trends",
+            key = "T(com.careermate.cache.CacheKeys).marketSkillTrends(#city, #role)",
+            unless = "#result.meta != null && #result.meta.degraded"
+    )
+    public SkillTrendsVO computeSkillTrends(String city, String role) {
         try {
-            String safeRole = defaultText(role, "Java后端");
-            String query = safeRole + " 技能要求 技术栈 必备";
+            String query = role + " " + city + " 技能要求 技术栈 必备";
             RagRetrieveResult ragResult = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
                     .query(query)
                     .scene(RagRetrieveScene.MARKET)
@@ -91,15 +180,16 @@ public class MarketIntelligenceService {
                     .build());
             String context = toContextText(ragResult);
             if (context.isBlank()) {
-                log.warn("getSkillTrends: empty rag context, role={}", safeRole);
+                log.warn("getSkillTrends: empty rag context, role={}", role);
                 return fallbackSkillTrends();
             }
-            String prompt = MarketPrompts.skillTrendsPrompt(safeRole, context);
+            String prompt = MarketPrompts.skillTrendsPrompt(role, context);
             SkillTrendsVO parsed = parseLlmJson(prompt, SkillTrendsVO.class);
             if (parsed == null) {
                 return fallbackSkillTrends();
             }
             attachSources(parsed, ragResult);
+            parsed.setMeta(CacheMeta.freshNow());
             return parsed;
         } catch (Exception e) {
             log.warn("getSkillTrends failed: {}", e.getMessage());
@@ -107,7 +197,12 @@ public class MarketIntelligenceService {
         }
     }
 
-    public ResumeGapVO getResumeGap(Long userId) {
+    @Cacheable(
+            cacheNames = "market:resume-gap",
+            key = "T(com.careermate.cache.CacheKeys).marketResumeGap(#userId, #jdId)",
+            unless = "#result.meta != null && #result.meta.degraded"
+    )
+    public ResumeGapVO computeResumeGap(Long userId, String jdId) {
         try {
             ResumeContext resumeContext = resumeContextProvider.getResumeContext(userId);
             if (!resumeContext.isAvailable()
@@ -133,6 +228,7 @@ public class MarketIntelligenceService {
                 return fallbackResumeGap();
             }
             attachSources(parsed, ragResult);
+            parsed.setMeta(CacheMeta.freshNow());
             return parsed;
         } catch (Exception e) {
             log.warn("getResumeGap failed: userId={}, err={}", userId, e.getMessage());
@@ -177,6 +273,52 @@ public class MarketIntelligenceService {
         } catch (Exception e) {
             log.warn("getCompanyInsight failed: company={}, err={}", company, e.getMessage());
             return fallbackCompanyInsight(company == null ? "" : company.trim());
+        }
+    }
+
+    private boolean cacheFacadeEnabled() {
+        return cacheManager != null && applicationContext != null;
+    }
+
+    private MarketIntelligenceService self() {
+        return applicationContext.getBean(MarketIntelligenceService.class);
+    }
+
+    private <T> T cacheValue(String cacheName, String cacheKey, Class<T> type) {
+        try {
+            Cache cache = cacheManager.getCache(cacheName);
+            return cache == null ? null : cache.get(cacheKey, type);
+        } catch (Exception e) {
+            log.warn("market cache read failed, cache={}, key={}, err={}", cacheName, cacheKey, e.getMessage());
+            return null;
+        }
+    }
+
+    private void refreshAsync(Runnable runnable) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                runnable.run();
+            } catch (Exception e) {
+                log.warn("market cache async refresh failed: {}", e.getMessage());
+            }
+        });
+    }
+
+    private static void ensureFreshMeta(SalaryInsightVO vo) {
+        if (vo.getMeta() == null) {
+            vo.setMeta(CacheMeta.freshNow());
+        }
+    }
+
+    private static void ensureFreshMeta(SkillTrendsVO vo) {
+        if (vo.getMeta() == null) {
+            vo.setMeta(CacheMeta.freshNow());
+        }
+    }
+
+    private static void ensureFreshMeta(ResumeGapVO vo) {
+        if (vo.getMeta() == null) {
+            vo.setMeta(CacheMeta.freshNow());
         }
     }
 
@@ -278,7 +420,12 @@ public class MarketIntelligenceService {
         vo.setAiSummary(FALLBACK_SUMMARY);
         vo.setCitations(Collections.emptyList());
         vo.setSourceSummaries(Collections.emptyList());
+        vo.setMeta(CacheMeta.degradedNow());
         return vo;
+    }
+
+    private static SalaryInsightVO degradedSalaryInsight() {
+        return fallbackSalaryInsight();
     }
 
     private static SkillTrendsVO fallbackSkillTrends() {
@@ -287,7 +434,12 @@ public class MarketIntelligenceService {
         vo.setAiSummary(FALLBACK_SUMMARY);
         vo.setCitations(Collections.emptyList());
         vo.setSourceSummaries(Collections.emptyList());
+        vo.setMeta(CacheMeta.degradedNow());
         return vo;
+    }
+
+    private static SkillTrendsVO degradedSkillTrends() {
+        return fallbackSkillTrends();
     }
 
     private static ResumeGapVO fallbackResumeGap() {
@@ -299,7 +451,12 @@ public class MarketIntelligenceService {
         vo.setAiSummary(FALLBACK_SUMMARY);
         vo.setCitations(Collections.emptyList());
         vo.setSourceSummaries(Collections.emptyList());
+        vo.setMeta(CacheMeta.degradedNow());
         return vo;
+    }
+
+    private static ResumeGapVO degradedResumeGap() {
+        return fallbackResumeGap();
     }
 
     private static ResumeGapVO emptyResumeGap() {
@@ -311,6 +468,7 @@ public class MarketIntelligenceService {
         vo.setAiSummary("");
         vo.setCitations(Collections.emptyList());
         vo.setSourceSummaries(Collections.emptyList());
+        vo.setMeta(CacheMeta.freshNow());
         return vo;
     }
 

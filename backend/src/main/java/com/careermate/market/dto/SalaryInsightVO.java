@@ -1,5 +1,7 @@
 package com.careermate.market.dto;
 
+import com.careermate.common.api.CacheMeta;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import lombok.Data;
 
@@ -14,4 +16,6 @@ public class SalaryInsightVO {
     private String aiSummary;
     private List<MarketSourceCitationVO> citations;
     private List<String> sourceSummaries;
+    @JsonProperty("_meta")
+    private CacheMeta meta;
 }

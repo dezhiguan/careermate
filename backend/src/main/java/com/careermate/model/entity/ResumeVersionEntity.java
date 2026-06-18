@@ -23,9 +23,13 @@ public class ResumeVersionEntity {
     private String sessionId;
     private Long sourceResumeId;
     private String parentVersionId;
-    private String targetJdId;
+    private Long targetJdId;
     private String targetJdLabel;
+    private String targetCompany;
+    private String targetJdTitle;
+    private Integer versionSeq;
     private String versionName;
+    private String changeSummary;
     private String contentMarkdown;
     @TableField(value = "optimization_notes", typeHandler = JsonbStringTypeHandler.class)
     private String optimizationNotes;

@@ -29,6 +29,7 @@ public class GenerateResumeWorkflowRun {
     private String gapSummary;
     private String rawLlmOutput;
     private String markdown;
+    private String changeSummary;
     private List<Map<String, Object>> optimizationNotes = List.of();
     private ResumeVersionVO savedVersion;
     private Map<String, Object> card;
@@ -144,6 +145,14 @@ public class GenerateResumeWorkflowRun {
 
     public void setMarkdown(String markdown) {
         this.markdown = markdown;
+    }
+
+    public String changeSummary() {
+        return changeSummary;
+    }
+
+    public void setChangeSummary(String changeSummary) {
+        this.changeSummary = changeSummary;
     }
 
     public List<Map<String, Object>> optimizationNotes() {

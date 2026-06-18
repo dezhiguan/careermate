@@ -5,8 +5,8 @@ const target = process.env.E2E_TARGET || 'local';
 
 const targets = {
   local: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173',
-    apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8081/api',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5174',
+    apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8082/api',
     startWebServer: true,
   },
   cloud: {
@@ -24,12 +24,12 @@ const currentTarget = targets[target];
 const baseURL = currentTarget.baseURL.replace(/\/$/, '');
 
 /** @type {import('@playwright/test').PlaywrightTestConfig['webServer']} */
-const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || 'http://localhost:8081';
+const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || 'http://localhost:8082';
 
 const webServer = currentTarget.startWebServer
   ? {
-      command: 'npm run dev -- --host 127.0.0.1 --port 5173',
-      url: 'http://127.0.0.1:5173',
+      command: 'npm run dev -- --host 127.0.0.1 --port 5174',
+      url: 'http://127.0.0.1:5174',
       reuseExistingServer: true,
       timeout: 120_000,
       env: {

@@ -2,9 +2,17 @@
 # Config is read from shared server-local env files.
 #
 # Start: docker compose -f docker-compose-backend.yml up -d
+x-careermate-backend-image: &careermate-backend-image
+  image: careermate-backend:latest
+  build:
+    context: /opt/careermate/current/backend
+    dockerfile: Dockerfile
+    args:
+      BASE_IMAGE: eclipse-temurin:21-jre-jammy
+
 services:
   careermate-backend-1:
-    image: careermate-backend:latest
+    <<: *careermate-backend-image
     container_name: careermate-backend-1
     restart: unless-stopped
     ports:
@@ -17,7 +25,7 @@ services:
       - /opt/skywalking-agent:/opt/skywalking-agent:ro
 
   careermate-backend-2:
-    image: careermate-backend:latest
+    <<: *careermate-backend-image
     container_name: careermate-backend-2
     restart: unless-stopped
     ports:
@@ -30,7 +38,7 @@ services:
       - /opt/skywalking-agent:/opt/skywalking-agent:ro
 
   careermate-backend-3:
-    image: careermate-backend:latest
+    <<: *careermate-backend-image
     container_name: careermate-backend-3
     restart: unless-stopped
     ports:

@@ -1,8 +1,9 @@
 package com.careermate.opportunity.service.impl;
 
 import com.careermate.common.api.PageResult;
+import com.careermate.common.api.CacheMeta;
 import com.careermate.common.exception.BizException;
-import com.careermate.opportunity.cache.OpportunityCacheKeys;
+import com.careermate.cache.CacheKeys;
 import com.careermate.opportunity.converter.ChunksToOpportunityConverter;
 import com.careermate.opportunity.dto.OpportunityDetailVO;
 import com.careermate.opportunity.dto.OpportunityListItemVO;
@@ -25,6 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,9 +51,11 @@ import java.util.stream.Collectors;
 public class OpportunityServiceImpl implements OpportunityService {
 
     private static final String DEFAULT_QUERY = "Java 后端";
+    private static final String DEMO_QUERY = "广州 Java 3-5年";
+    private static final String MODE_DEMO = "demo";
     private static final int SEARCH_TOP_K = 30;
     private static final int DETAIL_SEARCH_TOP_K = 50;
-    private static final Duration LIST_CACHE_TTL = Duration.ofMinutes(5);
+    private static final Duration LIST_CACHE_TTL = Duration.ofMinutes(30);
     private static final Duration DETAIL_CACHE_TTL = Duration.ofMinutes(10);
     private static final String SORT_MATCH = "MATCH";
     private static final String SORT_LATEST = "LATEST";
@@ -93,27 +97,96 @@ public class OpportunityServiceImpl implements OpportunityService {
     @Transactional(readOnly = true)
     public PageResult<OpportunityListItemVO> list(Long userId, OpportunityListRequest request) {
         OpportunityListRequest safeRequest = request == null
-                ? new OpportunityListRequest(null, null, null, 1, 10)
+                ? new OpportunityListRequest(null, null, null, null, 1, 10)
                 : request;
-        String query = resolveQuery(userId, safeRequest.keyword());
-        String cacheKey = OpportunityCacheKeys.listKey(userId, sha256Hex(query));
+        ResumeContext resumeContext = resolveResumeContext(userId);
+        boolean demoMode = isDemoMode(safeRequest, resumeContext);
+        SearchCriteria criteria = resolveSearchCriteria(userId, safeRequest);
+        String query = demoMode ? DEMO_QUERY : criteria.query();
+        String cacheKey = CacheKeys.opportunityList(
+                demoMode ? "广州" : criteria.city(),
+                demoMode ? "Java" : criteria.role(),
+                demoMode ? "3-5年" : criteria.years(),
+                demoMode ? "demo" : criteria.keyword()
+        );
 
-        PageResult<OpportunityListItemVO> cached = readListCache(cacheKey);
+        CachedOpportunityList cached = readListCache(cacheKey);
         if (cached != null) {
             log.info("opportunity list cache hit, userId={}, queryHash={}", userId, sha256Hex(query));
-            return paginate(cached, safeRequest.page(), safeRequest.size());
+            return buildListPage(
+                    cached.items(),
+                    resumeContext,
+                    demoMode,
+                    safeRequest.page(),
+                    safeRequest.size(),
+                    new CacheMeta(false, cached.cachedAt())
+            );
         }
 
         List<RagForgeChunk> chunks = searchOpportunityJd(query, SEARCH_TOP_K);
         if (chunks.isEmpty()) {
             log.info("opportunity list empty from ragforge, userId={}, query={}", userId, query);
-            return PageResult.empty(safeRequest.page(), safeRequest.size(), false, SORT_LATEST);
+            return PageResult.degradedEmpty(safeRequest.page(), safeRequest.size(), resumeContext.hasResume(), SORT_LATEST);
         }
 
         List<OpportunityListItemVO> items = converter.convert(chunks);
+        writeListCache(cacheKey, new CachedOpportunityList(items, System.currentTimeMillis()));
+        return buildListPage(
+                items,
+                resumeContext,
+                demoMode,
+                safeRequest.page(),
+                safeRequest.size(),
+                CacheMeta.freshNow()
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResult<OpportunityListItemVO> listCached(Long userId, OpportunityListRequest request) {
+        OpportunityListRequest safeRequest = request == null
+                ? new OpportunityListRequest(null, null, null, null, 1, 10)
+                : request;
         ResumeContext resumeContext = resolveResumeContext(userId);
+        boolean demoMode = isDemoMode(safeRequest, resumeContext);
+        SearchCriteria criteria = resolveSearchCriteria(userId, safeRequest);
+        String cacheKey = CacheKeys.opportunityList(
+                demoMode ? "广州" : criteria.city(),
+                demoMode ? "Java" : criteria.role(),
+                demoMode ? "3-5年" : criteria.years(),
+                demoMode ? "demo" : criteria.keyword()
+        );
+
+        CachedOpportunityList cached = readListCache(cacheKey);
+        if (cached == null) {
+            return PageResult.degradedEmpty(
+                    safeRequest.page(),
+                    safeRequest.size(),
+                    resumeContext.hasResume(),
+                    SORT_LATEST
+            );
+        }
+        return buildListPage(
+                cached.items(),
+                resumeContext,
+                demoMode,
+                safeRequest.page(),
+                safeRequest.size(),
+                new CacheMeta(false, cached.cachedAt())
+        );
+    }
+
+    private PageResult<OpportunityListItemVO> buildListPage(
+            List<OpportunityListItemVO> items,
+            ResumeContext resumeContext,
+            boolean demoMode,
+            int page,
+            int size,
+            CacheMeta meta
+    ) {
         List<OpportunityListItemVO> enriched = items.stream()
                 .map(item -> applyMatch(item, resumeContext))
+                .map(item -> demoMode ? asDemoItem(item) : item)
                 .toList();
 
         String sortStrategy;
@@ -139,20 +212,20 @@ public class OpportunityServiceImpl implements OpportunityService {
         PageResult<OpportunityListItemVO> full = new PageResult<>(
                 sorted.size(),
                 1,
-                safeRequest.size(),
+                size,
                 resumeContext.hasResume(),
                 sortStrategy,
-                sorted
+                sorted,
+                meta
         );
-        writeListCache(cacheKey, full);
-        return paginate(full, safeRequest.page(), safeRequest.size());
+        return paginate(full, page, size);
     }
 
     @Override
     @Transactional(readOnly = true)
     public OpportunityDetailVO detail(Long userId, String jdId) {
         Long docId = parseDocId(jdId);
-        String cacheKey = OpportunityCacheKeys.detailKey(userId, docId);
+        String cacheKey = "opportunity:detail:" + userId + ":" + docId;
 
         OpportunityDetailVO cached = readDetailCache(cacheKey);
         if (cached != null) {
@@ -338,6 +411,48 @@ public class OpportunityServiceImpl implements OpportunityService {
         return DEFAULT_QUERY;
     }
 
+    private SearchCriteria resolveSearchCriteria(Long userId, OpportunityListRequest request) {
+        String keyword = normalize(request.keyword());
+        if (keyword != null) {
+            return new SearchCriteria("_", "_", "_", keyword, keyword);
+        }
+        String role = normalize(request.position());
+        String city = normalize(request.city());
+        String years = "_";
+        if (role == null || city == null) {
+            try {
+                CareerProfileResponse profile = careerProfileService.getProfile(userId);
+                if (role == null) {
+                    role = normalize(profile.getTargetRole());
+                }
+                if (city == null) {
+                    city = normalize(profile.getTargetCity());
+                }
+                years = normalize(profile.getSeniority());
+            } catch (Exception e) {
+                log.warn("resolve opportunity search criteria from profile failed, userId={}", userId, e);
+            }
+        }
+        List<String> queryParts = new ArrayList<>();
+        if (role != null) {
+            queryParts.add(role);
+        }
+        if (city != null) {
+            queryParts.add(city);
+        }
+        if (years != null && !"_".equals(years)) {
+            queryParts.add(years);
+        }
+        String query = queryParts.isEmpty() ? DEFAULT_QUERY : String.join(" ", queryParts);
+        return new SearchCriteria(
+                city == null ? "_" : city,
+                role == null ? "_" : role,
+                years == null ? "_" : years,
+                "_",
+                query
+        );
+    }
+
     private ResumeContext resolveResumeContext(Long userId) {
         try {
             Optional<com.careermate.model.entity.ResumeEntity> resumeOpt =
@@ -420,8 +535,39 @@ public class OpportunityServiceImpl implements OpportunityService {
                 matchReasons,
                 item.skills(),
                 item.ragScore(),
-                item.externalUrl()
+                item.externalUrl(),
+                item.isDemo()
         );
+    }
+
+    private static OpportunityListItemVO asDemoItem(OpportunityListItemVO item) {
+        return new OpportunityListItemVO(
+                item.jdId(),
+                item.docId(),
+                item.company(),
+                item.title(),
+                item.level(),
+                item.city(),
+                item.experienceRange(),
+                item.experienceMin(),
+                item.experienceMax(),
+                item.education(),
+                item.companySize(),
+                item.publishedAt(),
+                null,
+                "UNKNOWN",
+                List.of(),
+                item.skills(),
+                item.ragScore(),
+                item.externalUrl(),
+                true
+        );
+    }
+
+    private static boolean isDemoMode(OpportunityListRequest request, ResumeContext resumeContext) {
+        return request != null
+                && MODE_DEMO.equalsIgnoreCase(request.mode())
+                && !resumeContext.hasResume();
     }
 
     private List<RagForgeChunk> fetchChunksByDocId(Long docId) {
@@ -501,8 +647,17 @@ public class OpportunityServiceImpl implements OpportunityService {
         return new ArrayList<>(found);
     }
 
-    private PageResult<OpportunityListItemVO> readListCache(String cacheKey) {
-        return readCache(cacheKey, new TypeReference<>() {});
+    private CachedOpportunityList readListCache(String cacheKey) {
+        CachedOpportunityList cached = readCache(cacheKey, new TypeReference<>() {});
+        if (cached != null) {
+            return cached;
+        }
+        PageResult<OpportunityListItemVO> legacy = readCache(cacheKey, new TypeReference<>() {});
+        if (legacy == null || legacy.items() == null) {
+            return null;
+        }
+        Long cachedAt = legacy.meta() == null ? System.currentTimeMillis() : legacy.meta().cachedAt();
+        return new CachedOpportunityList(legacy.items(), cachedAt);
     }
 
     private OpportunityDetailVO readDetailCache(String cacheKey) {
@@ -514,7 +669,11 @@ public class OpportunityServiceImpl implements OpportunityService {
             return null;
         }
         try {
-            String json = redisTemplate.get().opsForValue().get(cacheKey);
+            ValueOperations<String, String> ops = redisTemplate.get().opsForValue();
+            if (ops == null) {
+                return null;
+            }
+            String json = ops.get(cacheKey);
             if (json == null || json.isBlank()) {
                 return null;
             }
@@ -525,7 +684,7 @@ public class OpportunityServiceImpl implements OpportunityService {
         }
     }
 
-    private void writeListCache(String cacheKey, PageResult<OpportunityListItemVO> value) {
+    private void writeListCache(String cacheKey, CachedOpportunityList value) {
         writeCache(cacheKey, value, LIST_CACHE_TTL);
     }
 
@@ -539,7 +698,11 @@ public class OpportunityServiceImpl implements OpportunityService {
         }
         try {
             String json = objectMapper.writeValueAsString(value);
-            redisTemplate.get().opsForValue().set(cacheKey, json, ttl);
+            ValueOperations<String, String> ops = redisTemplate.get().opsForValue();
+            if (ops == null) {
+                return;
+            }
+            ops.set(cacheKey, json, ttl);
         } catch (Exception e) {
             log.warn("write opportunity cache failed, key={}", cacheKey, e);
         }
@@ -553,6 +716,16 @@ public class OpportunityServiceImpl implements OpportunityService {
         } catch (NoSuchAlgorithmException e) {
             return Integer.toHexString(input.hashCode());
         }
+    }
+
+    private static String normalize(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private record SearchCriteria(String city, String role, String years, String keyword, String query) {
+    }
+
+    private record CachedOpportunityList(List<OpportunityListItemVO> items, Long cachedAt) {
     }
 
     private record ResumeContext(boolean hasResume, List<String> userSkills) {

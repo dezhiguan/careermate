@@ -21,8 +21,10 @@ public interface ResumeVersionService {
             Long sourceResumeId,
             String targetJdId,
             String targetJdLabel,
-            String versionName,
+            String targetCompany,
+            String targetJdTitle,
             String contentMarkdown,
+            String changeSummary,
             List<Map<String, Object>> optimizationNotes
     );
 

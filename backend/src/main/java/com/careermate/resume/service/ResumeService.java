@@ -68,6 +68,10 @@ public class ResumeService {
         return Optional.ofNullable(entity);
     }
 
+    public Optional<ResumeListItemResponse> getDefaultActiveResumeItem(Long userId) {
+        return getDefaultActiveResume(userId).map(this::toListItem);
+    }
+
     public List<ResumeListItemResponse> listActiveResumes() {
         Long userId = requireUserId();
         List<ResumeEntity> rows = resumeMapper.selectList(

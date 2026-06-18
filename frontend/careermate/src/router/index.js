@@ -1,9 +1,10 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { authStore } from '../stores/authStore'
+import { homeStore } from '../stores/homeStore'
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
-  { path: '/', redirect: '/opportunity' },
+  { path: '/', redirect: '/chat' },
   {
     path: '/opportunity',
     name: 'opportunity',
@@ -14,7 +15,7 @@ const routes = [
     path: '/interview',
     name: 'interview',
     component: () => import('../views/InterviewPrep.vue'),
-    meta: { title: '面试题' },
+    meta: { title: '面试准备' },
   },
   {
     path: '/chat',
@@ -64,12 +65,18 @@ router.beforeEach(async (to) => {
   const authenticated = authStore.isAuthenticated()
   if (to.path === '/login') {
     if (authenticated) {
-      return '/opportunity'
+      return '/chat'
     }
     return true
   }
 
   if (!authenticated) {
+    return '/login'
+  }
+  try {
+    await homeStore.fetchBootstrap()
+  } catch (e) {
+    authStore.logout()
     return '/login'
   }
   return true
