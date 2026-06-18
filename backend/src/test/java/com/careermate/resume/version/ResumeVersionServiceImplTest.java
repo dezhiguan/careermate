@@ -225,6 +225,28 @@ class ResumeVersionServiceImplTest {
     }
 
     @Test
+    void createVersionKeepsLegacyTargetJdIdWhenRawCannotBeParsed() {
+        service.createVersion(
+                1L,
+                "WS-legacy",
+                99L,
+                "weird-string-not-bigint",
+                "未知 JD",
+                "未知公司",
+                "后端开发",
+                "# 简历",
+                "对比原简历，我强化了岗位关键词。",
+                List.of()
+        );
+
+        ArgumentCaptor<ResumeVersionEntity> captor = ArgumentCaptor.forClass(ResumeVersionEntity.class);
+        verify(resumeVersionMapper).insert(captor.capture());
+        ResumeVersionEntity saved = captor.getValue();
+        assertEquals(null, saved.getTargetJdId());
+        assertEquals("weird-string-not-bigint", saved.getLegacyTargetJdIdRaw());
+    }
+
+    @Test
     void tenantIsolationForbidden() {
         ResumeVersionEntity entity = entity("v-1", LocalDateTime.now());
         entity.setUserId(1L);

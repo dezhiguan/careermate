@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -120,6 +121,9 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
         entity.setSessionId(sessionId);
         entity.setSourceResumeId(sourceResumeId);
         entity.setTargetJdId(targetJdDocId);
+        if (targetJdDocId == null && StringUtils.hasText(targetJdId)) {
+            entity.setLegacyTargetJdIdRaw(targetJdId.trim());
+        }
         entity.setTargetJdLabel(targetJdLabel);
         entity.setTargetCompany(safeCompany);
         entity.setTargetJdTitle(safeTitle);
