@@ -1,4 +1,5 @@
-FROM eclipse-temurin:21-jre
+ARG BASE_IMAGE=eclipse-temurin:21-jre-jammy
+FROM ${BASE_IMAGE}
 WORKDIR /app
 ARG JAR_FILE=target/careermate-backend-0.1.0.jar
 ENV JAVA_OPTS="-Xms512m -Xmx1g"

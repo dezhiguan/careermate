@@ -5,8 +5,8 @@ const target = /** @type {E2ETarget} */ (process.env.E2E_TARGET || 'local');
 
 const targets = {
   local: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173',
-    apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8081/api',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5174',
+    apiBaseURL: process.env.PLAYWRIGHT_API_BASE_URL || 'http://localhost:8082/api',
   },
   cloud: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'https://careerforge.cn',
