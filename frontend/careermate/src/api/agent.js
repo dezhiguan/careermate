@@ -1,6 +1,15 @@
 import { API_BASE_URL, getAuthHeaders, handleUnauthorized, request } from './http'
 import { createSseParser } from '../utils/sseParser'
 
+function attachTraceMeta(error, response, payload) {
+  error.status = response.status
+  error.code = payload?.code
+  error.traceId = response.headers.get('X-Trace-Id') || payload?.traceId || null
+  error.requestId = response.headers.get('X-Request-Id') || null
+  error.payload = payload
+  return error
+}
+
 export async function createAgentSession() {
   const response = await fetch(`${API_BASE_URL}/agent/sessions`, {
     method: 'POST',
@@ -22,7 +31,7 @@ export async function createAgentSession() {
   }
 
   if (!response.ok || payload?.code !== 0) {
-    throw new Error(payload?.message || `创建会话失败: ${response.status}`)
+    throw attachTraceMeta(new Error(payload?.message || `创建会话失败: ${response.status}`), response, payload)
   }
 
   return payload.data?.sessionId

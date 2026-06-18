@@ -77,7 +77,30 @@
           </span>
         </div>
 
-        <div v-if="globalError" class="global-error">{{ globalError }}</div>
+        <div v-if="globalError" class="global-error">
+          <div>{{ globalError }}</div>
+          <details v-if="errorDetail" class="error-detail">
+            <summary>错误详情</summary>
+            <dl>
+              <div v-if="errorDetail.status">
+                <dt>HTTP</dt>
+                <dd>{{ errorDetail.status }}</dd>
+              </div>
+              <div v-if="errorDetail.code">
+                <dt>Code</dt>
+                <dd>{{ errorDetail.code }}</dd>
+              </div>
+              <div v-if="errorDetail.traceId">
+                <dt>Trace ID</dt>
+                <dd><code>{{ errorDetail.traceId }}</code></dd>
+              </div>
+              <div v-if="errorDetail.requestId">
+                <dt>Request ID</dt>
+                <dd><code>{{ errorDetail.requestId }}</code></dd>
+              </div>
+            </dl>
+          </details>
+        </div>
 
         <div class="messages-area" ref="msgContainer">
           <div v-for="msg in messages" :key="msg.id" class="msg-wrapper">
@@ -261,6 +284,7 @@ const sessionId = ref('')
 const streamState = ref('idle')
 const sessionCreating = ref(false)
 const globalError = ref('')
+const errorDetail = ref(null)
 const idSeed = ref(0)
 const activeStreamController = ref(null)
 const activeStreamTimer = ref(null)
@@ -281,6 +305,27 @@ const currentTraceId = ref('')
 
 const STREAM_UI_IDLE_NOTICE_MS = Number(import.meta.env.VITE_AGENT_STREAM_UI_IDLE_NOTICE_MS || 90000)
 const showTraceId = import.meta.env.VITE_SHOW_TRACE_ID === 'true'
+
+function resolveErrorDetail(error) {
+  if (!error) return null
+  const detail = {
+    status: error.status || error.payload?.status || null,
+    code: error.code || error.payload?.code || null,
+    traceId: error.traceId || error.payload?.traceId || null,
+    requestId: error.requestId || null,
+  }
+  return Object.values(detail).some(Boolean) ? detail : null
+}
+
+function setGlobalError(message, error = null) {
+  globalError.value = message || error?.message || '系统异常'
+  errorDetail.value = resolveErrorDetail(error)
+}
+
+function clearGlobalError() {
+  globalError.value = ''
+  errorDetail.value = null
+}
 
 const hasResumeVersion = computed(() => workspaceVersions.value.length > 0)
 
@@ -479,7 +524,7 @@ function markStreamInterrupted(agentMessage, message) {
   finishStreaming(agentMessage)
   finalizeRunningToolCalls(agentMessage, false)
   agentMessage.error = message
-  globalError.value = message
+  setGlobalError(message)
 }
 
 function abortActiveStream(reason = '当前流式请求已取消') {
@@ -498,7 +543,7 @@ function startStreamWatchdog(agentMessage) {
     if (streamState.value !== 'streaming' || !agentMessage?.streaming) return
     const message = `Agent 已超过 ${Math.round(STREAM_UI_IDLE_NOTICE_MS / 1000)} 秒未返回结束事件，仍在等待后端完成。`
     agentMessage.error = message
-    globalError.value = message
+    setGlobalError(message)
   }, STREAM_UI_IDLE_NOTICE_MS)
 }
 
@@ -594,7 +639,7 @@ async function loadWorkspaceContext(wsId) {
   if (!normalizedWsId) return
   const seq = ++workspaceLoadSeq
   sessionCreating.value = true
-  globalError.value = ''
+  clearGlobalError()
   try {
     const [ws, msgs, versions] = await Promise.all([
       getWorkspace(normalizedWsId),
@@ -626,7 +671,7 @@ async function loadWorkspaceContext(wsId) {
         lastCreateWorkspaceId,
       })
     }
-    globalError.value = msg
+    setGlobalError(msg, e)
     messages.value = [withMarkdown({
       id: `m_err_${Date.now()}`,
       role: 'agent',
@@ -928,7 +973,7 @@ async function refreshTraceFromServer(agentMessage = null) {
 
 async function createNewSession({ withWelcome = true } = {}) {
   sessionCreating.value = true
-  globalError.value = ''
+  clearGlobalError()
   streamState.value = 'session_creating'
   try {
     sessionId.value = await createAgentSession()
@@ -938,7 +983,7 @@ async function createNewSession({ withWelcome = true } = {}) {
     }
   } catch (e) {
     streamState.value = 'error'
-    globalError.value = e?.message || '会话创建失败'
+    setGlobalError(e?.message || '会话创建失败', e)
     messages.value.push(withMarkdown({
       id: `m_${Date.now()}`,
       role: 'agent',
@@ -954,7 +999,7 @@ async function createNewSession({ withWelcome = true } = {}) {
 
 async function restoreLatestChatSession() {
   sessionCreating.value = true
-  globalError.value = ''
+  clearGlobalError()
   streamState.value = 'session_creating'
   try {
     const sessions = await listAgentSessions({ taskType: 'CHAT', limit: 1 })
@@ -1003,7 +1048,7 @@ async function sendMessage() {
     await createNewSession({ withWelcome: false })
     if (!sessionId.value) return
   }
-  globalError.value = ''
+  clearGlobalError()
   currentTraceId.value = ''
 
   messages.value.push({
@@ -1092,7 +1137,7 @@ async function sendMessage() {
         finalizeRunningToolCalls(agentMessage, false)
         finishStreaming(agentMessage)
         agentMessage.error = error?.message || '流式调用失败'
-        globalError.value = agentMessage.error
+        setGlobalError(agentMessage.error, error)
       },
     }, {
       signal: streamController.signal,
@@ -1105,7 +1150,7 @@ async function sendMessage() {
     streamState.value = 'error'
     finishStreaming(agentMessage)
     agentMessage.error = e?.message || '流式请求失败'
-    globalError.value = agentMessage.error
+    setGlobalError(agentMessage.error, e)
   } finally {
     clearStreamWatchdog()
     if (activeStreamController.value === streamController) {
@@ -1124,7 +1169,7 @@ async function sendMessage() {
       finalizeRunningToolCalls(agentMessage, false)
       finishStreaming(agentMessage)
       agentMessage.error = '流式响应未正常结束，请重试。'
-      globalError.value = agentMessage.error
+      setGlobalError(agentMessage.error)
     }
     if (!agentMessage.text) {
       agentMessage.text = '暂未收到回复，请稍后重试。'
@@ -1140,7 +1185,7 @@ async function resetChat() {
     markStreamInterrupted(activeAgentMessage.value, '当前流式请求已停止，已切换到新会话。')
   }
   activeAgentMessage.value = null
-  globalError.value = ''
+  clearGlobalError()
   streamState.value = 'idle'
   sessionId.value = ''
   messages.value = [withMarkdown({
@@ -1540,6 +1585,40 @@ onBeforeUnmount(() => {
   color: #b91c1c;
   font-size: 12px;
   border-radius: 8px;
+}
+
+.error-detail {
+  margin-top: 6px;
+  color: #7f1d1d;
+}
+
+.error-detail summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.error-detail dl {
+  margin: 6px 0 0;
+  display: grid;
+  gap: 4px;
+}
+
+.error-detail dl > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.error-detail dt {
+  font-weight: 600;
+  color: #991b1b;
+}
+
+.error-detail dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .chat-main {
