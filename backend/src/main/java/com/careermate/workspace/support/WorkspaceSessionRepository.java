@@ -82,6 +82,83 @@ public class WorkspaceSessionRepository {
         );
     }
 
+    public AgentSessionEntity findReusableWorkspace(Long userId, String workspaceType, Map<String, Object> contextMetadata) {
+        String normalizedType = normalizeWorkspaceType(workspaceType);
+        if (WORKSPACE_JD_PREP.equals(normalizedType)) {
+            String jdId = stringMeta(contextMetadata, "jdId");
+            return jdId == null ? null : findActiveJdPrepSession(userId, jdId);
+        }
+
+        LambdaQueryWrapper<AgentSessionEntity> wrapper = new LambdaQueryWrapper<AgentSessionEntity>()
+                .eq(AgentSessionEntity::getUserId, userId)
+                .eq(AgentSessionEntity::getWorkspaceType, normalizedType)
+                .eq(AgentSessionEntity::getStatus, STATUS_ACTIVE);
+
+        boolean hasStableKey = switch (normalizedType) {
+            case WORKSPACE_MARKET -> appendMarketReuseKey(wrapper, contextMetadata);
+            case WORKSPACE_INTERVIEW -> appendInterviewReuseKey(wrapper, contextMetadata);
+            case WORKSPACE_RESUME -> appendResumeReuseKey(wrapper, contextMetadata);
+            default -> false;
+        };
+        if (!hasStableKey) {
+            return null;
+        }
+        return agentSessionMapper.selectOne(wrapper.orderByDesc(AgentSessionEntity::getUpdatedAt).last("LIMIT 1"));
+    }
+
+    private boolean appendMarketReuseKey(LambdaQueryWrapper<AgentSessionEntity> wrapper, Map<String, Object> metadata) {
+        boolean hasCity = appendJsonTextEquals(wrapper, "city", stringMeta(metadata, "city"));
+        boolean hasRole = appendJsonTextEquals(wrapper, "role", stringMeta(metadata, "role"));
+        boolean hasYears = appendJsonTextEquals(wrapper, "years", stringMeta(metadata, "years"));
+        return hasCity && hasRole && hasYears;
+    }
+
+    private boolean appendInterviewReuseKey(LambdaQueryWrapper<AgentSessionEntity> wrapper, Map<String, Object> metadata) {
+        String questionId = stringMeta(metadata, "questionId");
+        if (questionId != null) {
+            return appendJsonTextEquals(wrapper, "questionId", questionId);
+        }
+        String kbQuery = stringMeta(metadata, "kbQuery");
+        if (kbQuery != null) {
+            return appendJsonTextEquals(wrapper, "kbQuery", kbQuery);
+        }
+        return appendJsonTextEquals(wrapper, "questionText", stringMeta(metadata, "questionText"));
+    }
+
+    private boolean appendResumeReuseKey(LambdaQueryWrapper<AgentSessionEntity> wrapper, Map<String, Object> metadata) {
+        String artifactId = stringMeta(metadata, "artifactId");
+        if (artifactId != null) {
+            return appendJsonTextEquals(wrapper, "artifactId", artifactId);
+        }
+        boolean hasRefType = appendJsonTextEquals(wrapper, "refType", stringMeta(metadata, "refType"));
+        boolean hasRefId = appendJsonTextEquals(wrapper, "refId", stringMeta(metadata, "refId"));
+        return hasRefType && hasRefId;
+    }
+
+    private boolean appendJsonTextEquals(
+            LambdaQueryWrapper<AgentSessionEntity> wrapper,
+            String field,
+            String value
+    ) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        wrapper.apply("workspace_metadata ->> '" + field + "' = {0}", value.trim());
+        return true;
+    }
+
+    private String stringMeta(Map<String, Object> metadata, String key) {
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+        Object value = metadata.get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? null : text;
+    }
+
     public AgentSessionEntity requireSession(Long userId, String sessionId) {
         AgentSessionEntity session = agentSessionMapper.selectOne(
                 new LambdaQueryWrapper<AgentSessionEntity>()
