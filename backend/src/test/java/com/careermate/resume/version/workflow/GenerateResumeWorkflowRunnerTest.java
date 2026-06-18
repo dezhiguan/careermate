@@ -154,6 +154,7 @@ class GenerateResumeWorkflowRunnerTest {
         when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new ResumeVersionVO(
                         "ver-1", "针对【腾讯】算法 · v1", "WS-abc", 1L, "腾讯 算法", "腾讯", "算法", 1,
+                        "",
                         "# 简历", List.of(), null, OffsetDateTime.now()
                 ));
         when(workspaceSessionRepository.appendMessage(any(), any(), any(), any(), any(), any(), any()))

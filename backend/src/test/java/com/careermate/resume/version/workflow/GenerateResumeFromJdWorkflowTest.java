@@ -262,6 +262,7 @@ class GenerateResumeFromJdWorkflowTest {
         when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new ResumeVersionVO(
                         "ver-1", "针对【腾讯】算法 · v1", "WS-abc", 1L, "腾讯 算法", "腾讯", "算法", 1,
+                        "",
                         "# 简历", List.of(), null, OffsetDateTime.now()
                 ));
         when(workspaceSessionRepository.appendMessage(any(), any(), any(), any(), any(), any(), any()))
@@ -305,6 +306,7 @@ class GenerateResumeFromJdWorkflowTest {
         when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new ResumeVersionVO(
                         "ver-1", "针对【腾讯】算法工程师 · v1", "WS-abc", 1L, "腾讯 算法工程师", "腾讯", "算法工程师", 1,
+                        "",
                         "# 官德志", List.of(Map.of("text", "对齐 JD 关键词")), null, OffsetDateTime.now()
                 ));
         when(workspaceSessionRepository.appendMessage(any(), any(), any(), any(), any(), any(), any()))
@@ -623,6 +625,7 @@ class GenerateResumeFromJdWorkflowTest {
         when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new ResumeVersionVO(
                         "ver-1", "针对【腾讯】算法 · v1", "WS-abc", 1L, "腾讯 算法", "腾讯", "算法", 1,
+                        "",
                         "# 官德志", List.of(), null, OffsetDateTime.now()
                 ));
         when(workspaceSessionRepository.appendMessage(any(), any(), any(), any(), any(), any(), any()))
@@ -683,6 +686,7 @@ class GenerateResumeFromJdWorkflowTest {
         when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new ResumeVersionVO(
                         "ver-1", "针对【腾讯】算法 · v1", "WS-abc", 1L, "腾讯 算法", "腾讯", "算法", 1,
+                        "",
                         savedMarkdown, List.of(), null, OffsetDateTime.now()
                 ));
         when(workspaceSessionRepository.appendMessage(any(), any(), any(), any(), any(), any(), any()))
