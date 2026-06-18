@@ -17,8 +17,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -63,6 +66,7 @@ class ResumeVersionServiceImplTest {
                 "腾讯",
                 "算法工程师",
                 "# 简历\n内容",
+                "对比原简历，我强化了技能表达。",
                 List.of(Map.of("field", "技能", "change", "对齐 JD"))
         );
 
@@ -77,6 +81,7 @@ class ResumeVersionServiceImplTest {
         assertEquals("算法工程师", saved.getTargetJdTitle());
         assertEquals(1, saved.getVersionSeq());
         assertEquals("针对【腾讯】算法工程师 · v1", saved.getVersionName());
+        assertEquals("对比原简历，我强化了技能表达。", saved.getChangeSummary());
         assertNotNull(saved.getVersionId());
         assertEquals("# 简历\n内容", saved.getContentMarkdown());
         assertNotNull(saved.getOptimizationNotes());
@@ -121,6 +126,7 @@ class ResumeVersionServiceImplTest {
                 "腾讯",
                 "算法工程师",
                 "# 简历\n内容",
+                "对比原简历，我强化了技能表达。",
                 List.of()
         );
 
@@ -155,6 +161,7 @@ class ResumeVersionServiceImplTest {
                 "腾讯",
                 "Java",
                 "# 简历 A2",
+                "对比原简历，我强化了 Java 项目。",
                 List.of()
         );
         var firstForOtherJd = service.createVersion(
@@ -166,6 +173,7 @@ class ResumeVersionServiceImplTest {
                 "阿里",
                 "Java",
                 "# 简历 B1",
+                "对比原简历，我强化了 Java 项目。",
                 List.of()
         );
 
@@ -173,6 +181,47 @@ class ResumeVersionServiceImplTest {
         assertEquals(2, second.versionSeq());
         assertEquals("针对【阿里】Java · v1", firstForOtherJd.versionName());
         assertEquals(1, firstForOtherJd.versionSeq());
+    }
+
+    @Test
+    void createVersionRetriesWhenSeqCollides() {
+        ResumeVersionEntity seqOne = new ResumeVersionEntity();
+        seqOne.setVersionSeq(1);
+        ResumeVersionEntity seqTwo = new ResumeVersionEntity();
+        seqTwo.setVersionSeq(2);
+        when(resumeVersionMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(List.of(seqOne))
+                .thenReturn(List.of(seqOne, seqTwo));
+        List<Integer> attemptedSeqs = new ArrayList<>();
+        when(resumeVersionMapper.insert(any(ResumeVersionEntity.class)))
+                .thenAnswer(invocation -> {
+                    ResumeVersionEntity entity = invocation.getArgument(0);
+                    attemptedSeqs.add(entity.getVersionSeq());
+                    throw new DuplicateKeyException("seq collision");
+                })
+                .thenAnswer(invocation -> {
+                    ResumeVersionEntity entity = invocation.getArgument(0);
+                    attemptedSeqs.add(entity.getVersionSeq());
+                    return 1;
+                });
+
+        var saved = service.createVersion(
+                1L,
+                "WS-retry",
+                99L,
+                "doc-1",
+                "腾讯 Java",
+                "腾讯",
+                "Java",
+                "# 简历 A3",
+                "对比原简历，我强化了 Java 项目。",
+                List.of()
+        );
+
+        verify(resumeVersionMapper, times(2)).insert(any(ResumeVersionEntity.class));
+        assertEquals(List.of(2, 3), attemptedSeqs);
+        assertEquals(3, saved.versionSeq());
+        assertEquals("针对【腾讯】Java · v3", saved.versionName());
     }
 
     @Test
