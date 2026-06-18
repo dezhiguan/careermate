@@ -1,6 +1,7 @@
 package com.careermate.opportunity;
 
 import com.careermate.common.api.PageResult;
+import com.careermate.common.api.CacheMeta;
 import com.careermate.common.exception.BizException;
 import com.careermate.model.entity.ResumeEntity;
 import com.careermate.opportunity.dto.OpportunityDetailVO;
@@ -137,6 +138,19 @@ class OpportunityServiceImplTest {
 
         assertEquals(0, result.total());
         assertTrue(result.items().isEmpty());
+        assertEquals(CacheMeta.State.EMPTY, result.meta().state());
+    }
+
+    @Test
+    void listRagForgeFailureReturnsDegradedNotLoading() {
+        when(ragForgeClient.searchJd(anyString(), eq(30))).thenThrow(new IllegalStateException("rag down"));
+
+        PageResult<OpportunityListItemVO> result =
+                service.list(1L, new OpportunityListRequest("test", null, null, null, 1, 10));
+
+        assertEquals(0, result.total());
+        assertTrue(result.items().isEmpty());
+        assertEquals(CacheMeta.State.DEGRADED, result.meta().state());
     }
 
     @Test

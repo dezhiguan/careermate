@@ -31,7 +31,11 @@ public record PageResult<T>(
         return new PageResult<>(0, page, size, hasResume, sortStrategy, List.of());
     }
 
-    public static <T> PageResult<T> degradedEmpty(int page, int size, boolean hasResume, String sortStrategy) {
+    public static <T> PageResult<T> loadingEmpty(int page, int size, boolean hasResume, String sortStrategy) {
         return new PageResult<>(0, page, size, hasResume, sortStrategy, List.of(), CacheMeta.loading());
+    }
+
+    public static <T> PageResult<T> degradedEmpty(int page, int size, boolean hasResume, String sortStrategy) {
+        return new PageResult<>(0, page, size, hasResume, sortStrategy, List.of(), CacheMeta.degraded());
     }
 }

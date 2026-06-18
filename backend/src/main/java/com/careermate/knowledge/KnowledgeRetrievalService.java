@@ -37,6 +37,7 @@ public class KnowledgeRetrievalService {
     public static final String ERROR_KB_NOT_CONFIGURED = "KB_NOT_CONFIGURED";
     public static final String ERROR_EMPTY_RESULTS = "EMPTY_RESULTS";
     public static final String ERROR_QUERY_MISSING = "QUERY_MISSING";
+    public static final String ERROR_RAGFORGE_FAILED = "RAGFORGE_FAILED";
 
     private static final int DEFAULT_TOP_K = 5;
     private static final int MAX_TOP_K = 50;
@@ -83,7 +84,7 @@ public class KnowledgeRetrievalService {
                     .build();
         } catch (Exception e) {
             log.warn("Knowledge retrieval failed: scene={} queryLen={} err={}", scene, query.length(), e.getMessage());
-            return RagRetrieveResult.fallback(query, scene, ERROR_EMPTY_RESULTS, elapsed(start));
+            return RagRetrieveResult.fallback(query, scene, ERROR_RAGFORGE_FAILED, elapsed(start));
         }
     }
 
