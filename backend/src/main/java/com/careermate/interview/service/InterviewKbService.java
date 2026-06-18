@@ -2,6 +2,8 @@ package com.careermate.interview.service;
 
 import com.careermate.agent.tool.rag.RagRetrieveRequest;
 import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.cache.CacheKeys;
+import com.careermate.common.api.CacheMeta;
 import com.careermate.interview.dto.CompanyPrepVO;
 import com.careermate.interview.dto.KbQuestionsVO;
 import com.careermate.interview.InterviewKbPrompts;
@@ -13,9 +15,16 @@ import com.careermate.llm.dto.ChatResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationContext;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -28,20 +37,55 @@ public class InterviewKbService {
     private final KnowledgeRetrievalService knowledgeRetrievalService;
     private final LlmClient llmClient;
     private final ObjectMapper objectMapper;
+    private final CacheManager cacheManager;
+    private final ApplicationContext applicationContext;
 
     public InterviewKbService(
             KnowledgeRetrievalService knowledgeRetrievalService,
             LlmClient llmClient,
             ObjectMapper objectMapper
     ) {
+        this(knowledgeRetrievalService, llmClient, objectMapper, null, null);
+    }
+
+    @Autowired
+    public InterviewKbService(
+            KnowledgeRetrievalService knowledgeRetrievalService,
+            LlmClient llmClient,
+            ObjectMapper objectMapper,
+            ObjectProvider<CacheManager> cacheManagerProvider,
+            ApplicationContext applicationContext
+    ) {
         this.knowledgeRetrievalService = knowledgeRetrievalService;
         this.llmClient = llmClient;
         this.objectMapper = objectMapper;
+        this.cacheManager = cacheManagerProvider == null ? null : cacheManagerProvider.getIfAvailable();
+        this.applicationContext = applicationContext;
     }
 
     public KbQuestionsVO getKbQuestions(String query) {
+        String safeQuery = defaultText(query, "Java后端");
+        if (!cacheFacadeEnabled()) {
+            return computeKbQuestions(safeQuery);
+        }
+        String cacheKey = CacheKeys.interviewKbQuestions(safeQuery);
+        KbQuestionsVO cached = cacheValue("interview:kb-questions", cacheKey, KbQuestionsVO.class);
+        if (cached != null) {
+            ensureFreshMeta(cached);
+            return cached;
+        }
+        refreshAsync(() -> self().computeKbQuestions(safeQuery));
+        return fallbackKbQuestions(safeQuery);
+    }
+
+    @Cacheable(
+            cacheNames = "interview:kb-questions",
+            key = "T(com.careermate.cache.CacheKeys).interviewKbQuestions(#tag)",
+            unless = "#result == null || (#result.meta != null && #result.meta.degraded())"
+    )
+    public KbQuestionsVO computeKbQuestions(String tag) {
         try {
-            String safeQuery = defaultText(query, "Java后端");
+            String safeQuery = defaultText(tag, "Java后端");
             String context = knowledgeRetrievalService.retrieveContextText(
                     RagRetrieveScene.INTERVIEW,
                     safeQuery + " 面试题 考点",
@@ -62,10 +106,11 @@ public class InterviewKbService {
             if (parsed.getQuestions() == null) {
                 parsed.setQuestions(Collections.emptyList());
             }
+            parsed.setMeta(CacheMeta.freshNow());
             return parsed;
         } catch (Exception e) {
-            log.warn("getKbQuestions failed: query={}, err={}", query, e.getMessage());
-            return fallbackKbQuestions(defaultText(query, "Java后端"));
+            log.warn("getKbQuestions failed: query={}, err={}", tag, e.getMessage());
+            return fallbackKbQuestions(defaultText(tag, "Java后端"));
         }
     }
 
@@ -150,11 +195,46 @@ public class InterviewKbService {
         return value == null || value.isBlank() ? defaultValue : value.trim();
     }
 
+    private boolean cacheFacadeEnabled() {
+        return cacheManager != null && applicationContext != null;
+    }
+
+    private InterviewKbService self() {
+        return applicationContext.getBean(InterviewKbService.class);
+    }
+
+    private <T> T cacheValue(String cacheName, String cacheKey, Class<T> type) {
+        try {
+            Cache cache = cacheManager.getCache(cacheName);
+            return cache == null ? null : cache.get(cacheKey, type);
+        } catch (Exception e) {
+            log.warn("interview kb cache read failed, cache={}, key={}, err={}", cacheName, cacheKey, e.getMessage());
+            return null;
+        }
+    }
+
+    private void refreshAsync(Runnable runnable) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                runnable.run();
+            } catch (Exception e) {
+                log.warn("interview kb cache async refresh failed: {}", e.getMessage());
+            }
+        });
+    }
+
+    private static void ensureFreshMeta(KbQuestionsVO vo) {
+        if (vo.getMeta() == null) {
+            vo.setMeta(CacheMeta.freshNow());
+        }
+    }
+
     private static KbQuestionsVO fallbackKbQuestions(String query) {
         KbQuestionsVO vo = new KbQuestionsVO();
         vo.setQuery(query);
         vo.setQuestions(Collections.emptyList());
         vo.setAiSummary("暂无相关面试资料");
+        vo.setMeta(CacheMeta.degradedNow());
         return vo;
     }
 
