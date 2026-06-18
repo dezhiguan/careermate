@@ -103,7 +103,7 @@ class GenerateResumeFromJdWorkflowTest {
                 anyString(), eq("{}"), eq("FAILED"), anyLong(),
                 eq("WORKFLOW_LOAD_WORKSPACE_FAILED")
         );
-        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -148,7 +148,7 @@ class GenerateResumeFromJdWorkflowTest {
                 anyString(), eq("{}"), eq("FAILED"), anyLong(),
                 eq("WORKFLOW_LOAD_RESUME_FAILED")
         );
-        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -171,7 +171,7 @@ class GenerateResumeFromJdWorkflowTest {
                 anyString(), eq("{}"), eq("FAILED"), anyLong(),
                 eq("WORKFLOW_LOAD_JD_FAILED")
         );
-        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -193,7 +193,7 @@ class GenerateResumeFromJdWorkflowTest {
                 anyString(), eq("{}"), eq("FAILED"), anyLong(),
                 eq("WORKFLOW_GENERATE_RESUME_FAILED")
         );
-        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -211,7 +211,7 @@ class GenerateResumeFromJdWorkflowTest {
                 anyString(), eq("{}"), eq("FAILED"), anyLong(),
                 eq("WORKFLOW_QUALITY_CHECK_FAILED")
         );
-        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -229,7 +229,7 @@ class GenerateResumeFromJdWorkflowTest {
                 anyString(), eq("{}"), eq("FAILED"), anyLong(),
                 eq("WORKFLOW_QUALITY_CHECK_FAILED")
         );
-        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -259,7 +259,7 @@ class GenerateResumeFromJdWorkflowTest {
             cb.onComplete(ChatResponse.builder().build());
             return null;
         }).when(llmClient).streamChat(any(ChatRequest.class), any(StreamCallback.class));
-        when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new ResumeVersionVO(
                         "ver-1", "针对【腾讯】算法 · v1", "WS-abc", 1L, "腾讯 算法", "腾讯", "算法", 1,
                         "# 简历", List.of(), null, OffsetDateTime.now()
@@ -279,7 +279,7 @@ class GenerateResumeFromJdWorkflowTest {
         verify(sseEmitterService).send(eq("WS-abc"), eq(SseEventType.UI_ACTION), any());
         verify(sseEmitterService).send(eq("WS-abc"), eq(SseEventType.DONE), any());
         verify(resumeVersionService).createVersion(
-                eq(1L), eq("WS-abc"), eq(10L), eq("doc-1"), any(), any(), any(), eq("# 简历"), any()
+                eq(1L), eq("WS-abc"), eq(10L), eq("doc-1"), any(), any(), any(), eq("# 简历"), any(), any()
         );
     }
 
@@ -302,7 +302,7 @@ class GenerateResumeFromJdWorkflowTest {
                 }
                 """;
         mockLlmStreamOnly(output);
-        when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new ResumeVersionVO(
                         "ver-1", "针对【腾讯】算法工程师 · v1", "WS-abc", 1L, "腾讯 算法工程师", "腾讯", "算法工程师", 1,
                         "# 官德志", List.of(Map.of("text", "对齐 JD 关键词")), null, OffsetDateTime.now()
@@ -344,7 +344,7 @@ class GenerateResumeFromJdWorkflowTest {
         ArgumentCaptor<String> markdownCaptor = ArgumentCaptor.forClass(String.class);
         verify(resumeVersionService).createVersion(
                 eq(1L), eq("WS-abc"), eq(10L), eq("doc-1"), any(), any(), any(),
-                markdownCaptor.capture(), any()
+                markdownCaptor.capture(), any(), any()
         );
         String savedMarkdown = markdownCaptor.getValue();
         assertFalse(savedMarkdown.contains("\"changes\""));
@@ -414,7 +414,7 @@ class GenerateResumeFromJdWorkflowTest {
         ArgumentCaptor<List<Map<String, Object>>> notesCaptor = ArgumentCaptor.forClass(List.class);
         verify(resumeVersionService).createVersion(
                 eq(1L), eq("WS-abc"), eq(10L), eq("doc-1"), any(), any(), any(),
-                eq("# 简历正文"), notesCaptor.capture()
+                eq("# 简历正文"), any(), notesCaptor.capture()
         );
         assertFalse(notesCaptor.getValue().isEmpty());
     }
@@ -428,7 +428,7 @@ class GenerateResumeFromJdWorkflowTest {
 
         verify(resumeVersionService).createVersion(
                 eq(1L), eq("WS-abc"), eq(10L), eq("doc-1"), any(), any(), any(),
-                eq("# 只有正文"), eq(List.of())
+                eq("# 只有正文"), any(), eq(List.of())
         );
     }
 
@@ -597,7 +597,7 @@ class GenerateResumeFromJdWorkflowTest {
         assertThrows(BizException.class, () ->
                 workflow.doGenerate(1L, "WS-abc", "doc-1", null)
         );
-        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -620,7 +620,7 @@ class GenerateResumeFromJdWorkflowTest {
                 }
                 """;
         mockLlmStreamOnly(output);
-        when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new ResumeVersionVO(
                         "ver-1", "针对【腾讯】算法 · v1", "WS-abc", 1L, "腾讯 算法", "腾讯", "算法", 1,
                         "# 官德志", List.of(), null, OffsetDateTime.now()
@@ -635,7 +635,7 @@ class GenerateResumeFromJdWorkflowTest {
         ArgumentCaptor<List<Map<String, Object>>> notesCaptor = ArgumentCaptor.forClass(List.class);
         verify(resumeVersionService).createVersion(
                 eq(1L), eq("WS-abc"), eq(10L), eq("doc-1"), any(), any(), any(),
-                markdownCaptor.capture(), notesCaptor.capture()
+                markdownCaptor.capture(), any(), notesCaptor.capture()
         );
         String saved = markdownCaptor.getValue();
         assertFalse(saved.contains("{"));
@@ -680,7 +680,7 @@ class GenerateResumeFromJdWorkflowTest {
 
     private void mockLlmOutput(String output, String savedMarkdown) {
         mockLlmStreamOnly(output);
-        when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new ResumeVersionVO(
                         "ver-1", "针对【腾讯】算法 · v1", "WS-abc", 1L, "腾讯 算法", "腾讯", "算法", 1,
                         savedMarkdown, List.of(), null, OffsetDateTime.now()

@@ -91,6 +91,7 @@ class McpControllerTest {
                 "MCP Company",
                 "MCP B JD",
                 "# User B Resume",
+                "",
                 List.of()
         );
         userBVersionId = saved.versionId();
