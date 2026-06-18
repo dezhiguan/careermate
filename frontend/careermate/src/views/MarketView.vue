@@ -36,11 +36,17 @@
           </div>
           <button type="button" class="more-btn" @click="moreOpen = true">更多</button>
         </div>
-        <div v-if="salaryLoading" class="skeleton-group">
+        <div v-if="snapshotLoading" class="skeleton-group">
           <div class="skeleton" style="height:36px;width:50%;margin-bottom:8px" />
           <div class="skeleton" style="height:14px;width:80%" />
+          <div class="skeleton" style="height:34px;margin-top:12px" />
+          <div class="skeleton" style="height:34px;margin-top:8px" />
         </div>
-        <template v-else-if="salaryData || topSkills.length">
+        <div v-else-if="snapshotDegraded" class="state-panel degraded-panel">
+          <div>AI 暂时不可用，请稍后重试</div>
+          <button type="button" class="retry-btn" @click="retryMarketData">重试</button>
+        </div>
+        <template v-else-if="snapshotHasData">
           <div v-if="salaryData" class="salary-summary-grid">
             <div class="p-item">
               <div class="p-label">P50</div>
@@ -81,7 +87,7 @@
             </div>
           </div>
         </template>
-        <div v-else class="compact-empty">当前筛选暂无缓存数据，换个城市/岗位试试。</div>
+        <div v-else class="state-panel empty-panel">该筛选条件无数据，建议切换城市/岗位</div>
         <div class="market-cta-row">
           <button
             type="button"
@@ -166,6 +172,11 @@
             <div class="skeleton" style="height:14px;width:70%;margin-bottom:8px" />
             <div class="skeleton" style="height:14px;width:90%;margin-bottom:8px" />
           </div>
+          <div v-else-if="isDegradedState(gapState)" class="state-panel degraded-panel">
+            <div>AI 暂时不可用，请稍后重试</div>
+            <button type="button" class="retry-btn" @click="retryMarketData">重试</button>
+          </div>
+          <div v-else-if="isEmptyState(gapState)" class="state-panel empty-panel">上传简历后可查看 Gap 分析。</div>
           <template v-else-if="gapData">
             <div class="score-row">
               <div class="score-circle">
@@ -196,7 +207,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getSalaryInsight, getSkillTrends, getResumeGap } from '../api/market'
 import { getCareerProfile } from '../api/profile'
@@ -217,6 +228,14 @@ const MARKET_ROLES = [
   'Python后端',
 ]
 const MARKET_YEARS = ['1-3年', '3-5年', '5-10年', '10年以上']
+const META_STATE = {
+  FRESH: 'FRESH',
+  LOADING: 'LOADING',
+  DEGRADED: 'DEGRADED',
+  EMPTY: 'EMPTY',
+}
+const LOADING_REFETCH_DELAY_MS = 3000
+const LOADING_REFETCH_MAX = 2
 
 const city = ref('')
 const role = ref('')
@@ -229,8 +248,13 @@ const gapLoading = ref(true)
 const salaryData = ref(null)
 const skillsData = ref(null)
 const gapData = ref(null)
+const salaryState = ref(META_STATE.LOADING)
+const skillsState = ref(META_STATE.LOADING)
+const gapState = ref(META_STATE.LOADING)
 const workspaceLoading = ref('')
 const moreOpen = ref(false)
+const loadingRefetchCount = ref(0)
+let loadingRefetchTimer = null
 
 const filterTitle = computed(() => {
   const parts = [city.value, role.value, years.value].filter(Boolean)
@@ -253,6 +277,20 @@ const roleOptions = computed(() => {
 
 const gapContext = computed(() => [city.value, role.value].filter(Boolean).join(' · '))
 const topSkills = computed(() => (skillsData.value?.skills || []).slice(0, 5))
+const snapshotLoading = computed(() =>
+  salaryLoading.value
+  || skillsLoading.value
+  || isLoadingState(salaryState.value)
+  || isLoadingState(skillsState.value)
+)
+const snapshotDegraded = computed(() =>
+  isDegradedState(salaryState.value) || isDegradedState(skillsState.value)
+)
+const snapshotHasData = computed(() => {
+  const hasSalary = salaryData.value && !isEmptyState(salaryState.value) && !isDegradedState(salaryState.value)
+  const hasSkills = topSkills.value.length > 0 && !isEmptyState(skillsState.value) && !isDegradedState(skillsState.value)
+  return hasSalary || hasSkills
+})
 
 function applyFilters() {
   router.replace({
@@ -274,46 +312,105 @@ function syncFiltersFromRoute() {
   if (qYears && MARKET_YEARS.includes(String(qYears))) years.value = String(qYears)
 }
 
-async function loadMarketData() {
+async function loadMarketData({ autoRefresh = false } = {}) {
+  if (!autoRefresh) {
+    loadingRefetchCount.value = 0
+  }
+  clearLoadingRefetchTimer()
   salaryLoading.value = true
   skillsLoading.value = true
   gapLoading.value = true
   salaryData.value = null
   skillsData.value = null
   gapData.value = null
+  salaryState.value = META_STATE.LOADING
+  skillsState.value = META_STATE.LOADING
+  gapState.value = META_STATE.LOADING
 
   const tasks = []
 
   if (city.value && role.value && years.value) {
     tasks.push(
       getSalaryInsight({ role: role.value, city: city.value, years: years.value })
-        .then((r) => { salaryData.value = r })
-        .catch(() => {})
+        .then((r) => {
+          salaryData.value = r
+          salaryState.value = responseState(r)
+        })
+        .catch(() => { salaryState.value = META_STATE.DEGRADED })
         .finally(() => { salaryLoading.value = false })
     )
   } else {
     salaryLoading.value = false
+    salaryState.value = META_STATE.EMPTY
   }
 
   if (role.value) {
     tasks.push(
       getSkillTrends({ city: city.value || '广州', role: role.value })
-        .then((r) => { skillsData.value = r })
-        .catch(() => {})
+        .then((r) => {
+          skillsData.value = r
+          skillsState.value = responseState(r)
+        })
+        .catch(() => { skillsState.value = META_STATE.DEGRADED })
         .finally(() => { skillsLoading.value = false })
     )
   } else {
     skillsLoading.value = false
+    skillsState.value = META_STATE.EMPTY
   }
 
   tasks.push(
     getResumeGap()
-      .then((r) => { gapData.value = r })
-      .catch(() => {})
+      .then((r) => {
+        gapData.value = r
+        gapState.value = responseState(r)
+      })
+      .catch(() => { gapState.value = META_STATE.DEGRADED })
       .finally(() => { gapLoading.value = false })
   )
 
   await Promise.allSettled(tasks)
+  scheduleLoadingRefetch()
+}
+
+function responseState(data) {
+  return data?._meta?.state || data?.meta?.state || META_STATE.FRESH
+}
+
+function isLoadingState(state) {
+  return state === META_STATE.LOADING
+}
+
+function isDegradedState(state) {
+  return state === META_STATE.DEGRADED
+}
+
+function isEmptyState(state) {
+  return state === META_STATE.EMPTY
+}
+
+function scheduleLoadingRefetch() {
+  if (!hasLoadingState() || loadingRefetchCount.value >= LOADING_REFETCH_MAX) return
+  loadingRefetchCount.value += 1
+  loadingRefetchTimer = window.setTimeout(() => {
+    loadMarketData({ autoRefresh: true })
+  }, LOADING_REFETCH_DELAY_MS)
+}
+
+function hasLoadingState() {
+  return isLoadingState(salaryState.value)
+    || isLoadingState(skillsState.value)
+    || isLoadingState(gapState.value)
+}
+
+function clearLoadingRefetchTimer() {
+  if (!loadingRefetchTimer) return
+  window.clearTimeout(loadingRefetchTimer)
+  loadingRefetchTimer = null
+}
+
+function retryMarketData() {
+  loadMarketData()
 }
 
 onMounted(async () => {
@@ -330,6 +427,10 @@ onMounted(async () => {
   if (!years.value) years.value = '3-5年'
   syncFiltersFromRoute()
   await loadMarketData()
+})
+
+onBeforeUnmount(() => {
+  clearLoadingRefetchTimer()
 })
 
 const hasSkillSet = computed(() =>
@@ -632,6 +733,42 @@ async function enterMarketWorkspace(entryAction) {
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 .empty-tip { text-align: center; color: #94a3b8; font-size: 13px; padding: 20px 0; }
+.state-panel {
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.degraded-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+.empty-panel {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+.retry-btn {
+  flex-shrink: 0;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.retry-btn:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
 .compact-empty {
   color: #64748b;
   background: #f8fafc;

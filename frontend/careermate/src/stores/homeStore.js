@@ -2,6 +2,10 @@ import { reactive } from 'vue'
 import { getHomeBootstrap } from '../api/home'
 import { authStore } from './authStore'
 
+const STALE_AFTER_MS = 30 * 1000
+let inflight = null
+let lastFetchedAt = 0
+
 const state = reactive({
   initialized: false,
   loading: false,
@@ -29,20 +33,27 @@ function applyBootstrap(data) {
 
 async function fetchBootstrap({ force = false } = {}) {
   const currentUserId = authStore.state.currentUser?.userId || null
-  if (!force && state.initialized && state.loadedUserId === currentUserId) {
+  const fresh = Date.now() - lastFetchedAt < STALE_AFTER_MS
+  if (!force && fresh && state.initialized && state.loadedUserId === currentUserId) {
     return snapshot()
   }
+  if (inflight) return inflight
   state.loading = true
-  try {
-    const data = await getHomeBootstrap()
-    applyBootstrap(data)
-    return snapshot()
-  } catch (e) {
-    state.error = e?.message || '首屏数据加载失败'
-    throw e
-  } finally {
-    state.loading = false
-  }
+  inflight = (async () => {
+    try {
+      const data = await getHomeBootstrap()
+      applyBootstrap(data)
+      lastFetchedAt = Date.now()
+      return snapshot()
+    } catch (e) {
+      state.error = e?.message || '首屏数据加载失败'
+      throw e
+    } finally {
+      state.loading = false
+      inflight = null
+    }
+  })()
+  return inflight
 }
 
 function snapshot() {
@@ -67,6 +78,8 @@ function updateTopOpportunities(items) {
 }
 
 function reset() {
+  inflight = null
+  lastFetchedAt = 0
   state.initialized = false
   state.loading = false
   state.loadedUserId = null

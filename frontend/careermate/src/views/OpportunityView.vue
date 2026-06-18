@@ -16,12 +16,15 @@
       </div>
     </header>
 
-    <div v-if="!hasResume && !loading" class="resume-banner">
+    <div v-if="!hasResume && !loading && !degraded" class="resume-banner">
       <span class="resume-banner-text">传简历获得 AI 匹配分</span>
       <button type="button" class="resume-banner-btn" @click="goUploadResume">上传简历</button>
     </div>
 
-    <div v-if="loading" class="card-list">
+    <div v-if="loading || degraded" class="card-list">
+      <div v-if="degraded" class="degraded-hint">
+        AI 正在为你抓取最新机会，约 3 秒后自动刷新
+      </div>
       <div v-for="n in 3" :key="n" class="skeleton-card">
         <div class="skeleton-line wide" />
         <div class="skeleton-line" />
@@ -118,7 +121,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { listOpportunities, prepareWithAi } from '../api/opportunity'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
@@ -132,6 +135,9 @@ const hasResume = ref(false)
 const loading = ref(true)
 const error = ref('')
 const preparingId = ref('')
+const degraded = ref(false)
+const degradedRetryCount = ref(0)
+let degradedRefreshTimer = null
 
 const activeKeyword = computed(() => String(route.query.keyword || '').trim())
 const activeCity = computed(() => String(route.query.city || '不限').trim())
@@ -139,7 +145,7 @@ const activeYears = computed(() => String(route.query.years || '不限').trim())
 const activeRole = computed(() => activeKeyword.value || String(route.query.position || '全部').trim())
 
 watch(
-  () => [route.query.keyword, route.query.t],
+  () => [route.query.keyword, route.query.city, route.query.position, route.query.years, route.query.t],
   () => {
     if (route.path === '/opportunity') {
       fetchList()
@@ -147,7 +153,10 @@ watch(
   }
 )
 
-async function fetchList() {
+async function fetchList({ autoRefresh = false } = {}) {
+  if (!autoRefresh) {
+    degradedRetryCount.value = 0
+  }
   loading.value = true
   error.value = ''
   try {
@@ -158,6 +167,16 @@ async function fetchList() {
       page: 1,
       size: 10,
     })
+    const meta = data?._meta || data?.meta || null
+    if (meta?.state === 'LOADING') {
+      items.value = []
+      hasResume.value = !!data?.hasResume
+      degraded.value = true
+      scheduleDegradedRefresh()
+      return
+    }
+    degraded.value = false
+    clearDegradedRefreshTimer()
     items.value = data?.items || []
     hasResume.value = !!data?.hasResume
     if (!activeKeyword.value) {
@@ -166,12 +185,31 @@ async function fetchList() {
   } catch (e) {
     error.value = e.message || '加载失败'
     items.value = []
+    degraded.value = false
+    clearDegradedRefreshTimer()
   } finally {
     loading.value = false
   }
 }
 
+function scheduleDegradedRefresh() {
+  if (degradedRetryCount.value >= 2) return
+  degradedRetryCount.value += 1
+  clearDegradedRefreshTimer()
+  degradedRefreshTimer = window.setTimeout(() => {
+    fetchList({ autoRefresh: true })
+  }, 3000)
+}
+
+function clearDegradedRefreshTimer() {
+  if (!degradedRefreshTimer) return
+  window.clearTimeout(degradedRefreshTimer)
+  degradedRefreshTimer = null
+}
+
 function hydrateFromBootstrap() {
+  clearDegradedRefreshTimer()
+  degraded.value = false
   items.value = Array.isArray(homeStore.state.topOpportunities)
     ? homeStore.state.topOpportunities
     : []
@@ -262,6 +300,10 @@ onMounted(() => {
   }
   fetchList()
 })
+
+onBeforeUnmount(() => {
+  clearDegradedRefreshTimer()
+})
 </script>
 
 <style scoped>
@@ -349,6 +391,17 @@ onMounted(() => {
   padding: 14px 16px;
   display: grid;
   gap: 12px;
+}
+
+.degraded-hint {
+  grid-column: 1 / -1;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 @media (min-width: 768px) {

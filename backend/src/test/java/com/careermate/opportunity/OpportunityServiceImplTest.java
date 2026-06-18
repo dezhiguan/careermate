@@ -210,6 +210,29 @@ class OpportunityServiceImplTest {
     }
 
     @Test
+    void listDemoModeUsesRequestKeywordCityAndPosition() {
+        String pythonJd = SAMPLE_JD
+                .replace("算法工程师", "Python 后端工程师")
+                .replace("北京", "深圳")
+                .replace("Java, Redis, 算法设计", "Python, Django, Redis");
+        when(ragForgeClient.searchJd("Python 深圳 后端 3-5年", 30)).thenReturn(List.of(
+                chunk(1L, 1L, pythonJd, 0.8)
+        ));
+        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
+
+        PageResult<OpportunityListItemVO> result =
+                service.list(1L, new OpportunityListRequest(" Python ", "深圳", "后端", "demo", 1, 10));
+
+        assertFalse(result.hasResume());
+        assertEquals(1, result.total());
+        assertTrue(result.items().get(0).isDemo());
+        assertEquals("Python 后端工程师", result.items().get(0).title());
+        assertTrue(result.items().get(0).skills().contains("Python"));
+        assertNull(result.items().get(0).matchScore());
+        verify(ragForgeClient).searchJd("Python 深圳 后端 3-5年", 30);
+    }
+
+    @Test
     void listCacheHitSkipsSecondRagForgeCall() throws Exception {
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
@@ -354,6 +377,23 @@ class OpportunityServiceImplTest {
         service.list(1L, new OpportunityListRequest("Java", null, null, null, 1, 10));
 
         verify(valueOps, atLeastOnce()).set(anyString(), anyString(), any(Duration.class));
+    }
+
+    @Test
+    void listDemoModeCacheKeyIncludesKeyword() {
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(anyString())).thenReturn(null);
+        when(ragForgeClient.searchJd("Python 广州 Java 3-5年", 30))
+                .thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.6)));
+        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
+
+        service.list(1L, new OpportunityListRequest("Python", null, null, "demo", 1, 10));
+
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(valueOps, atLeastOnce()).set(keyCaptor.capture(), anyString(), any(Duration.class));
+        assertTrue(keyCaptor.getAllValues().stream()
+                .anyMatch(key -> key.equals("opportunity:list:广州:Java:3-5年:Python")));
     }
 
     private static RagForgeChunk chunk(Long chunkId, Long docId, String content, double score) {

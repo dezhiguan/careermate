@@ -24,6 +24,8 @@ public class ResumeVersionEntity {
     private Long sourceResumeId;
     private String parentVersionId;
     private Long targetJdId;
+    @TableField("legacy_target_jd_id_raw")
+    private String legacyTargetJdIdRaw;
     private String targetJdLabel;
     private String targetCompany;
     private String targetJdTitle;

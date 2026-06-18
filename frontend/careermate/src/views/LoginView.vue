@@ -296,7 +296,7 @@ async function submitSmsLogin() {
   try {
     await authStore.mobileLogin(smsForm.phone, smsForm.verifyCode, smsForm.challengeId)
     successMsg.value = '登录/注册成功，正在进入...'
-    await router.replace('/opportunity')
+    await router.replace('/')
   } catch (e) {
     errorMsg.value = e?.message || '登录/注册失败'
   }
@@ -312,7 +312,7 @@ async function submit() {
       await authStore.register(form.username, form.password, form.email)
       successMsg.value = '注册成功，正在进入...'
     }
-    await router.replace('/opportunity')
+    await router.replace('/')
   } catch (e) {
     errorMsg.value = e?.message || '操作失败'
   }

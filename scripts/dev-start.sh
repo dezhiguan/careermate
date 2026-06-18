@@ -17,13 +17,26 @@ if [[ -f "${REPO_ROOT}/.env" ]]; then
   set +a
 fi
 
-cd "${BACKEND_DIR}"
+PORT="${SERVER_PORT:-8082}"
 
+if lsof -ti ":${PORT}" >/dev/null 2>&1; then
+  echo "[dev-start] killing existing process on :${PORT}"
+  lsof -ti ":${PORT}" | xargs kill -9 || true
+  sleep 1
+fi
+
+cd "${BACKEND_DIR}"
 mvn clean package -DskipTests
 
+APP_JAR="$(ls -1 target/careermate-backend-*.jar 2>/dev/null | grep -v '\.original$' | head -1)"
+if [[ -z "${APP_JAR}" ]]; then
+  echo "[dev-start] no fat jar in target/; mvn package may have failed" >&2
+  exit 1
+fi
+
 SPRING_PROFILES_ACTIVE=dev \
-SERVER_PORT=8082 \
+SERVER_PORT="${PORT}" \
 RAGFORGE_TIMEOUT_MS=15000 \
 ALIYUN_SMS_ENABLED=true \
 ALIYUN_SMS_MOCK_ENABLED=true \
-java -jar target/*.jar
+java -jar "${APP_JAR}"

@@ -58,6 +58,6 @@ test.describe('P1 market cache and degraded fallback', () => {
       login.token,
       `/market/salary-insight?city=缓存降级城${Date.now()}&role=缓存降级岗&years=3-5年`
     );
-    expect(miss.body?.data?._meta?.degraded).toBe(true);
+    expect(miss.body?.data?._meta?.state).toBe('LOADING');
   });
 });

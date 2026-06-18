@@ -21,6 +21,10 @@ public final class CacheKeys {
         return "market:resume-gap:" + (userId == null ? "anonymous" : userId) + ":" + part(jdId);
     }
 
+    public static String interviewKbQuestions(String tag) {
+        return "interview:kb-questions:" + part(tag);
+    }
+
     private static String part(String value) {
         if (value == null || value.isBlank()) {
             return "_";

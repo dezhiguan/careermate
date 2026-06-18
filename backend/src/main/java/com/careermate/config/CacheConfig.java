@@ -40,6 +40,7 @@ public class CacheConfig {
         configs.put("market:salary", defaults.entryTtl(Duration.ofHours(6)));
         configs.put("market:skill-trends", defaults.entryTtl(Duration.ofHours(6)));
         configs.put("market:resume-gap", defaults.entryTtl(Duration.ofHours(1)));
+        configs.put("interview:kb-questions", defaults.entryTtl(Duration.ofHours(12)));
 
         return RedisCacheManager.builder(redisConnectionFactory)
                 .cacheDefaults(defaults)

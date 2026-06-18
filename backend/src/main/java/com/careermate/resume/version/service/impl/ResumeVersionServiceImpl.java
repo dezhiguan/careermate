@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.careermate.artifact.ArtifactConstants;
 import com.careermate.artifact.dto.CreateAgentArtifactCommand;
 import com.careermate.artifact.service.AgentArtifactService;
+import com.careermate.common.api.ErrorCode;
 import com.careermate.common.exception.BizException;
 import com.careermate.mapper.ResumeVersionMapper;
 import com.careermate.model.entity.ResumeVersionEntity;
@@ -17,8 +18,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -32,6 +35,7 @@ import java.util.UUID;
 public class ResumeVersionServiceImpl implements ResumeVersionService {
 
     private static final long DEFAULT_TENANT_ID = 1L;
+    private static final int SEQ_RETRY_MAX = 3;
 
     private final ResumeVersionMapper resumeVersionMapper;
     private final ObjectMapper objectMapper;
@@ -108,10 +112,8 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     ) {
         LocalDateTime now = LocalDateTime.now();
         Long targetJdDocId = parseTargetJdId(targetJdId);
-        int versionSeq = nextVersionSeq(userId, targetJdDocId);
         String safeCompany = fallbackText(targetCompany, "未知公司");
         String safeTitle = fallbackText(targetJdTitle, fallbackText(targetJdLabel, "历史定制简历"));
-        String generatedDisplayName = buildDisplayName(safeCompany, safeTitle, versionSeq);
         ResumeVersionEntity entity = new ResumeVersionEntity();
         entity.setVersionId(UUID.randomUUID().toString());
         entity.setUserId(userId);
@@ -119,17 +121,18 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
         entity.setSessionId(sessionId);
         entity.setSourceResumeId(sourceResumeId);
         entity.setTargetJdId(targetJdDocId);
+        if (targetJdDocId == null && StringUtils.hasText(targetJdId)) {
+            entity.setLegacyTargetJdIdRaw(targetJdId.trim());
+        }
         entity.setTargetJdLabel(targetJdLabel);
         entity.setTargetCompany(safeCompany);
         entity.setTargetJdTitle(safeTitle);
-        entity.setVersionSeq(versionSeq);
-        entity.setVersionName(generatedDisplayName);
         entity.setChangeSummary(normalizeChangeSummary(changeSummary, optimizationNotes));
         entity.setContentMarkdown(contentMarkdown);
         entity.setOptimizationNotes(writeNotesJson(optimizationNotes));
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
-        resumeVersionMapper.insert(entity);
+        insertWithSeqRetry(entity, userId, targetJdDocId, safeCompany, safeTitle);
         registerResumeVersionArtifact(
                 userId,
                 sessionId,
@@ -138,8 +141,8 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
                 targetJdLabel,
                 safeCompany,
                 safeTitle,
-                versionSeq,
-                generatedDisplayName,
+                entity.getVersionSeq(),
+                entity.getVersionName(),
                 entity.getVersionId()
         );
         return toDetailVO(entity);
@@ -224,6 +227,38 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
                 versionId,
                 metadata
         ));
+    }
+
+    private void insertWithSeqRetry(
+            ResumeVersionEntity entity,
+            Long userId,
+            Long targetJdDocId,
+            String safeCompany,
+            String safeTitle
+    ) {
+        for (int attempt = 0; ; attempt++) {
+            int versionSeq = nextVersionSeq(userId, targetJdDocId);
+            entity.setVersionSeq(versionSeq);
+            entity.setVersionName(buildDisplayName(safeCompany, safeTitle, versionSeq));
+            try {
+                resumeVersionMapper.insert(entity);
+                return;
+            } catch (DuplicateKeyException e) {
+                if (attempt >= SEQ_RETRY_MAX) {
+                    log.error("resume version seq exhausted userId={}, jdId={}", userId, targetJdDocId, e);
+                    throw new BizException(
+                            ErrorCode.INTERNAL_ERROR.getCode(),
+                            "简历版本号冲突，请稍后重试"
+                    );
+                }
+                log.warn(
+                        "resume version seq collision retry={}, userId={}, jdId={}",
+                        attempt,
+                        userId,
+                        targetJdDocId
+                );
+            }
+        }
     }
 
     private ResumeVersionEntity requireOwnedVersion(Long userId, String versionId) {

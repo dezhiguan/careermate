@@ -91,7 +91,7 @@ public class MarketIntelligenceService {
             return cached;
         }
         refreshAsync(() -> self().computeSalaryInsight(safeCity, safeRole, safeYears));
-        return degradedSalaryInsight();
+        return loadingSalaryInsight();
     }
 
     public SkillTrendsVO getSkillTrends(String role) {
@@ -111,7 +111,7 @@ public class MarketIntelligenceService {
             return cached;
         }
         refreshAsync(() -> self().computeSkillTrends(safeCity, safeRole));
-        return degradedSkillTrends();
+        return loadingSkillTrends();
     }
 
     public ResumeGapVO getResumeGap(Long userId) {
@@ -130,13 +130,13 @@ public class MarketIntelligenceService {
             return cached;
         }
         refreshAsync(() -> self().computeResumeGap(userId, safeJdId));
-        return degradedResumeGap();
+        return loadingResumeGap();
     }
 
     @Cacheable(
             cacheNames = "market:salary",
             key = "T(com.careermate.cache.CacheKeys).marketSalary(#city, #role, #years)",
-            unless = "#result.meta != null && #result.meta.degraded"
+            unless = "#result.meta != null && #result.meta.state().name() == 'DEGRADED'"
     )
     public SalaryInsightVO computeSalaryInsight(String city, String role, String years) {
         try {
@@ -146,10 +146,13 @@ public class MarketIntelligenceService {
                     .scene(RagRetrieveScene.MARKET)
                     .topK(30)
                     .build());
+            if (ragResult == null || !ragResult.isSuccess()) {
+                return fallbackSalaryInsight();
+            }
             String context = toContextText(ragResult);
             if (context.isBlank()) {
                 log.warn("getSalaryInsight: empty rag context, role={}, city={}", role, city);
-                return fallbackSalaryInsight();
+                return emptySalaryInsight();
             }
             String prompt = MarketPrompts.salaryPrompt(role, city, years, context);
             SalaryInsightVO parsed = parseLlmJson(prompt, SalaryInsightVO.class);
@@ -157,7 +160,7 @@ public class MarketIntelligenceService {
                 return fallbackSalaryInsight();
             }
             attachSources(parsed, ragResult);
-            parsed.setMeta(CacheMeta.freshNow());
+            parsed.setMeta(CacheMeta.fresh());
             return parsed;
         } catch (Exception e) {
             log.warn("getSalaryInsight failed: {}", e.getMessage());
@@ -168,7 +171,7 @@ public class MarketIntelligenceService {
     @Cacheable(
             cacheNames = "market:skill-trends",
             key = "T(com.careermate.cache.CacheKeys).marketSkillTrends(#city, #role)",
-            unless = "#result.meta != null && #result.meta.degraded"
+            unless = "#result.meta != null && #result.meta.state().name() == 'DEGRADED'"
     )
     public SkillTrendsVO computeSkillTrends(String city, String role) {
         try {
@@ -178,10 +181,13 @@ public class MarketIntelligenceService {
                     .scene(RagRetrieveScene.MARKET)
                     .topK(40)
                     .build());
+            if (ragResult == null || !ragResult.isSuccess()) {
+                return fallbackSkillTrends();
+            }
             String context = toContextText(ragResult);
             if (context.isBlank()) {
                 log.warn("getSkillTrends: empty rag context, role={}", role);
-                return fallbackSkillTrends();
+                return emptySkillTrends();
             }
             String prompt = MarketPrompts.skillTrendsPrompt(role, context);
             SkillTrendsVO parsed = parseLlmJson(prompt, SkillTrendsVO.class);
@@ -189,7 +195,7 @@ public class MarketIntelligenceService {
                 return fallbackSkillTrends();
             }
             attachSources(parsed, ragResult);
-            parsed.setMeta(CacheMeta.freshNow());
+            parsed.setMeta(CacheMeta.fresh());
             return parsed;
         } catch (Exception e) {
             log.warn("getSkillTrends failed: {}", e.getMessage());
@@ -200,7 +206,7 @@ public class MarketIntelligenceService {
     @Cacheable(
             cacheNames = "market:resume-gap",
             key = "T(com.careermate.cache.CacheKeys).marketResumeGap(#userId, #jdId)",
-            unless = "#result.meta != null && #result.meta.degraded"
+            unless = "#result.meta != null && #result.meta.state().name() == 'DEGRADED'"
     )
     public ResumeGapVO computeResumeGap(Long userId, String jdId) {
         try {
@@ -217,10 +223,13 @@ public class MarketIntelligenceService {
                     .scene(RagRetrieveScene.OPPORTUNITY)
                     .topK(30)
                     .build());
+            if (ragResult == null || !ragResult.isSuccess()) {
+                return fallbackResumeGap();
+            }
             String context = toContextText(ragResult);
             if (context.isBlank()) {
                 log.warn("getResumeGap: empty rag context, userId={}, role={}", userId, role);
-                return fallbackResumeGap();
+                return emptyResumeGap();
             }
             String prompt = MarketPrompts.resumeGapPrompt(resumeContext.getContent(), context);
             ResumeGapVO parsed = parseLlmJson(prompt, ResumeGapVO.class);
@@ -228,7 +237,7 @@ public class MarketIntelligenceService {
                 return fallbackResumeGap();
             }
             attachSources(parsed, ragResult);
-            parsed.setMeta(CacheMeta.freshNow());
+            parsed.setMeta(CacheMeta.fresh());
             return parsed;
         } catch (Exception e) {
             log.warn("getResumeGap failed: userId={}, err={}", userId, e.getMessage());
@@ -306,19 +315,19 @@ public class MarketIntelligenceService {
 
     private static void ensureFreshMeta(SalaryInsightVO vo) {
         if (vo.getMeta() == null) {
-            vo.setMeta(CacheMeta.freshNow());
+            vo.setMeta(CacheMeta.fresh());
         }
     }
 
     private static void ensureFreshMeta(SkillTrendsVO vo) {
         if (vo.getMeta() == null) {
-            vo.setMeta(CacheMeta.freshNow());
+            vo.setMeta(CacheMeta.fresh());
         }
     }
 
     private static void ensureFreshMeta(ResumeGapVO vo) {
         if (vo.getMeta() == null) {
-            vo.setMeta(CacheMeta.freshNow());
+            vo.setMeta(CacheMeta.fresh());
         }
     }
 
@@ -411,6 +420,20 @@ public class MarketIntelligenceService {
     }
 
     private static SalaryInsightVO fallbackSalaryInsight() {
+        return salaryInsightWithMeta(CacheMeta.degraded());
+    }
+
+    private static SalaryInsightVO loadingSalaryInsight() {
+        return salaryInsightWithMeta(CacheMeta.loading());
+    }
+
+    private static SalaryInsightVO emptySalaryInsight() {
+        SalaryInsightVO vo = salaryInsightWithMeta(CacheMeta.empty());
+        vo.setAiSummary("");
+        return vo;
+    }
+
+    private static SalaryInsightVO salaryInsightWithMeta(CacheMeta meta) {
         SalaryInsightVO vo = new SalaryInsightVO();
         vo.setP25(NO_DATA);
         vo.setP50(NO_DATA);
@@ -420,55 +443,56 @@ public class MarketIntelligenceService {
         vo.setAiSummary(FALLBACK_SUMMARY);
         vo.setCitations(Collections.emptyList());
         vo.setSourceSummaries(Collections.emptyList());
-        vo.setMeta(CacheMeta.degradedNow());
+        vo.setMeta(meta);
         return vo;
     }
 
-    private static SalaryInsightVO degradedSalaryInsight() {
-        return fallbackSalaryInsight();
+    private static SkillTrendsVO fallbackSkillTrends() {
+        return skillTrendsWithMeta(CacheMeta.degraded());
     }
 
-    private static SkillTrendsVO fallbackSkillTrends() {
+    private static SkillTrendsVO loadingSkillTrends() {
+        return skillTrendsWithMeta(CacheMeta.loading());
+    }
+
+    private static SkillTrendsVO emptySkillTrends() {
+        SkillTrendsVO vo = skillTrendsWithMeta(CacheMeta.empty());
+        vo.setAiSummary("");
+        return vo;
+    }
+
+    private static SkillTrendsVO skillTrendsWithMeta(CacheMeta meta) {
         SkillTrendsVO vo = new SkillTrendsVO();
         vo.setSkills(List.of());
         vo.setAiSummary(FALLBACK_SUMMARY);
         vo.setCitations(Collections.emptyList());
         vo.setSourceSummaries(Collections.emptyList());
-        vo.setMeta(CacheMeta.degradedNow());
+        vo.setMeta(meta);
         return vo;
-    }
-
-    private static SkillTrendsVO degradedSkillTrends() {
-        return fallbackSkillTrends();
     }
 
     private static ResumeGapVO fallbackResumeGap() {
-        ResumeGapVO vo = new ResumeGapVO();
-        vo.setHasSkills(List.of());
-        vo.setMissingSkills(List.of());
-        vo.setMatchScore(0);
-        vo.setTopSuggestion(NO_DATA);
-        vo.setAiSummary(FALLBACK_SUMMARY);
-        vo.setCitations(Collections.emptyList());
-        vo.setSourceSummaries(Collections.emptyList());
-        vo.setMeta(CacheMeta.degradedNow());
-        return vo;
+        return resumeGapWithMeta(CacheMeta.degraded(), NO_DATA, FALLBACK_SUMMARY);
     }
 
-    private static ResumeGapVO degradedResumeGap() {
-        return fallbackResumeGap();
+    private static ResumeGapVO loadingResumeGap() {
+        return resumeGapWithMeta(CacheMeta.loading(), NO_DATA, FALLBACK_SUMMARY);
     }
 
     private static ResumeGapVO emptyResumeGap() {
+        return resumeGapWithMeta(CacheMeta.empty(), "", "");
+    }
+
+    private static ResumeGapVO resumeGapWithMeta(CacheMeta meta, String topSuggestion, String aiSummary) {
         ResumeGapVO vo = new ResumeGapVO();
         vo.setHasSkills(List.of());
         vo.setMissingSkills(List.of());
         vo.setMatchScore(0);
-        vo.setTopSuggestion("");
-        vo.setAiSummary("");
+        vo.setTopSuggestion(topSuggestion);
+        vo.setAiSummary(aiSummary);
         vo.setCitations(Collections.emptyList());
         vo.setSourceSummaries(Collections.emptyList());
-        vo.setMeta(CacheMeta.freshNow());
+        vo.setMeta(meta);
         return vo;
     }
 

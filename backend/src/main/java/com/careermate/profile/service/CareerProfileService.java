@@ -8,6 +8,7 @@ import com.careermate.profile.CareerProfileUpdateResult;
 import com.careermate.profile.dto.CareerProfileResponse;
 import com.careermate.profile.dto.CareerProfileUpsertRequest;
 import com.careermate.security.CurrentUserContext;
+import io.micrometer.core.annotation.Timed;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ public class CareerProfileService {
         return getProfile(CurrentUserContext.getUserId());
     }
 
+    @Timed("profile.career.get")
     public CareerProfileResponse getProfile(Long userId) {
         if (userId == null) {
             return emptyResponse();
