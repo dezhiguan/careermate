@@ -14,6 +14,12 @@ public class RagForgeProperties {
     private String url = "http://localhost:8080";
     /** X-API-Key */
     private String apiKey = "";
+    /** Auth Gateway token-exchange requested audience. */
+    private String requestedAudience = "ragforge-api";
+    /** Auth Gateway token-exchange requested scopes. */
+    private String requestedScopes = "rag:search";
+    /** Local exchanged-token cache TTL in milliseconds. */
+    private long exchangedTokenCacheTtlMs = 300000L;
     /** 单次请求超时（毫秒） */
     private int timeoutMs = 1500;
     /** RAGForge 中 JD Pattern KB 的 id；空则禁用 JD 搜索能力 */

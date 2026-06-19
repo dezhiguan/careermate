@@ -116,6 +116,9 @@ careermate:
     enabled: ${RAGFORGE_ENABLED:false}          # true 时才真实调用，false 时跳过（开发期不强依赖）
     url: ${RAGFORGE_URL:http://localhost:8080}
     api-key: ${RAGFORGE_API_KEY:}
+    requested-audience: ${RAGFORGE_REQUESTED_AUDIENCE:ragforge-api}
+    requested-scopes: ${RAGFORGE_REQUESTED_SCOPES:rag:search}
+    exchanged-token-cache-ttl-ms: ${RAGFORGE_EXCHANGED_TOKEN_CACHE_TTL_MS:300000}
     timeout-ms: ${RAGFORGE_TIMEOUT_MS:1500}
     jd-kb-id: ${RAGFORGE_JD_KB_ID:}            # RAGForge 里存放 JD 的知识库 ID
     interview-kb-id: ${RAGFORGE_INTERVIEW_KB_ID:}   # RAGForge 里存放面试题问答的知识库 ID（dev=18）
