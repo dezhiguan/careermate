@@ -1,0 +1,999 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CareerMate 统一认证与权限架构方案 v1.2</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --ink: #162033;
+      --muted: #667085;
+      --line: #d8dee9;
+      --blue: #1d4ed8;
+      --green: #087443;
+      --red: #b42318;
+      --amber: #b54708;
+      --violet: #6d28d9;
+      --slate: #263343;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+      line-height: 1.72;
+    }
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 36px 24px 76px;
+    }
+    header {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(135deg, #ffffff 0%, #edf4ff 58%, #f8fbff 100%);
+      padding: 34px;
+      margin-bottom: 20px;
+    }
+    h1, h2, h3 { line-height: 1.25; margin: 0; }
+    h1 { font-size: 30px; color: #101828; }
+    h2 { font-size: 22px; margin-bottom: 14px; }
+    h3 { font-size: 17px; margin: 20px 0 8px; }
+    p { margin: 8px 0; }
+    .subtitle { color: var(--muted); margin-top: 10px; max-width: 900px; }
+    .meta { color: var(--muted); font-size: 13px; margin-top: 16px; }
+    section {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 18px 0;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .box {
+      border: 1px solid var(--line);
+      background: #fbfcff;
+      border-radius: 10px;
+      padding: 16px;
+      min-height: 100%;
+    }
+    ul { margin: 8px 0 0 20px; padding: 0; }
+    li { margin: 4px 0; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #eef2f7;
+      color: #1f2937;
+      padding: 2px 5px;
+      border-radius: 5px;
+      font-size: 0.92em;
+    }
+    pre {
+      margin: 12px 0 0;
+      padding: 14px 16px;
+      background: #111827;
+      color: #e5e7eb;
+      overflow: auto;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.56;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f2f5fa; color: #344054; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-right: 6px;
+      background: #eef3ff;
+      color: var(--blue);
+      border: 1px solid #c7d7ff;
+    }
+    .tag.new { background: #eaf8f1; color: var(--green); border-color: #bce6d1; }
+    .tag.changed { background: #edf4ff; color: var(--blue); border-color: #bad2ff; }
+    .tag.critical { background: #fff1f0; color: var(--red); border-color: #ffccc7; }
+    .tag.later { background: #fff7ed; color: var(--amber); border-color: #fed7aa; }
+    .tag.v12 { background: #f3eaff; color: var(--violet); border-color: #d8c5ff; }
+    .callout {
+      border-left: 4px solid var(--blue);
+      background: #f3f6ff;
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+    .callout.ok { border-left-color: var(--green); background: #f0fbf6; }
+    .callout.danger { border-left-color: var(--red); background: #fff5f5; }
+    .callout.v12 { border-left-color: var(--violet); background: #faf5ff; }
+    .mark-new { color: var(--green); font-weight: 700; }
+    .mark-changed { color: var(--blue); font-weight: 700; }
+    .mark-critical { color: var(--red); font-weight: 800; }
+    .mark-later { color: var(--amber); font-weight: 700; }
+    .mark-v12 { color: var(--violet); font-weight: 800; }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .step {
+      border: 1px solid var(--line);
+      background: #fbfcff;
+      border-radius: 10px;
+      padding: 12px;
+      min-height: 118px;
+    }
+    .step b { color: var(--blue); }
+    @media (max-width: 900px) {
+      .grid, .grid.two, .flow { grid-template-columns: 1fr; }
+      header, section { padding: 18px; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <h1>CareerMate 统一认证与权限架构方案 v1.2</h1>
+      <p class="subtitle">
+        本版本在 v1.1 基础上闭环 A 类协议级问题：Token Exchange 强制客户端认证、Consent 撤销实时传播、Consent 与 ACL 边界澄清。
+      </p>
+      <p class="meta">版本：v1.2 · 日期：2026-06-18 · 基线：v1.1 · 适用范围：CareerMate、RAGForge、AI Agent、MCP Server、统一认证网关</p>
+      <div class="legend">
+        <span class="tag new">绿色：新增</span>
+        <span class="tag changed">蓝色：按评审修改</span>
+        <span class="tag critical">红色：必须修</span>
+        <span class="tag later">橙色：后续扩展</span>
+        <span class="tag v12">紫色：v1.2 新增</span>
+      </div>
+    </header>
+
+    <section>
+      <h2>0. v1.2 修订摘要</h2>
+      <div class="callout v12">
+        <strong>v1.1 → v1.2 协议级闭环：</strong>本次修订只动协议层，不破坏 v1.1 已定的整体结构。
+      </div>
+      <table>
+        <thead>
+          <tr><th>编号</th><th>修订点</th><th>影响章节</th><th>原因</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>A1</td>
+            <td>Token Exchange 强制客户端认证（mTLS / private_key_jwt / client_secret）</td>
+            <td>§3 §7 §12 §13</td>
+            <td>否则任何拿到用户 access_token 的人都能换下游 token，单 aud 隔离失效。</td>
+          </tr>
+          <tr>
+            <td>A2</td>
+            <td>Consent 撤销实时传播：Auth Gateway 推送撤销事件，RAGForge 维护短缓存 + jti 黑名单</td>
+            <td>§10 §12 §13</td>
+            <td>Agent/MCP 风险等级高于普通用户访问，5-15 分钟自然过期不可接受。</td>
+          </tr>
+          <tr>
+            <td>A3</td>
+            <td>Consent vs ACL 边界澄清：明确两者职责、生效顺序、合取规则</td>
+            <td>§9 §10</td>
+            <td>v1.1 两套权限并存但未划定边界，实施时会引发"该写哪里"的困惑和漏洞。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>1. 核心结论</h2>
+      <div class="callout ok">
+        <strong>最终边界：</strong>Auth Gateway 负责统一认证和 token 签发；CareerMate 是求职业务归属与授权 Source of Truth；RAGForge 是独立多租户 RAG 平台与 KB 权限执行端；Agent/MCP 必须通过受限 delegation 访问资源。
+      </div>
+      <div class="grid">
+        <div class="box">
+          <span class="tag">Auth Gateway</span>
+          <p>统一登录、IDP 验签、JWT 签发、refresh rotation、登出、JWKS、token exchange、delegation token、风险控制。</p>
+          <p><span class="mark-v12">v1.2：</span>token exchange 与 delegation 端点强制客户端认证；新增 consent 撤销事件推送能力。</p>
+        </div>
+        <div class="box">
+          <span class="tag">CareerMate</span>
+          <p>管理用户、个人租户、角色、业务资源、套餐额度、RAG KB 业务绑定。</p>
+          <p><span class="mark-changed">修订：</span>不再给 RAGForge 传可被信任的 X-User-Id；下游从已验签 token 读取 principal。</p>
+        </div>
+        <div class="box">
+          <span class="tag">RAGForge</span>
+          <p>管理知识库、文档、chunk、embedding、检索、评测、KB ACL、审计日志。</p>
+          <p><span class="mark-v12">v1.2：</span>权限判定 = ACL（静态）∩ Consent（用户授权，若调用方为 Agent/MCP）∩ Token Scope。</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>2. 第一版用户、租户、角色关系</h2>
+      <div class="callout">
+        第一版不做企业角色，不做团队 KB，不做跨租户共享。只保留 <code>USER</code>、<code>ADMIN</code>、<code>SERVICE_ACCOUNT</code>，再通过 <code>principal_type</code> 区分 user、service_account、agent、mcp_client、job。
+      </div>
+      <h3>租户模型</h3>
+      <table>
+        <thead>
+          <tr><th>租户类型</th><th>tenant_id</th><th>展示 slug</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>PERSONAL</code></td>
+            <td><span class="mark-changed">独立 UUID / 序列 ID</span></td>
+            <td><code>personal-{userId}</code></td>
+            <td>普通用户默认创建一个个人租户。tenant_id 不再使用 personal-{userId} 作为主键，避免未来迁移企业租户时重写全量数据。</td>
+          </tr>
+          <tr>
+            <td><code>PLATFORM</code></td>
+            <td><code>platform</code> 或固定 UUID</td>
+            <td><code>platform</code></td>
+            <td>平台公共资源空间：公共 JD KB、公共面试 KB、系统配置、同步任务、服务账号。</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>角色模型</h3>
+      <table>
+        <thead>
+          <tr><th>字段</th><th>取值</th><th>含义</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>principal_type</code></td>
+            <td><code>user</code> / <code>service_account</code> / <code>agent</code> / <code>mcp_client</code> / <code>job</code></td>
+            <td>区分调用主体类型，不再把人类角色和服务主体混在 <code>roles</code> 里。</td>
+          </tr>
+          <tr>
+            <td><code>platform_role</code></td>
+            <td><code>USER</code> / <code>ADMIN</code></td>
+            <td>人类用户的平台角色。普通注册用户默认 <code>USER</code>，平台管理员为 <code>ADMIN</code>。</td>
+          </tr>
+          <tr>
+            <td><code>tenant_roles</code></td>
+            <td><code>OWNER</code></td>
+            <td>第一版普通用户在自己的个人租户里是 <code>OWNER</code>。企业角色先预留不实现。</td>
+          </tr>
+          <tr>
+            <td><code>scopes</code></td>
+            <td><code>cm:read</code>、<code>cm:write</code>、<code>rag:search</code> 等</td>
+            <td>动作级授权，token exchange 和 delegation 时必须裁剪到最小范围。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>3. Auth Gateway 职责</h2>
+      <div class="grid two">
+        <div class="box">
+          <h3>认证能力</h3>
+          <ul>
+            <li>手机号验证码、密码、第三方 IDP、企业 SSO 统一入口。</li>
+            <li>IDP token 验签：issuer、audience、nonce、过期时间、公钥 kid。</li>
+            <li>签发单 aud access token、refresh token、service token、delegation token。</li>
+            <li>token exchange：后端用上游 token 换下游单 aud token。</li>
+            <li>JWKS 发布、密钥轮换、token introspection、userinfo。</li>
+            <li><span class="mark-v12">v1.2：</span>OAuth Client Registry：管理 CareerMate 后端、Agent Runtime、MCP Server 等 confidential client 凭证。</li>
+            <li><span class="mark-v12">v1.2：</span>Consent 撤销事件推送：通过 Webhook / 消息队列分发到下游资源服务。</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>运行安全</h3>
+          <ul>
+            <li>风险控制：登录限流、暴力破解防护、异地登录告警。</li>
+            <li>密钥管理：JWT 私钥、service token key、client_secret 存放在 KMS / Vault；开发期可用受限文件。</li>
+            <li>CSRF：Cookie 登录流必须启用 SameSite、Origin 校验和 CSRF token。</li>
+            <li>PII 脱敏：手机号、简历、邮箱、用户画像不得明文写普通日志。</li>
+          </ul>
+        </div>
+      </div>
+      <h3>JWKS 轮换策略</h3>
+      <ul>
+        <li>双 kid 并存窗口不少于 24 小时。</li>
+        <li>下游服务 JWKS 缓存 1 小时；遇到未知 kid 主动回源拉取一次。</li>
+        <li>新 token 用新 kid 签发后，旧 kid 保留到所有旧 access token 与缓存窗口过期。</li>
+      </ul>
+      <h3>风险控制 SLO</h3>
+      <table>
+        <thead>
+          <tr><th>场景</th><th>策略</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>单账号登录失败</td><td>5 分钟 5 次失败，锁定 30 分钟或要求二次验证。</td></tr>
+          <tr><td>单 IP 登录突增</td><td>1 分钟 30 次登录请求，触发图形验证或临时限流。</td></tr>
+          <tr><td>refresh token 重放</td><td>吊销整个 token family，记录高危审计。</td></tr>
+          <tr><td>异地/新设备登录</td><td>记录风险事件，必要时短信或站内通知。</td></tr>
+          <tr><td><span class="mark-v12">token exchange 客户端认证失败</span></td><td><span class="mark-v12">立即拒绝并记录高危审计；连续失败触发该 client 临时停用。</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>4. Token 设计</h2>
+      <div class="callout danger">
+        <strong>必须修：</strong>access token 的 <code>aud</code> 必须是单值。禁止一张 token 同时访问 <code>careermate-api</code>、<code>ragforge-api</code>、<code>mcp-api</code>。
+      </div>
+      <h3>Token 类型</h3>
+      <table>
+        <thead>
+          <tr><th>Token</th><th>aud</th><th>用途</th><th>有效期</th><th>是否给前端</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>access_token</code></td>
+            <td><code>careermate-api</code> 或单一目标服务</td>
+            <td>用户访问当前业务 API。</td>
+            <td>≤ 15 分钟</td>
+            <td>是</td>
+          </tr>
+          <tr>
+            <td><code>refresh_token</code></td>
+            <td><code>auth-gateway</code></td>
+            <td>刷新 access token，只给 Auth Gateway 使用。</td>
+            <td>7-30 天，滑动过期</td>
+            <td>HttpOnly Cookie 或安全存储</td>
+          </tr>
+          <tr>
+            <td><code>exchanged_token</code></td>
+            <td><code>ragforge-api</code> / <code>mcp-api</code></td>
+            <td>CareerMate 后端通过 token exchange 换取下游 token。</td>
+            <td>5-15 分钟</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>delegation_token</code></td>
+            <td><code>ragforge-api</code> 或目标 MCP 服务</td>
+            <td>Agent/MCP 代表用户执行受限操作。</td>
+            <td>5-15 分钟</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>service_token</code></td>
+            <td>指定服务</td>
+            <td>服务账号调用，不代表具体用户。</td>
+            <td>短期；长期凭证仅用于换短 token</td>
+            <td>否</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>用户访问 CareerMate 的 access token 示例</h3>
+      <pre>{
+  "iss": "https://auth.careermate.cn",
+  "aud": "careermate-api",
+  "sub": "user:26",
+  "principal_type": "user",
+  "user_id": 26,
+  "tenant_id": "tn_01J_PERSONAL",
+  "platform_role": "USER",
+  "tenant_roles": [{"tenant_id": "tn_01J_PERSONAL", "role": "OWNER"}],
+  "scopes": ["cm:read", "cm:write"],
+  "session_id": "sid_xxx",
+  "jti": "jti_xxx",
+  "iat": 1781760000,
+  "nbf": 1781760000,
+  "exp": 1781760900
+}</pre>
+      <h3>下游 RAGForge token 示例</h3>
+      <pre>{
+  "iss": "https://auth.careermate.cn",
+  "aud": "ragforge-api",
+  "sub": "user:26",
+  "principal_type": "user",
+  "delegated_by": "service_account:careermate-backend",
+  "user_id": 26,
+  "tenant_id": "tn_01J_PERSONAL",
+  "scopes": ["rag:search"],
+  "allowed_kb_ids": ["kb_public_jd", "kb_public_interview", "kb_resume_26"],
+  "jti": "jti_rag_xxx",
+  "exp": 1781760600
+}</pre>
+    </section>
+
+    <section>
+      <h2>5. 客户端类型与 Token 形态</h2>
+      <table>
+        <thead>
+          <tr><th>客户端</th><th>access token</th><th>refresh token</th><th>额外要求</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Web</td>
+            <td>内存优先；刷新后重取</td>
+            <td>HttpOnly + Secure + SameSite Cookie</td>
+            <td>CSRF token + Origin 校验；跨子域 Cookie 域名需明确。</td>
+          </tr>
+          <tr>
+            <td>Mobile App</td>
+            <td>内存或系统安全存储</td>
+            <td>Keychain / Keystore</td>
+            <td>设备 ID、异常设备风控；后续可 DPoP。</td>
+          </tr>
+          <tr>
+            <td>Desktop App</td>
+            <td>内存或系统凭据管理器</td>
+            <td>系统凭据管理器</td>
+            <td>不落普通配置文件。</td>
+          </tr>
+          <tr>
+            <td>CLI / CI</td>
+            <td>用短期 access token</td>
+            <td>不建议用户 refresh token</td>
+            <td>使用 service account 或一次性 device flow。</td>
+          </tr>
+          <tr>
+            <td>第三方 MCP Client</td>
+            <td>短期 delegated token</td>
+            <td>不下发 refresh token</td>
+            <td>必须 consent + scope 限制 + 可撤销。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>6. 登录、刷新、登出与 session_version</h2>
+      <div class="flow">
+        <div class="step"><b>1. 登录</b><br>客户端到 Auth Gateway 登录或提交 IDP token。</div>
+        <div class="step"><b>2. 建用户</b><br>Auth 创建用户身份，CareerMate 创建个人租户。</div>
+        <div class="step"><b>3. 签发</b><br>签发 <code>aud=careermate-api</code> access token 和 refresh token。</div>
+        <div class="step"><b>4. 访问</b><br>CareerMate 本地验签；需要 RAG 时执行 token exchange。</div>
+        <div class="step"><b>5. 刷新/登出</b><br>refresh 时校验 session_version；登出吊销 token family。</div>
+      </div>
+      <h3>session_version 规则</h3>
+      <ul>
+        <li>下游服务只验签 access token，不每个请求查 session_version。</li>
+        <li>access token 有效期 ≤ 15 分钟，依靠短过期收敛权限变更。</li>
+        <li>refresh 时 Auth Gateway 校验 session_version、用户状态、session 状态。</li>
+        <li>封禁、改密、全端登出等强即时动作：写 Redis JTI 黑名单，并吊销 refresh token family。</li>
+      </ul>
+      <h3>注册与租户创建补偿</h3>
+      <ul>
+        <li>推荐同步创建：Auth Gateway 创建 user 后调用 CareerMate 创建 personal tenant；成功后才完成登录。</li>
+        <li>CareerMate 创建失败时，Auth Gateway 标记用户为 <code>PENDING_PROFILE</code>，返回可重试错误，不签发业务 token。</li>
+        <li>后台补偿任务扫描 <code>PENDING_PROFILE</code> 用户并补建租户。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>7. Token Exchange <span class="tag v12">v1.2 改</span></h2>
+      <div class="callout danger">
+        <strong>v1.2 强化：</strong>token exchange 端点必须执行<strong>双重认证</strong>——既验 subject_token，也验调用方客户端身份。仅有用户 access_token 不足以换取下游 token。
+      </div>
+
+      <h3>7.1 客户端注册</h3>
+      <p>所有有权调用 token exchange 的服务必须在 Auth Gateway 注册为 confidential OAuth client，获取 <code>client_id</code> 与凭证。</p>
+      <table>
+        <thead>
+          <tr><th>client_id 示例</th><th>归属</th><th>允许的 grant_type</th><th>允许的 requested_audience</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>careermate-backend</code></td>
+            <td>CareerMate API 服务</td>
+            <td>token-exchange、client_credentials</td>
+            <td><code>ragforge-api</code>、<code>mcp-api</code></td>
+          </tr>
+          <tr>
+            <td><code>careermate-agent-runtime</code></td>
+            <td>Agent 编排服务</td>
+            <td>token-exchange、delegation-token</td>
+            <td><code>ragforge-api</code></td>
+          </tr>
+          <tr>
+            <td><code>mcp-gateway</code></td>
+            <td>MCP Server 入口</td>
+            <td>delegation-token</td>
+            <td><code>ragforge-api</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>7.2 客户端认证方式（任选其一，按等级递增）</h3>
+      <table>
+        <thead>
+          <tr><th>方式</th><th>适用环境</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>client_secret_basic</code></td>
+            <td>开发期、内网</td>
+            <td>HTTP Basic 携带 client_id:client_secret；secret 必须存 KMS / Vault。</td>
+          </tr>
+          <tr>
+            <td><code>private_key_jwt</code></td>
+            <td><span class="mark-v12">生产推荐</span></td>
+            <td>客户端用本地私钥签发短期 JWT 作为 client_assertion；Auth Gateway 通过预登记的客户端公钥验签。无 secret 落地泄漏风险。</td>
+          </tr>
+          <tr>
+            <td><code>mTLS</code></td>
+            <td>对内服务、高敏感链路</td>
+            <td>双向 TLS；client 证书由内部 CA 签发。可与 private_key_jwt 叠加使用。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>7.3 完整流程</h3>
+      <pre>Web Client
+  -> CareerMate API: Authorization: Bearer aud=careermate-api
+CareerMate API (client_id=careermate-backend)
+  -> Auth Gateway /oauth/token-exchange:
+       # 客户端认证
+       Authorization: Basic base64(client_id:client_secret)
+       # 或 client_assertion=&lt;private_key_jwt&gt;
+       # 或 mTLS 客户端证书
+       # 业务参数
+       subject_token = user access token
+       subject_token_type = urn:ietf:params:oauth:token-type:access_token
+       requested_audience = ragforge-api
+       requested_scopes = rag:search
+       resource = kb_resume_26
+Auth Gateway
+  -> 校验客户端身份（client_secret / JWT 签名 / mTLS 证书）
+  -> 校验 subject_token（验签 + aud=careermate-api + 用户状态）
+  -> 校验该 client_id 允许换取 requested_audience
+  -> 裁剪 scope 至 client 允许范围 ∩ 用户已有 scope
+  -> 返回 exchanged_token aud=ragforge-api
+CareerMate API
+  -> RAGForge: Authorization: Bearer exchanged_token</pre>
+
+      <h3>7.4 Token Exchange API</h3>
+      <pre>POST /oauth/token-exchange
+Authorization: Basic &lt;client_id:client_secret&gt;
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=urn:ietf:params:oauth:grant-type:token-exchange
+&subject_token=...
+&subject_token_type=urn:ietf:params:oauth:token-type:access_token
+&requested_audience=ragforge-api
+&requested_scopes=rag:search
+&resource=kb_public_jd
+&resource=kb_resume_26</pre>
+
+      <h3>7.5 Auth Gateway 必须校验</h3>
+      <ul>
+        <li><span class="mark-v12">客户端身份合法且未停用。</span></li>
+        <li><span class="mark-v12">该 client_id 在白名单允许换取的 <code>requested_audience</code> 内。</span></li>
+        <li>subject_token 验签通过、<code>aud=careermate-api</code>、未过期、用户状态正常。</li>
+        <li>用户拥有 <code>requested_scopes</code> 的上游权限；最终 scope = client 允许 ∩ 用户已有，禁止扩权。</li>
+        <li>CareerMate 在发起 exchange 前必须先判断用户是否拥有该业务资源（owner / binding 校验）。</li>
+      </ul>
+
+      <div class="callout danger">
+        <span class="mark-v12">禁止：</span>任何无客户端认证的 token exchange 请求；任何把上游 scope 原样透传到下游 token 的实现。
+      </div>
+    </section>
+
+    <section>
+      <h2>8. CareerMate ↔ RAGForge 状态同步</h2>
+      <div class="callout">
+        <strong>明确 SoT：</strong>CareerMate 是业务资源归属 Source of Truth；RAGForge 是 KB ACL 执行 Source of Truth。二者通过领域事件同步，并用日级对账发现漂移。
+      </div>
+      <table>
+        <thead>
+          <tr><th>事件</th><th>触发方</th><th>RAGForge 动作</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>user.deleted</code></td><td>CareerMate</td><td>撤销该用户 personal KB ACL，停止检索，按数据保留策略删除或冻结文档。</td></tr>
+          <tr><td><code>user.disabled</code></td><td>CareerMate</td><td>拒绝该用户相关 delegation 和 KB 查询。</td></tr>
+          <tr><td><code>rag.binding.created</code></td><td>CareerMate</td><td>创建或更新 KB 归属、owner、visibility、ACL。</td></tr>
+          <tr><td><code>rag.binding.revoked</code></td><td>CareerMate</td><td>撤销对应 KB ACL，拒绝后续检索。</td></tr>
+          <tr><td><code>plan.downgraded</code></td><td>CareerMate</td><td>降级 KB 额度、禁用高级检索或写入能力。</td></tr>
+        </tbody>
+      </table>
+      <h3>对账任务</h3>
+      <ul>
+        <li>每日比对 <code>rag_kb_bindings</code> 与 RAGForge <code>knowledge_bases</code> / <code>kb_acl</code>。</li>
+        <li>发现 owner、tenant、visibility、状态不一致时生成告警和修复任务。</li>
+        <li>RAGForge 检索时仍做实时权限校验，不能只依赖同步正确。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>9. RAGForge 权限执行 <span class="tag v12">v1.2 改</span></h2>
+      <h3>9.1 KB 可见性</h3>
+      <table>
+        <thead>
+          <tr><th>visibility</th><th>第一版用途</th><th>访问规则</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>PUBLIC</code></td><td>公共 JD KB、公共面试 KB</td><td>登录用户可读；只有 ADMIN 或授权服务账号可写。</td></tr>
+          <tr><td><code>PRIVATE</code></td><td>个人简历 KB、个人上下文 KB</td><td>owner 本人或 delegated Agent 可读写；必须校验 owner_user_id。</td></tr>
+          <tr><td><code>SYSTEM</code></td><td>系统 prompt、内部规则、平台运营知识</td><td>只允许服务账号读取；普通用户和前端不可直接访问。</td></tr>
+          <tr><td><code>TENANT</code></td><td><span class="mark-later">预留企业版</span></td><td>第一版不实现。</td></tr>
+        </tbody>
+      </table>
+
+      <h3>9.2 权限判定公式 <span class="tag v12">v1.2 新</span></h3>
+      <div class="callout v12">
+        <strong>RAGForge 每次访问都执行：</strong><br>
+        <code>allow = Token.valid ∧ Token.scope ⊇ required_scope ∧ ACL.permits(principal, kb, action) ∧ (principal_type ∉ {agent, mcp_client} ∨ Consent.permits(delegated_user, principal, kb, action))</code>
+      </div>
+      <p>三层判定的语义如下：</p>
+      <table>
+        <thead>
+          <tr><th>层</th><th>检查内容</th><th>来源</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1. Token</td>
+            <td>验签、aud、过期、scope、jti 黑名单。</td>
+            <td>JWT claims + Redis 黑名单</td>
+          </tr>
+          <tr>
+            <td>2. ACL（静态权限）</td>
+            <td>principal 对 KB 是否有 <code>read</code> / <code>write</code> / <code>admin</code> 权限。<br>对 user：检查 owner / visibility / kb_acl。<br>对 service_account：检查 kb_acl 中的显式条目。</td>
+            <td>RAGForge <code>kb_acl</code> 表 + KB 自身 owner/visibility</td>
+          </tr>
+          <tr>
+            <td>3. Consent（动态授权，仅 agent / mcp_client）</td>
+            <td>校验调用方是否被 <code>delegated_user</code> 显式授权访问此 KB 与此 action。</td>
+            <td>RAGForge 本地 consent 缓存（订阅自 Auth Gateway）</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>9.3 RAGForge 每次检索必须执行</h3>
+      <ul>
+        <li>验签 JWT，校验单一 <code>aud=ragforge-api</code>。</li>
+        <li>从 token claims 提取 <code>principal_type</code>、<code>user_id</code>、<code>tenant_id</code>、<code>scopes</code>、<code>allowed_kb_ids</code>、<code>delegated_user_id</code>、<code>consent_id</code>。</li>
+        <li>校验 scope 包含 <code>rag:search</code>。</li>
+        <li>校验目标 KB 在 <code>allowed_kb_ids</code> 内，或符合 PUBLIC / owner / SYSTEM 规则。</li>
+        <li>对静态权限查 <code>kb_acl</code> + KB owner/visibility。</li>
+        <li><span class="mark-v12">若 principal_type 是 agent / mcp_client：查本地 consent 缓存，校验 consent_id 仍有效且涵盖此 KB 与 action。</span></li>
+        <li>向量检索和 chunk 查询必须附加 tenant、kb、visibility 过滤条件。</li>
+        <li>写审计日志，记录 principal、delegated user、kb、scope、consent_id、结果数量、耗时。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>10. Agent / MCP Delegation <span class="tag v12">v1.2 改</span></h2>
+      <div class="callout danger">
+        <strong>必须修：</strong>delegation token 必须由 Auth Gateway 签发。Agent/MCP 首次代表用户访问 RAGForge 时必须有 consent 记录，RAGForge 只通过 JWKS 验签和 claims 校验，不信任调用方自报。
+      </div>
+
+      <h3>10.1 Consent vs ACL：职责边界 <span class="tag v12">v1.2 新</span></h3>
+      <div class="callout v12">
+        Consent 和 ACL 不是替代关系，而是<strong>合取</strong>关系：一个 Agent 请求被放行的前提是 <em>它本身有 ACL 权限</em>，<em>且</em> <em>它代表的用户给它了 consent</em>。
+      </div>
+      <table>
+        <thead>
+          <tr><th>对比项</th><th>ACL</th><th>Consent</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>授权对象</td>
+            <td>principal（user / service_account / agent / mcp_client）对 KB 的静态权限</td>
+            <td>用户对 agent / mcp_client 的动态授权</td>
+          </tr>
+          <tr>
+            <td>授权方</td>
+            <td>平台管理员、KB owner（CareerMate 后端触发同步）</td>
+            <td>普通用户本人（前端 consent 流程）</td>
+          </tr>
+          <tr>
+            <td>生命周期</td>
+            <td>长期；显式增删</td>
+            <td>短期；用户可随时撤销；可设过期</td>
+          </tr>
+          <tr>
+            <td>存储位置</td>
+            <td>RAGForge <code>kb_acl</code> 表</td>
+            <td>Auth Gateway <code>agent_consents</code> 表 + RAGForge 本地缓存</td>
+          </tr>
+          <tr>
+            <td>典型场景</td>
+            <td>"<code>careermate-agent</code> 服务账号有权读 <code>PUBLIC_JD</code> 类型的所有 KB"</td>
+            <td>"user:26 授权 <code>careermate-agent</code> 在 30 天内代表自己访问 <code>kb_resume_26</code>"</td>
+          </tr>
+          <tr>
+            <td>RAGForge 判定时机</td>
+            <td>每次请求</td>
+            <td>每次请求（仅当 principal_type 为 agent / mcp_client）</td>
+          </tr>
+          <tr>
+            <td>若仅有一方通过</td>
+            <td>仍拒绝</td>
+            <td>仍拒绝</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>10.2 决策矩阵</h3>
+      <table>
+        <thead>
+          <tr><th>principal_type</th><th>ACL 检查</th><th>Consent 检查</th><th>合取结果</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>user（本人访问自己 KB）</td><td>owner 校验</td><td>跳过</td><td>仅看 ACL</td></tr>
+          <tr><td>service_account（后台同步）</td><td>kb_acl 显式条目</td><td>跳过</td><td>仅看 ACL</td></tr>
+          <tr><td>agent / mcp_client</td><td>kb_acl 显式条目</td><td>consent 涵盖 (user, kb, action)</td><td>两者皆需通过</td></tr>
+          <tr><td>job（后台任务）</td><td>kb_acl 显式条目</td><td>跳过</td><td>仅看 ACL</td></tr>
+        </tbody>
+      </table>
+
+      <h3>10.3 Consent 记录</h3>
+      <table>
+        <thead>
+          <tr><th>字段</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>consent_id</code></td><td>授权记录 ID。</td></tr>
+          <tr><td><code>user_id</code></td><td>授权用户。</td></tr>
+          <tr><td><code>client_principal_id</code></td><td>Agent 或 MCP Client。</td></tr>
+          <tr><td><code>tenant_id</code></td><td>授权生效租户。</td></tr>
+          <tr><td><code>scopes</code></td><td>允许动作，例如 <code>rag:search</code>。</td></tr>
+          <tr><td><code>allowed_kb_types</code> / <code>allowed_kb_ids</code></td><td>允许访问的 KB 范围。</td></tr>
+          <tr><td><code>expires_at</code> / <code>revoked_at</code></td><td>授权过期与撤销。</td></tr>
+        </tbody>
+      </table>
+
+      <h3>10.4 Delegation Token 示例</h3>
+      <pre>{
+  "iss": "https://auth.careermate.cn",
+  "aud": "ragforge-api",
+  "sub": "agent:careermate-agent",
+  "principal_type": "agent",
+  "principal_id": "careermate-agent",
+  "delegated_user_id": 26,
+  "delegated_tenant_id": "tn_01J_PERSONAL",
+  "consent_id": "consent_xxx",
+  "scopes": ["rag:search"],
+  "allowed_kb_types": ["PUBLIC_JD", "PUBLIC_INTERVIEW", "PERSONAL_RESUME"],
+  "allowed_kb_ids": ["kb_public_jd", "kb_public_interview", "kb_resume_26"],
+  "jti": "jti_delegation_xxx",
+  "exp": 1781760600
+}</pre>
+
+      <h3>10.5 Consent 撤销实时传播 <span class="tag v12">v1.2 新</span></h3>
+      <div class="callout v12">
+        <strong>问题：</strong>delegation token 有效期 5-15 分钟，单纯靠自然过期不足以保障 Agent/MCP 场景的撤销时效（用户撤销后到 token 过期前的窗口内，Agent 仍能访问私密 KB）。
+      </div>
+      <p><strong>方案：</strong>三层防御组合，撤销在 60 秒内全链路生效。</p>
+      <table>
+        <thead>
+          <tr><th>层</th><th>机制</th><th>时效</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1. 阻断签发新 token</td>
+            <td>Auth Gateway 撤销 consent 后，<code>/oauth/delegation-token</code> 立即拒绝同 consent_id 的换取请求。</td>
+            <td>立即生效</td>
+          </tr>
+          <tr>
+            <td>2. 推送撤销事件</td>
+            <td>Auth Gateway 通过 Webhook / 消息队列把 <code>consent.revoked</code> 推送给 RAGForge 及其它资源服务，事件含 <code>consent_id</code>、<code>jti_list</code>（可选）。</td>
+            <td>≤ 5 秒（同集群内）</td>
+          </tr>
+          <tr>
+            <td>3. RAGForge 本地校验</td>
+            <td>RAGForge 维护 consent 缓存（TTL ≤ 60s）和 jti 黑名单（保留至 token exp）；每次检索查这两者。订阅事件后立即更新缓存。</td>
+            <td>≤ 缓存 TTL（最坏 60 秒）</td>
+          </tr>
+        </tbody>
+      </table>
+      <h4>事件结构</h4>
+      <pre>POST {subscriber}/events/consent-revoked
+Authorization: Bearer &lt;service_token aud=subscriber&gt;
+X-Event-Signature: &lt;HMAC of body&gt;
+
+{
+  "event_type": "consent.revoked",
+  "event_id": "evt_xxx",
+  "occurred_at": 1781760000,
+  "consent_id": "consent_xxx",
+  "user_id": 26,
+  "client_principal_id": "careermate-agent",
+  "active_jtis": ["jti_delegation_xxx", "jti_delegation_yyy"]
+}</pre>
+      <ul>
+        <li>事件签名用 HMAC 防伪造；订阅方必须校验签名后才更新本地状态。</li>
+        <li>事件投递必须至少一次（at-least-once），订阅方按 <code>event_id</code> 幂等去重。</li>
+        <li>RAGForge 启动时主动拉取最近 24h 的 <code>active</code> consent 全量快照，避免事件丢失导致漂移。</li>
+        <li><span class="mark-v12">兜底：</span>若事件通道异常，缓存 TTL 60s 仍能限制最大暴露时间。</li>
+      </ul>
+
+      <h3>10.6 用户视角</h3>
+      <ul>
+        <li>用户在 CareerMate 设置页可查看已授权的 Agent / MCP Client 列表（来自 Auth Gateway <code>/oauth/consents</code>）。</li>
+        <li>撤销操作前端 → CareerMate → Auth Gateway <code>POST /oauth/consents/{consent_id}/revoke</code>，撤销后立即返回成功，并异步触发 §10.5 的传播流程。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>11. 服务间调用规范</h2>
+      <div class="callout danger">
+        <strong>必须遵守：</strong>安全主体信息只能来自已验签 token。<code>X-User-Id</code>、<code>X-Tenant-Id</code>、<code>X-User-Roles</code> 不能作为鉴权依据。
+      </div>
+      <h3>允许的 Header</h3>
+      <pre>Authorization: Bearer &lt;single-aud-token&gt;
+X-Request-Id: req_xxx
+X-Trace-Id: trace_xxx</pre>
+      <h3>禁止作为权限依据的 Header</h3>
+      <pre>X-User-Id: 26
+X-Tenant-Id: tn_xxx
+X-User-Roles: USER
+X-Delegated-By: careermate-backend</pre>
+      <p>这些字段如果需要排查可以写入日志，但不能参与鉴权。鉴权必须读取 JWT claims。</p>
+    </section>
+
+    <section>
+      <h2>12. 数据表建议 <span class="tag v12">v1.2 改</span></h2>
+      <table>
+        <thead>
+          <tr><th>系统</th><th>表</th><th>关键字段</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Auth Gateway</td><td><code>auth_users</code></td><td><code>id</code>, <code>phone_hash</code>, <code>email_hash</code>, <code>status</code>, <code>session_version</code>, <code>created_at</code></td></tr>
+          <tr><td>Auth Gateway</td><td><code>auth_sessions</code></td><td><code>session_id</code>, <code>user_id</code>, <code>device_id</code>, <code>session_version</code>, <code>revoked_at</code></td></tr>
+          <tr><td>Auth Gateway</td><td><code>refresh_tokens</code></td><td><code>token_hash</code>, <code>family_id</code>, <code>session_id</code>, <code>expires_at</code>, <code>rotated_at</code>, <code>revoked_at</code></td></tr>
+          <tr><td>Auth Gateway</td><td><code>agent_consents</code></td><td><code>consent_id</code>, <code>user_id</code>, <code>client_principal_id</code>, <code>scopes</code>, <code>allowed_kb_ids</code>, <code>expires_at</code>, <code>revoked_at</code></td></tr>
+          <tr>
+            <td>Auth Gateway</td>
+            <td><span class="mark-v12"><code>oauth_clients</code></span></td>
+            <td><span class="mark-v12"><code>client_id</code>, <code>client_name</code>, <code>auth_method</code>（client_secret / private_key_jwt / mtls）, <code>secret_hash</code>, <code>jwks_uri</code>, <code>mtls_subject_dn</code>, <code>allowed_grant_types</code>, <code>allowed_audiences</code>, <code>status</code></span></td>
+          </tr>
+          <tr>
+            <td>Auth Gateway</td>
+            <td><span class="mark-v12"><code>event_subscriptions</code></span></td>
+            <td><span class="mark-v12"><code>id</code>, <code>subscriber</code>（如 ragforge）, <code>event_types</code>, <code>endpoint_url</code>, <code>hmac_key_id</code>, <code>status</code></span></td>
+          </tr>
+          <tr><td>CareerMate</td><td><code>tenants</code></td><td><code>tenant_id</code>, <code>tenant_slug</code>, <code>tenant_type</code>, <code>owner_user_id</code>, <code>status</code></td></tr>
+          <tr><td>CareerMate</td><td><code>tenant_members</code></td><td><code>tenant_id</code>, <code>user_id</code>, <code>role</code>, <code>status</code></td></tr>
+          <tr><td>CareerMate</td><td><code>rag_kb_bindings</code></td><td><code>kb_id</code>, <code>kb_type</code>, <code>tenant_id</code>, <code>owner_user_id</code>, <code>resource_type</code>, <code>resource_id</code>, <code>status</code></td></tr>
+          <tr><td>RAGForge</td><td><code>principals</code></td><td><code>principal_type</code>, <code>principal_id</code>, <code>tenant_scope</code>, <code>scopes</code>, <code>status</code></td></tr>
+          <tr><td>RAGForge</td><td><code>knowledge_bases</code></td><td><code>kb_id</code>, <code>tenant_id</code>, <code>owner_user_id</code>, <code>visibility</code>, <code>kb_type</code>, <code>status</code></td></tr>
+          <tr><td>RAGForge</td><td><code>kb_acl</code></td><td><code>kb_id</code>, <code>principal_type</code>, <code>principal_id</code>, <code>permission</code>, <code>expires_at</code></td></tr>
+          <tr>
+            <td>RAGForge</td>
+            <td><span class="mark-v12"><code>consent_cache</code></span></td>
+            <td><span class="mark-v12"><code>consent_id</code>, <code>user_id</code>, <code>client_principal_id</code>, <code>allowed_kb_ids</code>, <code>scopes</code>, <code>expires_at</code>, <code>revoked_at</code>, <code>last_synced_at</code>（订阅自 Auth Gateway 事件，作为本地缓存）</span></td>
+          </tr>
+          <tr>
+            <td>RAGForge</td>
+            <td><span class="mark-v12"><code>jti_blacklist</code>（Redis）</span></td>
+            <td><span class="mark-v12">key=<code>jti</code>，value=过期时间戳；consent 撤销时批量写入对应活跃 jti。</span></td>
+          </tr>
+          <tr>
+            <td>RAGForge</td>
+            <td><code>rag_audit_logs</code></td>
+            <td><code>principal_id</code>, <code>delegated_user_id</code>, <code>kb_id</code>, <code>action</code>, <code>scope_used</code>, <code>consent_id</code>, <code>ip_hash</code>, <code>ua_hash</code>, <code>request_payload_hash</code>, <code>result_count</code>, <code>latency_ms</code>, <code>trace_id</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>13. API 草案 <span class="tag v12">v1.2 改</span></h2>
+      <div class="grid two">
+        <div class="box">
+          <h3>Auth Gateway</h3>
+          <ul>
+            <li><code>POST /auth/login/mobile</code></li>
+            <li><code>POST /auth/login/password</code></li>
+            <li><code>POST /auth/login/idp</code></li>
+            <li><code>POST /auth/token/refresh</code></li>
+            <li><code>POST /auth/logout</code></li>
+            <li><code>POST /auth/logout-all</code></li>
+            <li><code>POST /oauth/token-exchange</code> <span class="mark-v12">（要求客户端认证）</span></li>
+            <li><code>POST /oauth/delegation-token</code> <span class="mark-v12">（要求客户端认证）</span></li>
+            <li><code>POST /oauth/consents</code></li>
+            <li><span class="mark-v12"><code>GET /oauth/consents</code> 列出用户已授权 Agent</span></li>
+            <li><span class="mark-v12"><code>POST /oauth/consents/{consent_id}/revoke</code> 撤销 consent，触发事件推送</span></li>
+            <li><span class="mark-v12"><code>POST /admin/oauth/clients</code> 注册 confidential client</span></li>
+            <li><span class="mark-v12"><code>POST /admin/event-subscriptions</code> 管理下游事件订阅</span></li>
+            <li><code>GET /.well-known/jwks.json</code></li>
+            <li><code>POST /oauth/introspect</code></li>
+            <li><code>GET /userinfo</code></li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>RAGForge</h3>
+          <ul>
+            <li><code>POST /api/v1/kb/{kbId}/search</code></li>
+            <li><code>POST /api/v1/kb/{kbId}/documents</code></li>
+            <li><code>DELETE /api/v1/documents/{docId}</code></li>
+            <li><code>POST /api/v1/principals</code></li>
+            <li><code>POST /api/v1/kb/{kbId}/acl</code> <span class="mark-changed">（仅静态 ACL，不再涉及 user → agent 授权）</span></li>
+            <li><code>GET /api/v1/audit-logs</code></li>
+            <li><span class="mark-v12"><code>POST /api/v1/events/consent-revoked</code> 接收 Auth Gateway 事件（HMAC 校验）</span></li>
+            <li><span class="mark-v12"><code>POST /api/v1/consents/sync</code> 启动时全量拉取兜底</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>14. 分阶段落地 <span class="tag v12">v1.2 微调</span></h2>
+      <table>
+        <thead>
+          <tr><th>阶段</th><th>目标</th><th>验收标准</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>P0</td>
+            <td>协议定稿：单 aud、token exchange（含<span class="mark-v12">客户端认证</span>）、claims 拆分、禁止 principal header、session_version 路径。</td>
+            <td>伪造 aud、复用下游 token、header 冒充用户、<span class="mark-v12">无客户端认证的 token exchange</span> 均被拒绝。</td>
+          </tr>
+          <tr>
+            <td>P1</td>
+            <td>Auth Gateway 上线：登录、刷新、登出、JWKS 轮换、风控、CSRF、密钥管理、<span class="mark-v12">oauth_clients 注册</span>。</td>
+            <td>refresh rotation 生效；登出后 refresh 不可用；未知 kid 可回源刷新 JWKS；<span class="mark-v12">private_key_jwt 客户端认证通过端到端联调。</span></td>
+          </tr>
+          <tr>
+            <td>P2</td>
+            <td>CareerMate 租户与 RAG 绑定：独立 tenant_id、rag_kb_bindings、领域事件。</td>
+            <td>用户注销、禁用、解绑后，RAGForge 权限状态能同步并可对账。</td>
+          </tr>
+          <tr>
+            <td>P3</td>
+            <td>RAGForge 权限执行：KB ACL、检索过滤、<span class="mark-v12">三层判定（Token + ACL + Consent）</span>、审计字段扩充。</td>
+            <td>跨用户个人 KB 检索、写公共 KB、SYSTEM KB 前端访问均被拒绝。</td>
+          </tr>
+          <tr>
+            <td>P4</td>
+            <td>Agent/MCP delegation：consent、delegation token、<span class="mark-v12">consent 撤销事件推送 + RAGForge 缓存 + jti 黑名单</span>。</td>
+            <td>Agent/MCP 只能查用户授权 KB；撤销 consent 后<span class="mark-v12">≤ 60 秒</span>内全链路不可用，已签发 token 写入 jti 黑名单。</td>
+          </tr>
+          <tr>
+            <td>P5</td>
+            <td>管理后台。</td>
+            <td>可管理用户状态、管理员角色、服务账号、公共 KB、授权记录和审计日志。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>15. 第一版非目标</h2>
+      <ul>
+        <li><span class="mark-later">企业租户、ORG_ADMIN、ORG_MEMBER、团队 KB。</span></li>
+        <li><span class="mark-later">跨租户共享 KB。</span></li>
+        <li><span class="mark-later">DPoP / mTLS token binding（与服务间 mTLS 不冲突；这里指用户 token 设备绑定）。</span></li>
+        <li><span class="mark-later">完整 OAuth 第三方开放平台。</span></li>
+        <li><span class="mark-changed">长期 API Key 不给普通用户开放；如需给第三方系统，必须走 service account + 短 token 交换。</span></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>16. 必须避免的错误</h2>
+      <ul>
+        <li>一张 access token 同时包含多个 aud。</li>
+        <li>RAGForge 只凭 <code>kbId</code> 放行检索。</li>
+        <li>下游服务信任 <code>X-User-Id</code>、<code>X-Tenant-Id</code> 等 principal header。</li>
+        <li>refresh token 不轮换，泄漏后无法发现重放。</li>
+        <li>Agent/MCP 没有 consent 就代表用户检索私有 KB。</li>
+        <li>RAGForge 检索不加 tenant / kb / visibility 过滤条件。</li>
+        <li>管理员默认可以直接读取用户简历、个人 KB。</li>
+        <li>审计日志记录明文手机号、简历正文或完整 prompt。</li>
+        <li><span class="mark-v12">Token exchange / delegation-token 端点不做客户端认证，仅凭 subject_token 放行。</span></li>
+        <li><span class="mark-v12">Consent 撤销后只靠 token 自然过期，不通知下游资源服务。</span></li>
+        <li><span class="mark-v12">把 user → agent 的 consent 写到 RAGForge 的 kb_acl 表里（应该写到 Auth Gateway 的 agent_consents）。</span></li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
