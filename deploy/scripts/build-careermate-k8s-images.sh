@@ -5,6 +5,8 @@
 #   bash deploy/scripts/build-careermate-k8s-images.sh
 #   SKIP_BACKEND_BUILD=1 bash deploy/scripts/build-careermate-k8s-images.sh
 #   SKIP_FRONTEND_BUILD=1 bash deploy/scripts/build-careermate-k8s-images.sh
+#   SKIP_BACKEND_IMAGE_BUILD=1 bash deploy/scripts/build-careermate-k8s-images.sh
+#   SKIP_FRONTEND_IMAGE_BUILD=1 bash deploy/scripts/build-careermate-k8s-images.sh
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,6 +27,18 @@ import_image() {
   fi
 }
 
+require_k3s_image() {
+  local image="$1"
+  if ! command -v k3s >/dev/null 2>&1; then
+    echo "ERROR: k3s not found; cannot verify existing image: ${image}" >&2
+    exit 1
+  fi
+  if ! sudo k3s ctr images ls | grep -F "${image}" >/dev/null 2>&1; then
+    echo "ERROR: SKIP_*_IMAGE_BUILD=1 but image is missing from k3s containerd: ${image}" >&2
+    exit 1
+  fi
+}
+
 if [[ "${SKIP_BACKEND_BUILD:-0}" != "1" ]]; then
   if command -v mvn >/dev/null 2>&1; then
     echo "[backend] mvn package"
@@ -38,17 +52,24 @@ if [[ "${SKIP_BACKEND_BUILD:-0}" != "1" ]]; then
   fi
 fi
 
-if [[ ! -f "${JAR_FILE}" ]]; then
-  echo "ERROR: backend JAR not found: ${JAR_FILE}" >&2
-  exit 1
+if [[ "${SKIP_BACKEND_IMAGE_BUILD:-0}" == "1" ]]; then
+  echo "[backend] skip docker build/import; verifying k3s image exists: ${BACKEND_IMAGE}"
+  require_k3s_image "${BACKEND_IMAGE}"
+else
+  if [[ ! -f "${JAR_FILE}" ]]; then
+    echo "ERROR: backend JAR not found: ${JAR_FILE}" >&2
+    exit 1
+  fi
+  echo "[backend] docker build -> ${BACKEND_IMAGE}"
+  docker build -f backend/Dockerfile -t "${BACKEND_IMAGE}" backend/
+  import_image "${BACKEND_IMAGE}"
 fi
 
-echo "[backend] docker build -> ${BACKEND_IMAGE}"
-docker build -f backend/Dockerfile -t "${BACKEND_IMAGE}" backend/
-import_image "${BACKEND_IMAGE}"
-
 FRONTEND_DIST="${REPO_ROOT}/frontend/careermate/dist"
-if [[ "${SKIP_FRONTEND_BUILD:-0}" == "1" ]]; then
+if [[ "${SKIP_FRONTEND_IMAGE_BUILD:-0}" == "1" ]]; then
+  echo "[frontend] skip docker build/import; verifying k3s image exists: ${FRONTEND_IMAGE}"
+  require_k3s_image "${FRONTEND_IMAGE}"
+elif [[ "${SKIP_FRONTEND_BUILD:-0}" == "1" ]]; then
   if [[ ! -d "${FRONTEND_DIST}" ]] || [[ -z "$(ls -A "${FRONTEND_DIST}" 2>/dev/null || true)" ]]; then
     echo "ERROR: SKIP_FRONTEND_BUILD=1 but pre-built dist missing or empty: ${FRONTEND_DIST}" >&2
     exit 1
@@ -64,7 +85,10 @@ else
     --build-arg VITE_BASE_PATH=/ \
     -t "${FRONTEND_IMAGE}" .
 fi
-import_image "${FRONTEND_IMAGE}"
+
+if [[ "${SKIP_FRONTEND_IMAGE_BUILD:-0}" != "1" ]]; then
+  import_image "${FRONTEND_IMAGE}"
+fi
 
 echo ""
 echo "Images ready:"
