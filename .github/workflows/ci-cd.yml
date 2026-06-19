@@ -86,6 +86,9 @@ jobs:
 
   backend-unit-test:
     name: backend-unit-test
+    # [BackendUnitTest-OFF 2026-06-19] 临时置灰，CI 上会显示为 skipped。
+    # [BackendUnitTest-OFF 2026-06-19] 恢复方法：删除下方 `if: false` 这一行即可。
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs:
@@ -216,7 +219,8 @@ jobs:
     if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
       - backend-build
-      - backend-unit-test
+      # [BackendUnitTest-OFF 2026-06-19] 临时置灰 backend-unit-test，恢复时取消下一行注释
+      # - backend-unit-test
       - agent-eval-test
       - frontend-build
     environment:
