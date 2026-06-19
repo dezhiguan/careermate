@@ -26,6 +26,8 @@ public class UserEntity {
 
     private String phone;
 
+    private Long authUserId;
+
     private Boolean phoneVerified;
 
     private OffsetDateTime phoneVerifiedAt;

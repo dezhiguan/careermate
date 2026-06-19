@@ -128,7 +128,12 @@ public class MobileAuthService {
         smsAuthRateLimiter.checkLoginAllowed(scene, phoneHash, ipHash, maskedPhone, traceId);
         smsAuthRateLimiter.recordLoginAttempt(scene, phoneHash, ipHash);
 
-        String challengeHash = TokenReplayGuard.hashOutId(request.getOutId(), pepper());
+        String challengeId = request.resolveChallengeId();
+        if (challengeId == null) {
+            smsAuthRateLimiter.recordLoginFailure(scene, phoneHash);
+            throw new BizException(ErrorCode.MOBILE_AUTH_EXPIRED);
+        }
+        String challengeHash = TokenReplayGuard.hashOutId(challengeId, pepper());
         tokenReplayGuard.assertChallengeNotUsed(scene, challengeHash);
         if (!smsAuthRateLimiter.matchesPendingChallenge(scene, phoneHash, challengeHash)) {
             smsAuthRateLimiter.recordLoginFailure(scene, phoneHash);
@@ -172,6 +177,9 @@ public class MobileAuthService {
             user.setPhoneVerifiedAt(OffsetDateTime.now(ZoneOffset.UTC));
             userMapper.updateById(user);
         }
+
+        Long authUserId = jwtTokenProvider.getUserId(tokenResponse.getAccessToken());
+        syncAuthUserId(user, authUserId);
 
         auditService.recordSuccess(user.getId(), AuditActionType.MOBILE_LOGIN, "USER",
                 String.valueOf(user.getId()),
@@ -228,18 +236,25 @@ public class MobileAuthService {
 
     private AuthTokenResponse buildTokenResponse(UserEntity user, boolean isNewUser, AuthGatewayClient.TokenResponse tokenResponse) {
         cookieSupport.writeRefreshCookie(tokenResponse.getRefreshToken());
-        Long tokenUserId = jwtTokenProvider.getUserId(tokenResponse.getAccessToken());
         return AuthTokenResponse.builder()
                 .token(tokenResponse.getAccessToken())
                 .tokenType(StringUtils.hasText(tokenResponse.getTokenType()) ? tokenResponse.getTokenType() : "Bearer")
                 .expiresIn(tokenResponse.getExpiresIn())
                 .isNewUser(isNewUser)
                 .user(AuthTokenResponse.UserInfo.builder()
-                        .userId(tokenUserId)
+                        .userId(user.getId())
                         .username(user.getUsername())
                         .role(user.getRole())
                         .build())
                 .build();
+    }
+
+    private void syncAuthUserId(UserEntity user, Long authUserId) {
+        if (authUserId == null || authUserId.equals(user.getAuthUserId())) {
+            return;
+        }
+        user.setAuthUserId(authUserId);
+        userMapper.updateById(user);
     }
 
     private SmsScene resolveScene(String sceneValue) {

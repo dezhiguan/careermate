@@ -177,8 +177,14 @@ public class AuthServiceImpl implements AuthService {
     private AuthTokenResponse loginFromGateway(String account, String password, UserEntity localUser, boolean isNewUser) {
         AuthGatewayClient.TokenResponse tokenResponse = authGatewayClient.loginPassword(account, password);
         cookieSupport.writeRefreshCookie(tokenResponse.getRefreshToken());
-        long userId = jwtTokenProvider.getUserId(tokenResponse.getAccessToken());
-        UserEntity user = localUser != null ? localUser : userMapper.selectById(userId);
+        long authUserId = jwtTokenProvider.getUserId(tokenResponse.getAccessToken());
+        UserEntity user = localUser != null ? localUser : userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
+                .eq(UserEntity::getAuthUserId, authUserId)
+                .last("LIMIT 1"));
+        if (user != null && !Long.valueOf(authUserId).equals(user.getAuthUserId())) {
+            user.setAuthUserId(authUserId);
+            userMapper.updateById(user);
+        }
         String username = user != null && StringUtils.hasText(user.getUsername()) ? user.getUsername() : account;
         String role = user != null && StringUtils.hasText(user.getRole()) ? user.getRole() : jwtTokenProvider.getPlatformRole(tokenResponse.getAccessToken());
         return AuthTokenResponse.builder()
@@ -187,7 +193,7 @@ public class AuthServiceImpl implements AuthService {
                 .expiresIn(tokenResponse.getExpiresIn())
                 .isNewUser(isNewUser)
                 .user(AuthTokenResponse.UserInfo.builder()
-                        .userId(userId)
+                        .userId(user != null ? user.getId() : authUserId)
                         .username(username)
                         .role(role)
                         .build())

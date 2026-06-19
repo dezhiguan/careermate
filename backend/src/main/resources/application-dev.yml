@@ -35,3 +35,12 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+
+careermate:
+  auth:
+    sms:
+      storage: ${CAREERMATE_AUTH_SMS_STORAGE:memory}
+  security:
+    auth-gateway:
+      client-assertion-private-key: ${AUTH_GATEWAY_CLIENT_ASSERTION_PRIVATE_KEY:/Users/amy/CursorProject/auth-gateway/config/keys/auth-active.pem}
+      client-assertion-kid: ${AUTH_GATEWAY_CLIENT_ASSERTION_KID:auth-active}

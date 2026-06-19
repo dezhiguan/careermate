@@ -1,6 +1,7 @@
 package com.careermate.auth.events;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +18,7 @@ import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 
+@Slf4j
 @Service
 public class AuthEventService {
 
@@ -74,17 +76,22 @@ public class AuthEventService {
         if (redisTemplate == null) {
             return false;
         }
-        if (StringUtils.hasText(token.jti())) {
-            Boolean jtiRevoked = redisTemplate.hasKey(REVOKED_JTI_PREFIX + token.jti());
-            if (Boolean.TRUE.equals(jtiRevoked)) {
-                return true;
+        try {
+            if (StringUtils.hasText(token.jti())) {
+                Boolean jtiRevoked = redisTemplate.hasKey(REVOKED_JTI_PREFIX + token.jti());
+                if (Boolean.TRUE.equals(jtiRevoked)) {
+                    return true;
+                }
             }
-        }
-        if (StringUtils.hasText(token.userKey()) && token.issuedAtEpochSeconds() != null) {
-            String revokedAfter = redisTemplate.opsForValue().get(USER_REVOKED_AFTER_PREFIX + token.userKey());
-            if (StringUtils.hasText(revokedAfter)) {
-                return token.issuedAtEpochSeconds() <= Long.parseLong(revokedAfter);
+            if (StringUtils.hasText(token.userKey()) && token.issuedAtEpochSeconds() != null) {
+                String revokedAfter = redisTemplate.opsForValue().get(USER_REVOKED_AFTER_PREFIX + token.userKey());
+                if (StringUtils.hasText(revokedAfter)) {
+                    return token.issuedAtEpochSeconds() <= Long.parseLong(revokedAfter);
+                }
             }
+        } catch (RuntimeException ex) {
+            log.warn("auth event revocation storage unavailable; allowing JWT validation to continue");
+            return false;
         }
         return false;
     }

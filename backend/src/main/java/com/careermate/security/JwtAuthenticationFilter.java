@@ -95,7 +95,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private boolean authenticateUserFromClaims(Claims claims, HttpServletResponse response) throws IOException {
         Long userId = getUserId(claims);
         UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
-                .eq(UserEntity::getId, userId)
+                .eq(UserEntity::getAuthUserId, userId)
                 .last("LIMIT 1"));
         if (user == null) {
             writeUnauthorized(response, "用户不存在");
