@@ -67,6 +67,18 @@ careermate:
     jwt:
       secret: ${JWT_SECRET:change-me-in-dev-only-change-me-in-dev-only}
       expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    auth-gateway:
+      base-url: ${AUTH_GATEWAY_BASE_URL:http://localhost:8090}
+      issuer: ${AUTH_GATEWAY_ISSUER:https://auth.careermate.cn}
+      audience: ${AUTH_GATEWAY_AUDIENCE:careermate-api}
+      token-endpoint-audience: ${AUTH_GATEWAY_TOKEN_ENDPOINT_AUDIENCE:https://auth.careermate.cn/oauth/token}
+      client-id: ${AUTH_GATEWAY_CLIENT_ID:careermate-backend}
+      client-assertion-private-key: ${AUTH_GATEWAY_CLIENT_ASSERTION_PRIVATE_KEY:config/keys/careermate-backend.pem}
+      client-assertion-kid: ${AUTH_GATEWAY_CLIENT_ASSERTION_KID:careermate-backend}
+      refresh-cookie-name: ${AUTH_GATEWAY_REFRESH_COOKIE_NAME:cm_refresh}
+      refresh-cookie-domain: ${AUTH_GATEWAY_REFRESH_COOKIE_DOMAIN:}
+      refresh-cookie-path: ${AUTH_GATEWAY_REFRESH_COOKIE_PATH:/api/auth}
+      timeout-ms: ${AUTH_GATEWAY_TIMEOUT_MS:3000}
     client-ip:
       # 生产环境置于 Nginx/Ingress 后时设为 true；网关须覆盖 X-Real-IP 并清洗 X-Forwarded-For，勿信任客户端直传
       trust-proxy-headers: ${TRUST_PROXY_HEADERS:false}

@@ -7,6 +7,8 @@ import com.careermate.auth.dto.AuthTokenResponse;
 import com.careermate.auth.dto.MobileLoginRequest;
 import com.careermate.auth.dto.SmsSendRequest;
 import com.careermate.auth.dto.SmsSendResponse;
+import com.careermate.auth.gateway.AuthGatewayClient;
+import com.careermate.auth.gateway.AuthGatewayCookieSupport;
 import com.careermate.common.api.ErrorCode;
 import com.careermate.common.exception.BizException;
 import com.careermate.common.web.ClientIpResolver;
@@ -39,9 +41,7 @@ public class MobileAuthService {
     private static final long DEFAULT_COOLDOWN_SECONDS = 60L;
     private static final int MAX_REGISTER_ATTEMPTS = 5;
 
-    private final MobileSmsAuthProvider mobileSmsAuthProvider;
     private final SmsAuthRateLimiter smsAuthRateLimiter;
-    private final TokenReplayGuard tokenReplayGuard;
     private final AliyunSmsProperties smsProperties;
     private final SecurityProperties securityProperties;
     private final ClientIpResolver clientIpResolver;
@@ -49,22 +49,22 @@ public class MobileAuthService {
     private final UserProfileMapper userProfileMapper;
     private final JwtTokenProvider jwtTokenProvider;
     private final AuditService auditService;
+    private final AuthGatewayClient authGatewayClient;
+    private final AuthGatewayCookieSupport cookieSupport;
 
     public MobileAuthService(
-            MobileSmsAuthProvider mobileSmsAuthProvider,
             SmsAuthRateLimiter smsAuthRateLimiter,
-            TokenReplayGuard tokenReplayGuard,
             AliyunSmsProperties smsProperties,
             SecurityProperties securityProperties,
             ClientIpResolver clientIpResolver,
             UserMapper userMapper,
             UserProfileMapper userProfileMapper,
             JwtTokenProvider jwtTokenProvider,
-            AuditService auditService
+            AuditService auditService,
+            AuthGatewayClient authGatewayClient,
+            AuthGatewayCookieSupport cookieSupport
     ) {
-        this.mobileSmsAuthProvider = mobileSmsAuthProvider;
         this.smsAuthRateLimiter = smsAuthRateLimiter;
-        this.tokenReplayGuard = tokenReplayGuard;
         this.smsProperties = smsProperties;
         this.securityProperties = securityProperties;
         this.clientIpResolver = clientIpResolver;
@@ -72,6 +72,8 @@ public class MobileAuthService {
         this.userProfileMapper = userProfileMapper;
         this.jwtTokenProvider = jwtTokenProvider;
         this.auditService = auditService;
+        this.authGatewayClient = authGatewayClient;
+        this.cookieSupport = cookieSupport;
     }
 
     public SmsSendResponse sendCode(SmsSendRequest request) {
@@ -89,32 +91,17 @@ public class MobileAuthService {
 
         smsAuthRateLimiter.checkSendAllowed(scene, phoneHash, ipHash, maskedPhone, traceId);
 
-        MobileSmsAuthProvider.SendResult sendResult = mobileSmsAuthProvider.sendVerifyCode(
-                MobileSmsAuthProvider.SendRequest.builder()
-                        .phone(phone)
-                        .scene(scene)
-                        .build()
-        );
-
-        if (!sendResult.isSuccess()) {
-            auditService.recordFailure(null, AuditActionType.SMS_SEND, "SMS", scene.value(),
-                    "provider send failed phone=" + maskedPhone);
-            throw new BizException(ErrorCode.SMS_PROVIDER_ERROR);
-        }
-
-        String providerOutId = sendResult.getOutId();
-        String challengeId = StringUtils.hasText(providerOutId)
-                ? providerOutId
-                : UUID.randomUUID().toString();
+        authGatewayClient.sendSms(phone, "login");
+        String providerOutId = null;
+        String challengeId = UUID.randomUUID().toString();
         String challengeHash = TokenReplayGuard.hashOutId(challengeId, pepper());
         smsAuthRateLimiter.storePendingChallenge(scene, phoneHash, challengeHash, providerOutId);
 
         smsAuthRateLimiter.recordSend(scene, phoneHash, ipHash);
         auditService.recordSuccess(null, AuditActionType.SMS_SEND, "SMS", scene.value(),
-                "send phone=" + maskedPhone + ", providerRequestId=" + sendResult.getProviderRequestId());
-        log.info("Mobile auth send success, phone={}, scene={}, traceId={}, providerRequestId={}, challengeBound={}",
-                maskedPhone, scene.value(), traceId, sendResult.getProviderRequestId(),
-                StringUtils.hasText(providerOutId) ? "provider-out-id" : "server-challenge");
+                "send phone=" + maskedPhone + ", provider=auth-gateway");
+        log.info("Mobile auth send success, phone={}, scene={}, traceId={}, provider=auth-gateway",
+                maskedPhone, scene.value(), traceId);
 
         long cooldown = smsAuthRateLimiter.sendCooldownRemainingSeconds(scene, phoneHash);
         return SmsSendResponse.builder()
@@ -130,59 +117,24 @@ public class MobileAuthService {
         String phone = PhoneSupport.normalizePhone(request.getPhone());
         PhoneSupport.validateMainlandPhone(phone);
         String verifyCode = request.getVerifyCode().trim();
-        String challengeId = request.resolveChallengeId();
-        if (!StringUtils.hasText(challengeId)) {
-            throw new BizException(ErrorCode.MOBILE_AUTH_CHALLENGE_REQUIRED);
-        }
-
         String traceId = currentTraceId();
         String maskedPhone = PhoneSupport.maskPhone(phone);
         String phoneHash = phoneHash(phone);
         String ipHash = ipHash(resolveClientIp());
-        String challengeHash = TokenReplayGuard.hashOutId(challengeId, pepper());
 
         smsAuthRateLimiter.checkLoginAllowed(scene, phoneHash, ipHash, maskedPhone, traceId);
         smsAuthRateLimiter.recordLoginAttempt(scene, phoneHash, ipHash);
-        tokenReplayGuard.assertChallengeNotUsed(scene, challengeHash);
 
-        if (!smsAuthRateLimiter.matchesPendingChallenge(scene, phoneHash, challengeHash)) {
-            smsAuthRateLimiter.recordLoginFailure(scene, phoneHash);
-            throw new BizException(ErrorCode.MOBILE_AUTH_EXPIRED);
-        }
-
-        String providerOutId = smsAuthRateLimiter.getPendingProviderOutId(scene, phoneHash).orElse(null);
-        MobileSmsAuthProvider.VerifyResult verifyResult = mobileSmsAuthProvider.checkVerifyCode(
-                MobileSmsAuthProvider.VerifyRequest.builder()
-                        .phone(phone)
-                        .verifyCode(verifyCode)
-                        .outId(providerOutId)
-                        .scene(scene)
-                        .build()
-        );
-
-        if (!verifyResult.isSuccess()) {
-            smsAuthRateLimiter.recordLoginFailure(scene, phoneHash);
-            auditService.recordFailure(null, AuditActionType.MOBILE_LOGIN, "USER", null,
-                    "verify failed phone=" + maskedPhone + ", providerRequestId=" + verifyResult.getProviderRequestId());
-            throw new BizException(ErrorCode.MOBILE_AUTH_CODE_WRONG);
-        }
-
-        String verifiedPhone = PhoneSupport.normalizePhone(verifyResult.getPhone());
-        if (!phone.equals(verifiedPhone)) {
-            smsAuthRateLimiter.recordLoginFailure(scene, phoneHash);
-            throw new BizException(ErrorCode.MOBILE_AUTH_INVALID);
-        }
-
-        tokenReplayGuard.markChallengeUsed(scene, challengeHash);
+        AuthGatewayClient.TokenResponse tokenResponse = authGatewayClient.loginMobile(phone, verifyCode);
         smsAuthRateLimiter.clearLoginFailure(scene, phoneHash);
 
         UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
-                .eq(UserEntity::getPhone, verifiedPhone)
+                .eq(UserEntity::getPhone, phone)
                 .last("LIMIT 1"));
 
         boolean isNewUser;
         if (user == null) {
-            MobileUserLookup lookup = findOrCreateMobileUser(verifiedPhone);
+            MobileUserLookup lookup = findOrCreateMobileUser(phone);
             user = lookup.user();
             isNewUser = lookup.newlyCreated();
         } else {
@@ -213,8 +165,8 @@ public class MobileAuthService {
         auditService.recordSuccess(user.getId(), AuditActionType.MOBILE_LOGIN, "USER",
                 String.valueOf(user.getId()),
                 "mobile login phone=" + maskedPhone + ", newUser=" + isNewUser
-                        + ", providerRequestId=" + verifyResult.getProviderRequestId());
-        return buildTokenResponse(user, isNewUser);
+                        + ", provider=auth-gateway");
+        return buildTokenResponse(user, isNewUser, tokenResponse);
     }
 
     private MobileUserLookup findOrCreateMobileUser(String phone) {
@@ -263,15 +215,16 @@ public class MobileAuthService {
         return user;
     }
 
-    private AuthTokenResponse buildTokenResponse(UserEntity user, boolean isNewUser) {
-        String token = jwtTokenProvider.generateToken(user.getId(), user.getUsername(), user.getRole());
+    private AuthTokenResponse buildTokenResponse(UserEntity user, boolean isNewUser, AuthGatewayClient.TokenResponse tokenResponse) {
+        cookieSupport.writeRefreshCookie(tokenResponse.getRefreshToken());
+        Long tokenUserId = jwtTokenProvider.getUserId(tokenResponse.getAccessToken());
         return AuthTokenResponse.builder()
-                .token(token)
-                .tokenType("Bearer")
-                .expiresIn(securityProperties.getJwt().getExpirationMs())
+                .token(tokenResponse.getAccessToken())
+                .tokenType(StringUtils.hasText(tokenResponse.getTokenType()) ? tokenResponse.getTokenType() : "Bearer")
+                .expiresIn(tokenResponse.getExpiresIn())
                 .isNewUser(isNewUser)
                 .user(AuthTokenResponse.UserInfo.builder()
-                        .userId(user.getId())
+                        .userId(tokenUserId)
                         .username(user.getUsername())
                         .role(user.getRole())
                         .build())

@@ -3,6 +3,8 @@ package com.careermate.auth.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.careermate.audit.AuditActionType;
 import com.careermate.audit.service.AuditService;
+import com.careermate.auth.gateway.AuthGatewayClient;
+import com.careermate.auth.gateway.AuthGatewayCookieSupport;
 import com.careermate.auth.service.AuthService;
 import com.careermate.auth.dto.AuthTokenResponse;
 import com.careermate.auth.dto.CurrentUserResponse;
@@ -31,7 +33,8 @@ public class AuthServiceImpl implements AuthService {
     private final UserProfileMapper userProfileMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
-    private final SecurityProperties securityProperties;
+    private final AuthGatewayClient authGatewayClient;
+    private final AuthGatewayCookieSupport cookieSupport;
     private final AuditService auditService;
 
     public AuthServiceImpl(
@@ -39,14 +42,16 @@ public class AuthServiceImpl implements AuthService {
             UserProfileMapper userProfileMapper,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
-            SecurityProperties securityProperties,
+            AuthGatewayClient authGatewayClient,
+            AuthGatewayCookieSupport cookieSupport,
             AuditService auditService
     ) {
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
-        this.securityProperties = securityProperties;
+        this.authGatewayClient = authGatewayClient;
+        this.cookieSupport = cookieSupport;
         this.auditService = auditService;
     }
 
@@ -81,35 +86,27 @@ public class AuthServiceImpl implements AuthService {
                 String.valueOf(user.getId()),
                 "register username=" + user.getUsername()
         );
-        return buildTokenResponse(user);
+        return loginFromGateway(request.getUsername(), request.getPassword(), user, false);
     }
 
     @Override
     public AuthTokenResponse login(LoginRequest request) {
+        String account = request.resolveAccount();
+        if (!StringUtils.hasText(account)) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "账号不能为空");
+        }
         UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
-                .eq(UserEntity::getUsername, request.getUsername())
+                .eq(UserEntity::getUsername, account)
                 .last("LIMIT 1"));
-        if (user == null) {
-            auditService.recordFailure(null, AuditActionType.LOGIN, "USER", null, "user not found");
-            throw new BizException(ErrorCode.UNAUTHORIZED.getCode(), "用户名或密码错误");
-        }
-        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
-            auditService.recordFailure(user.getId(), AuditActionType.LOGIN, "USER", String.valueOf(user.getId()), "user inactive");
-            throw new BizException(ErrorCode.FORBIDDEN.getCode(), "用户不可用");
-        }
-        if (!StringUtils.hasText(user.getPasswordHash())
-                || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            auditService.recordFailure(user.getId(), AuditActionType.LOGIN, "USER", String.valueOf(user.getId()), "password mismatch");
-            throw new BizException(ErrorCode.UNAUTHORIZED.getCode(), "用户名或密码错误");
-        }
+        AuthTokenResponse response = loginFromGateway(account, request.getPassword(), user, false);
         auditService.recordSuccess(
-                user.getId(),
+                user != null ? user.getId() : null,
                 AuditActionType.LOGIN,
                 "USER",
-                String.valueOf(user.getId()),
-                "login username=" + user.getUsername()
+                user != null ? String.valueOf(user.getId()) : null,
+                "login account=" + account
         );
-        return buildTokenResponse(user);
+        return response;
     }
 
     @Override
@@ -177,16 +174,22 @@ public class AuthServiceImpl implements AuthService {
                 || lower.startsWith("data:image/gif;base64,");
     }
 
-    private AuthTokenResponse buildTokenResponse(UserEntity user) {
-        String token = jwtTokenProvider.generateToken(user.getId(), user.getUsername(), user.getRole());
+    private AuthTokenResponse loginFromGateway(String account, String password, UserEntity localUser, boolean isNewUser) {
+        AuthGatewayClient.TokenResponse tokenResponse = authGatewayClient.loginPassword(account, password);
+        cookieSupport.writeRefreshCookie(tokenResponse.getRefreshToken());
+        long userId = jwtTokenProvider.getUserId(tokenResponse.getAccessToken());
+        UserEntity user = localUser != null ? localUser : userMapper.selectById(userId);
+        String username = user != null && StringUtils.hasText(user.getUsername()) ? user.getUsername() : account;
+        String role = user != null && StringUtils.hasText(user.getRole()) ? user.getRole() : jwtTokenProvider.getPlatformRole(tokenResponse.getAccessToken());
         return AuthTokenResponse.builder()
-                .token(token)
-                .tokenType("Bearer")
-                .expiresIn(securityProperties.getJwt().getExpirationMs())
+                .token(tokenResponse.getAccessToken())
+                .tokenType(StringUtils.hasText(tokenResponse.getTokenType()) ? tokenResponse.getTokenType() : "Bearer")
+                .expiresIn(tokenResponse.getExpiresIn())
+                .isNewUser(isNewUser)
                 .user(AuthTokenResponse.UserInfo.builder()
-                        .userId(user.getId())
-                        .username(user.getUsername())
-                        .role(user.getRole())
+                        .userId(userId)
+                        .username(username)
+                        .role(role)
                         .build())
                 .build();
     }

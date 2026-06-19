@@ -32,6 +32,10 @@ public class UserEntity {
 
     private String role;
 
+    private String platformRole;
+
+    private Long sessionVersion;
+
     private String status;
 
     private OffsetDateTime createdAt;
