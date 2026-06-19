@@ -2,10 +2,13 @@ package com.careermate.security;
 
 import com.careermate.common.api.ApiResponse;
 import com.careermate.common.api.ErrorCode;
+import com.careermate.auth.events.AuthEventService;
+import com.careermate.auth.events.AuthJwtToken;
 import com.careermate.mapper.UserMapper;
 import com.careermate.model.entity.UserEntity;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,15 +32,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
+    private final AuthEventService authEventService;
 
     public JwtAuthenticationFilter(
             JwtTokenProvider jwtTokenProvider,
             UserMapper userMapper,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            AuthEventService authEventService
     ) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userMapper = userMapper;
         this.objectMapper = objectMapper;
+        this.authEventService = authEventService;
     }
 
     @Override
@@ -68,15 +74,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             writeUnauthorized(response, ErrorCode.UNAUTHORIZED.getMessage());
             return false;
         }
-        if (!jwtTokenProvider.validateToken(bearerToken)) {
+        Claims claims;
+        try {
+            claims = jwtTokenProvider.parseToken(bearerToken);
+            if (authEventService.isJwtRevoked(new AuthJwtToken(
+                    claims.getId(),
+                    userKey(claims),
+                    issuedAtEpochSeconds(claims)
+            ))) {
+                writeUnauthorized(response, ErrorCode.UNAUTHORIZED.getMessage());
+                return false;
+            }
+        } catch (RuntimeException ex) {
             writeUnauthorized(response, ErrorCode.UNAUTHORIZED.getMessage());
             return false;
         }
-        return authenticateUserFromToken(bearerToken, response);
+        return authenticateUserFromClaims(claims, response);
     }
 
-    private boolean authenticateUserFromToken(String token, HttpServletResponse response) throws IOException {
-        Long userId = jwtTokenProvider.getUserId(token);
+    private boolean authenticateUserFromClaims(Claims claims, HttpServletResponse response) throws IOException {
+        Long userId = getUserId(claims);
         UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
                 .eq(UserEntity::getId, userId)
                 .last("LIMIT 1"));
@@ -128,7 +145,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || "/api/auth/mobile/login".equals(path)
                 || "/api/auth/password-reset/sms/send".equals(path)
                 || "/api/auth/password-reset/confirm".equals(path)
+                || path.startsWith("/api/v1/events/")
+                || path.startsWith("/api/events/")
                 || "/actuator/health".equals(path);
+    }
+
+    private Long getUserId(Claims claims) {
+        Object userId = claims.get("user_id");
+        if (userId == null) {
+            userId = claims.get("userId");
+        }
+        if (userId instanceof Number number) {
+            return number.longValue();
+        }
+        return Long.valueOf(String.valueOf(userId));
+    }
+
+    private String userKey(Claims claims) {
+        Object userId = claims.get("user_id");
+        if (userId == null) {
+            userId = claims.get("userId");
+        }
+        return userId == null ? claims.getSubject() : String.valueOf(userId);
+    }
+
+    private Long issuedAtEpochSeconds(Claims claims) {
+        if (claims.getIssuedAt() == null) {
+            return null;
+        }
+        return claims.getIssuedAt().toInstant().getEpochSecond();
     }
 
     private void writeUnauthorized(HttpServletResponse response, String message) throws IOException {
