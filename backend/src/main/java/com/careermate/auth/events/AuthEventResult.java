@@ -17,4 +17,8 @@ public record AuthEventResult(int status, String message, String eventId, int re
     public static AuthEventResult badRequest(String message) {
         return new AuthEventResult(400, message, null, 0);
     }
+
+    public static AuthEventResult unavailable(String message) {
+        return new AuthEventResult(503, message, null, 0);
+    }
 }

@@ -1,6 +1,8 @@
 package com.careermate.auth;
 
 import com.careermate.auth.dto.LoginRequest;
+import com.careermate.auth.gateway.AuthGatewayClient;
+import com.careermate.auth.gateway.AuthGatewayCookieSupport;
 import com.careermate.auth.service.impl.AuthServiceImpl;
 import com.careermate.audit.service.AuditService;
 import com.careermate.common.api.ErrorCode;
@@ -35,6 +37,10 @@ class MobileUserWebLoginTest {
     @Mock
     private JwtTokenProvider jwtTokenProvider;
     @Mock
+    private AuthGatewayClient authGatewayClient;
+    @Mock
+    private AuthGatewayCookieSupport cookieSupport;
+    @Mock
     private SecurityProperties securityProperties;
     @Mock
     private AuditService auditService;
@@ -53,6 +59,8 @@ class MobileUserWebLoginTest {
             user.setStatus("ACTIVE");
             return user;
         });
+        when(authGatewayClient.loginPassword(any(), any()))
+                .thenThrow(new BizException(ErrorCode.UNAUTHORIZED.getCode(), "用户名或密码错误"));
     }
 
     @Test

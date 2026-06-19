@@ -1,6 +1,7 @@
 package com.careermate.auth.events;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
@@ -32,14 +33,17 @@ public class AuthEventService {
     public AuthEventService(
             AuthEventProperties properties,
             ObjectMapper objectMapper,
-            StringRedisTemplate redisTemplate
+            ObjectProvider<StringRedisTemplate> redisTemplateProvider
     ) {
         this.properties = properties;
         this.objectMapper = objectMapper;
-        this.redisTemplate = redisTemplate;
+        this.redisTemplate = redisTemplateProvider.getIfAvailable();
     }
 
     public AuthEventResult handle(String expectedType, String rawBody, HttpHeaders headers) {
+        if (redisTemplate == null) {
+            return AuthEventResult.unavailable("auth event storage unavailable");
+        }
         if (!verifySignature(rawBody, headers)) {
             return AuthEventResult.invalidSignature();
         }
@@ -67,6 +71,9 @@ public class AuthEventService {
     }
 
     public boolean isJwtRevoked(AuthJwtToken token) {
+        if (redisTemplate == null) {
+            return false;
+        }
         if (StringUtils.hasText(token.jti())) {
             Boolean jtiRevoked = redisTemplate.hasKey(REVOKED_JTI_PREFIX + token.jti());
             if (Boolean.TRUE.equals(jtiRevoked)) {

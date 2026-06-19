@@ -62,7 +62,8 @@ class JwtAuthenticationFilterEventRevocationTest {
     @Test
     void redisFailureDuringRevocationCheckFailsClosed() throws Exception {
         String token = "header.payload.signature";
-        when(jwtTokenProvider.parseToken(token)).thenReturn(claims("jti-1", 42L, new Date(100_000L)));
+        Claims claims = claims("jti-1", 42L, new Date(100_000L));
+        when(jwtTokenProvider.parseToken(token)).thenReturn(claims);
         when(authEventService.isJwtRevoked(any())).thenThrow(new RuntimeException("redis down"));
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/auth/me");

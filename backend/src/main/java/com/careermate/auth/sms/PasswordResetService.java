@@ -43,6 +43,7 @@ public class PasswordResetService {
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
     private final AuthGatewayClient authGatewayClient;
+    private final TokenReplayGuard tokenReplayGuard;
 
     public PasswordResetService(
             SmsAuthRateLimiter smsAuthRateLimiter,
@@ -52,7 +53,8 @@ public class PasswordResetService {
             UserMapper userMapper,
             PasswordEncoder passwordEncoder,
             AuditService auditService,
-            AuthGatewayClient authGatewayClient
+            AuthGatewayClient authGatewayClient,
+            TokenReplayGuard tokenReplayGuard
     ) {
         this.smsAuthRateLimiter = smsAuthRateLimiter;
         this.smsProperties = smsProperties;
@@ -62,6 +64,7 @@ public class PasswordResetService {
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
         this.authGatewayClient = authGatewayClient;
+        this.tokenReplayGuard = tokenReplayGuard;
     }
 
     public SmsSendResponse sendSms(PasswordResetSmsSendRequest request) {
@@ -133,9 +136,18 @@ public class PasswordResetService {
             throw new BizException(ErrorCode.PASSWORD_RESET_INVALID);
         }
 
+        String challengeHash = TokenReplayGuard.hashOutId(request.getChallengeId(), pepper());
+        tokenReplayGuard.assertChallengeNotUsed(SCENE, challengeHash);
+        if (!smsAuthRateLimiter.matchesPendingChallenge(SCENE, phoneHash, challengeHash)) {
+            smsAuthRateLimiter.recordLoginFailure(SCENE, phoneHash);
+            auditFailure(user.getId(), "challenge mismatch phone=" + maskedPhone);
+            throw new BizException(ErrorCode.PASSWORD_RESET_INVALID);
+        }
+
         AuthGatewayClient.ResetVerifyResponse verifyResponse = authGatewayClient.resetVerify(phone, verifyCode);
         authGatewayClient.resetConfirm(verifyResponse.getResetTicket(), newPassword);
         smsAuthRateLimiter.clearLoginFailure(SCENE, phoneHash);
+        tokenReplayGuard.markChallengeUsed(SCENE, challengeHash);
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setSessionVersion(user.getSessionVersion() == null ? 1L : user.getSessionVersion() + 1);

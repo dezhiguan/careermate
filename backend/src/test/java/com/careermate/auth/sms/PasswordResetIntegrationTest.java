@@ -2,8 +2,11 @@ package com.careermate.auth.sms;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.careermate.common.api.ErrorCode;
+import com.careermate.auth.gateway.AuthGatewayClient;
+import com.careermate.auth.gateway.AuthGatewayCookieSupport;
 import com.careermate.mapper.UserMapper;
 import com.careermate.model.entity.UserEntity;
+import com.careermate.security.JwtTokenProvider;
 import com.careermate.security.SecurityProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,6 +27,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -59,6 +64,15 @@ class PasswordResetIntegrationTest {
     @MockBean
     private MobileSmsAuthProvider mobileSmsAuthProvider;
 
+    @MockBean
+    private AuthGatewayClient authGatewayClient;
+
+    @MockBean
+    private AuthGatewayCookieSupport cookieSupport;
+
+    @MockBean
+    private JwtTokenProvider jwtTokenProvider;
+
     private final AtomicReference<String> lastOutId = new AtomicReference<>("test-out-id");
 
     @BeforeEach
@@ -67,8 +81,10 @@ class PasswordResetIntegrationTest {
             inMemoryStore.clearForTests();
         }
         reset(mobileSmsAuthProvider);
+        reset(authGatewayClient, cookieSupport, jwtTokenProvider);
         lastOutId.set("test-out-id-" + System.nanoTime());
         stubDefaultProviderBehavior();
+        stubDefaultAuthGatewayBehavior();
     }
 
     private void stubDefaultProviderBehavior() {
@@ -97,6 +113,60 @@ class PasswordResetIntegrationTest {
                     .providerCode("OK")
                     .build();
         });
+    }
+
+    private void stubDefaultAuthGatewayBehavior() {
+        doNothing().when(cookieSupport).writeRefreshCookie(anyString());
+
+        AuthGatewayClient.ResetInitResponse initResponse = new AuthGatewayClient.ResetInitResponse();
+        initResponse.setMaskedPhone("138****0000");
+        initResponse.setTicketRequired(true);
+        when(authGatewayClient.resetInit(anyString())).thenReturn(initResponse);
+
+        when(authGatewayClient.resetVerify(anyString(), anyString())).thenAnswer(invocation -> {
+            String code = invocation.getArgument(1, String.class);
+            if (!"123456".equals(code)) {
+                throw new com.careermate.common.exception.BizException(ErrorCode.PASSWORD_RESET_INVALID);
+            }
+            AuthGatewayClient.ResetVerifyResponse verifyResponse = new AuthGatewayClient.ResetVerifyResponse();
+            verifyResponse.setResetTicket("reset-ticket-" + System.nanoTime());
+            return verifyResponse;
+        });
+
+        when(authGatewayClient.resetConfirm(anyString(), anyString())).thenAnswer(invocation -> {
+            AuthGatewayClient.TokenResponse response = new AuthGatewayClient.TokenResponse();
+            response.setAccessToken("reset-token");
+            response.setRefreshToken("reset-refresh");
+            response.setTokenType("Bearer");
+            response.setExpiresIn(3600L);
+            return response;
+        });
+
+        when(authGatewayClient.loginPassword(anyString(), anyString())).thenAnswer(invocation -> {
+            String account = invocation.getArgument(0, String.class);
+            String password = invocation.getArgument(1, String.class);
+            UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
+                    .eq(UserEntity::getUsername, account)
+                    .last("LIMIT 1"));
+            if (user == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
+                throw new com.careermate.common.exception.BizException(ErrorCode.UNAUTHORIZED.getCode(), "用户名或密码错误");
+            }
+            AuthGatewayClient.TokenResponse response = new AuthGatewayClient.TokenResponse();
+            response.setAccessToken("password-token:" + account);
+            response.setRefreshToken("password-refresh:" + account);
+            response.setTokenType("Bearer");
+            response.setExpiresIn(3600L);
+            return response;
+        });
+        when(jwtTokenProvider.getUserId(anyString())).thenAnswer(invocation -> {
+            String token = invocation.getArgument(0, String.class);
+            String account = token.substring(token.indexOf(':') + 1);
+            UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
+                    .eq(UserEntity::getUsername, account)
+                    .last("LIMIT 1"));
+            return user.getId();
+        });
+        when(jwtTokenProvider.getPlatformRole(anyString())).thenReturn("USER");
     }
 
     @Test

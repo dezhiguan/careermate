@@ -51,6 +51,7 @@ public class MobileAuthService {
     private final AuditService auditService;
     private final AuthGatewayClient authGatewayClient;
     private final AuthGatewayCookieSupport cookieSupport;
+    private final TokenReplayGuard tokenReplayGuard;
 
     public MobileAuthService(
             SmsAuthRateLimiter smsAuthRateLimiter,
@@ -62,7 +63,8 @@ public class MobileAuthService {
             JwtTokenProvider jwtTokenProvider,
             AuditService auditService,
             AuthGatewayClient authGatewayClient,
-            AuthGatewayCookieSupport cookieSupport
+            AuthGatewayCookieSupport cookieSupport,
+            TokenReplayGuard tokenReplayGuard
     ) {
         this.smsAuthRateLimiter = smsAuthRateLimiter;
         this.smsProperties = smsProperties;
@@ -74,6 +76,7 @@ public class MobileAuthService {
         this.auditService = auditService;
         this.authGatewayClient = authGatewayClient;
         this.cookieSupport = cookieSupport;
+        this.tokenReplayGuard = tokenReplayGuard;
     }
 
     public SmsSendResponse sendCode(SmsSendRequest request) {
@@ -125,8 +128,16 @@ public class MobileAuthService {
         smsAuthRateLimiter.checkLoginAllowed(scene, phoneHash, ipHash, maskedPhone, traceId);
         smsAuthRateLimiter.recordLoginAttempt(scene, phoneHash, ipHash);
 
+        String challengeHash = TokenReplayGuard.hashOutId(request.getOutId(), pepper());
+        tokenReplayGuard.assertChallengeNotUsed(scene, challengeHash);
+        if (!smsAuthRateLimiter.matchesPendingChallenge(scene, phoneHash, challengeHash)) {
+            smsAuthRateLimiter.recordLoginFailure(scene, phoneHash);
+            throw new BizException(ErrorCode.MOBILE_AUTH_EXPIRED);
+        }
+
         AuthGatewayClient.TokenResponse tokenResponse = authGatewayClient.loginMobile(phone, verifyCode);
         smsAuthRateLimiter.clearLoginFailure(scene, phoneHash);
+        tokenReplayGuard.markChallengeUsed(scene, challengeHash);
 
         UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
                 .eq(UserEntity::getPhone, phone)

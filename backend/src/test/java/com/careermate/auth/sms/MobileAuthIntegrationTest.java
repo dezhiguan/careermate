@@ -3,8 +3,11 @@ package com.careermate.auth.sms;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.careermate.common.api.ErrorCode;
 import com.careermate.common.exception.BizException;
+import com.careermate.auth.gateway.AuthGatewayClient;
+import com.careermate.auth.gateway.AuthGatewayCookieSupport;
 import com.careermate.mapper.UserMapper;
 import com.careermate.model.entity.UserEntity;
+import com.careermate.security.JwtTokenProvider;
 import com.careermate.security.SecurityProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,7 +28,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
@@ -62,6 +66,15 @@ class MobileAuthIntegrationTest {
     @MockBean
     private MobileSmsAuthProvider mobileSmsAuthProvider;
 
+    @MockBean
+    private AuthGatewayClient authGatewayClient;
+
+    @MockBean
+    private AuthGatewayCookieSupport cookieSupport;
+
+    @MockBean
+    private JwtTokenProvider jwtTokenProvider;
+
     private final AtomicReference<String> lastOutId = new AtomicReference<>("test-out-id");
 
     @BeforeEach
@@ -70,8 +83,10 @@ class MobileAuthIntegrationTest {
             inMemoryStore.clearForTests();
         }
         reset(mobileSmsAuthProvider);
+        reset(authGatewayClient, cookieSupport, jwtTokenProvider);
         lastOutId.set("test-out-id-" + System.nanoTime());
         stubDefaultProviderBehavior();
+        stubDefaultAuthGatewayBehavior();
     }
 
     private void stubDefaultProviderBehavior() {
@@ -100,6 +115,33 @@ class MobileAuthIntegrationTest {
                     .providerCode("OK")
                     .build();
         });
+    }
+
+    private void stubDefaultAuthGatewayBehavior() {
+        doNothing().when(authGatewayClient).sendSms(anyString(), anyString());
+        doNothing().when(cookieSupport).writeRefreshCookie(anyString());
+        when(authGatewayClient.loginMobile(anyString(), anyString())).thenAnswer(invocation -> {
+            String phone = invocation.getArgument(0, String.class);
+            String code = invocation.getArgument(1, String.class);
+            if (!"123456".equals(code)) {
+                throw new BizException(ErrorCode.MOBILE_AUTH_INVALID);
+            }
+            AuthGatewayClient.TokenResponse response = new AuthGatewayClient.TokenResponse();
+            response.setAccessToken("mobile-token:" + phone);
+            response.setRefreshToken("mobile-refresh:" + phone);
+            response.setTokenType("Bearer");
+            response.setExpiresIn(3600L);
+            return response;
+        });
+        when(jwtTokenProvider.getUserId(anyString())).thenAnswer(invocation -> userIdFromToken(invocation.getArgument(0, String.class)));
+    }
+
+    private Long userIdFromToken(String token) {
+        String phone = token.substring(token.indexOf(':') + 1);
+        UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
+                .eq(UserEntity::getPhone, phone)
+                .last("LIMIT 1"));
+        return user.getId();
     }
 
     @Test
@@ -278,14 +320,8 @@ class MobileAuthIntegrationTest {
     void mobileLoginRejectsPhoneMismatchWithProvider() throws Exception {
         String phone = uniquePhone();
         String challengeId = sendAndGetChallengeId(phone);
-        doReturn(MobileSmsAuthProvider.VerifyResult.builder()
-                        .success(true)
-                        .phone("13900139000")
-                        .verifyResult("PASS")
-                        .providerRequestId("mock")
-                        .providerCode("OK")
-                        .build())
-                .when(mobileSmsAuthProvider).checkVerifyCode(any());
+        doThrow(new BizException(ErrorCode.MOBILE_AUTH_INVALID))
+                .when(authGatewayClient).loginMobile(anyString(), anyString());
         mockMvc.perform(post("/api/auth/mobile/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
@@ -300,11 +336,8 @@ class MobileAuthIntegrationTest {
 
     @Test
     void sendProviderFailureReturnsSmsProviderError() throws Exception {
-        when(mobileSmsAuthProvider.sendVerifyCode(any()))
-                .thenReturn(MobileSmsAuthProvider.SendResult.builder()
-                        .success(false)
-                        .providerCode("ERROR")
-                        .build());
+        doThrow(new BizException(ErrorCode.SMS_PROVIDER_ERROR))
+                .when(authGatewayClient).sendSms(anyString(), anyString());
         mockMvc.perform(post("/api/auth/sms/send")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
@@ -318,7 +351,7 @@ class MobileAuthIntegrationTest {
     @Test
     void loginRateLimitBlocksTooManyAttempts() throws Exception {
         doThrow(new BizException(ErrorCode.MOBILE_AUTH_PROVIDER_ERROR))
-                .when(mobileSmsAuthProvider).checkVerifyCode(any());
+                .when(authGatewayClient).loginMobile(anyString(), anyString());
         String phone = uniquePhone();
         String challengeId = sendAndGetChallengeId(phone);
         String body = objectMapper.writeValueAsString(Map.of(

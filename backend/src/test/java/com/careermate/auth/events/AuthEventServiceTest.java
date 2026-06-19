@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.ObjectProvider;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -19,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,6 +34,9 @@ class AuthEventServiceTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
 
+    @Mock
+    private ObjectProvider<StringRedisTemplate> redisTemplateProvider;
+
     private AuthEventProperties properties;
     private AuthEventService service;
 
@@ -39,7 +44,8 @@ class AuthEventServiceTest {
     void setUp() {
         properties = new AuthEventProperties();
         properties.setHmacSecret("event-secret");
-        service = new AuthEventService(properties, new ObjectMapper(), redisTemplate);
+        when(redisTemplateProvider.getIfAvailable()).thenReturn(redisTemplate);
+        service = new AuthEventService(properties, new ObjectMapper(), redisTemplateProvider);
     }
 
     @Test
@@ -107,6 +113,15 @@ class AuthEventServiceTest {
         when(valueOperations.get(AuthEventService.USER_REVOKED_AFTER_PREFIX + "42")).thenReturn("100");
 
         assertThat(service.isJwtRevoked(new AuthJwtToken(null, "42", 99L))).isTrue();
+    }
+
+    @Test
+    void missingRedisKeepsJwtRevocationCheckDisabled() {
+        ObjectProvider<StringRedisTemplate> emptyProvider = mock(ObjectProvider.class);
+        when(emptyProvider.getIfAvailable()).thenReturn(null);
+        AuthEventService noRedisService = new AuthEventService(properties, new ObjectMapper(), emptyProvider);
+
+        assertThat(noRedisService.isJwtRevoked(new AuthJwtToken("jti-1", "42", 99L))).isFalse();
     }
 
     private HttpHeaders signedHeaders(String body) {
