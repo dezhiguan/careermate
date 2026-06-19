@@ -79,6 +79,13 @@ careermate:
       refresh-cookie-domain: ${AUTH_GATEWAY_REFRESH_COOKIE_DOMAIN:}
       refresh-cookie-path: ${AUTH_GATEWAY_REFRESH_COOKIE_PATH:/api/auth}
       timeout-ms: ${AUTH_GATEWAY_TIMEOUT_MS:3000}
+    auth-events:
+      hmac-secret: ${AUTH_EVENT_HMAC_SECRET:}
+      signature-header: ${AUTH_EVENT_SIGNATURE_HEADER:X-Auth-Event-Signature}
+      timestamp-header: ${AUTH_EVENT_TIMESTAMP_HEADER:X-Auth-Event-Timestamp}
+      idempotency-ttl: ${AUTH_EVENT_IDEMPOTENCY_TTL:7d}
+      revoked-jti-ttl: ${AUTH_REVOKED_JTI_TTL:7d}
+      user-revocation-ttl: ${AUTH_USER_REVOCATION_TTL:30d}
     client-ip:
       # 生产环境置于 Nginx/Ingress 后时设为 true；网关须覆盖 X-Real-IP 并清洗 X-Forwarded-For，勿信任客户端直传
       trust-proxy-headers: ${TRUST_PROXY_HEADERS:false}
