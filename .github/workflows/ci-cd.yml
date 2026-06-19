@@ -325,43 +325,45 @@ jobs:
           scp "${SCP_OPTS[@]}" "${JAR_FILE}" \
             "careermate-app:/opt/careermate/k8s-src/backend/target/careermate-backend-0.1.0.jar"
 
-      - name: Check SkyWalking images on Server 3
-        id: sw-check
-        run: |
-          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
-          IMAGES=(
-            apache/skywalking-banyandb:0.8.0
-            apache/skywalking-oap-server:10.2.0
-            apache/skywalking-ui:10.2.0
-          )
-          images_present="$(ssh "${SSH_OPTS[@]}" careermate-app \
-            "docker image inspect ${IMAGES[*]} >/dev/null 2>&1 && echo true || echo false")"
-          echo "images_present=${images_present}" >> "${GITHUB_OUTPUT}"
-          echo "SkyWalking images present on Server 3: ${images_present}"
+      # [SkyWalking-OFF 2026-06-19] 临时停用 SkyWalking 集成以缩短部署耗时。
+      # 恢复方法：grep 'SkyWalking-OFF 2026-06-19' 找到所有点，取消下方注释即可。
+      # - name: Check SkyWalking images on Server 3
+      #   id: sw-check
+      #   run: |
+      #     SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+      #     IMAGES=(
+      #       apache/skywalking-banyandb:0.8.0
+      #       apache/skywalking-oap-server:10.2.0
+      #       apache/skywalking-ui:10.2.0
+      #     )
+      #     images_present="$(ssh "${SSH_OPTS[@]}" careermate-app \
+      #       "docker image inspect ${IMAGES[*]} >/dev/null 2>&1 && echo true || echo false")"
+      #     echo "images_present=${images_present}" >> "${GITHUB_OUTPUT}"
+      #     echo "SkyWalking images present on Server 3: ${images_present}"
 
-      - name: Transfer SkyWalking images to Server 3
-        if: steps.sw-check.outputs.images_present != 'true'
-        run: |
-          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
-          SCP_OPTS=(-F "${HOME}/.ssh/config" -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
-          IMAGES=(
-            apache/skywalking-banyandb:0.8.0
-            apache/skywalking-oap-server:10.2.0
-            apache/skywalking-ui:10.2.0
-          )
-          for image in "${IMAGES[@]}"; do
-            docker pull "${image}"
-          done
-          docker save "${IMAGES[@]}" | gzip > /tmp/skywalking-images.tar.gz
-          scp "${SCP_OPTS[@]}" /tmp/skywalking-images.tar.gz careermate-app:/tmp/skywalking-images.tar.gz
-          ssh "${SSH_OPTS[@]}" careermate-app \
-            "gunzip -c /tmp/skywalking-images.tar.gz | sudo docker load && rm -f /tmp/skywalking-images.tar.gz"
+      # - name: Transfer SkyWalking images to Server 3
+      #   if: steps.sw-check.outputs.images_present != 'true'
+      #   run: |
+      #     SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+      #     SCP_OPTS=(-F "${HOME}/.ssh/config" -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+      #     IMAGES=(
+      #       apache/skywalking-banyandb:0.8.0
+      #       apache/skywalking-oap-server:10.2.0
+      #       apache/skywalking-ui:10.2.0
+      #     )
+      #     for image in "${IMAGES[@]}"; do
+      #       docker pull "${image}"
+      #     done
+      #     docker save "${IMAGES[@]}" | gzip > /tmp/skywalking-images.tar.gz
+      #     scp "${SCP_OPTS[@]}" /tmp/skywalking-images.tar.gz careermate-app:/tmp/skywalking-images.tar.gz
+      #     ssh "${SSH_OPTS[@]}" careermate-app \
+      #       "gunzip -c /tmp/skywalking-images.tar.gz | sudo docker load && rm -f /tmp/skywalking-images.tar.gz"
 
-      - name: Ensure SkyWalking OAP + UI on Server 3
-        run: |
-          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
-          timeout 15m ssh "${SSH_OPTS[@]}" careermate-app \
-            "cd /opt/careermate/k8s-src && sudo env SKYWALKING_BIND_IP=172.25.90.184 SKIP_PULL=1 bash deploy/scripts/ensure-skywalking-stack.sh"
+      # - name: Ensure SkyWalking OAP + UI on Server 3
+      #   run: |
+      #     SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+      #     timeout 15m ssh "${SSH_OPTS[@]}" careermate-app \
+      #       "cd /opt/careermate/k8s-src && sudo env SKYWALKING_BIND_IP=172.25.90.184 SKIP_PULL=1 bash deploy/scripts/ensure-skywalking-stack.sh"
 
       - name: Deploy CareerMate to k3s on Server 3
         run: |
@@ -408,17 +410,18 @@ jobs:
           assert trace_id, f"traceId must be non-null, got: {trace_id!r}"
           PY
 
-      - name: SkyWalking UI check
-        run: |
-          BASE="${{ vars.CAREERFORGE_BASE_URL || 'https://careerforge.cn' }}"
-          RESP="$(curl --silent --show-error --max-time 10 --retry 12 --retry-delay 10 -i \
-            "${BASE%/}/skywalking/")"
-          python3 - <<'PY' "${RESP}"
-          import sys
-          raw = sys.argv[1]
-          status_line = raw.split("\n", 1)[0]
-          assert " 200 " in status_line or " 302 " in status_line, status_line
-          PY
+      # [SkyWalking-OFF 2026-06-19] SkyWalking server 容器已停，临时跳过 UI smoke check。
+      # - name: SkyWalking UI check
+      #   run: |
+      #     BASE="${{ vars.CAREERFORGE_BASE_URL || 'https://careerforge.cn' }}"
+      #     RESP="$(curl --silent --show-error --max-time 10 --retry 12 --retry-delay 10 -i \
+      #       "${BASE%/}/skywalking/")"
+      #     python3 - <<'PY' "${RESP}"
+      #     import sys
+      #     raw = sys.argv[1]
+      #     status_line = raw.split("\n", 1)[0]
+      #     assert " 200 " in status_line or " 302 " in status_line, status_line
+      #     PY
 
       - name: Frontend entry check
         run: |
