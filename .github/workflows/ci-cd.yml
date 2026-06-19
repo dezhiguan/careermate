@@ -367,7 +367,7 @@ jobs:
         run: |
           SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
           timeout 35m ssh "${SSH_OPTS[@]}" careermate-app \
-            "cd /opt/careermate/k8s-src && sudo env SKIP_BACKEND_BUILD=1 SKIP_FRONTEND_BUILD=1 bash deploy/scripts/deploy-careermate-k8s.sh"
+            "cd /opt/careermate/k8s-src && sudo env SKIP_BACKEND_BUILD=1 SKIP_FRONTEND_BUILD=1 SKIP_BACKEND_IMAGE_BUILD=0 SKIP_FRONTEND_IMAGE_BUILD=0 bash deploy/scripts/deploy-careermate-k8s.sh"
 
   smoke-test:
     name: smoke-test
