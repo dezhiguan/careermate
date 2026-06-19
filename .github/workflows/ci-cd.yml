@@ -325,7 +325,22 @@ jobs:
           scp "${SCP_OPTS[@]}" "${JAR_FILE}" \
             "careermate-app:/opt/careermate/k8s-src/backend/target/careermate-backend-0.1.0.jar"
 
+      - name: Check SkyWalking images on Server 3
+        id: sw-check
+        run: |
+          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          IMAGES=(
+            apache/skywalking-banyandb:0.8.0
+            apache/skywalking-oap-server:10.2.0
+            apache/skywalking-ui:10.2.0
+          )
+          images_present="$(ssh "${SSH_OPTS[@]}" careermate-app \
+            "docker image inspect ${IMAGES[*]} >/dev/null 2>&1 && echo true || echo false")"
+          echo "images_present=${images_present}" >> "${GITHUB_OUTPUT}"
+          echo "SkyWalking images present on Server 3: ${images_present}"
+
       - name: Transfer SkyWalking images to Server 3
+        if: steps.sw-check.outputs.images_present != 'true'
         run: |
           SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
           SCP_OPTS=(-F "${HOME}/.ssh/config" -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
@@ -352,7 +367,7 @@ jobs:
         run: |
           SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
           timeout 35m ssh "${SSH_OPTS[@]}" careermate-app \
-            "cd /opt/careermate/k8s-src && sudo env SKIP_BACKEND_BUILD=1 SKIP_FRONTEND_BUILD=1 bash deploy/scripts/deploy-careermate-k8s.sh"
+            "cd /opt/careermate/k8s-src && sudo env SKIP_BACKEND_BUILD=1 SKIP_FRONTEND_BUILD=1 SKIP_BACKEND_IMAGE_BUILD=0 SKIP_FRONTEND_IMAGE_BUILD=0 bash deploy/scripts/deploy-careermate-k8s.sh"
 
   smoke-test:
     name: smoke-test
