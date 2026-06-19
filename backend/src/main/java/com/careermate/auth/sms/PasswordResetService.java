@@ -3,6 +3,7 @@ package com.careermate.auth.sms;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.careermate.audit.AuditActionType;
 import com.careermate.audit.service.AuditService;
+import com.careermate.auth.gateway.AuthGatewayClient;
 import com.careermate.auth.dto.PasswordResetConfirmRequest;
 import com.careermate.auth.dto.PasswordResetConfirmResponse;
 import com.careermate.auth.dto.PasswordResetSmsSendRequest;
@@ -34,36 +35,33 @@ public class PasswordResetService {
     private static final long DEFAULT_COOLDOWN_SECONDS = 60L;
     private static final SmsScene SCENE = SmsScene.PASSWORD_RESET;
 
-    private final MobileSmsAuthProvider mobileSmsAuthProvider;
     private final SmsAuthRateLimiter smsAuthRateLimiter;
-    private final TokenReplayGuard tokenReplayGuard;
     private final AliyunSmsProperties smsProperties;
     private final SecurityProperties securityProperties;
     private final ClientIpResolver clientIpResolver;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final AuthGatewayClient authGatewayClient;
 
     public PasswordResetService(
-            MobileSmsAuthProvider mobileSmsAuthProvider,
             SmsAuthRateLimiter smsAuthRateLimiter,
-            TokenReplayGuard tokenReplayGuard,
             AliyunSmsProperties smsProperties,
             SecurityProperties securityProperties,
             ClientIpResolver clientIpResolver,
             UserMapper userMapper,
             PasswordEncoder passwordEncoder,
-            AuditService auditService
+            AuditService auditService,
+            AuthGatewayClient authGatewayClient
     ) {
-        this.mobileSmsAuthProvider = mobileSmsAuthProvider;
         this.smsAuthRateLimiter = smsAuthRateLimiter;
-        this.tokenReplayGuard = tokenReplayGuard;
         this.smsProperties = smsProperties;
         this.securityProperties = securityProperties;
         this.clientIpResolver = clientIpResolver;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
+        this.authGatewayClient = authGatewayClient;
     }
 
     public SmsSendResponse sendSms(PasswordResetSmsSendRequest request) {
@@ -83,30 +81,10 @@ public class PasswordResetService {
         UserEntity user = findUserByPhone(phone);
         boolean activeUser = user != null && isActive(user);
 
+        authGatewayClient.resetInit(phone);
         String providerOutId = null;
-        String providerRequestId = null;
-        if (activeUser) {
-            MobileSmsAuthProvider.SendResult sendResult = mobileSmsAuthProvider.sendVerifyCode(
-                    MobileSmsAuthProvider.SendRequest.builder()
-                            .phone(phone)
-                            .scene(SCENE)
-                            .build()
-            );
-            if (!sendResult.isSuccess()) {
-                auditService.recordFailure(user.getId(), AuditActionType.PASSWORD_RESET_SMS_SEND, "SMS",
-                        SCENE.value(), "provider send failed phone=" + maskedPhone);
-                throw new BizException(ErrorCode.PASSWORD_RESET_PROVIDER_ERROR);
-            }
-            providerOutId = sendResult.getOutId();
-            providerRequestId = sendResult.getProviderRequestId();
-        } else {
-            log.info("Password reset send skipped SMS for inactive or missing user, phone={}, traceId={}",
-                    maskedPhone, traceId);
-        }
-
-        String challengeId = StringUtils.hasText(providerOutId)
-                ? providerOutId
-                : UUID.randomUUID().toString();
+        String providerRequestId = "auth-gateway";
+        String challengeId = UUID.randomUUID().toString();
         String challengeHash = TokenReplayGuard.hashOutId(challengeId, pepper());
         smsAuthRateLimiter.storePendingChallenge(SCENE, phoneHash, challengeHash, providerOutId);
 
@@ -134,14 +112,13 @@ public class PasswordResetService {
         String phone = PhoneSupport.normalizePhone(request.getPhone());
         PhoneSupport.validateMainlandPhone(phone);
         String verifyCode = request.getVerifyCode().trim();
-        String challengeId = request.getChallengeId().trim();
+        request.getChallengeId().trim();
         String newPassword = request.getNewPassword();
 
         String traceId = currentTraceId();
         String maskedPhone = PhoneSupport.maskPhone(phone);
         String phoneHash = phoneHash(phone);
         String ipHash = ipHash(resolveClientIp());
-        String challengeHash = TokenReplayGuard.hashOutId(challengeId, pepper());
 
         try {
             smsAuthRateLimiter.checkLoginAllowed(SCENE, phoneHash, ipHash, maskedPhone, traceId);
@@ -149,14 +126,6 @@ public class PasswordResetService {
             mapRateLimitException(ex);
         }
         smsAuthRateLimiter.recordLoginAttempt(SCENE, phoneHash, ipHash);
-        assertChallengeNotUsed(challengeHash);
-
-        if (!smsAuthRateLimiter.matchesPendingChallenge(SCENE, phoneHash, challengeHash)) {
-            smsAuthRateLimiter.recordLoginFailure(SCENE, phoneHash);
-            auditFailure(null, "challenge mismatch phone=" + maskedPhone);
-            throw new BizException(ErrorCode.PASSWORD_RESET_INVALID);
-        }
-
         UserEntity user = findUserByPhone(phone);
         if (user == null || !isActive(user)) {
             smsAuthRateLimiter.recordLoginFailure(SCENE, phoneHash);
@@ -164,33 +133,12 @@ public class PasswordResetService {
             throw new BizException(ErrorCode.PASSWORD_RESET_INVALID);
         }
 
-        String providerOutId = smsAuthRateLimiter.getPendingProviderOutId(SCENE, phoneHash).orElse(null);
-        MobileSmsAuthProvider.VerifyResult verifyResult = mobileSmsAuthProvider.checkVerifyCode(
-                MobileSmsAuthProvider.VerifyRequest.builder()
-                        .phone(phone)
-                        .verifyCode(verifyCode)
-                        .outId(providerOutId)
-                        .scene(SCENE)
-                        .build()
-        );
-
-        if (!verifyResult.isSuccess()) {
-            smsAuthRateLimiter.recordLoginFailure(SCENE, phoneHash);
-            auditFailure(user.getId(), "verify failed phone=" + maskedPhone);
-            throw new BizException(ErrorCode.PASSWORD_RESET_INVALID);
-        }
-
-        String verifiedPhone = PhoneSupport.normalizePhone(verifyResult.getPhone());
-        if (!phone.equals(verifiedPhone)) {
-            smsAuthRateLimiter.recordLoginFailure(SCENE, phoneHash);
-            auditFailure(user.getId(), "phone mismatch phone=" + maskedPhone);
-            throw new BizException(ErrorCode.PASSWORD_RESET_INVALID);
-        }
-
-        markChallengeUsed(challengeHash);
+        AuthGatewayClient.ResetVerifyResponse verifyResponse = authGatewayClient.resetVerify(phone, verifyCode);
+        authGatewayClient.resetConfirm(verifyResponse.getResetTicket(), newPassword);
         smsAuthRateLimiter.clearLoginFailure(SCENE, phoneHash);
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setSessionVersion(user.getSessionVersion() == null ? 1L : user.getSessionVersion() + 1);
         userMapper.updateById(user);
 
         auditService.recordSuccess(user.getId(), AuditActionType.PASSWORD_RESET, "USER",
@@ -218,25 +166,6 @@ public class PasswordResetService {
 
     private boolean isActive(UserEntity user) {
         return "ACTIVE".equalsIgnoreCase(user.getStatus());
-    }
-
-    private void assertChallengeNotUsed(String challengeHash) {
-        if (!StringUtils.hasText(challengeHash)) {
-            throw new BizException(ErrorCode.PASSWORD_RESET_INVALID);
-        }
-        try {
-            tokenReplayGuard.assertChallengeNotUsed(SCENE, challengeHash);
-        } catch (BizException ex) {
-            if (ex.getCode() == ErrorCode.MOBILE_AUTH_EXPIRED.getCode()
-                    || ex.getCode() == ErrorCode.MOBILE_AUTH_INVALID.getCode()) {
-                throw new BizException(ErrorCode.PASSWORD_RESET_INVALID);
-            }
-            throw ex;
-        }
-    }
-
-    private void markChallengeUsed(String challengeHash) {
-        tokenReplayGuard.markChallengeUsed(SCENE, challengeHash);
     }
 
     private void auditFailure(Long userId, String detail) {

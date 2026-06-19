@@ -1,12 +1,17 @@
 package com.careermate.ragforge;
 
+import com.careermate.auth.gateway.AuthGatewayClient;
 import com.careermate.observability.MdcKeys;
 import com.careermate.observability.TraceHeaderPropagator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -17,6 +22,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.client.RestTemplate;
 
 /**
@@ -30,27 +38,40 @@ public class RagForgeClient {
 
     private final RagForgeProperties properties;
     private final TraceHeaderPropagator traceHeaderPropagator;
+    private final AuthGatewayClient authGatewayClient;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ConcurrentHashMap<String, CachedToken> exchangedTokens = new ConcurrentHashMap<>();
 
     @Autowired
-    public RagForgeClient(RagForgeProperties properties, TraceHeaderPropagator traceHeaderPropagator) {
-        this(properties, traceHeaderPropagator, null);
+    public RagForgeClient(RagForgeProperties properties, TraceHeaderPropagator traceHeaderPropagator, AuthGatewayClient authGatewayClient) {
+        this(properties, traceHeaderPropagator, authGatewayClient, null);
     }
 
     /** For unit tests without trace propagation. */
     public RagForgeClient(RagForgeProperties properties) {
-        this(properties, null, null);
+        this(properties, null, null, null);
+    }
+
+    /** Backward-compatible test constructor with custom {@link RestTemplate}. */
+    public RagForgeClient(
+            RagForgeProperties properties,
+            TraceHeaderPropagator traceHeaderPropagator,
+            RestTemplate restTemplateOverride
+    ) {
+        this(properties, traceHeaderPropagator, null, restTemplateOverride);
     }
 
     /** For tests that supply a custom {@link RestTemplate} (e.g. sw8 simulation). */
     public RagForgeClient(
             RagForgeProperties properties,
             TraceHeaderPropagator traceHeaderPropagator,
+            AuthGatewayClient authGatewayClient,
             RestTemplate restTemplateOverride
     ) {
         this.properties = properties;
         this.traceHeaderPropagator = traceHeaderPropagator;
+        this.authGatewayClient = authGatewayClient;
         if (restTemplateOverride != null) {
             this.restTemplate = restTemplateOverride;
         } else {
@@ -86,10 +107,60 @@ public class RagForgeClient {
     private HttpHeaders defaultHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        if (StringUtils.hasText(properties.getApiKey())) {
+        String exchangedToken = resolveExchangedToken();
+        if (StringUtils.hasText(exchangedToken)) {
+            headers.setBearerAuth(exchangedToken);
+        } else if (StringUtils.hasText(properties.getApiKey())) {
             headers.set("X-API-Key", properties.getApiKey());
         }
         return headers;
+    }
+
+    private String resolveExchangedToken() {
+        String subjectToken = currentBearerToken();
+        if (!StringUtils.hasText(subjectToken) || authGatewayClient == null) {
+            return null;
+        }
+        String cacheKey = sha256(subjectToken + "|" + properties.getRequestedAudience() + "|" + properties.getRequestedScopes());
+        CachedToken cached = exchangedTokens.get(cacheKey);
+        long now = System.currentTimeMillis();
+        if (cached != null && cached.expiresAtEpochMs() > now) {
+            return cached.token();
+        }
+        AuthGatewayClient.TokenExchangeResponse response = authGatewayClient.tokenExchange(
+                subjectToken,
+                properties.getRequestedAudience(),
+                properties.getRequestedScopes());
+        if (response == null || !StringUtils.hasText(response.getAccessToken())) {
+            return null;
+        }
+        long ttlMs = Math.max(1000L, Math.min(properties.getExchangedTokenCacheTtlMs(), response.getExpiresIn() * 1000L));
+        exchangedTokens.put(cacheKey, new CachedToken(response.getAccessToken(), now + ttlMs));
+        return response.getAccessToken();
+    }
+
+    private String currentBearerToken() {
+        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+        if (!(attributes instanceof ServletRequestAttributes servletRequestAttributes)) {
+            return null;
+        }
+        String authorization = servletRequestAttributes.getRequest().getHeader(HttpHeaders.AUTHORIZATION);
+        if (!StringUtils.hasText(authorization) || !authorization.startsWith("Bearer ")) {
+            return null;
+        }
+        return authorization.substring("Bearer ".length()).trim();
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception ex) {
+            throw new IllegalStateException("SHA-256 unavailable", ex);
+        }
+    }
+
+    private record CachedToken(String token, long expiresAtEpochMs) {
     }
 
     private org.springframework.http.client.ClientHttpResponse logOutboundTraceHeaders(
