@@ -1,6 +1,6 @@
 # CareerMate 部署说明（索引）
 
-详细运维步骤见 **[deployment-careermate.md](deployment-careermate.md)**。**最终部署 Runbook**（按真实执行顺序）：RAGForge 仓库 `docs/deployment-migration-runbook.md`。SkyWalking 见 **[skywalking-cloud-setup.md](skywalking-cloud-setup.md)**。
+详细运维步骤见 **[deployment-careermate.md](deployment-careermate.md)**。跨 RAGForge / CareerMate 的最终部署 Runbook 仍以 RAGForge 仓库 `docs/deployment-migration-runbook.md` 为准。SkyWalking 见 **[skywalking-cloud-setup.md](skywalking-cloud-setup.md)**。认证配置见 **[SECURITY_AUTH.md](SECURITY_AUTH.md)**。
 
 ## 三层架构（生产）
 
@@ -30,10 +30,12 @@
 
 ```bash
 cp .env.example .env
-# 编辑 DB_URL、SECURITY_MODE、LLM_* 等（勿提交真实 Key）
+# 编辑 DB_URL、AUTH_GATEWAY_*、LLM_*、RAGFORGE_* 等（勿提交真实 Key）
 ```
 
 Spring 实际读取：`DB_URL`、`DB_USERNAME`、`DB_PASSWORD`（文档中偶称 DATABASE_*，含义相同）。
+
+当前认证主链路依赖 Auth Gateway，本地后端启动前请保证 `AUTH_GATEWAY_BASE_URL` 可访问；如只验证静态页面或前端构建，可不启动认证服务。
 
 ### 启动
 
@@ -73,7 +75,7 @@ sudo CAREERMATE_DEPLOY_USER=<CAREERMATE_APP_USER> bash deploy/scripts/init-serve
 | 前端路径 | `/careermate/` |
 | API 路径 | `/careermate-api/` → 反代到 `172.25.90.184:18080/api/` |
 | SkyWalking UI | `/skywalking/` → `127.0.0.1:18088`（勿公网裸露 8088） |
-| 密钥 | 仅 `/opt/careermate/backend/.env.app`（Server 3），**不入库** |
+| 密钥 | `/opt/careermate/backend/.env.app` 或 `/opt/shared/env/common.env`，**不入库** |
 
 构建：
 
@@ -88,20 +90,30 @@ Nginx 片段：`deploy/nginx/careermate.locations.example`、`deploy/nginx/skywa
 
 | 变量 | 说明 |
 |------|------|
-| `SECURITY_MODE` | `single-user` \| `jwt` |
 | `SERVER_PORT` | 本地 `8080`，生产 `18080` |
 | `DB_URL` | `jdbc:postgresql://172.25.90.183:5432/careermate_db` |
 | `DB_USERNAME` / `DB_PASSWORD` | 数据库账号 |
-| `JWT_SECRET` | jwt 模式密钥（生产必换） |
+| `AUTH_GATEWAY_BASE_URL` | Auth Gateway 内网或本地地址 |
+| `AUTH_GATEWAY_ISSUER` / `AUTH_GATEWAY_AUDIENCE` | JWT 校验 issuer/audience |
+| `AUTH_GATEWAY_CLIENT_ID` | CareerMate 后端 OAuth client |
+| `AUTH_GATEWAY_CLIENT_ASSERTION_PRIVATE_KEY` / `AUTH_GATEWAY_CLIENT_ASSERTION_KID` | client assertion 签名配置 |
+| `AUTH_GATEWAY_REFRESH_COOKIE_*` | refresh cookie 名称、路径、domain、secure |
+| `AUTH_EVENT_HMAC_SECRET` | Auth Gateway 事件 webhook HMAC 密钥 |
 | `LLM_PROVIDER` | `mock` \| `qwen` \| `deepseek` \| `openai-compatible` |
 | `LLM_MODEL` | 如 `qwen-plus`、`mock-chat` |
 | `LLM_ENDPOINT` | Qwen: DashScope 兼容 endpoint |
 | `LLM_API_KEY` | **仅服务器本地**，勿写入仓库 |
+| `RAGFORGE_ENABLED` | 是否启用 RAGForge 调用 |
 | `RAGFORGE_URL` | Server 3 上启用集成时用 `http://127.0.0.1:8080` |
+| `RAGFORGE_JD_KB_ID` / `RAGFORGE_INTERVIEW_KB_ID` / `RAGFORGE_PERSONAL_KB_ID` | JD、面试、个人简历知识库 |
+| `RAGFORGE_REQUESTED_AUDIENCE` / `RAGFORGE_REQUESTED_SCOPES` | token exchange 目标 |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | Redis，生产用于短信限流和 auth 事件吊销 |
 | `TRACING_ENABLED` | Micrometer OTLP；生产用 SkyWalking 时建议 `false` |
 | `SKYWALKING_AGENT_SERVICE_NAME` | 默认 `careermate-backend` |
 | `SKYWALKING_COLLECTOR_BACKEND_SERVICE` | 如 `127.0.0.1:11800` 或 `skywalking-oap:11800` |
 | `JAVA_TOOL_OPTIONS` | `-Xms512m -Xmx2g -javaagent:.../skywalking-agent.jar` 等 |
+| `ALIYUN_SMS_*` | 手机号登录/密码重置短信配置 |
+| `CAREERMATE_MCP_ENABLED` | MCP endpoint 开关，默认 `false` |
 
 模板：`deploy/env/careermate-backend.env.example`、根目录 `.env.example`
 
@@ -114,6 +126,21 @@ curl -fsS http://127.0.0.1:18080/api/health
 # 公网入口
 curl -fsS http://8.163.63.222/careermate-api/health
 curl -I http://8.163.63.222/skywalking/    # 需已部署 OAP/UI + Nginx
+```
+
+登录链路验证需使用真实 Auth Gateway：
+
+```bash
+curl -sS http://8.163.63.222/careermate-api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"<account>","password":"<password>"}'
+```
+
+业务接口验证需带返回的 access token：
+
+```bash
+curl -sS http://8.163.63.222/careermate-api/auth/me \
+  -H "Authorization: Bearer <access_token>"
 ```
 
 ## 相关文档

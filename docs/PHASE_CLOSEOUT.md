@@ -1,6 +1,6 @@
 # CareerMate 阶段收口报告
 
-**阶段版本**：P0–P5 MVP（应用闭环 + Qwen 切换 + 观测工程化）  
+**阶段版本**：P0–P8 MVP（统一认证 + RAGForge + Agent 架构升级）
 **收口日期**：2026-06（以仓库当前 `main` 工作区为准）  
 **原则**：本阶段**不新增业务功能**，仅文档与验证同步。
 
@@ -10,23 +10,26 @@
 
 ### 产品与后端
 
-- 登录 / `single-user` / `jwt`
+- Auth Gateway 统一认证：账号密码、手机号验证码、密码重置、JWT/JWKS、事件吊销
 - Agent SSE 对话、防卡死、会话历史与**恢复**
 - **多轮上下文**、求职**画像**、求职**任务**
 - 文本简历、岗位匹配、面试训练、Dashboard
-- Agent **规则路由 + 工具调用** + 前端**工具卡片**
+- Agent **LLM 意图识别 + 规则降级 + 工具调用** + 前端**工具卡片**
 - **Qwen / mock**（及 deepseek、openai-compatible）`LlmClient` 切换
+- RAGForge JD KB / Interview KB / Personal KB 集成，含 token exchange
+- LLM 化岗位匹配、面试评分、面试题生成
+- Supervisor 专家 Agent 与 ReAct 推理结果注入
 - 日志 MDC + `X-Request-Id` / `X-Trace-Id` + `llm.chat` 耗时（脱敏）
 
 ### 工程化
 
 - Micrometer Tracing + OTLP（可选，本地/CI）
 - SkyWalking：**compose、Agent 安装脚本、systemd 模板、Nginx `/skywalking/` 文档**（云端 UI 需在服务器按文档启用）
-- RAGForge：`RagForgeClient`、传播头、集成**文档**（**业务 RAG 未接**）
+- RAGForge：`RagForgeClient`、传播头、Personal KB 简历同步、JD/Interview KB 检索增强
 
 ### 前端
 
-- Vue 3 五页 + Agent 对话台 SSE、Trace 面板、任务/工具卡片
+- Vue 3 多页工作台 + 登录/短信/密码重置 + Agent 对话台 SSE、Trace 面板、任务/工具卡片
 
 ---
 
@@ -55,10 +58,10 @@
 
 ## 4. 未完成内容（勿写进“已完成”）
 
-- 简历**文件**上传与解析
-- RAGForge **JD / 简历**知识库业务集成
-- Agent 多步骤规划器
-- Prompt 管理、Agent 评测、MCP 实装
+- 联合 docker-compose / k8s 一键部署
+- 薪资谈判官
+- Prompt 管理、Agent 评测
+- MCP 默认仍关闭，生产启用前需补权限和客户端验收
 - 云端 Playwright 全量 CI 固化
 - SkyWalking 云端 UI（**配置已就绪，需服务器执行 compose + Nginx + Agent**）
 
@@ -66,11 +69,10 @@
 
 ## 5. 下一阶段优先级
 
-1. **P6** 简历上传解析  
-2. **P7** RAGForge JD 知识库 + Agent 检索增强  
-3. **P8** JD 驱动匹配 / 优化 / 面试闭环  
-4. **P9** Prompt + Eval  
-5. **P10** 开源展示与云端 E2E  
+1. **P9** 联合部署与运维固化
+2. **P10** 薪资谈判官
+3. **P11** Prompt + Eval
+4. 云端完整 E2E 与 CI 固化
 
 详见 [ROADMAP.md](ROADMAP.md)。
 

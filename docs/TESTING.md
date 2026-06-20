@@ -11,6 +11,8 @@ mvn test
 
 - 使用 `application-test.yml`，默认 `management.tracing.enabled=false`
 - 需要本地 PostgreSQL 库 `careermate_test_db`（见 `application-test.yml` 注释）
+- 认证相关测试覆盖 JWT/JWKS、Auth Gateway 事件吊销、手机号登录、密码重置、cookie 支持和用户映射
+- 生产 profile 禁止启用短信 mock，相关保护见 `MockProviderProdProfileTest`
 
 ## 前端生产构建
 
@@ -41,6 +43,8 @@ VITE_API_BASE_URL=/careermate-api VITE_BASE_PATH=/careermate/ npm run build
 | `E2E_TARGET` | `local`（默认）或 `cloud` |
 | `PLAYWRIGHT_API_BASE_URL` | 如 `http://localhost:19080/api` |
 | `VITE_API_PROXY_TARGET` | Vite 代理到后端 |
+| `PLAYWRIGHT_AUTH_USERNAME` / `PLAYWRIGHT_AUTH_PASSWORD` | 需要真实登录时使用的账号 |
+| `PLAYWRIGHT_AUTH_PHONE` | 手机号登录/密码重置用例需要时配置 |
 
 ### 本地常用命令
 
@@ -65,6 +69,9 @@ npx playwright test tests/e2e/agent-task-tools.spec.js --project=local-chrome-de
 
 # 登录注册（jwt 环境）
 npm run test:e2e:auth:local
+
+# 密码重置（需短信 mock 或测试手机号）
+npx playwright test tests/e2e/password-reset.spec.js --project=local-chrome-desktop
 
 # 多轮上下文 / 画像 / 工具 API 等
 npx playwright test tests/e2e/agent-conversation-context.spec.js
@@ -92,6 +99,8 @@ E2E_TARGET=cloud \
 | `agent-task-tools.spec.js` | 任务创建/完成 |
 | `agent-chat-stress.spec.js` | 压力 / 流式 |
 | `auth.spec.js` | 登录注册 |
+| `password-reset.spec.js` | 密码重置 |
+| `login-default-route-p0.spec.js` | 登录后默认路由 |
 | `careermate.spec.js` | 主流程冒烟 |
 
 ### 服务不可用
@@ -111,4 +120,16 @@ SERVER_PORT=19080 SPRING_PROFILES_ACTIVE=dev java -jar target/careermate-backend
 ```bash
 curl -i http://localhost:8080/api/health
 # 预期：X-Request-Id、X-Trace-Id（需使用含追踪 Filter 的构建）
+```
+
+认证接口手工验证：
+
+```bash
+TOKEN=$(curl -sS http://localhost:8080/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"<account>","password":"<password>"}' \
+  | jq -r '.data.token')
+
+curl -i http://localhost:8080/api/auth/me \
+  -H "Authorization: Bearer ${TOKEN}"
 ```

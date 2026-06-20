@@ -147,7 +147,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318/v1/traces
 
 说明：
 
-- 使用 Spring Boot 3.2 Micrometer Tracing + OpenTelemetry OTLP；日志含 `traceId` / `spanId` / `requestId` / `userId` / `sessionId`。
+- 使用 Spring Boot 3.5 Micrometer Tracing + OpenTelemetry OTLP；日志含 `traceId` / `spanId` / `requestId` / `userId` / `sessionId`。
 - HTTP 响应头：`X-Request-Id`、`X-Trace-Id`；调用 RAGForge 时透传 `traceparent` / `tracestate`。
 - **不强制**生产部署 OTLP Collector；未部署时仍可本地日志排查，仅无集中式 trace UI。
 - 可选 Collector 示例：`deploy/otel/otel-collector-config.yaml`（Docker 侧车或独立容器）。
@@ -472,7 +472,7 @@ Frontend is deployed directly to Server 2, not stored in Server 3 releases.
 
 ## 14. 本地 E2E 验收（Playwright）
 
-在 `frontend/careermate` 目录执行 E2E（本机 Google Chrome headed）。云端完整用户场景：`npm run test:e2e:cloud:full`（要求 `SECURITY_MODE=jwt` 且 `JWT_SECRET`≥32 字节）。
+在 `frontend/careermate` 目录执行 E2E（本机 Google Chrome headed）。云端完整用户场景：`npm run test:e2e:cloud:full`，要求 CareerMate 后端能访问 Auth Gateway，且测试账号、短信/密码重置相关环境变量已准备好。
 
 ## 15. Final Deployment Runbook & RAGForge CI Secrets
 

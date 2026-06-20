@@ -1,61 +1,118 @@
-# CareerMate 架构摘要（阶段性 MVP）
+# CareerMate 架构摘要
 
-简洁说明当前实现；详细目标架构见 `docs/design/CareerMate-architecture-v2.1.html`（桌面同名 HTML 为目标版，勿与 MVP 混为一谈）。
+本文描述当前代码架构。`docs/design/CareerMate-architecture-v2.1.html` 是目标架构设计，不能直接等同于当前实现。
 
-## 系统分层
+## 1. 总体架构
 
 ```text
 Browser (Vue 3 + Vite)
-    |  HTTPS / Nginx
-    v
-CareerMate Backend (Spring Boot, :8080 local / :18080 prod)
-    |-- PostgreSQL (业务数据)
-    |-- LLM Provider (mock / qwen / deepseek / openai-compatible)
-    |-- SkyWalking Java Agent -> OAP (可选，生产 UI 观测)
     |
-    +-- [下一阶段] RAGForge (外部 RAG 服务，REST + 链路头透传)
+    | HTTPS / Nginx
+    v
+CareerMate Backend (Spring Boot, stateless API)
+    |
+    |-- PostgreSQL: 业务数据、会话、Trace、审计
+    |-- Redis: 短信限流、验证码、auth event 幂等与吊销
+    |-- Auth Gateway: 登录、短信、密码重置、JWKS、token exchange
+    |-- LLM Provider: mock / qwen / deepseek / openai-compatible
+    |-- RAGForge: JD KB、Interview KB、Personal KB
+    |-- SkyWalking / OTLP: 链路观测
 ```
 
-| 组件 | 本阶段状态 |
-|------|------------|
-| Frontend | ✅ Vue 对话台、简历、匹配、面试、看板 |
-| CareerMate Backend | ✅ 单体 Spring Boot |
-| PostgreSQL | ✅ Flyway V1–V8 |
-| LLM Provider | ✅ 抽象 + mock/Qwen 配置切换 |
-| SkyWalking | ✅ Agent/compose/文档；云端 UI 需运维启用 |
-| RAGForge | ⏳ 客户端与文档预留，**未**接 JD/简历知识库业务 |
+后端是单体 Spring Boot 服务，不使用 WebFlux。Spring AI 依赖作为旁路能力保留，主聊天链路仍走项目内 `LlmClient` 抽象。
 
-## Agent 当前实现
+## 2. 前端分层
 
-- **单主控 Agent**：一次用户消息 → 组装 system prompt → 可选工具 → LLM 流式回复
-- **规则 Router + 工具调用**：关键词/模式匹配 `AgentToolRouter`，非 LLM function-calling 全自动
-- **记忆**：会话消息（多轮上下文）、求职画像（`career_profiles`）、任务（`career_tasks`）、默认简历与最近岗位匹配上下文
-- **SSE 流式**：`SseEmitter` + 独立 `agent-executor`；心跳、任务超时、单 session 并发限制
+| 层 | 说明 |
+|----|------|
+| Router | Hash 路由，统一登录守卫 |
+| Stores | `authStore`、`homeStore` 管理会话和首页 bootstrap |
+| API | `src/api/http.js` 统一注入 Bearer token、处理 trace header 和 401 |
+| Views | 登录、机会、面试、小职、市场、我的、简历管理 |
+| Components | App shell、聊天卡片、Agent 工具卡片 |
 
-不展示 Chain-of-Thought；通过 **Agent Trace**（DB + 可选 SkyWalking）观察执行过程。
+生产构建通过 `VITE_API_BASE_URL=/careermate-api`、`VITE_BASE_PATH=/careermate/` 适配入口层 Nginx。
 
-## 为何暂不引入 LangChain4j / Spring AI
+## 3. 认证与安全
 
-- MVP 需要可控、可读的 Java 代码路径，便于教学与部署排障
-- 工具路由、SSE、用户隔离、Trace 已用 Spring 原生能力实现
-- 避免框架版本与供应商锁定；`LlmClient` 已足够切换 Qwen/mock
-- 可在后续以 **Adapter** 方式接入，不进入当前核心链路
+CareerMate API 使用 stateless security：
 
-## 为何 RAGForge 作为外部基础设施
+- 匿名只放行健康检查、登录注册、短信、密码重置和 auth event webhook。
+- 其它 `/api/**` 要求 Bearer token。
+- JWT 由 Auth Gateway 签发，CareerMate 通过 JWKS 校验签名。
+- JWT 校验 issuer、audience、expiration。
+- `users.auth_user_id` 映射 Auth Gateway 用户，`users.id` 用于本地业务表。
+- `CurrentUserContext` 是后端业务获取当前用户的唯一入口。
+- Auth event webhook 用 HMAC + Redis 做 token/session/password 事件吊销。
 
-- 向量检索、ES、知识库生命周期由 RAGForge 专责
-- CareerMate 聚焦 Agent 工作台与业务表；通过 REST + `TraceHeaderPropagator` / SkyWalking 跨服务追踪
-- 用户私有简历**默认不进**共享知识库（见 `docs/AI_CONTEXT.md`）
+详见 `docs/SECURITY_AUTH.md`。
 
-## 与 V2.1 目标架构的差距
+## 4. Agent 架构
 
-| V2.1 目标 | 当前 MVP |
-|-----------|----------|
-| 完整 Tool Registry / 并行工具编排 | 规则路由 + 同步工具执行 |
-| RAGForge 知识工具深度集成 | 仅 Client/配置/文档预留 |
-| 简历文件解析 + Chunk 管理 | 文本简历为主 |
-| Prompt 版本与 Eval 体系 | 未实现 |
-| MCP 正式实现 | 未实现 |
-| Redis 多实例 SSE | 未引入（可选增强） |
+```text
+SSE 请求
+  -> Controller
+  -> AgentSessionService / WorkspaceService
+  -> AgentMemory / Context Provider
+  -> Intent Recognizer / Tool Router
+  -> AgentToolExecutionService
+  -> ReActEngine / AgentSupervisor
+  -> LlmClient stream
+  -> SseEmitter
+  -> Trace 持久化
+```
 
-下一阶段按 `docs/ROADMAP.md` P6–P10 推进。
+关键能力：
+
+- SSE 流式输出，支持 token/message/done/error/heartbeat。
+- 会话、消息、Trace 持久化，支持刷新恢复。
+- 多轮上下文、求职画像、默认简历、最近岗位匹配注入 prompt。
+- LLM 意图识别失败时降级到规则工具路由。
+- Supervisor 并行调度 Resume/JobMatch/Interview/Market 等专家能力。
+- ReAct 非流式推理循环最多 3 轮，结果注入最终回复，不向用户展示 Chain-of-Thought。
+
+## 5. RAGForge 边界
+
+RAGForge 负责知识库、文档和检索；CareerMate 负责求职工作台和业务数据。
+
+当前集成：
+
+- `RagForgeClient`：搜索、文本上传、文档删除。
+- 简历保存/更新/删除同步 Personal KB。
+- JD KB 搜索用于岗位匹配页和上下文增强。
+- Interview KB 用于面试题生成和回答评估辅助。
+- Bearer token 通过 Auth Gateway token exchange 换取 RAGForge audience token。
+- trace header 跨服务透传。
+
+关闭 `RAGFORGE_ENABLED` 或缺少 KB ID 时，业务应降级而不是失败。
+
+## 6. 数据分层
+
+| 类型 | 表 |
+|------|----|
+| 用户安全 | `users`、`user_profiles`、`security_audit_logs` |
+| Agent Runtime | `agent_sessions`、`agent_messages`、`agent_tool_calls`、`agent_task_states` |
+| Agent 工作流 | `agent_artifacts`、`agent_pending_actions` |
+| 求职业务 | `resumes`、`resume_versions`、`job_posts`、`job_matches`、`interview_sessions`、`interview_questions`、`career_profiles`、`career_tasks` |
+
+所有用户私有业务表都必须带 `user_id` 或通过父表归属校验间接隔离。
+
+## 7. 观测
+
+- `TracingMdcFilter` 写入 `requestId` / `traceId`。
+- 响应头输出 `X-Request-Id` / `X-Trace-Id`。
+- 日志 MDC 包含 `userId`、`sessionId` 等上下文。
+- LLM/RAG/Agent Trace 记录摘要，不写完整 prompt、简历、JD、密钥或 token。
+- 生产推荐 SkyWalking Java Agent；Micrometer OTLP 可选。
+
+## 8. 部署视图
+
+生产推荐三层：
+
+| 层 | 组件 |
+|----|------|
+| 数据层 | PostgreSQL、Redis、ES、RocketMQ |
+| 入口层 | Nginx、CareerMate 静态资源、RAGForge 静态资源 |
+| 应用层 | CareerMate backend、RAGForge backend、SkyWalking Agent |
+
+CareerMate 后端生产端口 `18080`，入口路径 `/careermate/`，API 路径 `/careermate-api/`。

@@ -1,4 +1,4 @@
-# RAGForge × SkyWalking 联动说明（预留）
+# RAGForge × SkyWalking 联动说明
 
 CareerMate 与 RAGForge 共用 **同一套 SkyWalking OAP**（`deploy/skywalking/docker-compose.skywalking.yml`），在 UI **Topology** 中展示跨服务调用链。
 
@@ -26,7 +26,7 @@ CareerMate 调用 RAGForge 时必须延续 trace：
 1. **推荐**：两侧均挂 SkyWalking Agent，HTTP 客户端插件自动传播 `sw8` header（`java.net.http` / Spring `RestTemplate` 等）。
 2. **补充**：CareerMate 已实现 `TraceHeaderPropagator`（W3C `traceparent` + `X-Request-Id` + `X-CareerMate-Session-Id`）。RAGForge 接入 Agent 后，应同时识别入站 `sw8` / `traceparent`。
 
-业务代码应通过 **`RagForgeClient`**（`com.careermate.observability.ragforge`）发起 HTTP，避免绕过传播逻辑。
+业务代码应通过 **`RagForgeClient`**（`com.careermate.ragforge`）发起 HTTP，避免绕过传播逻辑。
 
 ## 3. 预期 Topology
 
@@ -42,7 +42,7 @@ careermate-backend  -->  ragforge-backend
 
 - ✅ CareerMate Agent + `RagForgeClient` 传播头与 span（`ragforge.search` 等）
 - ✅ 共用 OAP 的部署模板与文档
-- ⏳ RAGForge 仓库/部署脚本修改：仅在能**安全**改动 RAGForge 部署时由运维按本文挂载 Agent；否则仅完成文档与配置预留
+- ⏳ RAGForge 进程侧 Java Agent 挂载需按 RAGForge 仓库和目标环境单独执行
 
 ## 5. 验收
 

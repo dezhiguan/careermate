@@ -2,7 +2,7 @@
 
 CareerMate 已通过 Micrometer Tracing + OpenTelemetry OTLP 输出 trace，并在调用 RAGForge 时透传 W3C Trace Context。若 RAGForge 与 CareerMate 分仓部署，请在 RAGForge 侧按本文完成对齐。
 
-## 1. 依赖（Spring Boot 3.2+）
+## 1. 依赖（Spring Boot 3.5+）
 
 ```xml
 <dependency>

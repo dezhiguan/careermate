@@ -1,142 +1,153 @@
 # CareerMate AI Context
 
-供后续在 Cursor / 其他 AI 工具中**快速恢复项目上下文**。描述以仓库**当前真实实现**为准。
+供后续在 Cursor / Codex / 其他 AI 工具中快速恢复项目上下文。本文只描述仓库当前真实实现，不把目标架构当作已上线能力。
 
 ## 1. 项目身份
 
-- **名称**：CareerMate（求职智能体工作台）
-- **路径**：`/Users/amy/CursorProject/careermate`
-- **定位**：基于 **Java + Spring Boot + Vue** 的 AI 求职 Agent 应用，可部署、可演示的阶段性 MVP
-- **目标架构文档**：`docs/design/CareerMate-architecture-v2.1.html`（桌面 `CareerMate-架构设计文档-V2.1.html` 为目标版，**不等于**当前已全部实现）
+- 名称：CareerMate
+- 本地路径：`/Users/amy/CursorProject/careermate`
+- GitHub：`git@github.com:dezhiguan/careermate.git`
+- 定位：AI 求职 Agent 工作台，覆盖认证、简历、岗位、面试、任务、市场、Agent 对话与 RAG 检索
+- 结构：monorepo，`backend/` + `frontend/careermate/`
 
-## 2. 当前阶段完成到哪里
+## 2. 当前完成范围
 
-**P0–P5 已收口**（见 `docs/ROADMAP.md`、`docs/PHASE_CLOSEOUT.md`）：
+当前代码已完成 P0-P8：
 
-- 应用闭环：Agent、简历、匹配、面试、看板、画像、任务、工具卡片
-- LLM：mock / qwen / deepseek / openai-compatible
-- 观测：日志 traceId、Micrometer OTLP（可选）、SkyWalking **部署模板与文档**
-- **未做**：RAGForge 业务集成、简历文件解析、Prompt/Eval/MCP
+- P0：Spring Boot / Vue / PostgreSQL / Flyway / 统一响应 / 全局异常 / 认证基础
+- P1：Agent SSE、会话、消息、Trace、会话恢复、多轮上下文
+- P2：简历、岗位匹配、面试训练、Dashboard
+- P3：求职画像、求职任务
+- P4：Agent 工具调用、工具卡片
+- P5：Qwen、日志追踪、SkyWalking 模板
+- P6：RAGForge 深度集成、Personal KB 简历同步、JD KB 检索
+- P7：LLM 化岗位匹配/面试评分/面试题生成，Tika 文件解析
+- P8：LLM 意图识别、Supervisor + 专家 Agent、ReAct
 
-## 3. 已完成模块清单
+P9+ 未完成：联合一键部署、薪资谈判官、Agent Eval、Prompt 管理平台、云端完整 E2E 固化。
 
-| 模块 | 后端 | 前端 |
-|------|------|------|
-| 认证 | Security single-user/jwt | LoginView、authStore、http.js |
-| Agent SSE | AgentStreamController、SseEmitterService | AgentChat.vue |
-| 会话恢复 | listRecentSessions、消息列表 | 侧栏最近会话 |
-| 多轮上下文 | AgentConversationContextProvider | — |
-| 求职画像 | career_profiles、自动更新 | — |
-| 求职任务 | career_tasks、Agent 工具 | Dashboard、任务卡片 |
-| 简历 | resumes 文本 | ResumeStudio |
-| 岗位匹配 | job_posts、job_matches | JobMatching |
-| 面试 | interview 表 | InterviewPrep |
-| Dashboard | dashboard API | CareerDashboard |
-| Agent 工具 | AgentToolRouter + 各 Tool 实现 | agentToolDisplay.js |
-| LLM | LlmClient、TracingLlmClient | — |
-| 追踪 | TracingMdcFilter、TraceIdResolver | — |
+## 3. 关键模块
 
-## 4. 架构边界
+| 模块 | 后端入口 | 前端入口 |
+|------|----------|----------|
+| 认证 | `auth/**`、`security/**` | `LoginView.vue`、`authStore.js`、`api/http.js` |
+| Agent 对话 | `agent/controller`、`agent/service`、`agent/runtime` | `AgentChat.vue` |
+| Workspace | `workspace/**` | `AgentChat.vue` |
+| 简历 | `resume/**`、`resume/version/**` | `ResumeManage.vue` |
+| 岗位机会 | `opportunity/**` | `OpportunityView.vue` |
+| 岗位匹配 | `jobmatch/**` | `JobMatching.vue` |
+| 面试 | `interview/**` | `InterviewPrep.vue` |
+| 市场洞察 | `market/**` | `MarketView.vue` |
+| 看板/任务 | `dashboard/**`、`task/**` | 机会页/工具卡片 |
+| RAGForge | `ragforge/**`、`knowledge/**` | 岗位匹配、市场、Agent |
+| MCP | `mcp/**` | 外部 JSON-RPC 客户端 |
 
-- **单体** Spring Boot；**不用** WebFlux、**不用** Spring AI / LangChain4j 作核心
-- **不**直接操作 pgvector / Elasticsearch（交给 RAGForge）
-- **不**把 userId 交给前端或 LLM 参数；从 `CurrentUserContext` 取
-- Redis **非**必选
-- RAGForge：**外部** REST；本阶段 `RAGFORGE_ENABLED=false` 为默认
+## 4. 认证与权限
 
-## 5. CareerMate 与 RAGForge
+- Auth Gateway 是主认证服务，CareerMate 调用它完成密码登录、手机号登录、密码重置和 token exchange。
+- 后端通过 JWKS 验证 JWT 签名，校验 issuer、audience、expiration。
+- 匿名只放行健康检查、登录注册、短信、密码重置和 auth event webhook。
+- 其它 `/api/**` 需要 `Authorization: Bearer <access_token>`。
+- 当前登录用户存在 `CurrentUserContext`，业务表按 `user_id` 隔离。
+- `users.auth_user_id` 关联 Auth Gateway 用户 ID，`users.id` 是 CareerMate 业务用户 ID。
+- Auth event webhook 用 HMAC + Redis 做 session/password 事件吊销。
 
-- RAGForge：已有/将有的 **JD 与共享知识** RAG 平台
-- CareerMate：通过 `RagForgeClient`（`com.careermate.observability.ragforge`）+ `TraceHeaderPropagator` 调用
-- **当前**：仅配置、传播头、Span 命名与文档；**无**生产 JD 检索业务
-- 联动文档：`docs/ragforge-tracing-integration.md`、`docs/ragforge-skywalking-integration.md`
+详细说明见 `docs/SECURITY_AUTH.md`。
 
-## 6. 简历数据原则
+## 5. RAGForge 集成现状
 
-- 用户简历存 **PostgreSQL** `resumes`（文本字段），按 `user_id` 隔离
-- 默认简历注入 Agent system prompt（长度摘要进 Trace，**不**打全文日志）
-- **不上传**文件、**不**解析 PDF/Word 本阶段
-- 用户私有简历 **默认不**写入 RAGForge 共享库（目标架构原则，P7 再定具体策略）
+CareerMate 通过 `RagForgeClient` 调用 RAGForge：
 
-## 7. JD 知识库规划（未完成）
+- 搜索 JD KB：岗位匹配页 `jd-kb-search` 和 Agent/知识检索链路使用。
+- 搜索 Interview KB：面试题生成和回答评估可引用知识库上下文。
+- Personal KB：简历保存/更新异步上传文本，删除简历时联动删除文档，`resumes.rag_doc_id` 记录版本。
+- Token exchange：当前 Bearer token 交换为 RAGForge audience token。
+- 观测：跨服务 trace header 透传。
 
-- JD 存入 RAGForge 知识库（`RAGFORGE_JD_KB_ID` 等配置预留）
-- Agent / 岗位模块通过检索增强匹配与问答
-- **下一阶段 P7**，本仓库勿写“已集成 RAGForge”
+默认 `RAGFORGE_ENABLED=false`，未启用或 KB ID 未配置时业务降级，不阻塞主流程。
 
-## 8. 当前 Agent 工具清单
+## 6. Agent 当前实现
 
-| toolName | 用途 |
-|----------|------|
-| `get_default_resume` | 默认简历上下文 |
-| `get_latest_job_match` | 最近岗位匹配 |
-| `create_job_match` | 创建匹配（需 JD 文本等） |
-| `create_interview_session` | 创建面试练习 |
-| `get_dashboard_overview` | 看板概览 |
-| `get_career_tasks` | 任务列表 |
-| `create_career_task` | 创建任务 |
-| `mark_career_task_done` | 完成任务 |
+主要链路：
 
-路由：`AgentToolRouter`（规则匹配，非 LLM tool_calls）。
+```text
+用户消息
+  -> AgentStreamController / WorkspaceController
+  -> 会话与消息持久化
+  -> 上下文装配：历史消息、画像、默认简历、最近岗位匹配
+  -> LLM 意图识别 / 规则降级
+  -> 可选工具调用 / ReAct / Supervisor 专家
+  -> LLM 流式回复
+  -> SSE token/message/done/error
+  -> Trace/工具调用记录
+```
 
-Trace 中 LLM 摘要：`toolName=llm_chat`（`LlmChatTraceRecorder`）。
+当前工具示例：
 
-## 9. 重要 API（前缀 `/api`）
+- `get_default_resume`
+- `get_latest_job_match`
+- `create_job_match`
+- `create_interview_session`
+- `get_dashboard_overview`
+- `get_career_tasks`
+- `create_career_task`
+- `mark_career_task_done`
+- `search_knowledge_base`
+- `generate_resume_from_jd`
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/health` | 健康检查 |
-| POST | `/auth/register`、`/login` | 注册登录 |
-| GET | `/auth/me` | 当前用户 |
-| POST | `/agent/sessions` | 创建会话 |
-| POST | `/agent/sessions/{id}/messages/stream` | SSE 对话 |
-| GET | `/agent/sessions/{id}` | 会话+消息 |
-| GET | `/agent/sessions/{id}/trace` | Trace 列表 |
-| GET | `/agent/sessions/recent` | 最近会话（列表） |
-| CRUD | `/resumes`、`/job-matches`、`/interviews`、`/tasks`、`/dashboard` 等 | 各业务模块 |
-| POST | `/debug/llm/chat` | **仅 dev**；prod 默认关闭 |
+工具定义包含权限和风险等级：`READ_USER_DATA`、`WRITE_USER_DATA`、`CALL_EXTERNAL_SERVICE`、`LONG_RUNNING_TASK`；`LOW`、`MEDIUM`、`HIGH`。
 
-## 10. 当前数据库表（Flyway）
+## 7. 前端路由
 
-- V1：`users`、`user_profiles`、`security_audit_logs`
-- V2：`agent_sessions`、`agent_messages`、`agent_tool_calls`、`agent_task_states`
-- V3：`resumes`
-- V4：`job_posts`、`job_matches` 等
-- V5：简历默认唯一索引
-- V6：面试相关
-- V7：`career_profiles`
-- V8：`career_tasks`
+Hash 路由：
 
-详见 `docs/database-design.md` 与 `backend/src/main/resources/db/migration/`。
+- `#/login`
+- `#/chat`
+- `#/chat/:wsId`
+- `#/opportunity`
+- `#/interview`
+- `#/market`
+- `#/mine`
+- `#/mine/resume`
 
-## 11. 部署约定
+路由守卫会先 `authStore.init()`，未认证跳转登录，已认证会拉取 `homeStore.fetchBootstrap()`。
 
-- 生产 profile：`prod`，密钥在 `/opt/careermate/backend/.env.app`
-- 端口：本地 `8080`，生产 **`18080`**
-- Nginx：`/careermate/`、`/careermate-api/`、`/skywalking/`
-- 详见 `docs/DEPLOYMENT.md`、`docs/deployment-careermate.md`
+## 8. 数据库
 
-## 12. 遗留问题 / 下一阶段建议
+Flyway migration 当前到 V27，核心表包括：
 
-1. **RAGForge JD 集成**（最高业务优先级之一）
-2. 简历文件上传解析（P6）
-3. SkyWalking **云端** UI 与 Agent 同机部署验收
-4. Playwright 云端全量回归进 CI
-5. Agent 评测与 Prompt 版本管理
-6. 任务工具 E2E 与 mock 话术对齐（偶发失败）
+- 用户与安全：`users`、`user_profiles`、`security_audit_logs`
+- Agent：`agent_sessions`、`agent_messages`、`agent_tool_calls`、`agent_task_states`、`agent_artifacts`、`agent_pending_actions`
+- 业务：`resumes`、`resume_versions`、`job_posts`、`job_matches`、`interview_sessions`、`interview_questions`、`career_profiles`、`career_tasks`
 
-## 13. Cursor 工作规则（摘要）
+数据库概要见 `docs/database-design.md`，DDL 以 `backend/src/main/resources/db/migration/` 为准。
 
-- 不提前实现 Roadmap 外功能；不大改 UI 风格
-- Flyway 管理 schema；业务带 `user_id`
-- 日志禁止：API Key、完整 prompt、完整简历/JD、完整模型回复
-- 本地进程结束后释放 8080/5173 端口
+## 9. 运行配置
 
-## 14. 文档索引
+- 后端默认 profile：`dev`
+- `application.yml` 默认端口：`8081`
+- `.env.example` 本地示例端口：`8080`
+- `scripts/dev-start.sh` 未设置 `SERVER_PORT` 时使用：`8082`
+- 生产端口：`18080`
+- 前端 dev：`http://localhost:5173`
+- 生产前端路径：`/careermate/`
+- 生产 API 路径：`/careermate-api/`
 
-- [ROADMAP.md](ROADMAP.md)
-- [ARCHITECTURE_SUMMARY.md](ARCHITECTURE_SUMMARY.md)
-- [TESTING.md](TESTING.md)
-- [DEPLOYMENT.md](DEPLOYMENT.md)
-- [PHASE_CLOSEOUT.md](PHASE_CLOSEOUT.md)
-- [skywalking-cloud-setup.md](skywalking-cloud-setup.md)
+## 10. 开发规则
+
+- 不改已应用 Flyway migration；新增结构用新 migration。
+- 不信任前端传 userId，统一从 `CurrentUserContext` 获取。
+- 日志不记录密钥、token、验证码、完整 prompt、完整简历/JD、完整模型回复。
+- `LLM_PROVIDER=mock` 是本地默认安全选择；真实 Key 只放 `.env` 或服务器 env。
+- `RAGFORGE_ENABLED=false` 时必须优雅降级。
+- `CAREERMATE_MCP_ENABLED=false` 是默认值，打开前要确认认证和资源边界。
+
+## 11. 文档入口
+
+- `README.md`
+- `docs/SECURITY_AUTH.md`
+- `docs/ARCHITECTURE_SUMMARY.md`
+- `docs/ROADMAP.md`
+- `docs/TESTING.md`
+- `docs/DEPLOYMENT.md`
+- `docs/database-design.md`
