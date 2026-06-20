@@ -38,6 +38,7 @@ public class SecurityConfig {
                                 "/api/auth/mobile/login",
                                 "/api/auth/password-reset/sms/send",
                                 "/api/auth/password-reset/confirm",
+                                "/api/.well-known/careermate-backend-jwks.json",
                                 "/api/v1/events/**",
                                 "/api/events/**",
                                 "/actuator/health"
