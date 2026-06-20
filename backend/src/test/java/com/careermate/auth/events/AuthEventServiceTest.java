@@ -15,6 +15,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -95,6 +96,24 @@ class AuthEventServiceTest {
 
         assertThat(result.status()).isEqualTo(200);
         verify(valueOperations).set(eq(AuthEventService.USER_REVOKED_AFTER_PREFIX + "42"), eq("1234"), any(Duration.class));
+    }
+
+    @Test
+    void passwordChangedFromAuthGatewayEnvelopeRevokesUserJwt() {
+        String occurredAt = "2026-06-20T09:00:00Z";
+        String body = "{\"event_id\":\"evt-gw-1\",\"event_type\":\"user.password.changed\","
+                + "\"occurred_at\":\"" + occurredAt + "\",\"payload\":{\"user_id\":42}}";
+        when(redisTemplate.hasKey(AuthEventService.EVENT_ID_PREFIX + "evt-gw-1")).thenReturn(false);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        AuthEventResult result = service.handle("user.password.changed", body, signedHeaders(body));
+
+        assertThat(result.status()).isEqualTo(200);
+        verify(valueOperations).set(
+                eq(AuthEventService.USER_REVOKED_AFTER_PREFIX + "42"),
+                eq(String.valueOf(Instant.parse(occurredAt).getEpochSecond())),
+                any(Duration.class)
+        );
     }
 
     @Test

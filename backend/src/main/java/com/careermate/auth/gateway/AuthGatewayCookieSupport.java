@@ -30,7 +30,7 @@ public class AuthGatewayCookieSupport {
         }
         ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(properties.getRefreshCookieName(), refreshToken)
                 .httpOnly(true)
-                .secure(false)
+                .secure(properties.isRefreshCookieSecure())
                 .sameSite("Lax")
                 .path(properties.getRefreshCookiePath())
                 .maxAge(Duration.ofDays(7));

@@ -37,6 +37,7 @@ public class SecurityProperties {
         private String refreshCookieName = "cm_refresh";
         private String refreshCookieDomain = "";
         private String refreshCookiePath = "/api/auth";
+        private boolean refreshCookieSecure = true;
         private int timeoutMs = 3000;
     }
 }

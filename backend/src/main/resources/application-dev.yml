@@ -44,3 +44,4 @@ careermate:
     auth-gateway:
       client-assertion-private-key: ${AUTH_GATEWAY_CLIENT_ASSERTION_PRIVATE_KEY:/Users/amy/CursorProject/auth-gateway/config/keys/auth-active.pem}
       client-assertion-kid: ${AUTH_GATEWAY_CLIENT_ASSERTION_KID:auth-active}
+      refresh-cookie-secure: ${AUTH_GATEWAY_REFRESH_COOKIE_SECURE:false}

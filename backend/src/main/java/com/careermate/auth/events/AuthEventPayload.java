@@ -9,14 +9,14 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AuthEventPayload(
         @JsonAlias("event_id") String eventId,
-        String type,
+        @JsonAlias("event_type") String type,
         String jti,
         @JsonAlias({"jtis", "revoked_jtis"}) List<String> jtis,
         @JsonAlias({"user_id", "uid"}) String userId,
         String sub,
         Long exp,
         Long iat,
-        @JsonAlias({"changed_at", "revoked_at", "occurred_at"}) Long occurredAt,
-        Map<String, Object> data
+        @JsonAlias({"changed_at", "revoked_at", "occurred_at"}) Object occurredAt,
+        @JsonAlias("payload") Map<String, Object> data
 ) {
 }

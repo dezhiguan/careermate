@@ -78,6 +78,7 @@ careermate:
       refresh-cookie-name: ${AUTH_GATEWAY_REFRESH_COOKIE_NAME:cm_refresh}
       refresh-cookie-domain: ${AUTH_GATEWAY_REFRESH_COOKIE_DOMAIN:}
       refresh-cookie-path: ${AUTH_GATEWAY_REFRESH_COOKIE_PATH:/api/auth}
+      refresh-cookie-secure: ${AUTH_GATEWAY_REFRESH_COOKIE_SECURE:true}
       timeout-ms: ${AUTH_GATEWAY_TIMEOUT_MS:3000}
     auth-events:
       hmac-secret: ${AUTH_EVENT_HMAC_SECRET:}
