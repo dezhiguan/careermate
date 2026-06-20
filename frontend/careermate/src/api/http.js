@@ -30,7 +30,7 @@ function getAuthHeaders(extraHeaders = {}) {
 function handleUnauthorized(payload) {
   clearAuthState()
   redirectToLogin()
-  throw new Error(payload?.message || '未认证')
+  throw new Error(friendlyApiMessage(payload?.code, payload?.message || '未认证'))
 }
 
 function readTraceHeaders(response) {
@@ -71,7 +71,7 @@ export async function requestWithMeta(path, options = {}) {
   }
 
   if (!response.ok) {
-    const error = new Error(payload?.message || `请求失败: ${response.status}`)
+    const error = new Error(friendlyApiMessage(payload?.code, payload?.message || `请求失败: ${response.status}`, response.status))
     error.status = response.status
     error.code = payload?.code
     error.traceId = traceId || payload?.traceId || null
@@ -90,7 +90,7 @@ export async function requestWithMeta(path, options = {}) {
   }
 
   if (payload.code !== 0) {
-    const error = new Error(payload.message || '请求失败')
+    const error = new Error(friendlyApiMessage(payload.code, payload.message || '请求失败', response.status))
     error.status = response.status
     error.code = payload.code
     error.traceId = traceId || payload.traceId || null
@@ -109,6 +109,28 @@ export async function requestWithMeta(path, options = {}) {
 export async function request(path, options = {}) {
   const { data } = await requestWithMeta(path, options)
   return data
+}
+
+function friendlyApiMessage(code, message, status) {
+  const text = `${code || ''} ${message || ''}`.toUpperCase()
+  if (text.includes('SMS_SEND_TOO_FREQUENT')) return '验证码已发送，请稍后再试'
+  if (
+    text.includes('SMS_PHONE_DAY_LIMITED') ||
+    text.includes('SMS_IP_MINUTE_LIMITED') ||
+    text.includes('SMS_PROVIDER_RATE_LIMITED') ||
+    text.includes('TOO MANY') ||
+    text.includes('LIMIT') ||
+    status === 429
+  ) {
+    return '验证码发送过于频繁，请稍后再试'
+  }
+  if (text.includes('SMS_CODE_INVALID')) return '验证码错误或已过期，请重新获取'
+  if (text.includes('BAD_CREDENTIALS')) return '账号或密码不正确'
+  if (text.includes('PLATFORM_ROLE_DENIED')) return '当前账号没有访问权限，请联系管理员开通'
+  if (text.includes('PASSWORD_WEAK')) return '密码至少需要 8 位'
+  if (text.includes('SMS_PROVIDER') || text.includes('ALIYUN')) return '短信服务暂时不可用，请稍后再试'
+  if (message && !/gateway|网关认证失败/i.test(message)) return message
+  return '请求失败，请稍后再试'
 }
 
 export { API_BASE_URL, TOKEN_KEY, USER_KEY, getAuthHeaders, handleUnauthorized }

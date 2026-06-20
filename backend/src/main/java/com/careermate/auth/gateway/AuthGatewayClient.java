@@ -4,7 +4,9 @@ import com.careermate.common.api.ErrorCode;
 import com.careermate.common.exception.BizException;
 import com.careermate.security.ClientAssertionFactory;
 import com.careermate.security.SecurityProperties;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -28,10 +30,12 @@ public class AuthGatewayClient {
     private final SecurityProperties.AuthGateway properties;
     private final ClientAssertionFactory clientAssertionFactory;
     private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
 
-    public AuthGatewayClient(SecurityProperties securityProperties, ClientAssertionFactory clientAssertionFactory) {
+    public AuthGatewayClient(SecurityProperties securityProperties, ClientAssertionFactory clientAssertionFactory, ObjectMapper objectMapper) {
         this.properties = securityProperties.getAuthGateway();
         this.clientAssertionFactory = clientAssertionFactory;
+        this.objectMapper = objectMapper;
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(properties.getTimeoutMs());
         factory.setReadTimeout(properties.getTimeoutMs());
@@ -59,11 +63,11 @@ public class AuthGatewayClient {
     }
 
     public ResetInitResponse resetInit(String account) {
-        return postJson("/auth/password/reset/init", Map.of("account", account), ResetInitResponse.class);
+        return postJson("/auth/password/reset/init", Map.of("account", account, "phone", account), ResetInitResponse.class);
     }
 
     public ResetVerifyResponse resetVerify(String account, String code) {
-        return postJson("/auth/password/reset/verify", Map.of("account", account, "code", code), ResetVerifyResponse.class);
+        return postJson("/auth/password/reset/verify", Map.of("account", account, "phone", account, "code", code), ResetVerifyResponse.class);
     }
 
     public TokenResponse resetConfirm(String resetTicket, String newPassword) {
@@ -119,10 +123,62 @@ public class AuthGatewayClient {
             ResponseEntity<T> response = restTemplate.postForEntity(properties.getBaseUrl() + path, entity, responseType);
             return response.getBody();
         } catch (HttpStatusCodeException ex) {
-            throw new BizException(ex.getStatusCode().value(), "认证服务请求失败");
+            throw toBizException(ex);
         } catch (Exception ex) {
             throw new BizException(ErrorCode.INTERNAL_ERROR.getCode(), "认证服务不可用");
         }
+    }
+
+    private BizException toBizException(HttpStatusCodeException ex) {
+        String gatewayCode = null;
+        String gatewayMessage = null;
+        try {
+            Map<String, Object> payload = objectMapper.readValue(ex.getResponseBodyAsString(), new TypeReference<>() {});
+            Object code = payload.getOrDefault("error", payload.get("code"));
+            Object message = payload.getOrDefault("message", payload.get("msg"));
+            gatewayCode = code == null ? null : String.valueOf(code);
+            gatewayMessage = message == null ? null : String.valueOf(message);
+        } catch (Exception ignored) {
+            // keep default mapping below
+        }
+
+        String friendlyMessage = friendlyGatewayMessage(gatewayCode, gatewayMessage, ex.getStatusCode().value());
+        return new BizException(ex.getStatusCode().value(), friendlyMessage);
+    }
+
+    private String friendlyGatewayMessage(String code, String message, int status) {
+        if (code == null && message == null) {
+            return status == 429 ? "操作过于频繁，请稍后再试" : "认证服务请求失败，请稍后再试";
+        }
+        String text = ((code == null ? "" : code) + " " + (message == null ? "" : message)).toUpperCase();
+        if (text.contains("SMS_SEND_TOO_FREQUENT")) {
+            return "验证码已发送，请稍后再试";
+        }
+        if (text.contains("SMS_PHONE_DAY_LIMITED")
+                || text.contains("SMS_IP_MINUTE_LIMITED")
+                || text.contains("SMS_PROVIDER_RATE_LIMITED")
+                || status == 429) {
+            return "验证码发送过于频繁，请稍后再试";
+        }
+        if (text.contains("SMS_CODE_INVALID")) {
+            return "验证码错误或已过期，请重新获取";
+        }
+        if (text.contains("BAD_CREDENTIALS")) {
+            return "账号或密码不正确";
+        }
+        if (text.contains("PLATFORM_ROLE_DENIED")) {
+            return "当前账号没有访问权限，请联系管理员开通";
+        }
+        if (text.contains("PASSWORD_WEAK")) {
+            return "密码至少需要 8 位";
+        }
+        if (text.contains("SMS_PROVIDER") || text.contains("ALIYUN")) {
+            return "短信服务暂时不可用，请稍后再试";
+        }
+        if (message != null && !message.isBlank() && !message.toLowerCase().contains("gateway")) {
+            return message;
+        }
+        return "认证服务请求失败，请稍后再试";
     }
 
     @Data
