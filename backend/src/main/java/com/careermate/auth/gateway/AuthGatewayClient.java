@@ -148,7 +148,16 @@ public class AuthGatewayClient {
 
     private String friendlyGatewayMessage(String code, String message, int status) {
         if (code == null && message == null) {
-            return status == 429 ? "操作过于频繁，请稍后再试" : "认证服务请求失败，请稍后再试";
+            if (status == 429) {
+                return "操作过于频繁，请稍后再试";
+            }
+            if (status == 401) {
+                return "账号或密码不正确";
+            }
+            if (status == 403) {
+                return "当前账号没有访问权限，请联系管理员开通";
+            }
+            return "认证服务暂时不可用，请稍后再试";
         }
         String text = ((code == null ? "" : code) + " " + (message == null ? "" : message)).toUpperCase();
         if (text.contains("SMS_SEND_TOO_FREQUENT")) {
