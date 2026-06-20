@@ -166,6 +166,9 @@ public class AuthGatewayClient {
         if (text.contains("BAD_CREDENTIALS")) {
             return "账号或密码不正确";
         }
+        if (text.contains("CAPTCHA_REQUIRED")) {
+            return "登录失败次数较多，请稍后再试";
+        }
         if (text.contains("PLATFORM_ROLE_DENIED")) {
             return "当前账号没有访问权限，请联系管理员开通";
         }
