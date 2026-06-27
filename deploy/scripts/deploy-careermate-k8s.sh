@@ -47,6 +47,32 @@ wait_for_rollout() {
   return 1
 }
 
+registry_host() {
+  local image_or_registry="$1"
+  printf '%s\n' "${image_or_registry%%/*}"
+}
+
+ensure_image_pull_secret() {
+  if [[ -z "${ACR_USERNAME:-}" || -z "${ACR_PASSWORD:-}" ]]; then
+    echo "Skip imagePullSecret setup (ACR_USERNAME/ACR_PASSWORD not set)"
+    return 0
+  fi
+
+  local registry="${ACR_DOCKER_SERVER:-}"
+  registry="${registry:-${ACR_REGISTRY:-}}"
+  registry="${registry:-${CAREERMATE_BACKEND_IMAGE:-}}"
+  registry="$(registry_host "${registry}")"
+
+  echo "Creating/updating imagePullSecret acr-pull-secret for ${registry}"
+  k3s kubectl -n "${NAMESPACE}" create secret docker-registry acr-pull-secret \
+    --docker-server="${registry}" \
+    --docker-username="${ACR_USERNAME}" \
+    --docker-password="${ACR_PASSWORD}" \
+    --dry-run=client -o yaml | k3s kubectl apply -f -
+  k3s kubectl -n "${NAMESPACE}" patch serviceaccount default \
+    -p '{"imagePullSecrets":[{"name":"acr-pull-secret"}]}' >/dev/null
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 K8S_DIR="${REPO_ROOT}/deploy/k8s/careermate"
@@ -67,7 +93,9 @@ bash "${SCRIPT_DIR}/install-k3s-server3.sh"
 step_end
 
 IMAGES_REBUILT=0
-if [[ "${SKIP_IMAGE_BUILD:-0}" != "1" ]]; then
+if [[ "${USE_REMOTE_IMAGES:-0}" == "1" ]]; then
+  echo "[2/6] Use remote images; skip local docker build/import"
+elif [[ "${SKIP_IMAGE_BUILD:-0}" != "1" ]]; then
   step_start "[2/6] Build and import images"
   bash "${SCRIPT_DIR}/build-careermate-k8s-images.sh"
   step_end
@@ -78,12 +106,21 @@ fi
 
 step_start "[3/6] Create backend secret from /opt/shared/env"
 bash "${SCRIPT_DIR}/create-careermate-k8s-secret.sh"
+ensure_image_pull_secret
 step_end
 
 step_start "[4/6] Apply manifests"
 for manifest in namespace.yaml backend-deployment.yaml backend-service.yaml frontend-deployment.yaml frontend-service.yaml; do
   k3s kubectl apply -f "${K8S_DIR}/${manifest}"
 done
+if [[ "${USE_REMOTE_IMAGES:-0}" == "1" ]]; then
+  if [[ -z "${CAREERMATE_BACKEND_IMAGE:-}" || -z "${CAREERMATE_FRONTEND_IMAGE:-}" ]]; then
+    echo "ERROR: CAREERMATE_BACKEND_IMAGE and CAREERMATE_FRONTEND_IMAGE are required when USE_REMOTE_IMAGES=1" >&2
+    exit 1
+  fi
+  k3s kubectl -n "${NAMESPACE}" set image deployment/careermate-backend "backend=${CAREERMATE_BACKEND_IMAGE}"
+  k3s kubectl -n "${NAMESPACE}" set image deployment/careermate-frontend "frontend=${CAREERMATE_FRONTEND_IMAGE}"
+fi
 step_end
 
 # Rebuilt images keep :latest tag; without a pod restart, k3s keeps running the old container layers.

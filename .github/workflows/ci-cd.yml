@@ -240,6 +240,53 @@ jobs:
           name: careermate-frontend-dist
           path: frontend/careermate/dist
 
+      - name: Resolve ACR image names
+        id: acr-images
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+        run: |
+          if [[ -z "${ACR_REGISTRY}" ]]; then
+            echo "ACR_REGISTRY must be set"
+            exit 1
+          fi
+          PULL_REGISTRY="${ACR_REGISTRY%/}"
+          PUSH_REGISTRY="${ACR_PUBLIC_REGISTRY:-${PULL_REGISTRY/-vpc./.}}"
+          IMAGE_TAG="${GITHUB_SHA::12}"
+          echo "server=${PUSH_REGISTRY%%/*}" >> "${GITHUB_OUTPUT}"
+          echo "push_backend=${PUSH_REGISTRY}:backend-${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "push_frontend=${PUSH_REGISTRY}:frontend-${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "backend=${PULL_REGISTRY}:backend-${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "frontend=${PULL_REGISTRY}:frontend-${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Login to ACR
+        env:
+          ACR_SERVER: ${{ steps.acr-images.outputs.server }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: |
+          if [[ -z "${ACR_USERNAME}" || -z "${ACR_PASSWORD}" ]]; then
+            echo "ACR_USERNAME and ACR_PASSWORD must be set"
+            exit 1
+          fi
+          printf '%s' "${ACR_PASSWORD}" | docker login "${ACR_SERVER}" -u "${ACR_USERNAME}" --password-stdin
+
+      - name: Build and push images to ACR
+        env:
+          BACKEND_IMAGE: ${{ steps.acr-images.outputs.push_backend }}
+          FRONTEND_IMAGE: ${{ steps.acr-images.outputs.push_frontend }}
+        run: |
+          JAR_FILE="$(find . -maxdepth 1 -name '*.jar' ! -name '*.original' | head -n 1)"
+          if [[ -z "${JAR_FILE}" ]]; then
+            echo "No backend JAR artifact found after download"
+            exit 1
+          fi
+          mkdir -p backend/target
+          cp "${JAR_FILE}" backend/target/careermate-backend-0.1.0.jar
+          docker build -f backend/Dockerfile -t "${BACKEND_IMAGE}" backend/
+          docker push "${BACKEND_IMAGE}"
+          docker build -f frontend/careermate/Dockerfile --target runtime-prebuilt -t "${FRONTEND_IMAGE}" .
+          docker push "${FRONTEND_IMAGE}"
+
       - name: Configure SSH (Server 3)
         env:
           SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
@@ -370,10 +417,30 @@ jobs:
       #       "cd /opt/careermate/k8s-src && sudo env SKYWALKING_BIND_IP=172.25.90.184 SKIP_PULL=1 bash deploy/scripts/ensure-skywalking-stack.sh"
 
       - name: Deploy CareerMate to k3s on Server 3
+        env:
+          BACKEND_IMAGE: ${{ steps.acr-images.outputs.backend }}
+          FRONTEND_IMAGE: ${{ steps.acr-images.outputs.frontend }}
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
         run: |
           SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          ACR_PASSWORD_B64="$(printf '%s' "${ACR_PASSWORD}" | base64 -w0)"
           timeout 35m ssh "${SSH_OPTS[@]}" careermate-app \
-            "cd /opt/careermate/k8s-src && sudo env SKIP_BACKEND_BUILD=1 SKIP_FRONTEND_BUILD=1 SKIP_BACKEND_IMAGE_BUILD=0 SKIP_FRONTEND_IMAGE_BUILD=0 bash deploy/scripts/deploy-careermate-k8s.sh"
+            "BACKEND_IMAGE='${BACKEND_IMAGE}' FRONTEND_IMAGE='${FRONTEND_IMAGE}' ACR_REGISTRY='${ACR_REGISTRY}' ACR_USERNAME='${ACR_USERNAME}' ACR_PASSWORD_B64='${ACR_PASSWORD_B64}' bash -s" <<'EOF'
+          set -euo pipefail
+          cd /opt/careermate/k8s-src
+          ACR_PASSWORD="$(printf '%s' "${ACR_PASSWORD_B64}" | base64 -d)"
+          sudo env \
+            USE_REMOTE_IMAGES=1 \
+            SKIP_IMAGE_BUILD=1 \
+            CAREERMATE_BACKEND_IMAGE="${BACKEND_IMAGE}" \
+            CAREERMATE_FRONTEND_IMAGE="${FRONTEND_IMAGE}" \
+            ACR_REGISTRY="${ACR_REGISTRY}" \
+            ACR_USERNAME="${ACR_USERNAME}" \
+            ACR_PASSWORD="${ACR_PASSWORD}" \
+            bash deploy/scripts/deploy-careermate-k8s.sh
+          EOF
 
   smoke-test:
     name: smoke-test
