@@ -54,9 +54,7 @@ public class AuthEventService {
         if (!StringUtils.hasText(payload.eventId())) {
             return AuthEventResult.badRequest("event_id required");
         }
-        if (StringUtils.hasText(payload.type()) && !expectedType.equals(payload.type())) {
-            return AuthEventResult.badRequest("event type mismatch");
-        }
+        String effectiveType = StringUtils.hasText(payload.type()) ? payload.type() : expectedType;
 
         String eventKey = EVENT_ID_PREFIX + payload.eventId();
         if (Boolean.TRUE.equals(redisTemplate.hasKey(eventKey))) {
@@ -64,10 +62,10 @@ public class AuthEventService {
         }
 
         int revokedCount = revokeTokens(payload);
-        if ("user.password.changed".equals(expectedType)) {
+        if ("user.password.changed".equals(effectiveType) || StringUtils.hasText(userKey(payload))) {
             revokeUser(payload);
         }
-        redisTemplate.opsForValue().set(eventKey, expectedType, properties.getIdempotencyTtl());
+        redisTemplate.opsForValue().set(eventKey, effectiveType, properties.getIdempotencyTtl());
 
         return AuthEventResult.accepted(payload.eventId(), revokedCount);
     }
