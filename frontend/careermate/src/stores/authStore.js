@@ -164,6 +164,7 @@ const isAuthenticated = computed(() => !!state.token && !!state.currentUser?.aut
 export const authStore = {
   state,
   init,
+  clearAuth,
   login,
   register,
   sendMobileSmsCode,

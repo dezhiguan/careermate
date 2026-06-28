@@ -71,6 +71,8 @@ router.beforeEach(async (to) => {
   }
 
   if (!authenticated) {
+    // 兜底：未认证却要进受保护页时，清掉本地可能残留的失效/注入 token，避免登出不彻底（TC-CM-04）
+    authStore.clearAuth()
     return '/login'
   }
   try {
