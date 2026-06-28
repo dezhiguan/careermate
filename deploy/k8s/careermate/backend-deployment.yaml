@@ -36,6 +36,10 @@ spec:
           envFrom:
             - secretRef:
                 name: careermate-backend-env
+            # 接收网关 webhook 的 HMAC 验签密钥（AUTH_EVENT_HMAC_SECRET）。
+            # secret 值不入 git，需用强随机密钥创建：见 deploy 文档。
+            - secretRef:
+                name: careermate-event-hmac
           env:
             - name: SPRING_PROFILES_ACTIVE
               # [SkyWalking-OFF 2026-06-19] 原值: prod,skywalking-log
