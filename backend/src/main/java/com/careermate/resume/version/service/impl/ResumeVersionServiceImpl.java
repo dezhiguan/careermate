@@ -34,7 +34,6 @@ import java.util.UUID;
 @Service
 public class ResumeVersionServiceImpl implements ResumeVersionService {
 
-    private static final long DEFAULT_TENANT_ID = 1L;
     private static final int SEQ_RETRY_MAX = 3;
 
     private final ResumeVersionMapper resumeVersionMapper;
@@ -117,7 +116,6 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
         ResumeVersionEntity entity = new ResumeVersionEntity();
         entity.setVersionId(UUID.randomUUID().toString());
         entity.setUserId(userId);
-        entity.setTenantId(DEFAULT_TENANT_ID);
         entity.setSessionId(sessionId);
         entity.setSourceResumeId(sourceResumeId);
         entity.setTargetJdId(targetJdDocId);

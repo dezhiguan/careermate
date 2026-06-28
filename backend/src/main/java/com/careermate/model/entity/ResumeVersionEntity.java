@@ -19,7 +19,6 @@ public class ResumeVersionEntity {
 
     private String versionId;
     private Long userId;
-    private Long tenantId;
     private String sessionId;
     private Long sourceResumeId;
     private String parentVersionId;
