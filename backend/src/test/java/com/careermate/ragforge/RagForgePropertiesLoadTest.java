@@ -2,9 +2,9 @@ package com.careermate.ragforge;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -12,23 +12,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @ActiveProfiles("dev")
+@TestPropertySource(properties = {
+        "careermate.ragforge.enabled=true",
+        "careermate.ragforge.api-key=test-ragforge-api-key",
+        "careermate.ragforge.jd-kb-id=16"
+})
 class RagForgePropertiesLoadTest {
 
     @Autowired
     private RagForgeProperties properties;
 
-    @Value("${RAGFORGE_JD_KB_ID}")
-    private String expectedJdKbId;
-
-    @Value("${RAGFORGE_API_KEY}")
-    private String expectedApiKey;
-
     @Test
-    void loadsRagforgeApiKeyFromDotEnv() {
-        assertTrue(properties.isEnabled(), "RAGFORGE_ENABLED should be true from .env");
-        assertFalse(expectedApiKey.isBlank(), "RAGFORGE_API_KEY should be loaded from .env");
-        assertEquals(expectedApiKey, properties.getApiKey());
-        assertFalse(expectedJdKbId.isBlank(), "RAGFORGE_JD_KB_ID should be loaded from .env");
-        assertEquals(expectedJdKbId, properties.getJdKbId());
+    void bindsRagforgeConfigurationProperties() {
+        assertTrue(properties.isEnabled(), "ragforge.enabled should bind to RagForgeProperties");
+        assertFalse(properties.getApiKey().isBlank(), "ragforge.api-key should bind to RagForgeProperties");
+        assertEquals("test-ragforge-api-key", properties.getApiKey());
+        assertFalse(properties.getJdKbId().isBlank(), "ragforge.jd-kb-id should bind to RagForgeProperties");
+        assertEquals("16", properties.getJdKbId());
     }
 }
