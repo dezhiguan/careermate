@@ -47,6 +47,14 @@
             </div>
           </div>
           <div class="header-actions">
+            <div
+              v-if="currentPathMode"
+              class="path-mode-chip"
+              :class="currentPathMode === 'DEEP' ? 'path-mode-chip--deep' : 'path-mode-chip--fast'"
+              :title="currentPathMode === 'DEEP' ? '深度模式：多轮推敲，较慢' : '极速模式：单轮直答'"
+            >
+              {{ currentPathMode === 'DEEP' ? '🧠 深度模式' : '⚡ 极速' }}
+            </div>
             <div v-if="showTraceId && currentTraceId" class="trace-id-chip" title="SkyWalking Trace ID">
               <span class="trace-id-label">Trace ID</span>
               <code class="trace-id-value">{{ currentTraceId }}</code>
@@ -325,6 +333,7 @@ const inputText = ref('')
 const msgContainer = ref(null)
 const sessionId = ref('')
 const streamState = ref('idle')
+const currentPathMode = ref('')
 const sessionCreating = ref(false)
 const globalError = ref('')
 const errorDetail = ref(null)
@@ -1249,6 +1258,9 @@ async function sendMessage() {
           currentTraceId.value = traceId
         }
       },
+      onPathMode(data) {
+        currentPathMode.value = data?.mode || ''
+      },
       onPlan() {},
       onToolStart(data) {
         handleToolStart(agentMessage, data)
@@ -1738,6 +1750,26 @@ onBeforeUnmount(() => {
   gap: 6px;
   align-items: center;
   flex-shrink: 0;
+}
+
+.path-mode-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.path-mode-chip--fast {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+.path-mode-chip--deep {
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
 }
 
 .trace-id-chip {
