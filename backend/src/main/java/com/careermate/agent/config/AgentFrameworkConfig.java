@@ -4,6 +4,10 @@ import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -20,6 +24,10 @@ public class AgentFrameworkConfig {
 
     public static final String CHAT_MODEL_BEAN = "agentFrameworkChatModel";
     public static final String CHAT_CLIENT_BEAN = "agentFrameworkChatClient";
+    public static final String CHAT_MEMORY_BEAN = "agentFrameworkChatMemory";
+
+    /** A1-3：对话记忆窗口上限，防 prompt 过长。 */
+    private static final int CHAT_MEMORY_MAX_MESSAGES = 20;
 
     private static final String PROVIDER_OPENAI = "spring-ai-openai";
     private static final String PROVIDER_OPENAI_COMPATIBLE = "spring-ai-openai-compatible";
@@ -42,11 +50,23 @@ public class AgentFrameworkConfig {
         };
     }
 
+    @Bean(name = CHAT_MEMORY_BEAN)
+    public ChatMemory agentFrameworkChatMemory(ChatMemoryRepository chatMemoryRepository) {
+        return MessageWindowChatMemory.builder()
+                .chatMemoryRepository(chatMemoryRepository)
+                .maxMessages(CHAT_MEMORY_MAX_MESSAGES)
+                .build();
+    }
+
     @Bean(name = CHAT_CLIENT_BEAN)
     public ChatClient agentFrameworkChatClient(
-            @Qualifier(CHAT_MODEL_BEAN) ChatModel agentFrameworkChatModel
+            @Qualifier(CHAT_MODEL_BEAN) ChatModel agentFrameworkChatModel,
+            @Qualifier(CHAT_MEMORY_BEAN) ChatMemory agentFrameworkChatMemory
     ) {
-        return ChatClient.builder(agentFrameworkChatModel).build();
+        // A1-3：默认挂对话记忆 advisor，会话 id 由调用方通过 advisor 参数传入
+        return ChatClient.builder(agentFrameworkChatModel)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(agentFrameworkChatMemory).build())
+                .build();
     }
 
     private static ChatModel createOpenAiChatModel(AgentFrameworkProperties properties, boolean requireBaseUrl) {

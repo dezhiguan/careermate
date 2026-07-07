@@ -7,9 +7,11 @@ import com.careermate.llm.StreamCallback;
 import com.careermate.llm.dto.ChatResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import reactor.core.Disposable;
 
 import java.util.List;
@@ -74,6 +76,11 @@ public class ChatClientStreamAdapter {
             if (!callbacks.isEmpty()) {
                 requestSpec = requestSpec.toolCallbacks(callbacks);
             }
+        }
+        // A1-3：把会话 id 传给对话记忆 advisor，按会话隔离历史
+        if (toolContext != null && StringUtils.hasText(toolContext.getSessionId())) {
+            String conversationId = toolContext.getSessionId();
+            requestSpec = requestSpec.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId));
         }
 
         Disposable subscription = requestSpec
