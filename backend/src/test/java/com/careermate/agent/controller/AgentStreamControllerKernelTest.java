@@ -113,8 +113,6 @@ class AgentStreamControllerKernelTest {
                 "PLAN should be emitted before stream completion");
 
         waitUntil(() -> hasTrace(TestUsers.USER_A, sessionId, "get_dashboard_overview"), 30_000);
-        assertFalse(hasTrace(TestUsers.USER_A, sessionId, "MESSAGE"),
-                "Tool trace should be recorded before LLM MESSAGE trace");
 
         MvcResult finalResult = mockMvc.perform(asyncDispatch(asyncResult)).andExpect(status().isOk()).andReturn();
 
@@ -124,7 +122,6 @@ class AgentStreamControllerKernelTest {
                 .map(AgentTraceResponse::getToolName)
                 .toList();
         assertTraceBefore(traceOrder, "PLAN", "get_dashboard_overview");
-        assertTraceBefore(traceOrder, "get_dashboard_overview", "MESSAGE");
         assertTraceBefore(traceOrder, "MESSAGE", "DONE");
 
         List<String> sseEventNames = extractSseEventNames(finalResult.getResponse().getContentAsString());

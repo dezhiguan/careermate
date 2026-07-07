@@ -24,7 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -33,6 +32,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Slf4j
 @Service
@@ -40,6 +41,7 @@ public class MobileAuthService {
 
     private static final long DEFAULT_COOLDOWN_SECONDS = 60L;
     private static final int MAX_REGISTER_ATTEMPTS = 5;
+    private static final ConcurrentMap<String, Object> MOBILE_REGISTER_LOCKS = new ConcurrentHashMap<>();
 
     private final SmsAuthRateLimiter smsAuthRateLimiter;
     private final AliyunSmsProperties smsProperties;
@@ -114,7 +116,6 @@ public class MobileAuthService {
                 .build();
     }
 
-    @Transactional(rollbackFor = Exception.class)
     public AuthTokenResponse login(MobileLoginRequest request) {
         SmsScene scene = resolveScene(request.getScene());
         String phone = PhoneSupport.normalizePhone(request.getPhone());
@@ -189,6 +190,13 @@ public class MobileAuthService {
     }
 
     private MobileUserLookup findOrCreateMobileUser(String phone) {
+        Object lock = MOBILE_REGISTER_LOCKS.computeIfAbsent(phone, ignored -> new Object());
+        synchronized (lock) {
+            return findOrCreateMobileUserLocked(phone);
+        }
+    }
+
+    private MobileUserLookup findOrCreateMobileUserLocked(String phone) {
         UserEntity existing = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
                 .eq(UserEntity::getPhone, phone)
                 .last("LIMIT 1"));
