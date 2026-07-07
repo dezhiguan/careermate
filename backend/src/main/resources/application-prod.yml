@@ -5,6 +5,13 @@ aliyun:
 careermate:
   debug:
     llm-api-enabled: false
+  agent:
+    # A1 冒烟：开启 Spring AI ChatClient 框架路径，复用现有 DashScope(qwen) key
+    framework:
+      enabled: ${AGENT_FRAMEWORK_ENABLED:true}
+      provider: ${AGENT_FRAMEWORK_PROVIDER:spring-ai-alibaba-dashscope}
+      model: ${AGENT_FRAMEWORK_MODEL:${LLM_MODEL:qwen-plus}}
+      api-key: ${AGENT_FRAMEWORK_API_KEY:${LLM_API_KEY:}}
 
 spring:
   output:
