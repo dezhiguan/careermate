@@ -277,4 +277,55 @@ class KnowledgeRetrievalServiceTest {
         assertEquals("", result.getChunks().get(0).getContent());
         assertEquals(RagRetrieverChunkType.INTERVIEW_QA, result.getChunks().get(0).getChunkType());
     }
+
+    // ---- A1-4：精确 scene→kbId 路由 ----
+
+    @Test
+    void marketSceneUsesMarketKbWhenConfigured() {
+        properties.setMarketKbId("597");
+        when(ragForgeClient.search(eq(597L), anyString(), anyInt(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(new RagForgeChunk(1L, 2L, "salary.md", "P75 45k", "JD", 0.9)));
+
+        RagRetrieveResult result = service.retrieve(RagRetrieveRequest.builder()
+                .query("Java 薪资")
+                .scene(RagRetrieveScene.MARKET)
+                .topK(5)
+                .build());
+
+        assertTrue(result.isSuccess());
+        verify(ragForgeClient).search(eq(597L), eq("Java 薪资"), eq(5), org.mockito.ArgumentMatchers.any());
+        verify(ragForgeClient, never()).searchJd(anyString(), anyInt());
+    }
+
+    @Test
+    void marketSceneFallsBackToJdWhenKbUnset() {
+        when(ragForgeClient.searchJd("Java 薪资", 5))
+                .thenReturn(List.of(new RagForgeChunk(1L, 2L, "jd.md", "薪资范围 30-45k", "JD", 0.8)));
+
+        RagRetrieveResult result = service.retrieve(RagRetrieveRequest.builder()
+                .query("Java 薪资")
+                .scene(RagRetrieveScene.MARKET)
+                .topK(5)
+                .build());
+
+        assertTrue(result.isSuccess());
+        verify(ragForgeClient).searchJd("Java 薪资", 5);
+    }
+
+    @Test
+    void companySceneUsesCompanyKbWhenConfigured() {
+        properties.setCompanyKbId("595");
+        when(ragForgeClient.search(eq(595L), anyString(), anyInt(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(new RagForgeChunk(1L, 2L, "company.md", "字节 技术栈", "JD_PATTERN", 0.9)));
+
+        RagRetrieveResult result = service.retrieve(RagRetrieveRequest.builder()
+                .query("字节 公司")
+                .scene(RagRetrieveScene.COMPANY)
+                .topK(5)
+                .build());
+
+        assertTrue(result.isSuccess());
+        verify(ragForgeClient).search(eq(595L), eq("字节 公司"), eq(5), org.mockito.ArgumentMatchers.any());
+        verify(ragForgeClient, never()).searchJd(anyString(), anyInt());
+    }
 }

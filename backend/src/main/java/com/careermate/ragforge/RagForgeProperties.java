@@ -28,4 +28,10 @@ public class RagForgeProperties {
     private String interviewKbId = "";
     /** RAGForge 中 Personal KB 的 id；空则禁用简历同步 */
     private String personalKbId = "";
+    /** A1-4：薪资行情库 id（scene=MARKET）；空则回退 JD 库 */
+    private String marketKbId = "";
+    /** A1-4：目标公司库 id（scene=COMPANY）；空则回退 JD 库 */
+    private String companyKbId = "";
+    /** A1-4：岗位技能画像库 id（简历定制技能对齐用）；空则不做技能对齐检索 */
+    private String skillKbId = "";
 }
