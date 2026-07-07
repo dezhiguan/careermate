@@ -128,9 +128,12 @@ careermate:
     requested-scopes: ${RAGFORGE_REQUESTED_SCOPES:rag:search}
     exchanged-token-cache-ttl-ms: ${RAGFORGE_EXCHANGED_TOKEN_CACHE_TTL_MS:300000}
     timeout-ms: ${RAGFORGE_TIMEOUT_MS:1500}
-    jd-kb-id: ${RAGFORGE_JD_KB_ID:}            # RAGForge 里存放 JD 的知识库 ID
-    interview-kb-id: ${RAGFORGE_INTERVIEW_KB_ID:}   # RAGForge 里存放面试题问答的知识库 ID
-    personal-kb-id: ${RAGFORGE_PERSONAL_KB_ID:}    # RAGForge 里存放个人简历的知识库 ID
+    jd-kb-id: ${RAGFORGE_JD_KB_ID:}            # 岗位 JD 库（org316 实际 id=599）
+    interview-kb-id: ${RAGFORGE_INTERVIEW_KB_ID:}   # 面试题库（org316 实际 id=596）
+    personal-kb-id: ${RAGFORGE_PERSONAL_KB_ID:}    # 个人简历库（用户私有）
+    market-kb-id: ${RAGFORGE_MARKET_KB_ID:}    # 薪资行情库（org316 实际 id=597）
+    company-kb-id: ${RAGFORGE_COMPANY_KB_ID:}  # 目标公司库（org316 实际 id=595）
+    skill-kb-id: ${RAGFORGE_SKILL_KB_ID:}      # 岗位技能画像库（org316 实际 id=598）
   prompt:
     active-versions:
       resume-generate-from-jd: ${RESUME_PROMPT_VERSION:v1}

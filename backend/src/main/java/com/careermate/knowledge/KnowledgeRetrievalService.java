@@ -182,10 +182,21 @@ public class KnowledgeRetrievalService {
     ) {
         return switch (scene) {
             case INTERVIEW -> ragForgeClient.searchInterview(query, topK);
-            case OPPORTUNITY, MARKET, COMPANY -> ragForgeClient.searchJd(query, topK);
+            case OPPORTUNITY -> ragForgeClient.searchJd(query, topK);
+            // A1-4：精确 scene→kbId（薪资行情库/目标公司库），未配置时回退 JD 库保持兼容
+            case MARKET -> searchKbIdOrFallbackJd(ragForgeProperties.getMarketKbId(), query, topK, chunkTypes);
+            case COMPANY -> searchKbIdOrFallbackJd(ragForgeProperties.getCompanyKbId(), query, topK, chunkTypes);
             case RESUME -> searchKbId(ragForgeProperties.getPersonalKbId(), query, topK, chunkTypes);
             case GENERAL -> searchGeneral(query, topK, chunkTypes);
         };
+    }
+
+    private List<RagForgeChunk> searchKbIdOrFallbackJd(String kbIdRaw, String query, int topK, List<String> chunkTypes) {
+        Long kbId = parseKbId(kbIdRaw);
+        if (kbId == null) {
+            return ragForgeClient.searchJd(query, topK);
+        }
+        return ragForgeClient.search(kbId, query, topK, chunkTypes);
     }
 
     private List<RagForgeChunk> searchGeneral(String query, int topK, List<String> chunkTypes) {
@@ -209,7 +220,14 @@ public class KnowledgeRetrievalService {
             case INTERVIEW -> kbConfigured(ragForgeProperties.getInterviewKbId())
                     ? Optional.empty()
                     : Optional.of(ERROR_KB_NOT_CONFIGURED);
-            case OPPORTUNITY, MARKET, COMPANY -> kbConfigured(ragForgeProperties.getJdKbId())
+            case OPPORTUNITY -> kbConfigured(ragForgeProperties.getJdKbId())
+                    ? Optional.empty()
+                    : Optional.of(ERROR_KB_NOT_CONFIGURED);
+            // A1-4：MARKET/COMPANY 专库或 JD 库任一配置即可（未配置专库时回退 JD）
+            case MARKET -> kbConfigured(ragForgeProperties.getMarketKbId()) || kbConfigured(ragForgeProperties.getJdKbId())
+                    ? Optional.empty()
+                    : Optional.of(ERROR_KB_NOT_CONFIGURED);
+            case COMPANY -> kbConfigured(ragForgeProperties.getCompanyKbId()) || kbConfigured(ragForgeProperties.getJdKbId())
                     ? Optional.empty()
                     : Optional.of(ERROR_KB_NOT_CONFIGURED);
             case RESUME -> kbConfigured(ragForgeProperties.getPersonalKbId())
