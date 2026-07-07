@@ -2,7 +2,7 @@
 # Based on: https://github.com/alibaba/open-code-review/blob/main/examples/github_actions/ocr-review.yml
 #
 # Triggers:
-#   - pull_request_target opened (auto review on new PR)
+#   - pull_request opened (auto review on new PR)
 #   - PR comment starting with /open-code-review or @open-code-review (manual re-run)
 #
 # Does NOT run on push to arbitrary branches — only PR/MR review events above.
@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened]
   issue_comment:
     types: [created]
@@ -36,13 +36,13 @@ jobs:
   code-review:
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'pull_request_target' ||
+      github.event_name == 'pull_request' ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/open-code-review')) ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '@open-code-review'))
     steps:
       - name: Get PR context
         id: pr-context
-        if: github.event_name != 'pull_request_target'
+        if: github.event_name != 'pull_request'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         with:
           script: |
@@ -93,7 +93,7 @@ jobs:
       - name: Run OpenCodeReview
         id: review
         run: |
-          if [ "${{ github.event_name }}" = "pull_request_target" ]; then
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE_REF="${{ github.event.pull_request.base.ref }}"
             HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           else
@@ -157,7 +157,7 @@ jobs:
             const prNumber = context.issue.number;
             let commitSha;
 
-            if (context.eventName === 'pull_request_target') {
+            if (context.eventName === 'pull_request') {
               commitSha = context.payload.pull_request.head.sha;
             } else {
               const { data: pullRequest } = await github.rest.pulls.get({
