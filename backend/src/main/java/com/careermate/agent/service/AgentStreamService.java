@@ -89,6 +89,7 @@ public class AgentStreamService {
     private final AgentKernelService agentKernelService;
     private final AgentKernelProperties agentKernelProperties;
     private final PromptTemplateService promptTemplateService;
+    private final ChatClientStreamAdapter chatClientStreamAdapter;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -121,7 +122,8 @@ public class AgentStreamService {
             WorkspaceSessionRepository workspaceSessionRepository,
             AgentKernelService agentKernelService,
             AgentKernelProperties agentKernelProperties,
-            PromptTemplateService promptTemplateService
+            PromptTemplateService promptTemplateService,
+            ChatClientStreamAdapter chatClientStreamAdapter
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -146,6 +148,7 @@ public class AgentStreamService {
         this.agentKernelService = agentKernelService;
         this.agentKernelProperties = agentKernelProperties;
         this.promptTemplateService = promptTemplateService;
+        this.chatClientStreamAdapter = chatClientStreamAdapter;
     }
 
     public SseEmitter stream(Long userId, String sessionId, AgentMessageRequest request) {
@@ -256,7 +259,7 @@ public class AgentStreamService {
                     llmProperties.getProvider(),
                     llmProperties.getModel(),
                     () -> {
-                        llmClient.streamChat(chatRequest, new StreamCallback() {
+                        StreamCallback streamCallback = new StreamCallback() {
                 @Override
                 public void onToken(String token) {
                     if (terminalHandled.get()) {
@@ -336,7 +339,13 @@ public class AgentStreamService {
                         handleStreamError(userId, sessionId, error, "LLM_ERROR");
                     }
                 }
-                        });
+                        };
+                        // A1-1: 框架开关开启走 Spring AI ChatClient 流式，否则回退自研 LlmClient
+                        if (chatClientStreamAdapter.isEnabled()) {
+                            chatClientStreamAdapter.stream(systemPrompt, request.getMessage(), streamCallback);
+                        } else {
+                            llmClient.streamChat(chatRequest, streamCallback);
+                        }
                         return null;
                     }
             );
