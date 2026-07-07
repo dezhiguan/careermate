@@ -399,6 +399,25 @@ class OpportunityServiceImplTest {
         verify(ragForgeClient).searchJd("Java", 40);
     }
 
+    @Test
+    void listSecondPageReturnsNextSlice() {
+        List<RagForgeChunk> chunks = new java.util.ArrayList<>();
+        for (long i = 1; i <= 12; i++) {
+            chunks.add(chunk(i, i, SAMPLE_JD.replace("星天科技", "公司" + i), 1.0 - i / 100.0));
+        }
+        when(ragForgeClient.searchJd("Java", 30)).thenReturn(chunks);
+        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
+
+        PageResult<OpportunityListItemVO> result =
+                service.list(1L, new OpportunityListRequest("Java", null, null, null, 2, 10));
+
+        assertEquals(12, result.total());
+        assertEquals(2, result.page());
+        assertEquals(2, result.items().size());
+        assertEquals("公司11", result.items().get(0).company());
+        assertEquals("公司12", result.items().get(1).company());
+    }
+
     private static RagForgeChunk chunk(Long chunkId, Long docId, String content, double score) {
         return new RagForgeChunk(chunkId, docId, "file.md", content, "JD", score);
     }

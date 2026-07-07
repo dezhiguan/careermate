@@ -406,10 +406,14 @@ public class OpportunityServiceImpl implements OpportunityService {
             int page,
             int size
     ) {
-        if (page > 1) {
+        int safePage = Math.max(1, page);
+        int safeSize = Math.max(1, size);
+        int fromIndex = (safePage - 1) * safeSize;
+        if (fromIndex >= full.items().size()) {
             return new PageResult<>(full.total(), page, size, full.hasResume(), full.sortStrategy(), List.of(), full.meta());
         }
-        List<OpportunityListItemVO> sliced = full.items().stream().limit(size).toList();
+        int toIndex = Math.min(fromIndex + safeSize, full.items().size());
+        List<OpportunityListItemVO> sliced = full.items().subList(fromIndex, toIndex);
         return new PageResult<>(full.total(), page, size, full.hasResume(), full.sortStrategy(), sliced, full.meta());
     }
 
