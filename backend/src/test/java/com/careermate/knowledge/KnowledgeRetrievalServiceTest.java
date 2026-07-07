@@ -14,7 +14,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -52,6 +54,7 @@ class KnowledgeRetrievalServiceTest {
         properties.setJdKbId("");
         properties.setInterviewKbId("21");
         properties.setPersonalKbId("31");
+        when(ragForgeClient.searchJd("Redis", 5)).thenReturn(List.of());
 
         RagRetrieveResult result = service.retrieve(RagRetrieveRequest.builder()
                 .query("Redis")
@@ -144,6 +147,134 @@ class KnowledgeRetrievalServiceTest {
                 .build());
 
         assertTrue(result.isSuccess());
+        assertEquals(RagRetrieverChunkType.INTERVIEW_QA, result.getChunks().get(0).getChunkType());
+    }
+
+    @Test
+    void disabledAndMissingQueryReturnStructuredFallbackWithoutCallingClient() {
+        RagRetrieveResult missingQuery = service.retrieve(RagRetrieveRequest.builder()
+                .query("  ")
+                .scene(RagRetrieveScene.OPPORTUNITY)
+                .topK(5)
+                .build());
+        assertFalse(missingQuery.isSuccess());
+        assertEquals(KnowledgeRetrievalService.ERROR_QUERY_MISSING, missingQuery.getErrorCode());
+
+        properties.setEnabled(false);
+        RagRetrieveResult disabled = service.retrieve(RagRetrieveRequest.builder()
+                .query("Java")
+                .scene(RagRetrieveScene.OPPORTUNITY)
+                .topK(5)
+                .build());
+        assertFalse(disabled.isSuccess());
+        assertEquals(KnowledgeRetrievalService.ERROR_RAGFORGE_DISABLED, disabled.getErrorCode());
+        verify(ragForgeClient, never()).searchJd(anyString(), anyInt());
+    }
+
+    @Test
+    void resumeSceneUsesPersonalKbWithChunkTypeFilterAndNormalizesTopK() {
+        when(ragForgeClient.search(31L, "我的简历", 50, List.of("RESUME"))).thenReturn(List.of(
+                new RagForgeChunk(10L, 20L, "resume.md", "Java 后端简历", "PERSONAL_RESUME", 0.91)
+        ));
+
+        RagRetrieveResult result = service.retrieve(RagRetrieveRequest.builder()
+                .query(" 我的简历 ")
+                .scene(RagRetrieveScene.RESUME)
+                .topK(99)
+                .filters(Map.of("chunkTypes", List.of("RESUME")))
+                .build());
+
+        assertTrue(result.isSuccess());
+        assertEquals("我的简历", result.getQuery());
+        assertEquals(RagRetrieverChunkType.RESUME, result.getChunks().get(0).getChunkType());
+        assertEquals("resume.md", result.getChunks().get(0).getSourceTitle());
+        assertEquals("PERSONAL_RESUME", result.getChunks().get(0).getMetadata().get("rawChunkType"));
+        verify(ragForgeClient).search(31L, "我的简历", 50, List.of("RESUME"));
+    }
+
+    @Test
+    void invalidPersonalKbConfigReturnsKbNotConfigured() {
+        properties.setPersonalKbId("not-number");
+
+        RagRetrieveResult result = service.retrieve(RagRetrieveRequest.builder()
+                .query("简历")
+                .scene(RagRetrieveScene.RESUME)
+                .topK(5)
+                .build());
+
+        assertFalse(result.isSuccess());
+        assertEquals(KnowledgeRetrievalService.ERROR_KB_NOT_CONFIGURED, result.getErrorCode());
+        verify(ragForgeClient, never()).search(anyLong(), anyString(), anyInt(), eq(List.of()));
+    }
+
+    @Test
+    void retrieveMergedDeduplicatesByChunkIdThenContent() {
+        when(ragForgeClient.searchJd("Java", 5)).thenReturn(List.of(
+                new RagForgeChunk(1L, 100L, "a.md", "同一个 chunk", "JD", 0.9),
+                new RagForgeChunk(null, 101L, "b.md", "同内容", "JD", 0.8)
+        ));
+        when(ragForgeClient.searchJd("Redis", 5)).thenReturn(List.of(
+                new RagForgeChunk(1L, 100L, "a.md", "同一个 chunk", "JD", 0.7),
+                new RagForgeChunk(null, 102L, "c.md", "同内容", "JD", 0.6),
+                new RagForgeChunk(3L, 103L, "d.md", "新内容", "MARKET_REPORT", 0.5)
+        ));
+
+        RagRetrieveResult merged = service.retrieveMerged(List.of(
+                RagRetrieveRequest.builder().query("Java").scene(RagRetrieveScene.OPPORTUNITY).topK(0).build(),
+                RagRetrieveRequest.builder().query("Redis").scene(RagRetrieveScene.OPPORTUNITY).topK(5).build()
+        ));
+
+        assertTrue(merged.isSuccess());
+        assertEquals("Java", merged.getQuery());
+        assertEquals(3, merged.getChunks().size());
+        assertEquals(RagRetrieverChunkType.MARKET_REPORT, merged.getChunks().get(2).getChunkType());
+    }
+
+    @Test
+    void retrieveMergedContextAndSourceHelpersHandleFallbackAndSuccess() {
+        assertEquals("", service.retrieveMergedContextText(List.of(), 100));
+        assertEquals(List.of(), service.toMarketCitations(null));
+        assertEquals(List.of(), service.toSourceSummaries(RagRetrieveResult.fallback("q", RagRetrieveScene.MARKET, "E", 1)));
+
+        when(ragForgeClient.searchJd("薪资", 5)).thenReturn(List.of(
+                new RagForgeChunk(11L, 12L, "market.md", "市场薪资报告内容", "MARKET", 0.72)
+        ));
+        RagRetrieveResult result = service.retrieve(RagRetrieveRequest.builder()
+                .query("薪资")
+                .scene(RagRetrieveScene.MARKET)
+                .topK(5)
+                .build());
+
+        assertEquals(1, service.toMarketCitations(result).size());
+        assertEquals("MARKET_REPORT", service.toMarketCitations(result).get(0).getChunkType());
+        assertTrue(service.toSourceSummaries(result).get(0).contains("市场薪资报告内容"));
+        assertTrue(service.retrieveMergedContextText(List.of(
+                RagRetrieveRequest.builder().query("薪资").scene(RagRetrieveScene.MARKET).topK(5).build()
+        ), 20).contains("市场薪资报告内容"));
+    }
+
+    @Test
+    void nullChunksAreSkippedAndClientExceptionBecomesFallback() {
+        when(ragForgeClient.searchInterview("异常", 5)).thenThrow(new IllegalStateException("down"));
+        RagRetrieveResult failed = service.retrieve(RagRetrieveRequest.builder()
+                .query("异常")
+                .scene(RagRetrieveScene.INTERVIEW)
+                .topK(-1)
+                .build());
+        assertFalse(failed.isSuccess());
+        assertEquals(KnowledgeRetrievalService.ERROR_RAGFORGE_FAILED, failed.getErrorCode());
+
+        when(ragForgeClient.searchInterview("空块", 5)).thenReturn(Arrays.asList(
+                null,
+                new RagForgeChunk(1L, 1L, null, null, null, null)
+        ));
+        RagRetrieveResult result = service.retrieve(RagRetrieveRequest.builder()
+                .query("空块")
+                .scene(RagRetrieveScene.INTERVIEW)
+                .topK(-1)
+                .build());
+        assertTrue(result.isSuccess());
+        assertEquals("", result.getChunks().get(0).getContent());
         assertEquals(RagRetrieverChunkType.INTERVIEW_QA, result.getChunks().get(0).getChunkType());
     }
 }

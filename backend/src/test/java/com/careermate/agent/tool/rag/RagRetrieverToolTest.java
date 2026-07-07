@@ -147,7 +147,7 @@ class RagRetrieverToolTest {
 
         assertFalse(result.isSuccess());
         assertTrue(result.isFallbackUsed());
-        assertEquals(RagRetrieverTool.ERROR_EMPTY_RESULTS, result.getErrorCode());
+        assertEquals(KnowledgeRetrievalService.ERROR_RAGFORGE_FAILED, result.getErrorCode());
         assertTrue(result.getLatencyMs() >= 0);
     }
 
