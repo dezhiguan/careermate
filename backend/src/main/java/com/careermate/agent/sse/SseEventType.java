@@ -2,6 +2,7 @@ package com.careermate.agent.sse;
 
 public enum SseEventType {
     INTENT,
+    PATH_MODE,
     PLAN,
     TOKEN,
     MESSAGE,

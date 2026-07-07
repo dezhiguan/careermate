@@ -90,6 +90,7 @@ public class AgentStreamService {
     private final AgentKernelProperties agentKernelProperties;
     private final PromptTemplateService promptTemplateService;
     private final ChatClientStreamAdapter chatClientStreamAdapter;
+    private final com.careermate.agent.path.AgentPathRouter agentPathRouter;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -123,7 +124,8 @@ public class AgentStreamService {
             AgentKernelService agentKernelService,
             AgentKernelProperties agentKernelProperties,
             PromptTemplateService promptTemplateService,
-            ChatClientStreamAdapter chatClientStreamAdapter
+            ChatClientStreamAdapter chatClientStreamAdapter,
+            com.careermate.agent.path.AgentPathRouter agentPathRouter
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -149,6 +151,7 @@ public class AgentStreamService {
         this.agentKernelProperties = agentKernelProperties;
         this.promptTemplateService = promptTemplateService;
         this.chatClientStreamAdapter = chatClientStreamAdapter;
+        this.agentPathRouter = agentPathRouter;
     }
 
     public SseEmitter stream(Long userId, String sessionId, AgentMessageRequest request) {
@@ -221,6 +224,18 @@ public class AgentStreamService {
             long phaseStart = System.currentTimeMillis();
             agentSessionService.appendMessage(userId, sessionId, "user", request.getMessage(), "text");
             logPhase(sessionId, "persist_user_message", phaseStart);
+
+            // A2：fast/deep 分层判定，向前端发路径 chip 数据并记 trace（不改变当前执行行为）
+            com.careermate.agent.path.AgentPathDecision pathDecision =
+                    agentPathRouter.decide(request.getMessage(), request.isDeepMode());
+            Map<String, Object> pathData = Map.of(
+                    "mode", pathDecision.mode().name(),
+                    "reason", pathDecision.reason()
+            );
+            sseEmitterService.send(sessionId, SseEventType.PATH_MODE, pathData);
+            agentSessionService.recordTrace(
+                    userId, sessionId, "PATH_MODE", "{}", toJson(pathData), "SUCCESS", null, null
+            );
 
             ChatRequest chatRequest;
             String systemPrompt;
