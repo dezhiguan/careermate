@@ -129,8 +129,8 @@ careermate:
     exchanged-token-cache-ttl-ms: ${RAGFORGE_EXCHANGED_TOKEN_CACHE_TTL_MS:300000}
     timeout-ms: ${RAGFORGE_TIMEOUT_MS:1500}
     jd-kb-id: ${RAGFORGE_JD_KB_ID:}            # RAGForge 里存放 JD 的知识库 ID
-    interview-kb-id: ${RAGFORGE_INTERVIEW_KB_ID:}   # RAGForge 里存放面试题问答的知识库 ID（dev=18）
-    personal-kb-id: ${RAGFORGE_PERSONAL_KB_ID:}    # RAGForge 里存放个人简历的知识库 ID（dev=15）
+    interview-kb-id: ${RAGFORGE_INTERVIEW_KB_ID:}   # RAGForge 里存放面试题问答的知识库 ID
+    personal-kb-id: ${RAGFORGE_PERSONAL_KB_ID:}    # RAGForge 里存放个人简历的知识库 ID
   prompt:
     active-versions:
       resume-generate-from-jd: ${RESUME_PROMPT_VERSION:v1}
