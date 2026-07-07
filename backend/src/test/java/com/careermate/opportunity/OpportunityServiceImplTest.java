@@ -27,9 +27,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -247,25 +245,15 @@ class OpportunityServiceImplTest {
     }
 
     @Test
-    void listCacheHitSkipsSecondRagForgeCall() throws Exception {
-        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
-        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+    void listDoesNotUseCachedOpportunityList() {
+        when(ragForgeClient.searchJd("cached-query", 30)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.8)));
 
-        PageResult<OpportunityListItemVO> cached = new PageResult<>(
-                1, 1, 10, false, "LATEST",
-                List.of(new OpportunityListItemVO(
-                        "doc-1", 1L, "星天科技", "算法工程师", null, "北京",
-                        "1-3年", 1, 3, "硕士", "100-499人", "2026-06-09",
-                        null, "UNKNOWN", List.of(), List.of("Java"), 0.8, null, false
-                ))
-        );
-        String cachedJson = objectMapper.writeValueAsString(cached);
-        when(valueOps.get(anyString())).thenReturn(cachedJson);
+        PageResult<OpportunityListItemVO> result =
+                service.list(1L, new OpportunityListRequest("cached-query", null, null, null, 1, 10));
 
-        service.list(1L, new OpportunityListRequest("cached-query", null, null, null, 1, 10));
-        service.list(1L, new OpportunityListRequest("cached-query", null, null, null, 1, 10));
-
-        verify(ragForgeClient, times(0)).searchJd(anyString(), any(Integer.class));
+        assertEquals(1, result.total());
+        verify(redisTemplate, times(0)).opsForValue();
+        verify(ragForgeClient).searchJd("cached-query", 30);
     }
 
     @Test
@@ -381,33 +369,34 @@ class OpportunityServiceImplTest {
     }
 
     @Test
-    void listWritesCacheOnMiss() throws Exception {
-        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
-        when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        when(valueOps.get(anyString())).thenReturn(null);
+    void listDoesNotWriteCacheOnMiss() {
         when(ragForgeClient.searchJd("Java", 30)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.6)));
         when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
 
         service.list(1L, new OpportunityListRequest("Java", null, null, null, 1, 10));
 
-        verify(valueOps, atLeastOnce()).set(anyString(), anyString(), any(Duration.class));
+        verify(redisTemplate, times(0)).opsForValue();
     }
 
     @Test
-    void listDemoModeCacheKeyIncludesKeyword() {
-        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
-        when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        when(valueOps.get(anyString())).thenReturn(null);
+    void listDemoModeQueryIncludesKeyword() {
         when(ragForgeClient.searchJd("Python 广州 Java 3-5年", 30))
                 .thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.6)));
         when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
 
         service.list(1L, new OpportunityListRequest("Python", null, null, "demo", 1, 10));
 
-        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(valueOps, atLeastOnce()).set(keyCaptor.capture(), anyString(), any(Duration.class));
-        assertTrue(keyCaptor.getAllValues().stream()
-                .anyMatch(key -> key.equals("opportunity:list:广州:Java:3-5年:Python")));
+        verify(ragForgeClient).searchJd("Python 广州 Java 3-5年", 30);
+    }
+
+    @Test
+    void listExpandsSearchTopKForLaterPages() {
+        when(ragForgeClient.searchJd("Java", 40)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.6)));
+        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
+
+        service.list(1L, new OpportunityListRequest("Java", null, null, null, 4, 10));
+
+        verify(ragForgeClient).searchJd("Java", 40);
     }
 
     private static RagForgeChunk chunk(Long chunkId, Long docId, String content, double score) {

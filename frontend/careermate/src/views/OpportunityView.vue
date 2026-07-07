@@ -114,6 +114,8 @@
           </button>
         </div>
       </article>
+      <div v-if="loadingMore" class="load-more-state">正在加载更多机会</div>
+      <div v-else-if="!hasMore" class="load-more-state">已加载全部机会</div>
     </div>
 
     <p v-if="error" class="error-text">{{ error }}</p>
@@ -133,6 +135,10 @@ const route = useRoute()
 const items = ref([])
 const hasResume = ref(false)
 const loading = ref(true)
+const loadingMore = ref(false)
+const hasMore = ref(true)
+const currentPage = ref(1)
+const totalCount = ref(0)
 const error = ref('')
 const preparingId = ref('')
 const degraded = ref(false)
@@ -153,23 +159,35 @@ watch(
   }
 )
 
-async function fetchList({ autoRefresh = false } = {}) {
+async function fetchList({ autoRefresh = false, page = 1, append = false } = {}) {
+  if (append) {
+    if (loading.value || loadingMore.value || !hasMore.value) return
+    loadingMore.value = true
+  } else {
+    loading.value = true
+    currentPage.value = 1
+    totalCount.value = 0
+    hasMore.value = true
+  }
   if (!autoRefresh) {
     degradedRetryCount.value = 0
   }
-  loading.value = true
   error.value = ''
   try {
     const hasDefaultResume = !!homeStore.state.defaultResume
     const data = await listOpportunities({
       keyword: activeKeyword.value || undefined,
+      city: route.query.city || undefined,
+      position: route.query.position || undefined,
       mode: hasDefaultResume ? undefined : 'demo',
-      page: 1,
+      page,
       size: 10,
     })
     const meta = data?._meta || data?.meta || null
     if (meta?.state === 'LOADING') {
-      items.value = []
+      if (!append) {
+        items.value = []
+      }
       hasResume.value = !!data?.hasResume
       degraded.value = true
       scheduleDegradedRefresh()
@@ -177,18 +195,30 @@ async function fetchList({ autoRefresh = false } = {}) {
     }
     degraded.value = false
     clearDegradedRefreshTimer()
-    items.value = data?.items || []
+    const nextItems = data?.items || []
+    items.value = append ? appendUniqueItems(items.value, nextItems) : nextItems
+    currentPage.value = page
+    totalCount.value = Number(data?.total || items.value.length || 0)
+    hasMore.value = items.value.length < totalCount.value && nextItems.length > 0
     hasResume.value = !!data?.hasResume
-    if (!activeKeyword.value) {
+    if (!activeKeyword.value && page === 1) {
       homeStore.updateTopOpportunities(items.value)
     }
   } catch (e) {
     error.value = e.message || '加载失败'
-    items.value = []
+    if (!append) {
+      items.value = []
+      totalCount.value = 0
+      hasMore.value = false
+    }
     degraded.value = false
     clearDegradedRefreshTimer()
   } finally {
-    loading.value = false
+    if (append) {
+      loadingMore.value = false
+    } else {
+      loading.value = false
+    }
   }
 }
 
@@ -216,9 +246,34 @@ function hydrateFromBootstrap() {
   items.value = Array.isArray(homeStore.state.topOpportunities)
     ? homeStore.state.topOpportunities
     : []
+  currentPage.value = 1
+  totalCount.value = items.value.length
+  hasMore.value = items.value.length >= 10
   hasResume.value = !!homeStore.state.defaultResume
   loading.value = false
+  loadingMore.value = false
   error.value = ''
+}
+
+function appendUniqueItems(currentItems, nextItems) {
+  const seen = new Set(currentItems.map(item => item.jdId))
+  const merged = [...currentItems]
+  for (const item of nextItems) {
+    if (!item?.jdId || seen.has(item.jdId)) continue
+    seen.add(item.jdId)
+    merged.push(item)
+  }
+  return merged
+}
+
+function handleScroll() {
+  if (loading.value || loadingMore.value || degraded.value || !hasMore.value) return
+  const scrollTop = window.scrollY || document.documentElement.scrollTop || 0
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+  const docHeight = document.documentElement.scrollHeight || 0
+  if (docHeight - (scrollTop + viewportHeight) < 360) {
+    fetchList({ page: currentPage.value + 1, append: true })
+  }
 }
 
 async function handleWorkspaceAction(item, entryAction) {
@@ -297,6 +352,7 @@ function tierClass(tier) {
 }
 
 onMounted(() => {
+  window.addEventListener('scroll', handleScroll, { passive: true })
   if (!activeKeyword.value && homeStore.state.initialized && homeStore.state.topOpportunities.length > 0) {
     hydrateFromBootstrap()
     return
@@ -306,6 +362,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearDegradedRefreshTimer()
+  window.removeEventListener('scroll', handleScroll)
 })
 </script>
 
@@ -405,6 +462,15 @@ onBeforeUnmount(() => {
   padding: 10px 12px;
   font-size: 12px;
   font-weight: 600;
+}
+
+.load-more-state {
+  grid-column: 1 / -1;
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  font-size: 12px;
 }
 
 @media (min-width: 768px) {

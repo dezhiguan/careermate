@@ -26,11 +26,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
@@ -47,9 +42,6 @@ import java.util.Map;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -59,8 +51,8 @@ public class OpportunityServiceImpl implements OpportunityService {
     private static final String DEFAULT_QUERY = "Java 后端";
     private static final String MODE_DEMO = "demo";
     private static final int SEARCH_TOP_K = 30;
+    private static final int MAX_SEARCH_TOP_K = 100;
     private static final int DETAIL_SEARCH_TOP_K = 50;
-    private static final Duration LIST_CACHE_TTL = Duration.ofMinutes(30);
     private static final Duration DETAIL_CACHE_TTL = Duration.ofMinutes(10);
     private static final String SORT_MATCH = "MATCH";
     private static final String SORT_LATEST = "LATEST";
@@ -79,31 +71,6 @@ public class OpportunityServiceImpl implements OpportunityService {
     private final ChunksToOpportunityConverter converter = new ChunksToOpportunityConverter();
     private final ObjectMapper objectMapper;
     private final Optional<StringRedisTemplate> redisTemplate;
-    private final CacheManager cacheManager;
-    private final ApplicationContext applicationContext;
-    private final ConcurrentMap<String, CacheMeta.State> asyncRefreshStates = new ConcurrentHashMap<>();
-
-    public OpportunityServiceImpl(
-            KnowledgeRetrievalService knowledgeRetrievalService,
-            RagForgeClient ragForgeClient,
-            ResumeService resumeService,
-            CareerProfileService careerProfileService,
-            WorkspaceSessionRepository workspaceSessionRepository,
-            ObjectMapper objectMapper,
-            @Autowired(required = false) StringRedisTemplate redisTemplate
-    ) {
-        this(
-                knowledgeRetrievalService,
-                ragForgeClient,
-                resumeService,
-                careerProfileService,
-                workspaceSessionRepository,
-                objectMapper,
-                redisTemplate,
-                null,
-                null
-        );
-    }
 
     @Autowired
     public OpportunityServiceImpl(
@@ -113,9 +80,7 @@ public class OpportunityServiceImpl implements OpportunityService {
             CareerProfileService careerProfileService,
             WorkspaceSessionRepository workspaceSessionRepository,
             ObjectMapper objectMapper,
-            @Autowired(required = false) StringRedisTemplate redisTemplate,
-            ObjectProvider<CacheManager> cacheManagerProvider,
-            ApplicationContext applicationContext
+            @Autowired(required = false) StringRedisTemplate redisTemplate
     ) {
         this.knowledgeRetrievalService = knowledgeRetrievalService;
         this.ragForgeClient = ragForgeClient;
@@ -124,8 +89,6 @@ public class OpportunityServiceImpl implements OpportunityService {
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.objectMapper = objectMapper;
         this.redisTemplate = Optional.ofNullable(redisTemplate);
-        this.cacheManager = cacheManagerProvider == null ? null : cacheManagerProvider.getIfAvailable();
-        this.applicationContext = applicationContext;
     }
 
     @Override
@@ -134,27 +97,10 @@ public class OpportunityServiceImpl implements OpportunityService {
         OpportunityListRequest safeRequest = request == null
                 ? new OpportunityListRequest(null, null, null, null, 1, 10)
                 : request;
-        if (!cacheFacadeEnabled()) {
-            PageResult<OpportunityListItemVO> cached = listCached(userId, safeRequest);
-            if (cached != null && cached.items() != null && !cached.items().isEmpty()) {
-                return cached;
-            }
-            return computeAndCacheOpportunityList(userId, safeRequest);
-        }
-        PageResult<OpportunityListItemVO> cached = listCached(userId, safeRequest);
-        ResumeContext resumeContext = resolveResumeContext(userId);
-        if (cached != null && cached.items() != null && !cached.items().isEmpty()) {
-            return cached;
-        }
-        if (isTerminal(cached)) {
-            return cached;
-        }
-        ListQueryPlan plan = buildListQueryPlan(userId, safeRequest, resumeContext);
-        refreshAsync(plan.cacheKey(), () -> self().computeAndCacheOpportunityList(userId, safeRequest));
-        return PageResult.loadingEmpty(safeRequest.page(), safeRequest.size(), resumeContext.hasResume(), SORT_LATEST);
+        return computeOpportunityList(userId, safeRequest);
     }
 
-    public PageResult<OpportunityListItemVO> computeAndCacheOpportunityList(
+    public PageResult<OpportunityListItemVO> computeOpportunityList(
             Long userId,
             OpportunityListRequest request
     ) {
@@ -163,9 +109,11 @@ public class OpportunityServiceImpl implements OpportunityService {
                 : request;
         ResumeContext resumeContext = resolveResumeContext(userId);
         ListQueryPlan plan = buildListQueryPlan(userId, safeRequest, resumeContext);
-        CachedOpportunityList cached = cacheFacadeEnabled()
-                ? self().computeAndCacheOpportunityListItems(plan.cacheKey(), plan.query())
-                : computeAndCacheOpportunityListItems(plan.cacheKey(), plan.query());
+        CachedOpportunityList cached = computeOpportunityListItems(
+                plan.cacheKey(),
+                plan.query(),
+                searchTopKFor(safeRequest)
+        );
         if (cached == null) {
             log.info("opportunity list empty from ragforge, userId={}, query={}", userId, plan.query());
             return PageResult.degradedEmpty(safeRequest.page(), safeRequest.size(), resumeContext.hasResume(), SORT_LATEST);
@@ -173,12 +121,6 @@ public class OpportunityServiceImpl implements OpportunityService {
         if (cached.items() == null || cached.items().isEmpty()) {
             log.info("opportunity list empty from ragforge, userId={}, query={}", userId, plan.query());
             CacheMeta.State state = cached.state() == null ? CacheMeta.State.EMPTY : cached.state();
-            if (state == CacheMeta.State.DEGRADED) {
-                asyncRefreshStates.put(plan.cacheKey(), CacheMeta.State.DEGRADED);
-            }
-            if (!cacheFacadeEnabled() && state == CacheMeta.State.EMPTY) {
-                writeListCache(plan.cacheKey(), cached);
-            }
             return new PageResult<>(
                     0,
                     safeRequest.page(),
@@ -198,23 +140,15 @@ public class OpportunityServiceImpl implements OpportunityService {
                 safeRequest.size(),
                 metaFromCached(cached, CacheMeta.State.FRESH)
         );
-        if (!cacheFacadeEnabled()) {
-            writeListCache(plan.cacheKey(), cached);
-        }
         return result;
     }
 
-    @Cacheable(
-            cacheNames = "opportunity:list",
-            key = "#cacheKey",
-            unless = "#result == null || #result.state == T(com.careermate.common.api.CacheMeta.State).DEGRADED"
-    )
-    public CachedOpportunityList computeAndCacheOpportunityListItems(String cacheKey, String query) {
+    public CachedOpportunityList computeOpportunityListItems(String cacheKey, String query, int topK) {
         try {
             RagRetrieveResult result = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
                     .query(query)
                     .scene(RagRetrieveScene.OPPORTUNITY)
-                    .topK(SEARCH_TOP_K)
+                    .topK(topK)
                     .build());
             if (!result.isSuccess()) {
                 CacheMeta.State state = KnowledgeRetrievalService.ERROR_EMPTY_RESULTS.equals(result.getErrorCode())
@@ -243,77 +177,20 @@ public class OpportunityServiceImpl implements OpportunityService {
         }
     }
 
+    private int searchTopKFor(OpportunityListRequest request) {
+        int page = request == null || request.page() == null ? 1 : Math.max(1, request.page());
+        int size = request == null || request.size() == null ? 10 : Math.max(1, request.size());
+        long required = (long) page * size;
+        return (int) Math.min(MAX_SEARCH_TOP_K, Math.max(SEARCH_TOP_K, required));
+    }
+
     @Override
     @Transactional(readOnly = true)
     public PageResult<OpportunityListItemVO> listCached(Long userId, OpportunityListRequest request) {
         OpportunityListRequest safeRequest = request == null
                 ? new OpportunityListRequest(null, null, null, null, 1, 10)
                 : request;
-        ResumeContext resumeContext = resolveResumeContext(userId);
-        ListQueryPlan plan = buildListQueryPlan(userId, safeRequest, resumeContext);
-
-        if (cacheFacadeEnabled()) {
-            CachedOpportunityList cached = cacheValue("opportunity:list", plan.cacheKey(), CachedOpportunityList.class);
-            if (cached == null) {
-                CacheMeta.State asyncState = asyncRefreshStates.get(plan.cacheKey());
-                if (asyncState == CacheMeta.State.DEGRADED) {
-                    return PageResult.degradedEmpty(
-                            safeRequest.page(),
-                            safeRequest.size(),
-                            resumeContext.hasResume(),
-                            SORT_LATEST
-                    );
-                }
-                return PageResult.loadingEmpty(
-                        safeRequest.page(),
-                        safeRequest.size(),
-                        resumeContext.hasResume(),
-                        SORT_LATEST
-                );
-            }
-            return buildListPage(
-                    cached.items(),
-                    resumeContext,
-                    plan.demoMode(),
-                    safeRequest.page(),
-                    safeRequest.size(),
-                    metaFromCached(cached, cached.state() == null ? CacheMeta.State.FRESH : cached.state())
-            );
-        }
-
-        CachedOpportunityList cached = readListCache(plan.cacheKey());
-        if (cached == null) {
-            CacheMeta.State asyncState = asyncRefreshStates.get(plan.cacheKey());
-            if (asyncState == CacheMeta.State.DEGRADED) {
-                return PageResult.degradedEmpty(
-                        safeRequest.page(),
-                        safeRequest.size(),
-                        resumeContext.hasResume(),
-                        SORT_LATEST
-                );
-            }
-            return PageResult.loadingEmpty(
-                    safeRequest.page(),
-                    safeRequest.size(),
-                    resumeContext.hasResume(),
-                    SORT_LATEST
-            );
-        }
-        return buildListPage(
-                cached.items(),
-                resumeContext,
-                plan.demoMode(),
-                safeRequest.page(),
-                safeRequest.size(),
-                metaFromCached(cached, cached.state() == null ? CacheMeta.State.FRESH : cached.state())
-        );
-    }
-
-    private static boolean isTerminal(PageResult<?> result) {
-        if (result == null || result.meta() == null) {
-            return false;
-        }
-        return result.meta().state() == CacheMeta.State.EMPTY || result.meta().state() == CacheMeta.State.DEGRADED;
+        return computeOpportunityList(userId, safeRequest);
     }
 
     private static CacheMeta metaFromCached(CachedOpportunityList cached, CacheMeta.State fallback) {
@@ -831,19 +708,6 @@ public class OpportunityServiceImpl implements OpportunityService {
         return new ArrayList<>(found);
     }
 
-    private CachedOpportunityList readListCache(String cacheKey) {
-        CachedOpportunityList cached = readCache(cacheKey, new TypeReference<>() {});
-        if (cached != null) {
-            return cached;
-        }
-        PageResult<OpportunityListItemVO> legacy = readCache(cacheKey, new TypeReference<>() {});
-        if (legacy == null || legacy.items() == null) {
-            return null;
-        }
-        Long cachedAt = legacy.meta() == null ? System.currentTimeMillis() : legacy.meta().cachedAt();
-        return new CachedOpportunityList(legacy.items(), cachedAt);
-    }
-
     private OpportunityDetailVO readDetailCache(String cacheKey) {
         return readCache(cacheKey, new TypeReference<>() {});
     }
@@ -868,10 +732,6 @@ public class OpportunityServiceImpl implements OpportunityService {
         }
     }
 
-    private void writeListCache(String cacheKey, CachedOpportunityList value) {
-        writeCache(cacheKey, value, LIST_CACHE_TTL);
-    }
-
     private void writeDetailCache(String cacheKey, OpportunityDetailVO value) {
         writeCache(cacheKey, value, DETAIL_CACHE_TTL);
     }
@@ -890,44 +750,6 @@ public class OpportunityServiceImpl implements OpportunityService {
         } catch (Exception e) {
             log.warn("write opportunity cache failed, key={}", cacheKey, e);
         }
-    }
-
-    private boolean cacheFacadeEnabled() {
-        return cacheManager != null && applicationContext != null;
-    }
-
-    private OpportunityServiceImpl self() {
-        return applicationContext.getBean(OpportunityServiceImpl.class);
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> T cacheValue(String cacheName, String cacheKey, Class<?> type) {
-        try {
-            Cache cache = cacheManager.getCache(cacheName);
-            return cache == null ? null : (T) cache.get(cacheKey, type);
-        } catch (Exception e) {
-            log.warn("opportunity cache read failed, cache={}, key={}, err={}", cacheName, cacheKey, e.getMessage());
-            return null;
-        }
-    }
-
-    private void refreshAsync(String cacheKey, Runnable runnable) {
-        CacheMeta.State previous = asyncRefreshStates.putIfAbsent(cacheKey, CacheMeta.State.LOADING);
-        if (previous == CacheMeta.State.LOADING) {
-            return;
-        }
-        CompletableFuture.runAsync(() -> {
-            try {
-                runnable.run();
-                asyncRefreshStates.computeIfPresent(
-                        cacheKey,
-                        (key, state) -> state == CacheMeta.State.LOADING ? null : state
-                );
-            } catch (Exception e) {
-                log.warn("opportunity cache async refresh failed: {}", e.getMessage());
-                asyncRefreshStates.put(cacheKey, CacheMeta.State.DEGRADED);
-            }
-        });
     }
 
     private static String normalize(String value) {
