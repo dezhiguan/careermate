@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CareerMate Agent 重建 · 产品优先定版 V3</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2430; --line:#2b3442;
+    --txt:#e6edf3; --dim:#9aa7b4; --accent:#4fd1c5; --accent2:#7aa2ff;
+    --warn:#f0a35e; --bad:#f2707a; --good:#5ddb9a; --p0:#7aa2ff; --p1:#c58af0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 28px 100px}
+  h1{font-size:30px;margin:0 0 4px;letter-spacing:.5px}
+  h2{font-size:22px;margin:56px 0 18px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  h3{font-size:17px;margin:26px 0 10px;color:var(--accent)}
+  .tag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:20px;
+    border:1px solid var(--line);color:var(--dim);margin-right:6px}
+  .kicker{color:var(--accent);letter-spacing:3px;font-size:12px;font-weight:700}
+  .lead{color:var(--dim);font-size:15px;max-width:820px}
+  .grid{display:grid;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .card.hl{border-color:var(--accent);box-shadow:0 0 0 1px rgba(79,209,197,.15)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--dim);font-weight:600}
+  code{background:#0b0f14;border:1px solid var(--line);border-radius:5px;padding:1px 6px;
+    font-family:"SF Mono",Consolas,monospace;font-size:12.5px;color:#a5e8dd}
+  .pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px}
+  .must{background:rgba(93,219,154,.15);color:var(--good);border:1px solid rgba(93,219,154,.4)}
+  .opt{background:rgba(240,163,94,.13);color:var(--warn);border:1px solid rgba(240,163,94,.4)}
+  .cut{background:rgba(242,112,122,.13);color:var(--bad);border:1px solid rgba(242,112,122,.4)}
+  ul{margin:6px 0 6px 2px;padding-left:20px}
+  li{margin:3px 0}
+  .no li{color:#f2b3b8}
+  .yes li{color:#bfe6cf}
+  .phase{border-left:3px solid var(--p0);padding-left:16px;margin:18px 0}
+  .phase.b{border-color:var(--p1)}
+  .meta{font-size:12.5px;color:var(--dim);margin:2px 0 8px}
+  .box{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:8px 0}
+  .box b{color:var(--txt)}
+  .rev td{font-size:12.5px}
+  .note{color:var(--warn)}
+  .del{color:var(--bad)}
+  .ok{color:var(--good)}
+  .flex{display:flex;gap:20px;flex-wrap:wrap}
+  .flex>div{flex:1;min-width:280px}
+  hr{border:none;border-top:1px dashed var(--line);margin:24px 0}
+  .foot{margin-top:60px;color:var(--dim);font-size:12.5px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="kicker">REBUILD PLAN · V3 · PRODUCT-FIRST</div>
+  <h1>CareerMate Agent 重建 · 产品优先定版</h1>
+  <p class="lead">在 V2（roadmap-v2 + 41-day-plan）基础上重排：<b>先做出一个真实可用、质量可测、有记忆的产品</b>。核心变化是引入 <b>fast/deep 分层</b> 护住可用性，纠正 V2 的过时前提，并把低产品价值的重装备（时间旅行/桥接/消息总线/熔断）降级为可选补强。</p>
+
+  <div style="margin-top:14px">
+    <span class="tag">拟制日期 2026-07-08</span>
+    <span class="tag">版本 V3.0</span>
+    <span class="tag">拟制人 @guandezhi</span>
+    <span class="tag">建议开工 2026-07-14（周一）</span>
+    <span class="tag">第一段目标完成 2026-08-14</span>
+  </div>
+
+  <!-- 修订记录 -->
+  <h2>修订记录</h2>
+  <table class="rev">
+    <tr><th style="width:70px">版本</th><th style="width:110px">日期</th><th>说明</th></tr>
+    <tr><td>V1</td><td>2026-06-中</td><td>roadmap（含 MCP / Boss Browser）</td></tr>
+    <tr><td>V2</td><td>2026-06-20</td><td>roadmap-v2 + 41-day-plan：真 Agent 7 层能力栈，8 阶段/41 天，<b>能力堆叠导向</b>；移除 MCP 与 Boss Browser</td></tr>
+    <tr><td>V3</td><td>2026-07-08</td><td>改为<b>产品驱动</b>：① 采纳"底座先行"顺序、废弃 roadmap 的"多 Agent 先行"；② 新增 fast/deep 分层作为一级约束；③ 纠正 3 处过时前提（Spring AI 已引入 / MCP 模块已存在 / 迁移已到 V28）；④ 保留 MCP；⑤ 复用已存在的 <code>CriticAgent</code> 演进 Writer-Critic，砍消息总线重构；⑥ Checkpoint 只做崩溃恢复+HITL，时间旅行/fork/桥接降级为可选；⑦ 两段式：第一段=产品可用，第二段=能力补强（可选）</td></tr>
+    <tr><td><b>V3.1</b></td><td><b>2026-07-08</b></td><td><b>本版</b>。增补<b>知识库落地映射（新增第 1.5 节）</b>：把 RAGForge 已就绪的 5 个求职知识库（岗位JD/技能画像/薪资行情/面试题/目标公司，合计 ≈4350 文档 / 11783 chunk）逐能力深度绑定，作为"质量可靠"的第一抓手；A1 RAG advisor 改为 <b>scene→kbId 路由</b>；A3 反思 success_criteria 改为<b>知识库锚定 + 引用可核验</b>；A4 记忆与技能画像库交叉。</td></tr>
+  </table>
+
+  <!-- 现状基线 -->
+  <h2>一、现状基线（2026-07-08 实测，用于纠正 V2 前提）</h2>
+  <p class="lead">V2 对"缺什么"的诊断准确，但对"已有什么"低估。以下为代码库实测结论（Spring Boot 3.5.15 / Java 21 / 后端 373 个 java、97 个 agent 模块文件 / 128 个测试类、65% 覆盖率门禁 / 前端 Vue3+Vite、Playwright e2e 完备）。</p>
+  <table>
+    <tr><th style="width:200px">维度</th><th>实测现状</th><th>对 V2 的修正</th></tr>
+    <tr><td>LLM 底座</td><td>自研 <code>LlmClient</code>（Qwen/DeepSeek/OpenAiCompatible/Mock/Tracing）跑主链路；<b>Spring AI 1.0.0 + Alibaba 1.0.0.2 + dashscope starter 已在 pom</b>，<code>SpringAiToolCallbackFactory</code> 已动工</td><td class="note">P1 Day1"引入依赖"基本已完成；真实工作=runtime 从 LlmClient 迁到 ChatClient/Advisor</td></tr>
+    <tr><td>ReAct</td><td><code>ReActEngine</code>：<code>for round=1..3</code> 串行工具循环，无并发</td><td class="ok">诊断准确</td></tr>
+    <tr><td>多 Agent</td><td><code>AgentSupervisor</code> + 5 specialist（Resume/JobMatch/Interview/Market/<b>Critic</b>）；<b>已用 3 线程池并行分发、8s 超时</b>；静态域路由</td><td class="note">"串行"仅指 ReAct 工具调用；specialist 分发已并发。<b>Critic 角色已存在</b></td></tr>
+    <tr><td>工具</td><td>自研完整框架 <code>AgentToolRegistry/ExecutionService/Router/Permission/RiskLevel/ArgumentValidator</code> + 10 个工具（含 <code>rag_retriever</code>）</td><td class="ok">迁 @Tool 是包装，非重写</td></tr>
+    <tr><td>记忆</td><td><code>AgentMemoryService</code> 纯 PG 关系存储 + 对话摘要 + career_signals；<b>无 pgvector / 无长期语义记忆</b></td><td class="ok">诊断准确，长期记忆确缺</td></tr>
+    <tr><td>RAG</td><td><code>RagForgeClient</code>（Java HttpClient + token 缓存 + sw8 追踪）+ <code>KnowledgeRetrievalService</code> + <code>rag_retriever</code> 工具</td><td class="ok">迁 <code>QuestionAnswerAdvisor</code> 目标合理</td></tr>
+    <tr><td>MCP</td><td><b>已有完整模块</b> <code>McpServer/McpController/McpToolService/McpResourceService</code>，暴露 resume_versions / jd_workspace / tasks_todo</td><td class="del">V2"移除 MCP"= 丢弃可用代码 + 丢弃标准互操作能力，<b>本版保留</b></td></tr>
+    <tr><td>迁移</td><td>Flyway 当前 <b>V28</b>（V27=add_auth_user_id，V28=drop tenant_id）</td><td class="del">41-day Day5 用 V27 会冲突，新表<b>从 V29 起</b></td></tr>
+  </table>
+
+  <!-- 知识库落地映射 -->
+  <h2>★ 一·补 · 知识库落地映射（V3.1 增补 · 产品护城河）</h2>
+  <p class="lead">RAGForge 侧已就绪 <b>5 个求职专属知识库</b>（组织"职场数据分享有限公司"，组织可见，状态=可用，2026-07-02 建）。这是 CareerMate 区别于"通用 chatbot"的<b>真实数据护城河</b>，也是"质量可靠"最直接的抓手：答案有真实语料支撑 + 可核验引用，才叫可靠。<b>原则</b>：不做一个笼统 <code>rag_retriever</code>，而是把每个 specialist / 每个 deep-path 能力与具体 KB <b>强绑定</b>，检索走 scene→kbId 路由，deep-path 回答带引用来源。</p>
+  <table>
+    <tr><th>知识库</th><th>体量</th><th>绑定能力 / specialist / 工具</th><th>用在阶段</th><th>质量抓手</th></tr>
+    <tr><td><b>岗位 JD 库</b> <code>#599</code><br><span class="meta">职责·任职要求·薪资范围</span></td><td>2671 文档<br>5415 chunk</td><td>Resume/JobMatch specialist · <code>generate_resume_from_jd</code> · <code>analyze_jd</code> · <code>create_job_match</code></td><td>A1 检索 / A3 反思 / B1 debate</td><td>简历定制命中真实 JD 关键词与任职要求，非泛写</td></tr>
+    <tr><td><b>岗位技能画像库</b> <code>#598</code><br><span class="meta">高频技能·能力要求·加分项</span></td><td>143 文档<br>715 chunk</td><td>Resume specialist · 技能对齐打分 · A4 长期记忆(SKILL 类 fact) 交叉</td><td>A1 / A3 / A4</td><td>技能命中度可量化（覆盖 N 个高频技能/加分项）</td></tr>
+    <tr><td><b>薪资行情库</b> <code>#597</code><br><span class="meta">市场薪资·Offer·谈判参考</span></td><td>473 文档<br>2365 chunk</td><td>Market specialist · 薪资分位/谈判建议</td><td>A1 / A3</td><td>薪资结论带真实分位数与 Offer 样本，非编造</td></tr>
+    <tr><td><b>面试题库</b> <code>#596</code><br><span class="meta">高频题目·真实面经·参考答案</span></td><td>67 文档<br>1275 chunk</td><td>Interview specialist · <code>create_interview_session</code> · 模拟面试复盘(deep-path)</td><td>A1 / A3(deep) / B3 HITL</td><td>出题/评判基于真实面经，弱点记录回写 A4 记忆</td></tr>
+    <tr><td><b>目标公司库</b> <code>#595</code><br><span class="meta">技术栈·团队文化·公司动态</span></td><td>996 文档<br>2013 chunk</td><td>JobMatch specialist · 公司匹配 · 面试前调研</td><td>A1 / A3</td><td>公司匹配/调研引用真实技术栈与文化画像</td></tr>
+  </table>
+  <div class="box"><b>接入前置约束（读自 RAGForge KB 元数据）</b>：5 库均归属 <b><code>orgId=316</code>（职场数据分享有限公司）· <code>ownerUserId=7</code> · <code>visibility=ORG</code></b> → careermate 的 <code>RagForgeClient</code> 必须以<b>能访问 org 316 的身份 / API-Key</b> 调用（否则检索恒空，A1 首要冒烟项）。5 库 <b><code>answerMode=OFF</code></b> = 纯检索库不自带问答 → <b>RAGForge 只出召回，careermate 负责生成 + 引用</b>（与本方案职责划分一致）。embeddingModel=qwen3-vl-embedding、imageProcessingMode=ON（多模态），careermate 走 API 检索无需对齐 embedding。</div>
+  <div class="box"><b>scene→kbId 绑定（固化进 <code>careermate.ragforge.scene-kb</code>）</b>：<code>MARKET→597</code> · <code>INTERVIEW→596</code> · <code>COMPANY→595</code> · <code>RESUME / OPPORTUNITY(JD分析+简历定制)→599（+ 技能对齐并检 598）</code> · <code>GENERAL→跨库或默认</code>。① deep-path 回答统一走 RAGForge <b>带引用检索</b>（RAGForge 侧已具备引用重锚定），前端 chat 展示"参考来源"。② 检索命中为空时 fast/deep 都显式降级提示"暂无对应语料"，<b>禁止让 LLM 脑补</b>——正是 <code>CriticAgent</code> 已在拦截的"编造"场景。</div>
+
+  <!-- 关键决策 -->
+  <h2>二、关键架构决策（ADR）</h2>
+  <div class="grid">
+    <div class="card hl"><h3>ADR-1 · 底座先行，废弃"多 Agent 先行"</h3>
+      两份 V2 文档在顺序上自相矛盾：roadmap 让多 Agent 排第一、底座垫底；41-day 让底座第一。<b>采纳 41-day 顺序</b>。理由：若在自研 <code>LlmClient</code> 上把 debate/DAG/反思/checkpoint 四套复杂系统建完再"抽空换底座"，等于四套系统全部重接线，返工面积巨大。先把 runtime 迁到 <code>ChatClient</code>/Advisor，后续能力直接长在其上。</div>
+
+    <div class="card hl"><h3>ADR-2 · fast-path / deep-path 分层（一级约束·新增）</h3>
+      debate(≤3) × reflection(≤3) × 多 Agent 叠加 → 单次"简历定制"可能 9+ 次 LLM 往返、30–60s+ 延迟、数倍 Token。对"随手一问"的产品是灾难性 UX。<b>强制分层</b>：<br>
+      · <b>fast-path</b>：单 Agent 直答，覆盖 ~90% 交互，秒级；<br>
+      · <b>deep-path</b>：仅用户显式触发"深度定制简历 / 模拟面试复盘"才进反思/debate 重管线，并在 UI 明确标注"深度模式（较慢）"。<br>
+      没有这一层，"技能齐全"会直接反噬"可用"。</div>
+
+    <div class="card"><h3>ADR-3 · 保留 MCP</h3>MCP 是 2026 最硬的互操作技能之一（RAGForge 侧已做过传输收口）。careermate MCP 模块已可用，<b>保留并作为"agent 对外能力暴露"锚点</b>，不删。</div>
+
+    <div class="card"><h3>ADR-4 · 复用 CriticAgent，砍消息总线</h3>Writer-Critic 的 Critic 角色<b>已存在</b>。第二段的 debate 直接在现有 supervisor + CriticAgent 上做<b>进程内</b>收敛循环，<b>不引入</b> AgentMessageBus / Redis pub/sub / A2A @Tool 递归调用这套重装备（5 个 agent 用不上，纯属过度设计）。</div>
+
+    <div class="card"><h3>ADR-5 · Checkpoint 只做崩溃恢复 + HITL</h3>求职助手里用户几乎不会 fork / time-travel 一次 agent run。<b>只做</b>：deep-path 长任务的崩溃续跑 + "发送简历前"HITL 暂停确认。<b>降级为可选</b>：时间旅行 UI、from-checkpoint fork、前端运行时间轴。</div>
+
+    <div class="card"><h3>ADR-6 · 迁移从 V29 起 · 表命名避让</h3>新表统一 V29+ 编号；多 Agent 协作表用 <code>agent_collab_*</code> 命名，<b>避免与已存在的 <code>agent_messages</code> 表冲突</b>。</div>
+  </div>
+
+  <!-- 路线总览 -->
+  <h2>三、两段式路线总览</h2>
+  <div class="flex">
+    <div class="card">
+      <h3 style="color:var(--good)">第一段 · 产品可用基线 <span class="pill must">MUST</span></h3>
+      <p class="meta">2026-07-14 → 2026-08-14（≈4.5 周）· 完成即"真实可用 + 质量可测 + 有记忆"</p>
+      <table>
+        <tr><th>#</th><th>阶段</th><th>工作日</th><th>目标日期</th><th>迁移</th></tr>
+        <tr><td>A1</td><td>Spring AI 底座迁移（runtime 脱离 LlmClient）</td><td>8</td><td>07-14~07-23</td><td>—</td></tr>
+        <tr><td>A2</td><td>fast/deep 分层编排</td><td>3</td><td>07-24~07-28</td><td>—</td></tr>
+        <tr><td>A3</td><td>反思闭环（deep-path·Reflexion 裁剪）</td><td>5</td><td>07-29~08-04</td><td>V29</td></tr>
+        <tr><td>A4</td><td>pgvector 长期记忆 + "小职认识你"</td><td>5</td><td>08-05~08-11</td><td>V30</td></tr>
+        <tr><td>A5</td><td>Eval + Token Cost 看板 + CI gate</td><td>3</td><td>08-12~08-14</td><td>—</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--warn)">第二段 · 能力补强 <span class="pill opt">OPTIONAL</span></h3>
+      <p class="meta">2026-08-17 起（≈3 周）· 按精力投；工程能力沉淀，对当前产品可用性非必需</p>
+      <table>
+        <tr><th>#</th><th>阶段</th><th>工作日</th><th>目标日期</th><th>迁移</th></tr>
+        <tr><td>B1</td><td>Writer-Critic Debate（复用 CriticAgent）</td><td>5</td><td>08-17~08-21</td><td>V31</td></tr>
+        <tr><td>B2</td><td>多工具并发 DAG（裁剪·熔断延后）</td><td>4</td><td>08-24~08-27</td><td>V32</td></tr>
+        <tr><td>B3</td><td>Checkpoint 崩溃恢复 + HITL 暂停</td><td>4</td><td>08-28~09-02</td><td>V33</td></tr>
+        <tr><td>B4</td><td>独立 LangGraph/Dify 实战集成（替代 V2 桥接）<br><span class="meta">或补时间旅行/fork UI</span></td><td>按需</td><td>开放</td><td>—</td></tr>
+      </table>
+    </div>
+  </div>
+  <p class="note" style="font-size:13px">⚠️ 工期为<b>顺利路径</b>估算。要达"质量可靠"的生产级（含 65% 覆盖率门禁 + Playwright 全绿），A1、A3、B2 属被低估的多日任务，整体建议乘 <b>1.5×</b> 缓冲；第一段最能贴近原节奏交付。</p>
+
+  <!-- 第一段详规 -->
+  <h2>四、第一段详规（Cursor-ready：目标 / 禁止 / 字段 / 验收）</h2>
+
+  <div class="phase">
+    <h3>A1 · Spring AI 底座迁移 <span class="pill must">MUST</span></h3>
+    <div class="meta">8 工作日 · 07-14~07-23 · runtime 从自研 LlmClient 迁到 ChatClient/Advisor</div>
+    <div class="box"><b>目标</b>：<code>AgentStreamService.stream</code> 内部 <code>llmClient.streamChat</code> → <code>ChatClient.prompt().stream()</code>；10 个工具包装为 Spring AI <code>@Tool/ToolCallback</code>（复用已有 <code>SpringAiToolCallbackFactory</code>）；记忆接 <code>MessageChatMemoryAdvisor</code>（自定义 <code>CareerMateChatMemoryRepository</code> 复用现有 <code>agent_messages</code> 表，<b>不新建</b>）；RAG 接 <code>QuestionAnswerAdvisor</code> 并做 <b>scene→kbId 路由</b>（market→597、interview→596、company→595、opportunity/resume→599 +技能对齐检 598，绑定固化进 <code>careermate.ragforge.scene-kb</code> 配置），deep-path 走带引用检索；最后删干净自研 <code>LlmClient/StreamCallback/ChatRequest/AgentMemoryService 旧 summary</code>。</div>
+    <div class="flex">
+      <div><b class="del">禁止</b><ul class="no">
+        <li>不丢 SSE token 顺序 / traceId MDC / onComplete 持久化（U3 已修）</li>
+        <li>不让 LLM 端走"自然语言推断 tool 名"，强制 function-calling JSON schema</li>
+        <li>不为过测试 mock LLM（必须真调 qwen）；ChatMemory 窗口 ≤ 20 条</li>
+        <li>不保留 deprecated 残留——迁移完 <code>grep -r "LlmClient\b\|StreamCallback"</code> 须为空</li>
+      </ul></div>
+      <div><b class="ok">验收</b><ul class="yes">
+        <li><code>agent-stream-regression.spec.js</code> / <code>agent-tools.spec.js</code> 通过</li>
+        <li><code>t01-t08-full-journey.spec.js</code> 全绿；SSE P50 相较之前波动 &lt;100ms</li>
+        <li><code>mvn -pl backend test</code> 全绿、覆盖率 ≥65%；后端 log 见 function_call 协议参数</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <h3>A2 · fast / deep 分层编排 <span class="pill must">MUST</span> <span class="pill" style="background:rgba(122,162,255,.15);color:var(--p0)">新增·非 V2 内容</span></h3>
+    <div class="meta">3 工作日 · 07-24~07-28 · 护住可用性的关键闸门</div>
+    <div class="box"><b>目标</b>：在 supervisor 入口加 <code>AgentPathRouter</code>：默认 fast-path（单 specialist 直答，不触发反思/debate）；仅当意图=<code>DEEP_RESUME_CUSTOMIZE</code> / <code>DEEP_INTERVIEW_REVIEW</code> 或用户前端显式勾选"深度模式"时进 deep-path。前端 chat 显示模式标识 chip。<b>字段</b>：<code>agent_sessions</code> 加 <code>path_mode VARCHAR(10)</code>（FAST/DEEP，默认 FAST，可复用现有扩展列或走 metadata JSON，避免新迁移）。</div>
+    <div class="flex">
+      <div><b class="del">禁止</b><ul class="no">
+        <li>不让 fast-path 触发任何多轮反思/debate（一次 LLM 往返为主）</li>
+        <li>不默认进 deep-path（成本护栏——deep 必须显式触发）</li>
+        <li>不把 path 判定做成一次额外强模型调用（用轻量意图分类/规则，qwen-turbo 或现有 <code>AgentLlmIntentRecognizer</code>）</li>
+      </ul></div>
+      <div><b class="ok">验收</b><ul class="yes">
+        <li>Playwright：普通提问 → 秒级单 Agent 回答，chip=普通；点"深度定制" → chip=深度模式（较慢）</li>
+        <li>埋点断言：fast-path 单次 LLM 调用数 ≤ 2；deep-path 才 &gt;2</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <h3>A3 · Plan-Act-Reflect-Revise 反思闭环 <span class="pill must">MUST</span></h3>
+    <div class="meta">5 工作日 · 07-29~08-04 · V29 · <b>仅 deep-path 生效</b> · 直接命中"质量可靠"</div>
+    <div class="box"><b>目标</b>：Reflexion 裁剪版。<code>AgentPlanner</code>(独立 ChatClient, temp 0.3)→ act(现有 ReAct+specialist)→ <code>AgentReflector</code>(<b>跨家</b> model, temp 0.1, 输出 <code>{satisfied,confidence,gaps,suggestions,verdict}</code>)→ 不满意则 <code>AgentRepairer</code> 修 plan 重跑。<code>MAX_ROUNDS=3</code> + 连续 2 轮相同建议早停。<b>success_criteria 必须知识库锚定</b>（如"覆盖 岗位JD库 命中的 ≥5 项任职要求"、"薪资结论有 薪资行情库 分位数支撑"、"引用来源可核验、无脱离语料的编造"），让反思判"是否真的被真实语料支撑"而非"答案是否丰富"。<b>字段（V29）</b>：<code>agent_plan{run_id,round_no,goals,subgoals,success_criteria,revised_from,sanity_status}</code> · <code>agent_reflection{run_id,round,plan_id,satisfied,confidence,gaps,suggestions,verdict,reflector_model}</code>。</div>
+    <div class="flex">
+      <div><b class="del">禁止</b><ul class="no">
+        <li>reflector 与 actor 不同家 model（actor=qwen，reflector=deepseek/gpt-4o-mini）防 self-bias；reflector 严禁调工具</li>
+        <li>不把 reflection 原文回显用户（内部批判，只暴露最终修订后回答）</li>
+        <li>硬上限 3 轮；成本相较无反思增幅 ≤250%（超则告警）</li>
+      </ul></div>
+      <div><b class="ok">验收</b><ul class="yes">
+        <li>mvn 单测：act 只覆盖 plan 50% → reflector satisfied=false + gaps 命中未覆盖项</li>
+        <li>Playwright：deep-path"针对字节算法岗准备"→ 后台 ≥2 轮 → 最终答案含修订内容 → <code>agent_reflection</code> 2 条</li>
+        <li>不可满足任务（JD 不存在）→ 3 轮后 verdict=FAIL + 人工友好回复</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <h3>A4 · pgvector 长期记忆 + "小职认识你这些" <span class="pill must">MUST</span></h3>
+    <div class="meta">5 工作日 · 08-05~08-11 · V30 · 真实体验升级</div>
+    <div class="box"><b>目标</b>：<code>CREATE EXTENSION vector</code> + <code>user_long_term_memory{fact_type,fact_text,confidence,embedding vector(1024),superseded_by}</code> + ivfflat(lists=100)。<code>LongTermMemoryAdvisor</code>：chat 前 embedding(qwen text-embedding-v3) → cosine top5(阈值 0.7) 注入 system prompt。<code>@Scheduled(cron="0 0 3 * * *")</code> 蒸馏昨日对话为 ≤5 条 fact。矛盾检测走 superseded 链（不删旧 fact）。前端 <code>/mine</code> 加"小职认识你这些"5-chip 卡片 + "忘掉这条"。<b>字段</b>：fact_type=PREFERENCE/SKILL/EXPERIENCE/GOAL/CONSTRAINT；embedding 走 Redis 缓存(key=sha256(query),TTL 1h)。</div>
+    <div class="flex">
+      <div><b class="del">禁止</b><ul class="no">
+        <li>advisor 内不做 LLM 调用（仅 embedding+DB 检索）；facts 不覆盖当前输入</li>
+        <li>消息 &lt;4 条的 session 跳过蒸馏；蒸馏 prompt 强约束 JSON schema</li>
+        <li>不直接删旧 fact（保留追溯链）；不显示 confidence&lt;0.4 或已被 supersede 的 fact</li>
+      </ul></div>
+      <div><b class="ok">验收</b><ul class="yes">
+        <li>单测：含"我只想远程"的对话 → 落一条 PREFERENCE fact；再入"想线下"→ 旧 fact superseded_by 指向新</li>
+        <li>Playwright：consolidation 后 <code>/mine</code> 显示分类 fact；点"忘掉"→ 下次 chat 不再注入</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <h3>A5 · Eval + Token Cost 看板 + CI gate <span class="pill must">MUST</span></h3>
+    <div class="meta">3 工作日 · 08-12~08-14 · 质量可度量、成本可观测</div>
+    <div class="box"><b>目标</b>：<code>TokenAccountingAdvisor</code> 落 Micrometer（per user/session/tool/provider × pricing 表），接入现有 SkyWalking/OTel。<code>EvalRunner</code>：JSON 定义 N 个 scenario（含"需反思才能答对"专项），跑 qwen-plus/deepseek/gpt-4o-mini，LLM-as-judge <b>跨家</b>打分落 <code>eval_results</code>，judge facet 含 <b>"引用忠实度/语料支撑度"</b>（答案是否真被 5 个知识库命中内容支撑、有无编造）。scenario 覆盖简历定制/薪资/面试/公司匹配四类真实 KB 场景。CI gate：新 PR 若 P95 score 跌 &gt;10% 阻塞。</div>
+    <div class="flex">
+      <div><b class="del">禁止</b><ul class="no">
+        <li>cost 不只写日志（必须 metric）；judge 与被评 model 不同家</li>
+        <li>eval 用独立 dashscope key，不污染生产计量</li>
+      </ul></div>
+      <div><b class="ok">验收</b><ul class="yes">
+        <li>Grafana 看"今日 user X cost by tool"；<code>mvn test -Pagent-eval</code> 出 markdown 报告</li>
+        <li>构造 P95 跌 15% 的 PR → CI 红；反思有效性专项：有反思 vs 无反思准确率差可量化</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <!-- 第二段详规（精简） -->
+  <h2>五、第二段详规（可选补强）</h2>
+
+  <div class="phase b">
+    <h3>B1 · Writer-Critic Debate <span class="pill opt">OPTIONAL</span></h3>
+    <div class="meta">5 工作日 · 08-17~08-21 · V31 · 复用 CriticAgent，进程内收敛</div>
+    <div class="box"><b>目标</b>：在现有 supervisor + <code>CriticAgent</code> 上做进程内 debate：Writer 出稿 → Critic 结构化评分 <code>{satisfaction,criticism,suggestion}</code> → 不满意回改 → 达 <code>consensusThreshold</code> 或 <code>maxRounds</code> 退出。<code>ResumeCustomizationFlow</code> 用 debate 重写，落 resume_versions（change_summary 取 critic 末条 suggestion）。<b>字段（V31）</b>：<code>agent_collab_session{id,type,participants,config,status}</code>（命名避让现有 <code>agent_messages</code>）。</div>
+    <b class="del">禁止</b>：<span class="del">不引入 AgentMessageBus / Redis pub/sub / A2A @Tool 递归（重装备，5 agent 无必要）；writer 不见 critic 的 CoT；critic 评分不透传用户；硬上限 5 轮 + AgentRecursionGuard depth≤5。</span><br>
+    <b class="ok">验收</b>：<span class="ok">单测 mock writer/critic 前 2 轮不满意、第 3 轮 0.9 退出；Playwright"针对@字节 改简历"→ critic suggestion 出现在 ResumeManage"改写说明"卡片。</span>
+  </div>
+
+  <div class="phase b">
+    <h3>B2 · 多工具并发 DAG（裁剪版） <span class="pill opt">OPTIONAL</span></h3>
+    <div class="meta">4 工作日 · 08-24~08-27 · V32 · 并发+重试+输出校验；<b>熔断/滑动窗口延后</b></div>
+    <div class="box"><b>目标</b>：<code>ToolDAGCompiler</code>(dependsOn 拓扑排序+环检测) + <code>ToolDAGExecutor</code>(CompletableFuture+fixed 8 线程并发同 level，指数退避 100/200/400ms 仅 TransientException 重试，fallback，<code>ToolOutputValidator</code> JSON Schema 早校验)。ReAct 一轮多 tool 丢 executor，partial-success 透明喂回 LLM。<b>字段（V32）</b>：<code>tool_execution_log{batch_id,attempt_no,depends_on,status,args(≤1KB脱敏),error_code,trace_id}</code>。</div>
+    <b class="del">禁止/裁剪</b>：<span class="del">熔断/半开/tool_health_snapshot <b>本阶段不做</b>（单用户产品价值有限，留待有真实并发压力再上）；不 retry PermanentException；per-tool timeout 默认 10s；partial 失败不伪装成功。</span><br>
+    <b class="ok">验收</b>：<span class="ok">单测：mock analyze_jd Timeout→fallback→failed 三 attempt 落库；缺字段 JSON→SCHEMA_INVALID→重试通过。Playwright："分析JD+查薪资+找面经"一轮 3 tool 并发同 batch_id。</span>
+  </div>
+
+  <div class="phase b">
+    <h3>B3 · Checkpoint 崩溃恢复 + HITL 暂停 <span class="pill opt">OPTIONAL</span></h3>
+    <div class="meta">4 工作日 · 08-28~09-02 · V33 · <b>砍时间旅行/fork/时间轴 UI</b></div>
+    <div class="box"><b>目标</b>：<code>AgentState</code>(Jackson+zstd) 在节点边界(after_plan/after_act_round_N/pause/done)快照，<code>state_hash</code> 去重。<code>runOrResume</code> 崩溃续跑。HITL：deep-path"发送简历"前 <code>is_paused=true</code>+<code>pending_action</code> 写入，<code>resume(runId,userDecision)</code> 注入决定。<b>字段（V33）</b>：<code>agent_run{run_id,user_id,workflow_name,status,parent_run_id}</code> · <code>agent_checkpoint{run_id,step_index,step_name,state_blob BYTEA(≤256KB),state_hash,is_paused,pause_reason}</code>。</div>
+    <b class="del">裁剪</b>：<span class="del">from-checkpoint fork、时间旅行 A/B、前端运行时间轴抽屉 <b>降级为 B4 可选</b>（求职助手用户几乎不用，产品收益极低）。</span><br>
+    <b class="ok">验收</b>：<span class="ok">3 轮反思任务 → agent_checkpoint ≥7 条；kill JVM 重启 runOrResume 能继续；HITL 触发 is_paused=true，前端确认后继续。</span>
+  </div>
+
+  <div class="phase b">
+    <h3>B4 · 生态扩展（按需·择一） <span class="pill opt">OPTIONAL</span></h3>
+    <div class="meta">开放工期</div>
+    <b>选项一（推荐）</b>：独立的小型 <b>LangGraph/Dify 实战集成</b>（在 LangGraph 里建 3-node graph 编排 careermate specialist），比 V2 的"桥接 endpoint"更能沉淀真实的 graph 编排能力，覆盖 Python 生态。<br>
+    <b>选项二</b>：补 B3 砍掉的时间旅行/fork/时间轴 UI。
+  </div>
+
+  <!-- 裁剪清单 -->
+  <h2>六、裁剪与延后清单（明确"砍了什么·为什么·何时再做"）</h2>
+  <table>
+    <tr><th>V2 项</th><th>处置</th><th>理由（产品视角）</th><th>重启条件</th></tr>
+    <tr><td>AgentMessageBus + Redis pub/sub + A2A @Tool 递归</td><td class="del">砍</td><td>5 个进程内 agent 用不上分布式消息总线；纯属过度设计</td><td>agent 数 &gt;20 或需跨进程/跨服务协作</td></tr>
+    <tr><td>工具熔断 / 半开 / tool_health_snapshot</td><td class="note">延后</td><td>单用户产品无真实并发失败压力</td><td>出现工具级高并发或第三方频繁抖动</td></tr>
+    <tr><td>Checkpoint 时间旅行 / fork / 时间轴 UI</td><td class="note">延后(B4)</td><td>求职助手用户几乎不 fork/回放一次 run</td><td>做面向工程师的 agent 调试台时</td></tr>
+    <tr><td>LangGraph/Dify 桥接 endpoint（V2 P7）</td><td class="del">换</td><td>"桥接"并不等于掌握 graph 编排；对产品用户零价值</td><td>用 B4 独立实战集成替代</td></tr>
+    <tr><td>移除 MCP</td><td class="del">否决</td><td>丢弃可用模块 + 标准互操作能力</td><td>—（保留）</td></tr>
+  </table>
+
+  <!-- 风险护栏 -->
+  <h2>七、风险与护栏</h2>
+  <div class="grid">
+    <div class="card"><b class="note">R1 延迟/成本失控</b> → 护栏：ADR-2 fast/deep 分层；A5 成本 metric + 反思增幅 ≤250% 告警；deep-path UI 明示"较慢"。</div>
+    <div class="card"><b class="note">R2 跨家 reflector 运维复杂</b>（多 key、多失败面）→ 护栏：reflector 走 fail-open（不可用则跳过反思、退回 fast 结果，不阻断主链路）。</div>
+    <div class="card"><b class="note">R3 底座迁移回归</b> → 护栏：A1 以 <code>t01-t08-full-journey</code> + <code>agent-stream-regression</code> 为红线，真调 qwen 不 mock；分批迁工具（先只读后写操作）。</div>
+    <div class="card"><b class="note">R4 工期乐观</b> → 护栏：按第一段优先，B 段可停可续；每阶段 scope-bounded，做不完写 <code>docs/design/rebuild-progress.md</code> 不外溢。</div>
+    <div class="card"><b class="note">R5 合并纪律</b> → 护栏：合 main 前 <code>mvn test</code>（非仅 compile）+ 前端 <code>npm build</code>；<b>提交只含生产代码，不 git add 测试 spec</b>（本地验证）。</div>
+  </div>
+
+  <div class="foot">CareerMate Agent 重建 · 产品优先定版 V3.1 · 拟制 @guandezhi · 2026-07-08<br>
+  取代 roadmap-v2.html 与 41-day-plan.html；第一段（A1–A5）为可交付产品基线，第二段（B1–B4）为可选能力补强。</div>
+
+</div>
+</body>
+</html>
