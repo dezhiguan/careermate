@@ -195,6 +195,13 @@
               :disabled="resumeGenerating"
               @keydown.enter="sendMessage"
             >
+            <button
+              type="button"
+              class="deep-toggle"
+              :class="{ 'deep-toggle--on': deepModeOn }"
+              :title="deepModeOn ? '深度模式已开：多轮推敲，较慢' : '开启深度模式：深度定制/模拟面试'"
+              @click="deepModeOn = !deepModeOn"
+            >🧠 深度</button>
             <button type="button" class="send-btn" :disabled="!canSend" @click="sendMessage">发送</button>
           </div>
         </div>
@@ -334,6 +341,7 @@ const msgContainer = ref(null)
 const sessionId = ref('')
 const streamState = ref('idle')
 const currentPathMode = ref('')
+const deepModeOn = ref(false)
 const sessionCreating = ref(false)
 const globalError = ref('')
 const errorDetail = ref(null)
@@ -1316,6 +1324,7 @@ async function sendMessage() {
       },
     }, {
       signal: streamController.signal,
+      deepMode: deepModeOn.value,
     })
     if (streamState.value === 'streaming') {
       streamState.value = 'done'
@@ -2168,6 +2177,25 @@ onBeforeUnmount(() => {
 }
 
 .chat-input { flex: 1; border: none; background: transparent; padding: 6px; outline: none; font-size: 12px; font-family: inherit; }
+
+.deep-toggle {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  background: #fff;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .2s;
+}
+.deep-toggle--on {
+  background: #eef2ff;
+  color: #4338ca;
+  border-color: #c7d2fe;
+}
 
 .send-btn {
   flex-shrink: 0;
