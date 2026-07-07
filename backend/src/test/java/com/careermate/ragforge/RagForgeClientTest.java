@@ -9,9 +9,11 @@ import java.net.InetSocketAddress;
 import java.util.List;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RagForgeClientTest {
@@ -88,5 +90,34 @@ class RagForgeClientTest {
         Optional<Long> docId = client.syncText(15L, "测试简历", "内容", "RESUME");
         assertTrue(docId.isPresent());
         assertEquals(42L, docId.get());
+    }
+
+    @Test
+    void usesApiKeyHeaderWhenConfigured() throws IOException {
+        AtomicReference<String> apiKeyHeader = new AtomicReference<>();
+        AtomicReference<String> authorizationHeader = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        int port = server.getAddress().getPort();
+        server.createContext("/api/v1/search", exchange -> {
+            apiKeyHeader.set(exchange.getRequestHeaders().getFirst("X-API-Key"));
+            authorizationHeader.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            byte[] body = "{\"code\":200,\"msg\":\"success\",\"data\":{\"chunks\":[]}}".getBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+
+        RagForgeProperties props = new RagForgeProperties();
+        props.setEnabled(true);
+        props.setUrl("http://localhost:" + port);
+        props.setApiKey("test-api-key");
+        props.setJdKbId("16");
+        RagForgeClient client = new RagForgeClient(props);
+
+        assertEquals(List.of(), client.searchJd("test", 5));
+        assertEquals("test-api-key", apiKeyHeader.get());
+        assertNull(authorizationHeader.get());
     }
 }

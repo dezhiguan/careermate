@@ -107,11 +107,13 @@ public class RagForgeClient {
     private HttpHeaders defaultHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        String exchangedToken = resolveExchangedToken();
-        if (StringUtils.hasText(exchangedToken)) {
-            headers.setBearerAuth(exchangedToken);
-        } else if (StringUtils.hasText(properties.getApiKey())) {
+        if (StringUtils.hasText(properties.getApiKey())) {
             headers.set("X-API-Key", properties.getApiKey());
+        } else {
+            String exchangedToken = resolveExchangedToken();
+            if (StringUtils.hasText(exchangedToken)) {
+                headers.setBearerAuth(exchangedToken);
+            }
         }
         return headers;
     }
