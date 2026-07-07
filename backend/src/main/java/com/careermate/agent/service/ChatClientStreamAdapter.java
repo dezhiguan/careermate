@@ -1,14 +1,18 @@
 package com.careermate.agent.service;
 
 import com.careermate.agent.config.AgentFrameworkProperties;
+import com.careermate.agent.tool.AgentToolContext;
+import com.careermate.agent.tool.springai.SpringAiToolCallbackFactory;
 import com.careermate.llm.StreamCallback;
 import com.careermate.llm.dto.ChatResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import reactor.core.Disposable;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -27,13 +31,16 @@ public class ChatClientStreamAdapter {
 
     private final ObjectProvider<ChatClient> chatClientProvider;
     private final AgentFrameworkProperties frameworkProperties;
+    private final SpringAiToolCallbackFactory toolCallbackFactory;
 
     public ChatClientStreamAdapter(
             ObjectProvider<ChatClient> chatClientProvider,
-            AgentFrameworkProperties frameworkProperties
+            AgentFrameworkProperties frameworkProperties,
+            SpringAiToolCallbackFactory toolCallbackFactory
     ) {
         this.chatClientProvider = chatClientProvider;
         this.frameworkProperties = frameworkProperties;
+        this.toolCallbackFactory = toolCallbackFactory;
     }
 
     /**
@@ -47,7 +54,7 @@ public class ChatClientStreamAdapter {
      * 走 ChatClient 流式生成，把 token / 完成 / 错误事件回吐给既有 callback。
      * 阻塞当前（worker）线程直到流结束或被 interrupt。
      */
-    public void stream(String systemPrompt, String userMessage, StreamCallback callback) {
+    public void stream(String systemPrompt, String userMessage, AgentToolContext toolContext, StreamCallback callback) {
         ChatClient chatClient = chatClientProvider.getIfAvailable();
         if (chatClient == null) {
             callback.onError(new IllegalStateException("Spring AI ChatClient 未装配，无法走框架流式路径"));
@@ -58,9 +65,18 @@ public class ChatClientStreamAdapter {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Throwable> errorRef = new AtomicReference<>();
 
-        Disposable subscription = chatClient.prompt()
+        ChatClient.ChatClientRequestSpec requestSpec = chatClient.prompt()
                 .system(systemPrompt == null ? "" : systemPrompt)
-                .user(userMessage == null ? "" : userMessage)
+                .user(userMessage == null ? "" : userMessage);
+        // A1-2：为框架路径挂上工具 callback，启用 function-calling
+        if (toolContext != null && toolContext.getUserId() != null) {
+            List<ToolCallback> callbacks = toolCallbackFactory.createCallbacks(toolContext);
+            if (!callbacks.isEmpty()) {
+                requestSpec = requestSpec.toolCallbacks(callbacks);
+            }
+        }
+
+        Disposable subscription = requestSpec
                 .stream()
                 .content()
                 .subscribe(

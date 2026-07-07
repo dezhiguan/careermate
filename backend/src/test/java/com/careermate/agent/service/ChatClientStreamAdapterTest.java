@@ -1,10 +1,13 @@
 package com.careermate.agent.service;
 
 import com.careermate.agent.config.AgentFrameworkProperties;
+import com.careermate.agent.tool.AgentToolContext;
+import com.careermate.agent.tool.springai.SpringAiToolCallbackFactory;
 import com.careermate.llm.StreamCallback;
 import com.careermate.llm.dto.ChatResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.ObjectProvider;
 import reactor.core.publisher.Flux;
 
@@ -13,8 +16,11 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ChatClientStreamAdapterTest {
@@ -34,51 +40,56 @@ class ChatClientStreamAdapterTest {
         return p;
     }
 
+    private ChatClientStreamAdapter adapter(ChatClient client, boolean enabled, SpringAiToolCallbackFactory factory) {
+        return new ChatClientStreamAdapter(providerOf(client), props(enabled), factory);
+    }
+
+    private ChatClientStreamAdapter adapter(ChatClient client, boolean enabled) {
+        return adapter(client, enabled, mock(SpringAiToolCallbackFactory.class));
+    }
+
+    private StreamCallback collecting(List<String> tokens, AtomicReference<ChatResponse> completed,
+                                      AtomicReference<Throwable> error) {
+        return new StreamCallback() {
+            @Override
+            public void onToken(String token) {
+                if (tokens != null) tokens.add(token);
+            }
+
+            @Override
+            public void onComplete(ChatResponse response) {
+                if (completed != null) completed.set(response);
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                if (error != null) error.set(e);
+            }
+        };
+    }
+
     @Test
     void isEnabled_false_whenFlagOff() {
-        ChatClientStreamAdapter adapter =
-                new ChatClientStreamAdapter(providerOf(mock(ChatClient.class)), props(false));
-        assertThat(adapter.isEnabled()).isFalse();
+        assertThat(adapter(mock(ChatClient.class), false).isEnabled()).isFalse();
     }
 
     @Test
     void isEnabled_false_whenFlagOnButNoBean() {
-        ChatClientStreamAdapter adapter =
-                new ChatClientStreamAdapter(providerOf(null), props(true));
-        assertThat(adapter.isEnabled()).isFalse();
+        assertThat(adapter(null, true).isEnabled()).isFalse();
     }
 
     @Test
     void isEnabled_true_whenFlagOnAndBeanPresent() {
-        ChatClientStreamAdapter adapter =
-                new ChatClientStreamAdapter(providerOf(mock(ChatClient.class)), props(true));
-        assertThat(adapter.isEnabled()).isTrue();
+        assertThat(adapter(mock(ChatClient.class), true).isEnabled()).isTrue();
     }
 
     @Test
     void stream_forwardsTokensAndCompletesWithAccumulatedContent() {
         ChatClient client = mockChatClientEmitting(Flux.just("你好", "，世界"));
-        ChatClientStreamAdapter adapter =
-                new ChatClientStreamAdapter(providerOf(client), props(true));
-
         List<String> tokens = new ArrayList<>();
         AtomicReference<ChatResponse> completed = new AtomicReference<>();
-        adapter.stream("system", "user", new StreamCallback() {
-            @Override
-            public void onToken(String token) {
-                tokens.add(token);
-            }
 
-            @Override
-            public void onComplete(ChatResponse response) {
-                completed.set(response);
-            }
-
-            @Override
-            public void onError(Throwable error) {
-                throw new AssertionError("unexpected error", error);
-            }
-        });
+        adapter(client, true).stream("system", "user", null, collecting(tokens, completed, null));
 
         assertThat(tokens).containsExactly("你好", "，世界");
         assertThat(completed.get()).isNotNull();
@@ -89,82 +100,71 @@ class ChatClientStreamAdapterTest {
     @Test
     void stream_skipsEmptyTokens() {
         ChatClient client = mockChatClientEmitting(Flux.just("", "a", ""));
-        ChatClientStreamAdapter adapter =
-                new ChatClientStreamAdapter(providerOf(client), props(true));
-
         List<String> tokens = new ArrayList<>();
-        adapter.stream("s", "u", new StreamCallback() {
-            @Override
-            public void onToken(String token) {
-                tokens.add(token);
-            }
 
-            @Override
-            public void onComplete(ChatResponse response) {
-            }
-
-            @Override
-            public void onError(Throwable error) {
-            }
-        });
+        adapter(client, true).stream("s", "u", null, collecting(tokens, null, null));
 
         assertThat(tokens).containsExactly("a");
     }
 
     @Test
     void stream_onError_whenClientMissing() {
-        ChatClientStreamAdapter adapter =
-                new ChatClientStreamAdapter(providerOf(null), props(true));
         AtomicReference<Throwable> error = new AtomicReference<>();
-        adapter.stream("s", "u", new StreamCallback() {
-            @Override
-            public void onToken(String token) {
-            }
-
-            @Override
-            public void onComplete(ChatResponse response) {
-            }
-
-            @Override
-            public void onError(Throwable e) {
-                error.set(e);
-            }
-        });
+        adapter(null, true).stream("s", "u", null, collecting(null, null, error));
         assertThat(error.get()).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     void stream_propagatesUpstreamError() {
         ChatClient client = mockChatClientEmitting(Flux.error(new RuntimeException("boom")));
-        ChatClientStreamAdapter adapter =
-                new ChatClientStreamAdapter(providerOf(client), props(true));
-
         AtomicReference<Throwable> error = new AtomicReference<>();
-        adapter.stream("s", "u", new StreamCallback() {
-            @Override
-            public void onToken(String token) {
-            }
+        AtomicReference<ChatResponse> completed = new AtomicReference<>();
 
-            @Override
-            public void onComplete(ChatResponse response) {
-                throw new AssertionError("should not complete");
-            }
+        adapter(client, true).stream("s", "u", null, collecting(null, completed, error));
 
-            @Override
-            public void onError(Throwable e) {
-                error.set(e);
-            }
-        });
+        assertThat(completed.get()).isNull();
         assertThat(error.get()).hasMessage("boom");
     }
 
-    private ChatClient mockChatClientEmitting(Flux<String> content) {
-        ChatClient client = mock(ChatClient.class);
+    @Test
+    void stream_attachesToolCallbacks_whenToolContextHasUserId() {
         ChatClient.ChatClientRequestSpec requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
+        ChatClient client = mockChatClientEmitting(requestSpec, Flux.just("ok"));
+
+        SpringAiToolCallbackFactory factory = mock(SpringAiToolCallbackFactory.class);
+        List<ToolCallback> callbacks = List.of(mock(ToolCallback.class));
+        when(factory.createCallbacks(any(AgentToolContext.class))).thenReturn(callbacks);
+
+        AgentToolContext ctx = AgentToolContext.builder().userId(7L).sessionId("s1").userMessage("hi").build();
+        adapter(client, true, factory).stream("sys", "hi", ctx, collecting(null, null, null));
+
+        verify(factory).createCallbacks(any(AgentToolContext.class));
+        verify(requestSpec).toolCallbacks(callbacks);
+    }
+
+    @Test
+    void stream_skipsToolCallbacks_whenNoUserId() {
+        ChatClient.ChatClientRequestSpec requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
+        ChatClient client = mockChatClientEmitting(requestSpec, Flux.just("ok"));
+        SpringAiToolCallbackFactory factory = mock(SpringAiToolCallbackFactory.class);
+
+        adapter(client, true, factory).stream("sys", "hi", null, collecting(null, null, null));
+
+        verify(factory, never()).createCallbacks(any());
+        verify(requestSpec, never()).toolCallbacks(any(List.class));
+    }
+
+    private ChatClient mockChatClientEmitting(Flux<String> content) {
+        return mockChatClientEmitting(mock(ChatClient.ChatClientRequestSpec.class), content);
+    }
+
+    private ChatClient mockChatClientEmitting(ChatClient.ChatClientRequestSpec requestSpec, Flux<String> content) {
+        ChatClient client = mock(ChatClient.class);
         ChatClient.StreamResponseSpec streamSpec = mock(ChatClient.StreamResponseSpec.class);
         when(client.prompt()).thenReturn(requestSpec);
         when(requestSpec.system(anyString())).thenReturn(requestSpec);
         when(requestSpec.user(anyString())).thenReturn(requestSpec);
+        when(requestSpec.toolCallbacks(any(List.class))).thenReturn(requestSpec);
         when(requestSpec.stream()).thenReturn(streamSpec);
         when(streamSpec.content()).thenReturn(content);
         return client;

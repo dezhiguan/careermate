@@ -340,9 +340,14 @@ public class AgentStreamService {
                     }
                 }
                         };
-                        // A1-1: 框架开关开启走 Spring AI ChatClient 流式，否则回退自研 LlmClient
+                        // A1-1/A1-2: 框架开关开启走 Spring AI ChatClient 流式（含 function-calling），否则回退自研 LlmClient
                         if (chatClientStreamAdapter.isEnabled()) {
-                            chatClientStreamAdapter.stream(systemPrompt, request.getMessage(), streamCallback);
+                            AgentToolContext streamToolCtx = AgentToolContext.builder()
+                                    .userId(userId)
+                                    .sessionId(sessionId)
+                                    .userMessage(request.getMessage())
+                                    .build();
+                            chatClientStreamAdapter.stream(systemPrompt, request.getMessage(), streamToolCtx, streamCallback);
                         } else {
                             llmClient.streamChat(chatRequest, streamCallback);
                         }
