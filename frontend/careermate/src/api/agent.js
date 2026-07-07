@@ -114,7 +114,7 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
         Accept: 'text/event-stream, application/json',
         ...getAuthHeaders(),
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, deepMode: options.deepMode === true }),
       signal: controller.signal,
     })
 
@@ -147,6 +147,9 @@ export async function sendAgentMessageStream(sessionId, message, handlers = {}, 
         const payload = resolveSsePayload(event)
         const eventName = event.eventName || payload?.type || 'message'
         switch (eventName) {
+          case 'path_mode':
+            handlers.onPathMode?.(payload)
+            break
           case 'plan':
             handlers.onPlan?.(payload)
             break
