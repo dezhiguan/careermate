@@ -146,6 +146,10 @@ careermate:
       recall-top-k: ${AGENT_LTM_RECALL_TOPK:5}
       recall-threshold: ${AGENT_LTM_RECALL_THRESHOLD:0.7}
       consolidation-cron: ${AGENT_LTM_CONSOLIDATION_CRON:0 0 3 * * *}
+    debate:                                            # B1 Writer-Critic debate（简历定制多轮收敛）
+      enabled: ${AGENT_DEBATE_ENABLED:false}
+      max-rounds: ${AGENT_DEBATE_MAX_ROUNDS:3}
+      consensus-threshold: ${AGENT_DEBATE_CONSENSUS:0.85}
   tracing:
     service-name: ${OTEL_SERVICE_NAME:careermate-backend}
   ragforge:
