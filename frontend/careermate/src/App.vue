@@ -5,14 +5,14 @@
     <div v-if="routeLoading" class="route-loading" data-testid="route-loading">
       <span class="spinner"></span><span>加载中…</span>
     </div>
-    <router-view v-show="!routeLoading" />
+    <router-view />
   </AppShellDesktop>
 
   <AppShellMobile v-else :hide-bottom-nav="isChatRoute">
     <div v-if="routeLoading" class="route-loading" data-testid="route-loading">
       <span class="spinner"></span><span>加载中…</span>
     </div>
-    <router-view v-show="!routeLoading" />
+    <router-view />
   </AppShellMobile>
 </template>
 
@@ -50,13 +50,17 @@ onBeforeUnmount(() => {
 
 <style>
 .route-loading {
+  position: fixed;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 60vh;
   color: #64748b;
   font-size: 14px;
+  background: rgba(248, 250, 252, 0.72);
+  z-index: 50;
+  pointer-events: none;
 }
 .route-loading .spinner {
   width: 18px;

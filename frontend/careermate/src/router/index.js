@@ -6,6 +6,21 @@ import { homeStore } from '../stores/homeStore'
 // 路由/懒加载 chunk 加载期间为真：供 App 显示"加载中"，避免深链/刷新时主区白屏
 export const routeLoading = ref(false)
 
+// 安全兜底：无论 afterEach 是否触发，加载态最多保留 8s，绝不会卡死在转圈
+let loadingTimer = null
+function setRouteLoading(v) {
+  routeLoading.value = v
+  if (loadingTimer) {
+    clearTimeout(loadingTimer)
+    loadingTimer = null
+  }
+  if (v) {
+    loadingTimer = setTimeout(() => {
+      routeLoading.value = false
+    }, 8000)
+  }
+}
+
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
   { path: '/', redirect: '/chat' },
@@ -68,7 +83,7 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  routeLoading.value = true
+  setRouteLoading(true)
   if (!authStore.state.initialized) {
     await authStore.init()
   }
@@ -94,10 +109,10 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach(() => {
-  routeLoading.value = false
+  setRouteLoading(false)
 })
 router.onError(() => {
-  routeLoading.value = false
+  setRouteLoading(false)
 })
 
 export default router
