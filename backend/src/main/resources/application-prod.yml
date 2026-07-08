@@ -5,6 +5,9 @@ aliyun:
 careermate:
   debug:
     llm-api-enabled: false
+  llm:
+    # A1-5：非流式 LLM 调用统一走 Spring AI（DashScope），替代自研 HTTP provider；model/key 仍取 LLM_MODEL/LLM_API_KEY
+    provider: spring-ai-dashscope
   agent:
     # A1 冒烟：开启 Spring AI ChatClient 框架路径，复用现有 DashScope(qwen) key
     framework:

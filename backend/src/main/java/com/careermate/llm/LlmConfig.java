@@ -6,6 +6,7 @@ import com.careermate.llm.provider.DeepSeekLlmClient;
 import com.careermate.llm.provider.MockLlmClient;
 import com.careermate.llm.provider.OpenAiCompatibleLlmClient;
 import com.careermate.llm.provider.QwenLlmClient;
+import com.careermate.llm.provider.SpringAiLlmClient;
 import com.careermate.observability.LlmChatTraceRecorder;
 import com.careermate.observability.LlmTracingSupport;
 import com.careermate.observability.TracingLlmClient;
@@ -36,6 +37,9 @@ public class LlmConfig {
                 apiKeyPresent);
         LlmClient delegate = switch (provider) {
             case "mock" -> new MockLlmClient(llmProperties);
+            // A1-5：Spring AI 支撑的统一实现，替代自研 HTTP provider
+            case SpringAiLlmClient.PROVIDER_DASHSCOPE -> new SpringAiLlmClient(llmProperties, SpringAiLlmClient.PROVIDER_DASHSCOPE);
+            case SpringAiLlmClient.PROVIDER_OPENAI -> new SpringAiLlmClient(llmProperties, SpringAiLlmClient.PROVIDER_OPENAI);
             case "deepseek" -> new DeepSeekLlmClient(llmProperties, objectMapper);
             case "qwen" -> new QwenLlmClient(llmProperties, objectMapper);
             case "openai-compatible" -> {
