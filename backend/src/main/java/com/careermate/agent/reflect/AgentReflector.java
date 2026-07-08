@@ -29,14 +29,14 @@ public class AgentReflector {
             {"satisfied":true/false,"confidence":0.0-1.0,"gaps":["..."],"suggestions":["..."],"verdict":"REVISE"|"ACCEPT"|"FAIL"}
             """;
 
-    private final LlmClient llmClient;
+    private final com.careermate.agent.llm.CrossFamilyLlmClient crossFamilyLlmClient;
     private final ObjectMapper objectMapper;
     private final AgentReflectionMapper agentReflectionMapper;
     private final ReflectionProperties reflectionProperties;
 
-    public AgentReflector(LlmClient llmClient, ObjectMapper objectMapper,
+    public AgentReflector(com.careermate.agent.llm.CrossFamilyLlmClient crossFamilyLlmClient, ObjectMapper objectMapper,
                           AgentReflectionMapper agentReflectionMapper, ReflectionProperties reflectionProperties) {
-        this.llmClient = llmClient;
+        this.crossFamilyLlmClient = crossFamilyLlmClient;
         this.objectMapper = objectMapper;
         this.agentReflectionMapper = agentReflectionMapper;
         this.reflectionProperties = reflectionProperties;
@@ -61,7 +61,7 @@ public class AgentReflector {
             if (StringUtils.hasText(reflectionProperties.getReflectorModel())) {
                 req.model(reflectionProperties.getReflectorModel().trim());
             }
-            ChatResponse resp = llmClient.chat(req.build());
+            ChatResponse resp = crossFamilyLlmClient.chat(req.build());
             JsonNode json = ReflectionJsonSupport.extractJson(objectMapper, resp == null ? null : resp.getContent());
             if (json == null) {
                 return Reflection.accept();

@@ -87,7 +87,7 @@ class DebateTest {
 
     @Test
     void critic_parsesJson() {
-        LlmClient llm = mock(LlmClient.class);
+        var llm = mock(com.careermate.agent.llm.CrossFamilyLlmClient.class);
         when(llm.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder()
                 .content("{\"satisfaction\":0.7,\"criticism\":\"量化不足\",\"suggestion\":\"加数字\"}").build());
         ResumeCritic c = new ResumeCritic(llm, om, props(3, 0.85));
@@ -98,7 +98,7 @@ class DebateTest {
 
     @Test
     void critic_neutralOnGarbage() {
-        LlmClient llm = mock(LlmClient.class);
+        var llm = mock(com.careermate.agent.llm.CrossFamilyLlmClient.class);
         when(llm.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("无法评审").build());
         CriticVerdict v = new ResumeCritic(llm, om, props(3, 0.85)).review("jd", "draft");
         assertThat(v.satisfaction()).isEqualTo(0.5);

@@ -19,7 +19,8 @@ import static org.mockito.Mockito.when;
 class EvalTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
-    private final LlmClient llm = mock(LlmClient.class);
+    private final com.careermate.agent.llm.CrossFamilyLlmClient llm =
+            mock(com.careermate.agent.llm.CrossFamilyLlmClient.class);
     private final AnswerJudge judge = new AnswerJudge(llm, mapper);
 
     private ChatResponse resp(String c) {

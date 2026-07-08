@@ -20,13 +20,15 @@ class ReflectionComponentsTest {
 
     private final ObjectMapperHolder omh = new ObjectMapperHolder();
     private final LlmClient llm = mock(LlmClient.class);
+    private final com.careermate.agent.llm.CrossFamilyLlmClient crossFamily =
+            mock(com.careermate.agent.llm.CrossFamilyLlmClient.class);
     private final LlmProperties llmProps = new LlmProperties();
     private final AgentPlanMapper planMapper = mock(AgentPlanMapper.class);
     private final AgentReflectionMapper reflectionMapper = mock(AgentReflectionMapper.class);
     private final ReflectionProperties props = new ReflectionProperties();
 
     private final AgentPlanner planner = new AgentPlanner(llm, llmProps, omh.mapper, planMapper, props);
-    private final AgentReflector reflector = new AgentReflector(llm, omh.mapper, reflectionMapper, props);
+    private final AgentReflector reflector = new AgentReflector(crossFamily, omh.mapper, reflectionMapper, props);
     private final AgentRepairer repairer = new AgentRepairer(llm, omh.mapper, planMapper, props);
 
     private ChatResponse resp(String content) {
@@ -67,7 +69,7 @@ class ReflectionComponentsTest {
 
     @Test
     void reflector_parsesNotSatisfied() {
-        when(llm.chat(any(ChatRequest.class))).thenReturn(resp(
+        when(crossFamily.chat(any(ChatRequest.class))).thenReturn(resp(
                 "{\"satisfied\":false,\"confidence\":0.4,\"gaps\":[\"缺Spring Cloud\"],\"suggestions\":[\"补检索\"],\"verdict\":\"REVISE\"}"));
         AgentPlan plan = new AgentPlan(1L, "run-1", 0, List.of("g"), List.of("s"), List.of("c"), null);
         Reflection r = reflector.review(plan, "只覆盖了一半");
@@ -79,7 +81,7 @@ class ReflectionComponentsTest {
 
     @Test
     void reflector_conservativeAcceptWhenUnparseable() {
-        when(llm.chat(any(ChatRequest.class))).thenReturn(resp("无法判断"));
+        when(crossFamily.chat(any(ChatRequest.class))).thenReturn(resp("无法判断"));
         AgentPlan plan = new AgentPlan(1L, "run-1", 0, List.of("g"), List.of("s"), List.of("c"), null);
         Reflection r = reflector.review(plan, "结果");
         assertThat(r.satisfied()).isTrue();

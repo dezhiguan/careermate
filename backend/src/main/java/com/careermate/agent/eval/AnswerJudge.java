@@ -29,11 +29,11 @@ public class AnswerJudge {
             {"relevance":0-1,"correctness":0-1,"citation_faithfulness":0-1,"overall":0-1}
             """;
 
-    private final LlmClient llmClient;
+    private final com.careermate.agent.llm.CrossFamilyLlmClient crossFamilyLlmClient;
     private final ObjectMapper objectMapper;
 
-    public AnswerJudge(LlmClient llmClient, ObjectMapper objectMapper) {
-        this.llmClient = llmClient;
+    public AnswerJudge(com.careermate.agent.llm.CrossFamilyLlmClient crossFamilyLlmClient, ObjectMapper objectMapper) {
+        this.crossFamilyLlmClient = crossFamilyLlmClient;
         this.objectMapper = objectMapper;
     }
 
@@ -50,7 +50,7 @@ public class AnswerJudge {
             if (StringUtils.hasText(judgeModel)) {
                 req.model(judgeModel.trim());
             }
-            ChatResponse resp = llmClient.chat(req.build());
+            ChatResponse resp = crossFamilyLlmClient.chat(req.build());
             JsonNode json = ReflectionJsonSupport.extractJson(objectMapper, resp == null ? null : resp.getContent());
             if (json == null) {
                 return EvalScore.neutral();

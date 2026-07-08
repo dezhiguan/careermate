@@ -26,12 +26,12 @@ public class ResumeCritic {
             {"satisfaction":0.0-1.0,"criticism":"最关键的不足","suggestion":"具体如何改"}
             """;
 
-    private final LlmClient llmClient;
+    private final com.careermate.agent.llm.CrossFamilyLlmClient crossFamilyLlmClient;
     private final ObjectMapper objectMapper;
     private final DebateProperties properties;
 
-    public ResumeCritic(LlmClient llmClient, ObjectMapper objectMapper, DebateProperties properties) {
-        this.llmClient = llmClient;
+    public ResumeCritic(com.careermate.agent.llm.CrossFamilyLlmClient crossFamilyLlmClient, ObjectMapper objectMapper, DebateProperties properties) {
+        this.crossFamilyLlmClient = crossFamilyLlmClient;
         this.objectMapper = objectMapper;
         this.properties = properties;
     }
@@ -39,7 +39,7 @@ public class ResumeCritic {
     public CriticVerdict review(String jd, String draft) {
         try {
             String user = "目标 JD：\n" + (jd == null ? "" : jd) + "\n\n简历稿：\n" + (draft == null ? "" : draft);
-            ChatResponse resp = llmClient.chat(ChatRequest.builder()
+            ChatResponse resp = crossFamilyLlmClient.chat(ChatRequest.builder()
                     .temperature(properties.getCriticTemperature())
                     .messages(List.of(
                             ChatMessage.builder().role("system").content(SYSTEM).build(),

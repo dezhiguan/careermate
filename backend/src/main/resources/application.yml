@@ -150,6 +150,12 @@ careermate:
       enabled: ${AGENT_DEBATE_ENABLED:false}
       max-rounds: ${AGENT_DEBATE_MAX_ROUNDS:3}
       consensus-threshold: ${AGENT_DEBATE_CONSENSUS:0.85}
+    secondary-llm:                                     # 跨家评审 LLM（reflector/critic/judge，防 self-bias），默认 deepseek
+      enabled: ${AGENT_SECONDARY_LLM_ENABLED:false}
+      provider: ${AGENT_SECONDARY_LLM_PROVIDER:spring-ai-openai}
+      base-url: ${AGENT_SECONDARY_LLM_BASE_URL:https://api.deepseek.com/v1}
+      model: ${AGENT_SECONDARY_LLM_MODEL:deepseek-v4-flash}
+      api-key: ${AGENT_SECONDARY_LLM_API_KEY:${DEEPSEEK_API_KEY:}}   # 留空复用 DEEPSEEK_API_KEY
   tracing:
     service-name: ${OTEL_SERVICE_NAME:careermate-backend}
   ragforge:
