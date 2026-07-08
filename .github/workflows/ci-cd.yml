@@ -95,7 +95,7 @@ jobs:
       - backend-build
     services:
       postgres:
-        image: postgres:15
+        image: pgvector/pgvector:pg15   # A4：内置 pgvector 扩展；POSTGRES_USER 即超管可 CREATE EXTENSION
         env:
           POSTGRES_DB: careermate_test_db
           POSTGRES_USER: careermate
