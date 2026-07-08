@@ -2,10 +2,7 @@ package com.careermate.llm;
 
 import com.careermate.common.exception.BizException;
 import com.careermate.config.CareerMateDebugProperties;
-import com.careermate.llm.provider.DeepSeekLlmClient;
 import com.careermate.llm.provider.MockLlmClient;
-import com.careermate.llm.provider.OpenAiCompatibleLlmClient;
-import com.careermate.llm.provider.QwenLlmClient;
 import com.careermate.llm.provider.SpringAiLlmClient;
 import com.careermate.observability.LlmChatTraceRecorder;
 import com.careermate.observability.LlmTracingSupport;
@@ -37,22 +34,15 @@ public class LlmConfig {
                 apiKeyPresent);
         LlmClient delegate = switch (provider) {
             case "mock" -> new MockLlmClient(llmProperties);
-            // A1-5：Spring AI 支撑的统一实现，替代自研 HTTP provider
-            case SpringAiLlmClient.PROVIDER_DASHSCOPE -> new SpringAiLlmClient(llmProperties, SpringAiLlmClient.PROVIDER_DASHSCOPE);
-            case SpringAiLlmClient.PROVIDER_OPENAI -> new SpringAiLlmClient(llmProperties, SpringAiLlmClient.PROVIDER_OPENAI);
-            case "deepseek" -> new DeepSeekLlmClient(llmProperties, objectMapper);
-            case "qwen" -> new QwenLlmClient(llmProperties, objectMapper);
-            case "openai-compatible" -> {
-                if (llmProperties.getModel() == null || llmProperties.getModel().isBlank() || "mock-chat".equals(llmProperties.getModel())) {
-                    throw new BizException(400, "LLM Model 未配置");
-                }
-                if (llmProperties.getEndpoint() == null || llmProperties.getEndpoint().isBlank()) {
-                    throw new BizException(400, "LLM Endpoint 未配置");
-                }
-                yield new OpenAiCompatibleLlmClient(llmProperties, objectMapper, "openai-compatible");
-            }
+            // A1-5：LLM 统一走 Spring AI，自研 HTTP provider 已删除。
+            // 旧 provider 名保留为别名映射到 Spring AI，兼容既有配置（qwen/deepseek 皆 DashScope 系）。
+            case SpringAiLlmClient.PROVIDER_DASHSCOPE, "qwen", "deepseek" ->
+                    new SpringAiLlmClient(llmProperties, SpringAiLlmClient.PROVIDER_DASHSCOPE);
+            case SpringAiLlmClient.PROVIDER_OPENAI, "openai-compatible" ->
+                    new SpringAiLlmClient(llmProperties, SpringAiLlmClient.PROVIDER_OPENAI);
             default -> throw new BizException(400, "未知 LLM Provider: " + provider
-                    + "，仅支持 mock | deepseek | qwen | openai-compatible");
+                    + "，支持 mock | " + SpringAiLlmClient.PROVIDER_DASHSCOPE + " | "
+                    + SpringAiLlmClient.PROVIDER_OPENAI + "（qwen/deepseek/openai-compatible 为兼容别名）");
         };
         return new TracingLlmClient(delegate, llmTracingSupport, llmChatTraceRecorder);
     }

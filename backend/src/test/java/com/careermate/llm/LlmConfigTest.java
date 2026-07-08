@@ -3,10 +3,8 @@ package com.careermate.llm;
 import com.careermate.observability.LlmChatTraceRecorder;
 import com.careermate.observability.LlmTracingSupport;
 import com.careermate.observability.TracingLlmClient;
-import com.careermate.llm.provider.DeepSeekLlmClient;
 import com.careermate.llm.provider.MockLlmClient;
-import com.careermate.llm.provider.OpenAiCompatibleLlmClient;
-import com.careermate.llm.provider.QwenLlmClient;
+import com.careermate.llm.provider.SpringAiLlmClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
@@ -59,23 +57,23 @@ class LlmConfigTest {
     }
 
     @Test
-    void shouldCreateDeepSeekClientWhenProviderIsDeepSeek() {
-        LlmProperties properties = baseProperties("deepseek");
-        assertInstanceOf(DeepSeekLlmClient.class, unwrap(llmConfig.llmClient(properties, objectMapper, llmTracingSupport, llmChatTraceRecorder)));
+    void shouldCreateSpringAiClientWhenProviderIsDashscope() {
+        LlmProperties properties = baseProperties(SpringAiLlmClient.PROVIDER_DASHSCOPE);
+        assertInstanceOf(SpringAiLlmClient.class, unwrap(llmConfig.llmClient(properties, objectMapper, llmTracingSupport, llmChatTraceRecorder)));
     }
 
     @Test
-    void shouldCreateQwenClientWhenProviderIsQwen() {
+    void legacyQwenProviderAliasesToSpringAi() {
         LlmProperties properties = baseProperties("qwen");
-        assertInstanceOf(QwenLlmClient.class, unwrap(llmConfig.llmClient(properties, objectMapper, llmTracingSupport, llmChatTraceRecorder)));
+        assertInstanceOf(SpringAiLlmClient.class, unwrap(llmConfig.llmClient(properties, objectMapper, llmTracingSupport, llmChatTraceRecorder)));
     }
 
     @Test
-    void shouldCreateOpenAiCompatibleClientWhenProviderIsOpenAiCompatible() {
-        LlmProperties properties = baseProperties("openai-compatible");
+    void shouldCreateSpringAiClientWhenProviderIsOpenAi() {
+        LlmProperties properties = baseProperties(SpringAiLlmClient.PROVIDER_OPENAI);
         properties.setModel("gpt-4o-mini");
         properties.setEndpoint("https://example.openai-compatible.com/v1");
-        assertInstanceOf(OpenAiCompatibleLlmClient.class, unwrap(llmConfig.llmClient(properties, objectMapper, llmTracingSupport, llmChatTraceRecorder)));
+        assertInstanceOf(SpringAiLlmClient.class, unwrap(llmConfig.llmClient(properties, objectMapper, llmTracingSupport, llmChatTraceRecorder)));
     }
 
     private LlmClient unwrap(LlmClient client) {
