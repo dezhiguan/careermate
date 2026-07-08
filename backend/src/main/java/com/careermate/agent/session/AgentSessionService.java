@@ -28,4 +28,7 @@ public interface AgentSessionService {
     void markCompleted(Long userId, String sessionId, Long totalLatencyMs);
 
     void markError(Long userId, String sessionId, String errorCode);
+
+    /** A2：持久化本轮 fast/deep 分层判定到会话（非关键路径，失败不应中断对话）。 */
+    void recordPathMode(Long userId, String sessionId, String pathMode);
 }

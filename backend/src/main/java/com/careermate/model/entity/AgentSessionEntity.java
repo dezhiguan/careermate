@@ -22,6 +22,7 @@ public class AgentSessionEntity {
     private String status;
     private String intent;
     private String taskType;
+    private String pathMode;
     private String title;
     private Long totalLatencyMs;
     private Long llmLatencyMs;

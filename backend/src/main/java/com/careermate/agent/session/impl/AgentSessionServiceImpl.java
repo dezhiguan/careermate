@@ -18,6 +18,7 @@ import com.careermate.model.entity.AgentMessageEntity;
 import com.careermate.model.entity.AgentSessionEntity;
 import com.careermate.model.entity.AgentTaskStateEntity;
 import com.careermate.model.entity.AgentToolCallEntity;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class AgentSessionServiceImpl implements AgentSessionService {
 
@@ -262,6 +264,27 @@ public class AgentSessionServiceImpl implements AgentSessionService {
                 .eq(AgentTaskStateEntity::getUserId, userId)
                 .set(AgentTaskStateEntity::getStatus, "FAILED")
                 .set(AgentTaskStateEntity::getUpdatedAt, now));
+    }
+
+    /** 归一化为 FAST/DEEP，非法/空值兜底 FAST，避免脏数据。 */
+    static String normalizePathMode(String pathMode) {
+        return "DEEP".equalsIgnoreCase(pathMode) ? "DEEP" : "FAST";
+    }
+
+    @Override
+    public void recordPathMode(Long userId, String sessionId, String pathMode) {
+        String normalized = normalizePathMode(pathMode);
+        try {
+            AgentSessionEntity session = getSessionByUser(userId, sessionId);
+            agentSessionMapper.update(null, new LambdaUpdateWrapper<AgentSessionEntity>()
+                    .eq(AgentSessionEntity::getId, session.getId())
+                    .eq(AgentSessionEntity::getUserId, userId)
+                    .set(AgentSessionEntity::getPathMode, normalized)
+                    .set(AgentSessionEntity::getUpdatedAt, OffsetDateTime.now()));
+        } catch (Exception e) {
+            // 分层标记非关键路径，落库失败不影响对话
+            log.warn("记录会话路径分层失败（不影响对话）: sessionId={}, mode={}", sessionId, normalized, e);
+        }
     }
 
     private AgentSessionEntity getSessionByUser(Long userId, String sessionId) {

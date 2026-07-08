@@ -233,6 +233,7 @@ public class AgentStreamService {
                     "reason", pathDecision.reason()
             );
             sseEmitterService.send(sessionId, SseEventType.PATH_MODE, pathData);
+            agentSessionService.recordPathMode(userId, sessionId, pathDecision.mode().name());
             agentSessionService.recordTrace(
                     userId, sessionId, "PATH_MODE", "{}", toJson(pathData), "SUCCESS", null, null
             );
