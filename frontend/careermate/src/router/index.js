@@ -1,6 +1,10 @@
+import { ref } from 'vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { authStore } from '../stores/authStore'
 import { homeStore } from '../stores/homeStore'
+
+// 路由/懒加载 chunk 加载期间为真：供 App 显示"加载中"，避免深链/刷新时主区白屏
+export const routeLoading = ref(false)
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
@@ -64,6 +68,7 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  routeLoading.value = true
   if (!authStore.state.initialized) {
     await authStore.init()
   }
@@ -86,6 +91,13 @@ router.beforeEach(async (to) => {
   // 不因一次 bootstrap 失败就阻塞导航或把用户登出。
   homeStore.fetchBootstrap().catch(() => {})
   return true
+})
+
+router.afterEach(() => {
+  routeLoading.value = false
+})
+router.onError(() => {
+  routeLoading.value = false
 })
 
 export default router

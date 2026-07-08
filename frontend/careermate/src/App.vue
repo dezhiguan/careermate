@@ -2,11 +2,17 @@
   <router-view v-if="isLoginRoute" />
 
   <AppShellDesktop v-else-if="isDesktop" :show-user-bar="!isChatRoute">
-    <router-view />
+    <div v-if="routeLoading" class="route-loading" data-testid="route-loading">
+      <span class="spinner"></span><span>加载中…</span>
+    </div>
+    <router-view v-show="!routeLoading" />
   </AppShellDesktop>
 
   <AppShellMobile v-else :hide-bottom-nav="isChatRoute">
-    <router-view />
+    <div v-if="routeLoading" class="route-loading" data-testid="route-loading">
+      <span class="spinner"></span><span>加载中…</span>
+    </div>
+    <router-view v-show="!routeLoading" />
   </AppShellMobile>
 </template>
 
@@ -15,6 +21,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import AppShellDesktop from './components/AppShellDesktop.vue'
 import AppShellMobile from './components/AppShellMobile.vue'
+import { routeLoading } from './router'
 
 const DESKTOP_MIN = 768
 
@@ -42,6 +49,27 @@ onBeforeUnmount(() => {
 </script>
 
 <style>
+.route-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 60vh;
+  color: #64748b;
+  font-size: 14px;
+}
+.route-loading .spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #635bff;
+  border-radius: 50%;
+  animation: route-spin 0.8s linear infinite;
+}
+@keyframes route-spin {
+  to { transform: rotate(360deg); }
+}
+
 :root {
   --primary: #4f46e5;
   --primary-50: #eef2ff;
