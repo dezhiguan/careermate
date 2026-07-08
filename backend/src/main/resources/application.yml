@@ -118,6 +118,12 @@ careermate:
       base-url: ${AGENT_FRAMEWORK_BASE_URL:}
       api-key: ${AGENT_FRAMEWORK_API_KEY:}
       timeout-ms: ${AGENT_FRAMEWORK_TIMEOUT_MS:60000}
+    reflection:                                        # A3 反思闭环（仅 deep-path 生效）
+      enabled: ${AGENT_REFLECTION_ENABLED:false}
+      max-rounds: ${AGENT_REFLECTION_MAX_ROUNDS:3}
+      planner-temperature: ${AGENT_REFLECTION_PLANNER_TEMP:0.3}
+      reflector-temperature: ${AGENT_REFLECTION_REFLECTOR_TEMP:0.1}
+      reflector-model: ${AGENT_REFLECTION_REFLECTOR_MODEL:}   # 留空=默认provider；跨家防self-bias配第二provider模型
   tracing:
     service-name: ${OTEL_SERVICE_NAME:careermate-backend}
   ragforge:

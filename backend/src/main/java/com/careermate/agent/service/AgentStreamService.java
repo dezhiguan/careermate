@@ -93,6 +93,7 @@ public class AgentStreamService {
     private final ChatClientStreamAdapter chatClientStreamAdapter;
     private final com.careermate.agent.path.AgentPathRouter agentPathRouter;
     private final com.careermate.agent.rag.DeepPathKnowledgeAugmentor deepPathKnowledgeAugmentor;
+    private final com.careermate.agent.reflect.DeepPathReflectionRunner deepPathReflectionRunner;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -128,7 +129,8 @@ public class AgentStreamService {
             PromptTemplateService promptTemplateService,
             ChatClientStreamAdapter chatClientStreamAdapter,
             com.careermate.agent.path.AgentPathRouter agentPathRouter,
-            com.careermate.agent.rag.DeepPathKnowledgeAugmentor deepPathKnowledgeAugmentor
+            com.careermate.agent.rag.DeepPathKnowledgeAugmentor deepPathKnowledgeAugmentor,
+            com.careermate.agent.reflect.DeepPathReflectionRunner deepPathReflectionRunner
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -156,6 +158,7 @@ public class AgentStreamService {
         this.chatClientStreamAdapter = chatClientStreamAdapter;
         this.agentPathRouter = agentPathRouter;
         this.deepPathKnowledgeAugmentor = deepPathKnowledgeAugmentor;
+        this.deepPathReflectionRunner = deepPathReflectionRunner;
     }
 
     public SseEmitter stream(Long userId, String sessionId, AgentMessageRequest request) {
@@ -560,6 +563,16 @@ public class AgentStreamService {
                 systemPrompt = systemPrompt + citationBlock;
             }
             logPhase(sessionId, "deep_citation_retrieval", phaseStart);
+
+            // A3：deep-path 反思闭环——自检修订后把"最终作答要求"注入 prompt（仅暴露要求，不回显 reflection）
+            if (deepPathReflectionRunner.isEnabled()) {
+                phaseStart = System.currentTimeMillis();
+                String requirement = deepPathReflectionRunner.refine(systemPrompt, userMessage);
+                if (StringUtils.hasText(requirement)) {
+                    systemPrompt = systemPrompt + requirement;
+                }
+                logPhase(sessionId, "deep_reflection", phaseStart);
+            }
         }
 
         return ChatRequest.builder()
