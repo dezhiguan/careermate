@@ -233,10 +233,14 @@ class AgentStreamServiceLegacyPrepareRunTest {
                 "prepareLegacyRun",
                 Long.class,
                 String.class,
-                String.class
+                String.class,
+                com.careermate.agent.path.AgentPathMode.class
         );
         method.setAccessible(true);
-        return (ChatRequest) method.invoke(agentStreamService, userId, sessionId, userMessage);
+        return (ChatRequest) method.invoke(
+                agentStreamService, userId, sessionId, userMessage,
+                com.careermate.agent.path.AgentPathMode.FAST
+        );
     }
 
     private void stubContextLoaders() {

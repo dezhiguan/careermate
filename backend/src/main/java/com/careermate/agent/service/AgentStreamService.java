@@ -254,7 +254,7 @@ public class AgentStreamService {
                 systemPrompt = runResult.getSystemPrompt();
                 logPhase(sessionId, "kernel_prepare_run", phaseStart);
             } else {
-                chatRequest = prepareLegacyRun(userId, sessionId, request.getMessage());
+                chatRequest = prepareLegacyRun(userId, sessionId, request.getMessage(), pathDecision.mode());
                 systemPrompt = chatRequest.getMessages().get(0).getContent();
             }
 
@@ -412,7 +412,8 @@ public class AgentStreamService {
         );
     }
 
-    private ChatRequest prepareLegacyRun(Long userId, String sessionId, String userMessage) {
+    private ChatRequest prepareLegacyRun(Long userId, String sessionId, String userMessage,
+                                         com.careermate.agent.path.AgentPathMode pathMode) {
         long phaseStart = System.currentTimeMillis();
         Map<String, Object> planData = Map.of(
                 "steps", List.of("接收用户输入", "调用 LLM", "生成回复"),
@@ -510,6 +511,7 @@ public class AgentStreamService {
                 .userId(userId)
                 .sessionId(sessionId)
                 .userMessage(userMessage)
+                .pathMode(pathMode)
                 .build();
         List<com.careermate.agent.multiagent.SpecialistResult> specialistResults =
                 agentSupervisor.dispatch(toolCtx, userMessage);
