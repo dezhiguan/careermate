@@ -1119,6 +1119,7 @@ async function restoreLatestChatSession() {
 
 const RESUME_POLL_INTERVAL_MS = 2000
 const RESUME_POLL_MAX_ATTEMPTS = 20 // 最多等 40s
+const RESUME_PLACEHOLDER_MIN_VISIBLE_MS = 1500 // "恢复中"占位最短可见时长，避免恢复过快时一闪即逝
 
 async function resumePendingAgentReplyIfAny(targetSessionId) {
   const last = messages.value[messages.value.length - 1]
@@ -1132,6 +1133,7 @@ async function resumePendingAgentReplyIfAny(targetSessionId) {
   if (!status?.running) return
 
   const placeholderId = `m_resume_${Date.now()}`
+  const placeholderShownAt = Date.now()
   messages.value.push(withMarkdown({
     id: placeholderId,
     role: 'agent',
@@ -1153,6 +1155,12 @@ async function resumePendingAgentReplyIfAny(targetSessionId) {
         .slice(refreshedMessages.findIndex((m) => m.role === 'user' && userMsgCountBefore > 0) + 1)
         .find((m) => m.role === 'agent')
       if (refreshedAgentAfterUser) {
+        // 保证"恢复中"占位稳定可见，避免恢复过快时一闪即逝
+        const elapsed = Date.now() - placeholderShownAt
+        if (elapsed < RESUME_PLACEHOLDER_MIN_VISIBLE_MS) {
+          await new Promise((resolve) => setTimeout(resolve, RESUME_PLACEHOLDER_MIN_VISIBLE_MS - elapsed))
+          if (sessionId.value !== targetSessionId) return // 期间会话已切换
+        }
         messages.value = refreshedMessages
         scheduleMarkdownForMessages(messages.value)
         scrollBottom()
