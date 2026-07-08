@@ -138,6 +138,14 @@ careermate:
         gpt-4o-mini:
           input: 0.0011
           output: 0.0043
+    ltm:                                               # A4 长期语义记忆（pgvector）
+      enabled: ${AGENT_LTM_ENABLED:false}
+      embedding-model: ${AGENT_LTM_EMBED_MODEL:text-embedding-v3}
+      dimensions: ${AGENT_LTM_DIMENSIONS:1024}
+      api-key: ${AGENT_LTM_API_KEY:}                   # 留空复用 LLM_API_KEY
+      recall-top-k: ${AGENT_LTM_RECALL_TOPK:5}
+      recall-threshold: ${AGENT_LTM_RECALL_THRESHOLD:0.7}
+      consolidation-cron: ${AGENT_LTM_CONSOLIDATION_CRON:0 0 3 * * *}
   tracing:
     service-name: ${OTEL_SERVICE_NAME:careermate-backend}
   ragforge:
