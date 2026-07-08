@@ -81,12 +81,10 @@ router.beforeEach(async (to) => {
     authStore.clearAuth()
     return '/login'
   }
-  try {
-    await homeStore.fetchBootstrap()
-  } catch (e) {
-    authStore.logout()
-    return '/login'
-  }
+  // 非阻塞后台加载首页数据：避免深链/刷新时首页接口慢或失败导致 router-view 空白（主区白屏）。
+  // 各页面在 onMounted 自行拉数据；鉴权失效由 http 层全局 handleUnauthorized 统一兜底，
+  // 不因一次 bootstrap 失败就阻塞导航或把用户登出。
+  homeStore.fetchBootstrap().catch(() => {})
   return true
 })
 
