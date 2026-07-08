@@ -1,0 +1,90 @@
+name: CareerMate Refresh Config
+
+# 手动触发：把 /opt/shared/env/common.env + careermate.env 重建进 backend Secret，并滚动重启后端。
+# 独立于 CI/CD 部署流程——改了 env（如新增 DEEPSEEK_API_KEY / 开 AGENT_* 开关）后手动点一次即可。
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '重建 careermate-backend Secret 并滚动重启后端。输入 yes 确认'
+        required: true
+        default: 'no'
+
+jobs:
+  refresh-config:
+    name: refresh-config
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ github.event.inputs.confirm == 'yes' }}
+    environment:
+      name: production
+    steps:
+      - name: Configure SSH (Server 3)
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          DEPLOY_USER: ${{ secrets.CAREERMATE_APP_USER }}
+          DEPLOY_PORT: ${{ secrets.CAREERMATE_APP_PORT }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+          JUMP_USER: ${{ secrets.CAREERMATE_INGRESS_USER }}
+          JUMP_PORT: ${{ secrets.CAREERMATE_INGRESS_PORT }}
+        run: |
+          if [[ -z "${SSH_KEY}" || -z "${DEPLOY_HOST}" || -z "${DEPLOY_USER}" ]]; then
+            echo "CAREERMATE_APP_SSH_KEY / CAREERMATE_APP_HOST / CAREERMATE_APP_USER must be set"
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          PORT="${DEPLOY_PORT:-22}"
+          JUMP_HOST="${JUMP_HOST:-8.163.63.222}"
+          JUMP_USER="${JUMP_USER:-root}"
+          JUMP_PORT="${JUMP_PORT:-22}"
+          ssh-keyscan -p "${JUMP_PORT}" "${JUMP_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          {
+            printf '%s\n' 'Host careermate-jump'
+            printf '%s\n' "  HostName ${JUMP_HOST}"
+            printf '%s\n' "  User ${JUMP_USER}"
+            printf '%s\n' "  Port ${JUMP_PORT}"
+            printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
+            printf '%s\n' '  IdentitiesOnly yes'
+            printf '%s\n' '  StrictHostKeyChecking accept-new'
+            printf '%s\n' '  BatchMode yes'
+            printf '%s\n' '  ConnectTimeout 15'
+            printf '%s\n' '  ServerAliveInterval 30'
+            printf '%s\n' '  ServerAliveCountMax 3'
+            printf '%s\n' ''
+            printf '%s\n' 'Host careermate-app'
+            printf '%s\n' "  HostName ${DEPLOY_HOST}"
+            printf '%s\n' "  User ${DEPLOY_USER}"
+            printf '%s\n' "  Port ${PORT}"
+            printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
+            printf '%s\n' '  IdentitiesOnly yes'
+            printf '%s\n' '  StrictHostKeyChecking accept-new'
+            printf '%s\n' '  BatchMode yes'
+            printf '%s\n' '  ConnectTimeout 15'
+            printf '%s\n' '  ServerAliveInterval 30'
+            printf '%s\n' '  ServerAliveCountMax 3'
+            printf '%s\n' '  ProxyJump careermate-jump'
+          } > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Regenerate Secret and rollout restart backend
+        run: |
+          set -euo pipefail
+          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          ssh "${SSH_OPTS[@]}" careermate-app 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          SCRIPT=/opt/careermate/k8s-src/deploy/scripts/create-careermate-k8s-secret.sh
+          if [[ ! -f "${SCRIPT}" ]]; then
+            echo "找不到 ${SCRIPT}（先跑一次代码部署把仓库同步到服务器）" >&2
+            exit 1
+          fi
+          # 重建 Secret（从 common.env + careermate.env 合并）
+          sudo bash "${SCRIPT}"
+          # 让新 Secret 生效：滚动重启后端
+          if command -v k3s >/dev/null 2>&1; then KUBECTL="k3s kubectl"; else KUBECTL="kubectl"; fi
+          ${KUBECTL} -n careermate rollout restart deploy/careermate-backend
+          ${KUBECTL} -n careermate rollout status deploy/careermate-backend --timeout=300s
+          echo "refresh-config 完成：Secret 已重建 + 后端已滚动重启"
+          REMOTE
