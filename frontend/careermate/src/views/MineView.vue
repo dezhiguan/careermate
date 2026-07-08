@@ -184,6 +184,24 @@
       <button type="button" class="btn-link" @click="router.push('/chat')">去小职完善画像 →</button>
     </section>
 
+    <!-- A4：小职认识你这些（长期记忆） -->
+    <section v-if="ltmFacts.length" class="profile-section ltm-section">
+      <div class="section-head">
+        <span class="section-title">小职认识你这些</span>
+      </div>
+      <div class="ltm-groups">
+        <div v-for="group in ltmGrouped" :key="group.type" class="ltm-group">
+          <span class="ltm-type-chip">{{ ltmTypeLabel(group.type) }}</span>
+          <ul class="ltm-fact-list">
+            <li v-for="fact in group.facts" :key="fact.id" class="ltm-fact">
+              <span class="ltm-fact-text">{{ fact.factText }}</span>
+              <button type="button" class="ltm-forget" title="忘掉这条" @click="forgetFact(fact.id)">忘掉</button>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
     <!-- 区块五：最近产物 -->
     <section v-if="recentArtifacts.length" class="profile-section artifacts-section">
       <div class="section-head">
@@ -254,6 +272,7 @@ import { getCareerProfile, updateCareerProfile } from '../api/profile'
 import { listResumes } from '../api/resume'
 import { listVersions } from '../api/resumeVersion'
 import { listInterviewSessions } from '../api/interview'
+import { listLongTermMemory, forgetLongTermMemory } from '../api/ltm'
 import { authStore } from '../stores/authStore'
 import { homeStore } from '../stores/homeStore'
 import { computeProfileCompleteness } from '../utils/profileCompleteness'
@@ -274,6 +293,21 @@ const versions = ref([])
 const sessions = ref([])
 const recentArtifacts = ref([])
 const artifactLoading = ref('')
+
+// A4：长期记忆
+const ltmFacts = ref([])
+const LTM_TYPE_LABELS = {
+  PREFERENCE: '偏好',
+  SKILL: '技能',
+  EXPERIENCE: '经历',
+  GOAL: '目标',
+  CONSTRAINT: '约束',
+}
+const LTM_TYPE_ORDER = ['PREFERENCE', 'SKILL', 'EXPERIENCE', 'GOAL', 'CONSTRAINT']
+const ltmTypeLabel = (t) => LTM_TYPE_LABELS[t] || t
+const ltmGrouped = computed(() => LTM_TYPE_ORDER
+  .map((type) => ({ type, facts: ltmFacts.value.filter((f) => f.factType === type) }))
+  .filter((g) => g.facts.length))
 
 const ARTIFACT_TYPE_LABELS = {
   RESUME_VERSION: '简历版本',
@@ -551,10 +585,29 @@ function handleLogout() {
   router.push('/login')
 }
 
+async function loadLtmFacts() {
+  try {
+    const data = await listLongTermMemory()
+    ltmFacts.value = Array.isArray(data) ? data : (data?.list || [])
+  } catch (e) {
+    ltmFacts.value = []
+  }
+}
+
+async function forgetFact(id) {
+  try {
+    await forgetLongTermMemory(id)
+    ltmFacts.value = ltmFacts.value.filter((f) => f.id !== id)
+  } catch (e) {
+    // 忽略：忘掉失败不阻塞页面
+  }
+}
+
 onMounted(async () => {
   if (homeStore.state.user) {
     authStore.applyUserProfile(homeStore.state.user)
   }
+  loadLtmFacts()
   if (homeStore.state.careerProfile) {
     profile.value = { ...profile.value, ...homeStore.state.careerProfile }
   }
@@ -994,6 +1047,56 @@ onMounted(async () => {
 .ai-section {
   background: linear-gradient(135deg, #fdf4ff, #ede9fe);
   border-color: #e9d5ff;
+}
+
+.ltm-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ltm-group {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.ltm-type-chip {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 3px;
+}
+.ltm-fact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+}
+.ltm-fact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+.ltm-fact-text {
+  font-size: 13px;
+  color: #374151;
+}
+.ltm-forget {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ltm-forget:hover {
+  color: #ef4444;
 }
 
 .ai-summary-text {
