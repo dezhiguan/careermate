@@ -94,6 +94,7 @@ public class AgentStreamService {
     private final com.careermate.agent.path.AgentPathRouter agentPathRouter;
     private final com.careermate.agent.rag.DeepPathKnowledgeAugmentor deepPathKnowledgeAugmentor;
     private final com.careermate.agent.reflect.DeepPathReflectionRunner deepPathReflectionRunner;
+    private final com.careermate.agent.cost.TokenCostRecorder tokenCostRecorder;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -130,7 +131,8 @@ public class AgentStreamService {
             ChatClientStreamAdapter chatClientStreamAdapter,
             com.careermate.agent.path.AgentPathRouter agentPathRouter,
             com.careermate.agent.rag.DeepPathKnowledgeAugmentor deepPathKnowledgeAugmentor,
-            com.careermate.agent.reflect.DeepPathReflectionRunner deepPathReflectionRunner
+            com.careermate.agent.reflect.DeepPathReflectionRunner deepPathReflectionRunner,
+            com.careermate.agent.cost.TokenCostRecorder tokenCostRecorder
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -159,6 +161,7 @@ public class AgentStreamService {
         this.agentPathRouter = agentPathRouter;
         this.deepPathKnowledgeAugmentor = deepPathKnowledgeAugmentor;
         this.deepPathReflectionRunner = deepPathReflectionRunner;
+        this.tokenCostRecorder = tokenCostRecorder;
     }
 
     public SseEmitter stream(Long userId, String sessionId, AgentMessageRequest request) {
@@ -313,6 +316,7 @@ public class AgentStreamService {
                     }
                     try {
                         String content = full.toString();
+                        recordTokenCost(userId, systemPrompt, request.getMessage(), content, response);
                         sseEmitterService.send(sessionId, SseEventType.MESSAGE, Map.of("content", content));
                         agentSessionService.appendMessage(userId, sessionId, "agent", content, "text");
                         refreshConversationSummarySafely(userId, sessionId);
@@ -407,6 +411,25 @@ public class AgentStreamService {
             }
             heartbeatExecutor.shutdownNow();
             taskRegistry.complete(sessionId);
+        }
+    }
+
+    /** A5：记录本轮 token 成本；provider 未返回用量时按字符估算。计量失败不影响对话。 */
+    private void recordTokenCost(Long userId, String systemPrompt, String userMessage,
+                                 String content, ChatResponse response) {
+        try {
+            boolean estimated = response == null || response.getInputTokens() == null || response.getOutputTokens() == null;
+            int inputTokens = estimated
+                    ? com.careermate.agent.cost.TokenCostRecorder.estimateTokens(
+                            (systemPrompt == null ? "" : systemPrompt) + (userMessage == null ? "" : userMessage))
+                    : response.getInputTokens();
+            int outputTokens = estimated
+                    ? com.careermate.agent.cost.TokenCostRecorder.estimateTokens(content)
+                    : response.getOutputTokens();
+            tokenCostRecorder.record(userId, llmProperties.getProvider(), llmProperties.getModel(),
+                    inputTokens, outputTokens, estimated);
+        } catch (Exception e) {
+            log.warn("token 成本记录失败（不影响对话）: {}", e.getMessage());
         }
     }
 

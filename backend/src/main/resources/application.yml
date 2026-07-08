@@ -124,6 +124,20 @@ careermate:
       planner-temperature: ${AGENT_REFLECTION_PLANNER_TEMP:0.3}
       reflector-temperature: ${AGENT_REFLECTION_REFLECTOR_TEMP:0.1}
       reflector-model: ${AGENT_REFLECTION_REFLECTOR_MODEL:}   # 留空=默认provider；跨家防self-bias配第二provider模型
+    pricing:                                           # A5 token 单价表（每 1k token，单位约定 CNY）
+      default-price:
+        input: 0.001
+        output: 0.002
+      models:
+        qwen-plus:
+          input: 0.0008
+          output: 0.002
+        deepseek-chat:
+          input: 0.001
+          output: 0.002
+        gpt-4o-mini:
+          input: 0.0011
+          output: 0.0043
   tracing:
     service-name: ${OTEL_SERVICE_NAME:careermate-backend}
   ragforge:

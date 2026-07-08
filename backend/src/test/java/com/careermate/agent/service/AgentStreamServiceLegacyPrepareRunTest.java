@@ -139,7 +139,10 @@ class AgentStreamServiceLegacyPrepareRunTest {
                 org.mockito.Mockito.mock(ChatClientStreamAdapter.class),
                 new com.careermate.agent.path.AgentPathRouter(),
                 org.mockito.Mockito.mock(com.careermate.agent.rag.DeepPathKnowledgeAugmentor.class),
-                org.mockito.Mockito.mock(com.careermate.agent.reflect.DeepPathReflectionRunner.class)
+                org.mockito.Mockito.mock(com.careermate.agent.reflect.DeepPathReflectionRunner.class),
+                new com.careermate.agent.cost.TokenCostRecorder(
+                        new io.micrometer.core.instrument.simple.SimpleMeterRegistry(),
+                        new com.careermate.agent.cost.LlmPricingProperties())
         );
         stubContextLoaders();
     }
