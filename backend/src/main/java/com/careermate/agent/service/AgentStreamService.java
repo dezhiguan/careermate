@@ -95,6 +95,7 @@ public class AgentStreamService {
     private final com.careermate.agent.rag.DeepPathKnowledgeAugmentor deepPathKnowledgeAugmentor;
     private final com.careermate.agent.reflect.DeepPathReflectionRunner deepPathReflectionRunner;
     private final com.careermate.agent.cost.TokenCostRecorder tokenCostRecorder;
+    private final com.careermate.agent.memory.ltm.LongTermMemoryAdvisor longTermMemoryAdvisor;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -132,7 +133,8 @@ public class AgentStreamService {
             com.careermate.agent.path.AgentPathRouter agentPathRouter,
             com.careermate.agent.rag.DeepPathKnowledgeAugmentor deepPathKnowledgeAugmentor,
             com.careermate.agent.reflect.DeepPathReflectionRunner deepPathReflectionRunner,
-            com.careermate.agent.cost.TokenCostRecorder tokenCostRecorder
+            com.careermate.agent.cost.TokenCostRecorder tokenCostRecorder,
+            com.careermate.agent.memory.ltm.LongTermMemoryAdvisor longTermMemoryAdvisor
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -162,6 +164,7 @@ public class AgentStreamService {
         this.deepPathKnowledgeAugmentor = deepPathKnowledgeAugmentor;
         this.deepPathReflectionRunner = deepPathReflectionRunner;
         this.tokenCostRecorder = tokenCostRecorder;
+        this.longTermMemoryAdvisor = longTermMemoryAdvisor;
     }
 
     public SseEmitter stream(Long userId, String sessionId, AgentMessageRequest request) {
@@ -577,6 +580,14 @@ public class AgentStreamService {
             }
         }
         logPhase(sessionId, "react_reasoning", phaseStart);
+
+        // A4：长期记忆召回注入（所有路径；未启用/无命中返回空）
+        phaseStart = System.currentTimeMillis();
+        String memoryBlock = longTermMemoryAdvisor.buildMemoryBlock(userId, userMessage);
+        if (StringUtils.hasText(memoryBlock)) {
+            systemPrompt = systemPrompt + memoryBlock;
+        }
+        logPhase(sessionId, "long_term_memory_recall", phaseStart);
 
         // A1 补漏：deep-path 带引用检索——注入可核验来源，约束模型基于语料作答并标注来源
         if (pathMode == com.careermate.agent.path.AgentPathMode.DEEP) {

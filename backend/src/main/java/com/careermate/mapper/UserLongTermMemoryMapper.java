@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
@@ -34,4 +35,14 @@ public interface UserLongTermMemoryMapper extends BaseMapper<UserLongTermMemoryE
             + "AND embedding IS NOT NULL ORDER BY embedding <=> #{queryVec}::vector LIMIT 1")
     LtmMatch nearestSameType(@Param("userId") Long userId, @Param("factType") String factType,
                              @Param("queryVec") String queryVec);
+
+    /** 矛盾/更新：标记旧 fact 被取代（保留链）。 */
+    @Update("UPDATE user_long_term_memory SET superseded_by = #{newId}, updated_at = now() WHERE id = #{oldId}")
+    int markSuperseded(@Param("oldId") Long oldId, @Param("newId") Long newId);
+
+    /** 用户"忘掉这条"软删。 */
+    @Update("UPDATE user_long_term_memory SET deleted = true, updated_at = now() "
+            + "WHERE id = #{id} AND user_id = #{userId}")
+    int softDelete(@Param("userId") Long userId, @Param("id") Long id);
 }
+
