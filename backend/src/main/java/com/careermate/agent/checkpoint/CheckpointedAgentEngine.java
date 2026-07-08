@@ -60,8 +60,11 @@ public class CheckpointedAgentEngine {
         if (paused.isEmpty()) {
             return null;
         }
+        // 保留暂停点已有上下文（如 topic/analysis），再叠加用户决定，避免续跑丢失前序状态
+        Map<String, Object> merged = new java.util.LinkedHashMap<>(paused.get().data());
+        merged.put("userDecision", userDecision == null ? "" : userDecision);
         AgentState resumed = new AgentState(runId, paused.get().stepIndex(), "resumed",
-                Map.of("userDecision", userDecision == null ? "" : userDecision), null, false);
+                merged, null, false);
         checkpointStore.save(runId, "resumed", resumed, false, null);
         updateRunStatus(runId, "RUNNING");
         return runOrResume(runId, userId, step);
