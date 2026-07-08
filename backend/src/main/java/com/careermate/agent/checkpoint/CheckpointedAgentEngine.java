@@ -67,6 +67,35 @@ public class CheckpointedAgentEngine {
         return runOrResume(runId, userId, step);
     }
 
+    /**
+     * B4：从某 run 的最近 checkpoint 分叉出新 run（深拷贝 state，parent 记录来源）。返回新 runId；源无快照返回 null。
+     * 用于"从这里换个方案再跑"的 what-if 调试。
+     */
+    public String fork(String sourceRunId, Long userId) {
+        Optional<AgentState> src = checkpointStore.loadLatest(sourceRunId);
+        if (src.isEmpty()) {
+            return null;
+        }
+        String newRunId = "run_" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        try {
+            AgentRunEntity e = new AgentRunEntity();
+            e.setRunId(newRunId);
+            e.setUserId(userId);
+            e.setStatus("RUNNING");
+            e.setParentRunId(sourceRunId);
+            e.setStartedAt(OffsetDateTime.now());
+            agentRunMapper.insert(e);
+        } catch (Exception ex) {
+            log.warn("fork 创建 agent_run 失败: {}", ex.getMessage());
+        }
+        AgentState s = src.get();
+        // 深拷贝 data，避免 fork 与源共享引用
+        AgentState forked = new AgentState(newRunId, s.stepIndex(), s.currentStep(),
+                new java.util.LinkedHashMap<>(s.data()), s.pendingAction(), false);
+        checkpointStore.save(newRunId, "forked", forked, false, null);
+        return newRunId;
+    }
+
     private void ensureRun(String runId, Long userId) {
         try {
             if (agentRunMapper.selectById(runId) == null) {

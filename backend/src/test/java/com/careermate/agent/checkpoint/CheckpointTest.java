@@ -116,6 +116,28 @@ class CheckpointTest {
     }
 
     @Test
+    void engine_fork_createsNewRunFromCheckpoint() {
+        CheckpointStore store = mock(CheckpointStore.class);
+        when(store.loadLatest("src"))
+                .thenReturn(java.util.Optional.of(new AgentState("src", 2, "reflect", Map.of("k", "v"), null, false)));
+        AgentRunMapper runMapper = mock(AgentRunMapper.class);
+        CheckpointedAgentEngine eng = new CheckpointedAgentEngine(store, runMapper);
+
+        String newRunId = eng.fork("src", 7L);
+
+        assertThat(newRunId).isNotNull().startsWith("run_");
+        verify(runMapper).insert(any(com.careermate.model.entity.AgentRunEntity.class));
+        verify(store).save(org.mockito.ArgumentMatchers.eq(newRunId), anyString(), any(), org.mockito.ArgumentMatchers.eq(false), any());
+    }
+
+    @Test
+    void engine_fork_nullWhenNoCheckpoint() {
+        CheckpointStore store = mock(CheckpointStore.class);
+        when(store.loadLatest("src")).thenReturn(java.util.Optional.empty());
+        assertThat(engine(store).fork("src", 7L)).isNull();
+    }
+
+    @Test
     void engine_resumeContinuesToDone() {
         CheckpointStore store = mock(CheckpointStore.class);
         when(store.loadLatest("run1"))
