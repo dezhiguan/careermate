@@ -23,6 +23,8 @@ careermate:
       enabled: ${AGENT_REFLECTION_ENABLED:true}
     debate:
       enabled: ${AGENT_DEBATE_ENABLED:true}
+    checkpoint:                                        # B3 断点续跑：自包含(独立 agent_run/agent_checkpoint 表)，不影响现有流程
+      enabled: ${AGENT_CHECKPOINT_ENABLED:true}
 
 spring:
   output:

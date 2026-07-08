@@ -47,6 +47,12 @@ const routes = [
     component: () => import('../views/ResumeManage.vue'),
     meta: { title: '简历管理' },
   },
+  {
+    path: '/mine/runs',
+    name: 'mine-runs',
+    component: () => import('../views/AgentRuns.vue'),
+    meta: { title: '深度任务' },
+  },
   { path: '/match', redirect: '/opportunity' },
   { path: '/dashboard', redirect: '/opportunity' },
   { path: '/resume', redirect: '/mine/resume' },

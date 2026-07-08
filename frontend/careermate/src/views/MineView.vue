@@ -242,6 +242,15 @@
       <span class="entry-arrow">→</span>
     </button>
 
+    <button type="button" class="entry-btn" data-testid="entry-runs" @click="router.push('/mine/runs')">
+      <span class="entry-icon">🔁</span>
+      <div class="entry-info">
+        <div class="entry-title">深度任务</div>
+        <div class="entry-sub">可暂停 / 续跑 / 分叉的深度任务运行</div>
+      </div>
+      <span class="entry-arrow">→</span>
+    </button>
+
     <section class="activity-row">
       <div class="activity-item">
         <div class="activity-num">{{ resumeCount }}</div>
