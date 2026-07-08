@@ -15,6 +15,14 @@ careermate:
       provider: ${AGENT_FRAMEWORK_PROVIDER:spring-ai-alibaba-dashscope}
       model: ${AGENT_FRAMEWORK_MODEL:${LLM_MODEL:qwen-plus}}
       api-key: ${AGENT_FRAMEWORK_API_KEY:${LLM_API_KEY:}}
+    # 跨家评审(deepseek) + A3 反思 + B1 debate 生产开启；key 从 common.env 的 DEEPSEEK_API_KEY 取，
+    # 缺 key 时 CrossFamilyLlmClient 静默回退主 qwen（不崩）。LTM 因架构待定，暂不开。
+    secondary-llm:
+      enabled: ${AGENT_SECONDARY_LLM_ENABLED:true}
+    reflection:
+      enabled: ${AGENT_REFLECTION_ENABLED:true}
+    debate:
+      enabled: ${AGENT_DEBATE_ENABLED:true}
 
 spring:
   output:
