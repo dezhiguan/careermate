@@ -50,6 +50,7 @@ import org.slf4j.MDC;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.HashMap;
@@ -91,6 +92,7 @@ public class AgentStreamService {
     private final PromptTemplateService promptTemplateService;
     private final ChatClientStreamAdapter chatClientStreamAdapter;
     private final com.careermate.agent.path.AgentPathRouter agentPathRouter;
+    private final com.careermate.agent.rag.DeepPathKnowledgeAugmentor deepPathKnowledgeAugmentor;
 
     private static final String TRACE_RESUME_CONTEXT = "resume_context";
     private static final String TRACE_JOB_MATCH_CONTEXT = "job_match_context";
@@ -125,7 +127,8 @@ public class AgentStreamService {
             AgentKernelProperties agentKernelProperties,
             PromptTemplateService promptTemplateService,
             ChatClientStreamAdapter chatClientStreamAdapter,
-            com.careermate.agent.path.AgentPathRouter agentPathRouter
+            com.careermate.agent.path.AgentPathRouter agentPathRouter,
+            com.careermate.agent.rag.DeepPathKnowledgeAugmentor deepPathKnowledgeAugmentor
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -152,6 +155,7 @@ public class AgentStreamService {
         this.promptTemplateService = promptTemplateService;
         this.chatClientStreamAdapter = chatClientStreamAdapter;
         this.agentPathRouter = agentPathRouter;
+        this.deepPathKnowledgeAugmentor = deepPathKnowledgeAugmentor;
     }
 
     public SseEmitter stream(Long userId, String sessionId, AgentMessageRequest request) {
@@ -536,6 +540,7 @@ public class AgentStreamService {
                     .userId(userId)
                     .sessionId(sessionId)
                     .userMessage(userMessage)
+                    .pathMode(pathMode)
                     .build();
             com.careermate.agent.react.ReActTrace reactTrace =
                     reactEngine.run(reactCtx, userMessage, systemPrompt);
@@ -546,6 +551,16 @@ public class AgentStreamService {
             }
         }
         logPhase(sessionId, "react_reasoning", phaseStart);
+
+        // A1 补漏：deep-path 带引用检索——注入可核验来源，约束模型基于语料作答并标注来源
+        if (pathMode == com.careermate.agent.path.AgentPathMode.DEEP) {
+            phaseStart = System.currentTimeMillis();
+            String citationBlock = deepPathKnowledgeAugmentor.buildCitationBlock(userMessage);
+            if (StringUtils.hasText(citationBlock)) {
+                systemPrompt = systemPrompt + citationBlock;
+            }
+            logPhase(sessionId, "deep_citation_retrieval", phaseStart);
+        }
 
         return ChatRequest.builder()
                 .messages(List.of(

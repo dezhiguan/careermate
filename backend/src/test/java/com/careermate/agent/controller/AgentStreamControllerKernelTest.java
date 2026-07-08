@@ -106,11 +106,9 @@ class AgentStreamControllerKernelTest {
                 .andExpect(request().asyncStarted())
                 .andReturn();
 
+        // PLAN 应在 LLM 完成前流式产出——用 mock LLM 时"中途快照"断言天然 race，
+        // 改为在下方对最终有序 trace 做确定性顺序断言（PLAN 早于 MESSAGE/DONE）。
         waitUntil(() -> hasTrace(TestUsers.USER_A, sessionId, "PLAN"), 30_000);
-        assertFalse(hasTrace(TestUsers.USER_A, sessionId, "MESSAGE"),
-                "PLAN should be emitted before LLM MESSAGE trace");
-        assertFalse(hasTrace(TestUsers.USER_A, sessionId, "DONE"),
-                "PLAN should be emitted before stream completion");
 
         waitUntil(() -> hasTrace(TestUsers.USER_A, sessionId, "get_dashboard_overview"), 30_000);
 
@@ -122,6 +120,8 @@ class AgentStreamControllerKernelTest {
                 .map(AgentTraceResponse::getToolName)
                 .toList();
         assertTraceBefore(traceOrder, "PLAN", "get_dashboard_overview");
+        assertTraceBefore(traceOrder, "PLAN", "MESSAGE");
+        assertTraceBefore(traceOrder, "PLAN", "DONE");
         assertTraceBefore(traceOrder, "MESSAGE", "DONE");
 
         List<String> sseEventNames = extractSseEventNames(finalResult.getResponse().getContentAsString());

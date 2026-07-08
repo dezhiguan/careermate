@@ -137,7 +137,8 @@ class AgentStreamServiceLegacyPrepareRunTest {
                 agentKernelProperties,
                 new PromptTemplateService(new PromptTemplateRegistry(), new PromptProperties()),
                 org.mockito.Mockito.mock(ChatClientStreamAdapter.class),
-                new com.careermate.agent.path.AgentPathRouter()
+                new com.careermate.agent.path.AgentPathRouter(),
+                org.mockito.Mockito.mock(com.careermate.agent.rag.DeepPathKnowledgeAugmentor.class)
         );
         stubContextLoaders();
     }

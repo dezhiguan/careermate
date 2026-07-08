@@ -15,6 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "DB_URL=jdbc:postgresql://localhost:5432/careermate_test_db",
         "DB_USERNAME=careermate",
         "DB_PASSWORD=careermate",
+        // 本测试只验 SMS mock provider，不涉及 Agent 框架；prod profile 默认开框架需 key，测试环境无 key 故关掉
+        "AGENT_FRAMEWORK_ENABLED=false",
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,"
                 + "org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,"
                 + "org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration,"
