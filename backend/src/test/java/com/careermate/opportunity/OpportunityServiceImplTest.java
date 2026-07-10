@@ -326,6 +326,38 @@ class OpportunityServiceImplTest {
         assertThrows(BizException.class, () -> service.prepare(1L, "doc-999"));
     }
 
+    // 修复回归：documents/{id}/chunks 端点对 API-Key 不开放（取正文空），
+    // 应改走 /search + docIds 过滤（searchJdByDocId）取到 JD，prepare 仍成功——不再误报"不存在或已下架"。
+    @Test
+    void prepareFallsBackToSearchByDocIdWhenDocChunksUnavailable() {
+        when(workspaceSessionRepository.findActiveJdPrepSession(1L, "doc-83428")).thenReturn(null);
+        when(ragForgeClient.searchJdByDocId(83428L, 50)).thenReturn(List.of(
+                chunk(1L, 83428L, SAMPLE_JD, 0.9)
+        ));
+        AgentSessionEntity created = new AgentSessionEntity();
+        created.setSessionId("WS-fesession001");
+        when(workspaceSessionRepository.createJdPrepSession(eq(1L), eq("doc-83428"), anyString(), anyString()))
+                .thenReturn(created);
+        when(workspaceSessionRepository.appendMessage(eq(1L), eq(created), eq("assistant"), anyString(), eq("CARD"), anyString(), eq(1)))
+                .thenReturn(new AgentMessageEntity());
+
+        OpportunityPrepareResponse response = service.prepare(1L, "doc-83428");
+
+        assertEquals("WS-fesession001", response.workspaceId());
+    }
+
+    @Test
+    void detailFallsBackToSearchByDocIdWhenDocChunksUnavailable() {
+        when(ragForgeClient.searchJdByDocId(83428L, 50)).thenReturn(List.of(
+                chunk(1L, 83428L, SAMPLE_JD, 0.9)
+        ));
+
+        OpportunityDetailVO detail = service.detail(1L, "doc-83428");
+
+        assertEquals("doc-83428", detail.jdId());
+        assertTrue(detail.jdContent() != null && !detail.jdContent().isBlank());
+    }
+
     @Test
     void detailFoundViaDirectFetchWhenSearchMisses() {
         when(ragForgeClient.fetchDocumentChunks(12598L)).thenReturn(List.of(

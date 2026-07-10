@@ -5,6 +5,7 @@ import java.util.List;
 public record RagForgeSearchRequest(
     String query,
     List<Long> kbIds,
+    List<Long> docIds,
     String strategy,
     Integer topK,
     Integer rerankTopN,
