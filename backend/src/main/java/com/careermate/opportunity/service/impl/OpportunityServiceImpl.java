@@ -636,11 +636,19 @@ public class OpportunityServiceImpl implements OpportunityService {
     }
 
     private List<RagForgeChunk> fetchChunksByDocId(Long docId) {
+        // 主路径：/search + docIds 精确过滤（API-Key 开放，可取任意 JD，不受岗位类型影响）。
+        List<RagForgeChunk> byDocId = filterByDocId(searchOpportunityJdByDocId(docId), docId);
+        if (!byDocId.isEmpty()) {
+            return byDocId;
+        }
+
+        // 兜底1：/documents/{id}/chunks 直取（仅在对该端点有权限时有效）。
         List<RagForgeChunk> direct = ragForgeClient.fetchDocumentChunks(docId);
         if (!direct.isEmpty()) {
             return direct;
         }
 
+        // 兜底2：通用查询搜索后按 docId 过滤（历史行为，覆盖有限）。
         List<RagForgeChunk> chunks = searchOpportunityJd(DEFAULT_QUERY, DETAIL_SEARCH_TOP_K);
         List<RagForgeChunk> filtered = filterByDocId(chunks, docId);
         if (!filtered.isEmpty()) {
@@ -655,6 +663,23 @@ public class OpportunityServiceImpl implements OpportunityService {
                 .query(query)
                 .scene(RagRetrieveScene.OPPORTUNITY)
                 .topK(topK)
+                .build());
+        if (!result.isSuccess()) {
+            return List.of();
+        }
+        return result.getChunks().stream()
+                .map(KnowledgeRetrievalSupport::toRagForgeChunk)
+                .filter(chunk -> chunk != null)
+                .toList();
+    }
+
+    /** 按 docId 精确取某 JD 的 chunks（经统一检索层 → /search + docIds 过滤，API-Key 可用）。 */
+    private List<RagForgeChunk> searchOpportunityJdByDocId(Long docId) {
+        var result = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
+                .query("岗位职责")
+                .scene(RagRetrieveScene.OPPORTUNITY)
+                .topK(DETAIL_SEARCH_TOP_K)
+                .docIds(List.of(docId))
                 .build());
         if (!result.isSuccess()) {
             return List.of();

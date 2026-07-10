@@ -269,6 +269,26 @@ public class RagForgeClient {
     }
 
     /**
+     * 在 JD 库中按 docId 精确取该 JD 的全部 chunks（走 /search + docIds 过滤，API-Key 可用）。
+     * enabled=false / jdKbId 未配 / docId 非法 → 空列表。
+     */
+    public List<RagForgeChunk> searchJdByDocId(Long docId, int topK) {
+        if (!properties.isEnabled() || docId == null || docId <= 0) {
+            return List.of();
+        }
+        String jdKbIdRaw = properties.getJdKbId();
+        if (jdKbIdRaw == null || jdKbIdRaw.isBlank()) {
+            return List.of();
+        }
+        try {
+            return searchByDocId(Long.parseLong(jdKbIdRaw.trim()), docId, topK);
+        } catch (NumberFormatException e) {
+            log.warn("ragforge.jdKbId 配置非数字，跳过 RAGForge 调用: {}", jdKbIdRaw);
+            return List.of();
+        }
+    }
+
+    /**
      * 在 Interview Q&A KB 中搜索；enabled=false 或 interviewKbId 为空 → 返回空列表。
      * 任何异常 → log.warn + 返回空列表，不抛出。
      */
@@ -346,6 +366,17 @@ public class RagForgeClient {
     }
 
     /**
+     * 按 docId 精确取某文档的 chunks（走 API-Key 开放的 /search + docIds 过滤，
+     * 替代不对 API-Key 开放的 /documents/{id}/chunks）。enabled=false 或参数非法 → 空列表。
+     */
+    public List<RagForgeChunk> searchByDocId(Long kbId, Long docId, int topK) {
+        if (!properties.isEnabled() || kbId == null || docId == null || docId <= 0) {
+            return List.of();
+        }
+        return doSearch("岗位职责", List.of(kbId), List.of(docId), topK, null);
+    }
+
+    /**
      * 通用版本：在任意 KB 中搜索，可选 chunk_type 过滤。
      * enabled=false 直接返回空列表。任何异常 → 返回空列表。
      */
@@ -353,14 +384,20 @@ public class RagForgeClient {
         if (!properties.isEnabled() || kbId == null || query == null || query.isBlank()) {
             return List.of();
         }
+        return doSearch(query, List.of(kbId), null, topK, chunkTypes);
+    }
+
+    private List<RagForgeChunk> doSearch(String query, List<Long> kbIds, List<Long> docIds,
+                                         int topK, List<String> chunkTypes) {
         try {
             RagForgeSearchRequest.Filter filter = (chunkTypes == null || chunkTypes.isEmpty())
                 ? null
                 : new RagForgeSearchRequest.Filter(chunkTypes);
 
             RagForgeSearchRequest body = new RagForgeSearchRequest(
-                query, List.of(kbId), "hybrid", topK, 3, 0.55, filter
+                query, kbIds, docIds, "hybrid", topK, 3, 0.55, filter
             );
+            Long kbId = kbIds == null || kbIds.isEmpty() ? null : kbIds.get(0);
 
             log.info(
                     "ragforge.search.before kbId={} topK={} queryLen={}",

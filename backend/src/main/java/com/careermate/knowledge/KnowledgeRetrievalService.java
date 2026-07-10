@@ -68,7 +68,7 @@ public class KnowledgeRetrievalService {
         }
 
         try {
-            List<RagForgeChunk> rawChunks = searchByScene(scene, query, topK, request.chunkTypeFilters());
+            List<RagForgeChunk> rawChunks = searchByScene(scene, query, topK, request.chunkTypeFilters(), request.docIdFilters());
             if (rawChunks == null || rawChunks.isEmpty()) {
                 return RagRetrieveResult.fallback(query, scene, ERROR_EMPTY_RESULTS, elapsed(start));
             }
@@ -178,8 +178,13 @@ public class KnowledgeRetrievalService {
             RagRetrieveScene scene,
             String query,
             int topK,
-            List<String> chunkTypes
+            List<String> chunkTypes,
+            List<Long> docIds
     ) {
+        // 按 docId 精确检索：走 /search + docIds 过滤（API-Key 开放），绕开对 API-Key 不开放的 /documents/{id}/chunks
+        if (docIds != null && !docIds.isEmpty() && scene == RagRetrieveScene.OPPORTUNITY) {
+            return ragForgeClient.searchJdByDocId(docIds.get(0), topK);
+        }
         return switch (scene) {
             case INTERVIEW -> ragForgeClient.searchInterview(query, topK);
             case OPPORTUNITY -> ragForgeClient.searchJd(query, topK);

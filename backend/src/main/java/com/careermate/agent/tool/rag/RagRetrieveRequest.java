@@ -16,6 +16,12 @@ public class RagRetrieveRequest {
     private final int topK;
     @Builder.Default
     private final Map<String, Object> filters = Collections.emptyMap();
+    /** 可选：按文档 id 精确检索（岗位详情/分析走 /search + docIds 过滤，绕开对 API-Key 不开放的 chunks 端点）。 */
+    private final List<Long> docIds;
+
+    public List<Long> docIdFilters() {
+        return docIds == null ? List.of() : docIds;
+    }
 
     public List<String> chunkTypeFilters() {
         if (filters == null || filters.isEmpty()) {
