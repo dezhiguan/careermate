@@ -301,7 +301,9 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AuthTokenResponse loginFromGateway(String account, String password, UserEntity localUser, boolean isNewUser, boolean rememberMe) {
-        AuthGatewayClient.TokenResponse tokenResponse = authGatewayClient.loginPassword(account, password, rememberMe);
+        AuthGatewayClient.TokenResponse tokenResponse = rememberMe
+                ? authGatewayClient.loginPassword(account, password, true)
+                : authGatewayClient.loginPassword(account, password);
         cookieSupport.writeRefreshCookie(tokenResponse.getRefreshToken());
         long authUserId = jwtTokenProvider.getUserId(tokenResponse.getAccessToken());
         UserEntity user = localUser != null ? localUser : userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()

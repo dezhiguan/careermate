@@ -139,7 +139,9 @@ public class MobileAuthService {
             throw new BizException(ErrorCode.MOBILE_AUTH_EXPIRED);
         }
 
-        AuthGatewayClient.TokenResponse tokenResponse = authGatewayClient.loginMobile(phone, verifyCode, request.isRememberMe());
+        AuthGatewayClient.TokenResponse tokenResponse = request.isRememberMe()
+                ? authGatewayClient.loginMobile(phone, verifyCode, true)
+                : authGatewayClient.loginMobile(phone, verifyCode);
         smsAuthRateLimiter.clearLoginFailure(scene, phoneHash);
         tokenReplayGuard.markChallengeUsed(scene, challengeHash);
 
