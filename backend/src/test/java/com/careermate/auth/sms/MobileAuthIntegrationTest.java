@@ -186,12 +186,13 @@ class MobileAuthIntegrationTest {
         assertThat(json.path("data").path("challengeId").asText()).isNotBlank();
     }
 
+    // 发码限流已收口到 Auth Gateway：careermate 不再本地限流，而是透传网关返回的 429。
     @Test
-    void sendSmsCodeCooldownBlocksSecondSend() throws Exception {
+    void sendSmsCodeSurfacesGatewayRateLimit() throws Exception {
+        doThrow(new com.careermate.common.exception.BizException(ErrorCode.SMS_SEND_TOO_FREQUENT))
+                .when(authGatewayClient).sendSms(anyString(), anyString());
         String phone = uniquePhone();
         String body = objectMapper.writeValueAsString(Map.of("phone", phone, "scene", "mobile_login"));
-        mockMvc.perform(post("/api/auth/sms/send").contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isOk());
         mockMvc.perform(post("/api/auth/sms/send").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value(ErrorCode.SMS_SEND_TOO_FREQUENT.getCode()));
