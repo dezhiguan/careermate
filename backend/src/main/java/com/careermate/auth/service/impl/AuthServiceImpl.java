@@ -230,6 +230,11 @@ public class AuthServiceImpl implements AuthService {
                 .avatarUrl(user.getAvatarUrl())
                 .role(user.getRole())
                 .authenticated(true)
+                .phone(user.getPhone())
+                .email(user.getEmail())
+                .emailVerified(user.getEmailVerified())
+                .hasPassword(StringUtils.hasText(user.getPasswordHash()))
+                .status(user.getStatus())
                 .build();
     }
 

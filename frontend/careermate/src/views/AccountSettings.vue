@@ -45,9 +45,9 @@
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-label">登录密码</div>
-            <div class="setting-desc">{{ currentUser?.passwordHash ? '已设置' : '未设置（仅手机验证码登录）' }}</div>
+            <div class="setting-desc">{{ currentUser?.hasPassword ? '已设置' : '未设置（仅手机验证码登录）' }}</div>
           </div>
-          <button class="btn-link" @click="openSetPassword">{{ currentUser?.passwordHash ? '修改' : '设置' }}</button>
+          <button class="btn-link" @click="openSetPassword">{{ currentUser?.hasPassword ? '修改' : '设置' }}</button>
         </div>
       </div>
 
@@ -261,6 +261,8 @@ const phoneForm = reactive({ oldVerifyCode: '', oldChallengeId: '', oldPhoneTick
 const cancelForm = reactive({ confirmText: '', verifyCode: '', challengeId: '' })
 
 onMounted(async () => {
+  // 刷新最新用户信息（phone/email 等字段登录时不在 token 里）
+  try { await authStore.fetchCurrentUser() } catch (e) { /* ignore */ }
   sessionsLoading.value = true
   try {
     sessions.value = await listSessions()

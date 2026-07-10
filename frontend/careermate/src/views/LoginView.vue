@@ -89,11 +89,9 @@
 
         <!-- 登录面板 -->
         <template v-else>
-          <h2 class="card-title">登录 / 注册</h2>
-
           <!-- Tab 切换 -->
           <div class="tab-bar">
-            <button :class="['tab-btn', activeTab === 'sms' && 'active']" type="button" @click="activeTab = 'sms'">手机号验证码</button>
+            <button :class="['tab-btn', activeTab === 'sms' && 'active']" type="button" @click="activeTab = 'sms'">验证码登录</button>
             <button :class="['tab-btn', activeTab === 'password' && 'active']" type="button" @click="activeTab = 'password'">密码登录</button>
           </div>
 
@@ -169,6 +167,88 @@
           <p v-if="successMsg" class="success">{{ successMsg }}</p>
         </template>
       </section>
+    </div>
+
+    <!-- 用户协议弹窗 -->
+    <div v-if="showTerms" class="legal-mask" @click.self="showTerms = false">
+      <div class="legal-modal">
+        <div class="legal-header">
+          <h3>用户协议</h3>
+          <button class="legal-close" @click="showTerms = false">✕</button>
+        </div>
+        <div class="legal-body">
+          <p class="legal-updated">生效日期：2026 年 7 月 10 日</p>
+
+          <h4>一、服务说明</h4>
+          <p>CareerMate（以下简称"本平台"）是由广州灵犀科技有限公司运营的 AI 求职辅助平台。本平台提供简历优化、JD 分析、面试模拟等服务。使用本平台即表示您同意本协议的全部条款。</p>
+
+          <h4>二、账号注册与安全</h4>
+          <p>1. 您须提供真实、准确的手机号完成注册，并对账号安全负责。<br>
+          2. 严禁利用本平台从事违法活动，包括但不限于散布虚假信息、侵犯他人权益。<br>
+          3. 账号不得转让、出借或共享给第三方使用。</p>
+
+          <h4>三、服务内容与限制</h4>
+          <p>1. 本平台 AI 生成内容仅供参考，不构成法律、医疗、财务等专业建议。<br>
+          2. 每日使用次数可能根据账号等级有所限制，具体以平台公告为准。<br>
+          3. 本平台保留对违规账号进行封禁的权利。</p>
+
+          <h4>四、知识产权</h4>
+          <p>平台所有内容（含算法、界面、文案）归本平台所有。用户上传的简历等个人材料归用户本人所有，平台仅用于提供服务。</p>
+
+          <h4>五、免责声明</h4>
+          <p>因网络故障、不可抗力等原因导致的服务中断，本平台不承担责任。AI 生成结果的准确性由用户自行判断。</p>
+
+          <h4>六、协议变更</h4>
+          <p>本平台有权修改本协议，修改后将在平台内公告，继续使用即视为同意。如有疑问请联系：support@careermate.cn</p>
+        </div>
+        <div class="legal-footer">
+          <button class="btn-primary" style="width:auto;padding:8px 32px;" @click="showTerms = false">我已阅读</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 隐私政策弹窗 -->
+    <div v-if="showPrivacy" class="legal-mask" @click.self="showPrivacy = false">
+      <div class="legal-modal">
+        <div class="legal-header">
+          <h3>隐私政策</h3>
+          <button class="legal-close" @click="showPrivacy = false">✕</button>
+        </div>
+        <div class="legal-body">
+          <p class="legal-updated">生效日期：2026 年 7 月 10 日</p>
+
+          <h4>一、信息收集</h4>
+          <p>我们收集以下信息以提供服务：<br>
+          · <strong>账号信息</strong>：手机号、邮箱（可选）、账号名<br>
+          · <strong>使用数据</strong>：您上传的简历、输入的 JD 及对话内容<br>
+          · <strong>设备信息</strong>：IP 地址、浏览器类型、操作系统（用于安全防护）</p>
+
+          <h4>二、信息使用</h4>
+          <p>您的信息仅用于：提供 AI 求职辅助服务、保障账号安全、改善产品体验。我们<strong>不会</strong>将您的简历或对话内容出售给第三方。</p>
+
+          <h4>三、信息存储与保护</h4>
+          <p>数据存储于中国境内的服务器，采用 TLS 加密传输、AES-256 静态加密。您的密码经不可逆哈希处理，我们无法查看明文密码。</p>
+
+          <h4>四、信息共享</h4>
+          <p>以下情况可能涉及信息共享：<br>
+          · 经您明确授权的第三方服务（如简历投递平台）<br>
+          · 法律法规要求或司法机关依法调取<br>
+          · 为保护用户或公众安全的紧急情况</p>
+
+          <h4>五、您的权利（PIPL 合规）</h4>
+          <p>根据《个人信息保护法》，您有权：查阅、复制、更正、删除您的个人信息，以及撤回授权同意。请通过「账号设置 → 注销账号」或发送邮件至 privacy@careermate.cn 行使权利。</p>
+
+          <h4>六、Cookie 与追踪</h4>
+          <p>本平台使用必要 Cookie 维持登录状态，不使用跨站追踪 Cookie。</p>
+
+          <h4>七、联系我们</h4>
+          <p>隐私相关问题：privacy@careermate.cn<br>
+          地址：广州市天河区xxx科技园</p>
+        </div>
+        <div class="legal-footer">
+          <button class="btn-primary" style="width:auto;padding:8px 32px;" @click="showPrivacy = false">我已阅读</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -509,6 +589,20 @@ input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 2px rgba(7
 .onboarding-card p { margin: 0 0 20px; font-size: 13px; color: #475569; line-height: 1.7; }
 .onboarding-actions { display: flex; gap: 10px; }
 .onboarding-actions .btn-primary, .onboarding-actions .btn-secondary { flex: 1; }
+
+/* Legal Modals */
+.legal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.legal-modal { background: #fff; border-radius: 16px; width: min(560px, 100%); max-height: 85vh; display: flex; flex-direction: column; }
+.legal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 14px; border-bottom: 1px solid #e2e8f0; }
+.legal-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; }
+.legal-close { border: none; background: none; font-size: 16px; color: #94a3b8; cursor: pointer; padding: 4px 8px; line-height: 1; }
+.legal-close:hover { color: #475569; }
+.legal-body { flex: 1; overflow-y: auto; padding: 16px 20px; font-size: 13px; color: #334155; line-height: 1.7; }
+.legal-body h4 { font-size: 13px; font-weight: 700; color: #0f172a; margin: 16px 0 6px; }
+.legal-body h4:first-of-type { margin-top: 8px; }
+.legal-body p { margin: 0 0 8px; }
+.legal-updated { color: #94a3b8; font-size: 12px; margin-bottom: 12px !important; }
+.legal-footer { padding: 12px 20px 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; }
 
 @media (max-width: 768px) {
   .login-page { padding: 16px; align-content: start; padding-top: 32px; }

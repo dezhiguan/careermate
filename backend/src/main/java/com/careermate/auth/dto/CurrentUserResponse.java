@@ -16,4 +16,9 @@ public class CurrentUserResponse {
     private String avatarUrl;
     private String role;
     private boolean authenticated;
+    private String phone;
+    private String email;
+    private Boolean emailVerified;
+    private Boolean hasPassword;
+    private String status;
 }
