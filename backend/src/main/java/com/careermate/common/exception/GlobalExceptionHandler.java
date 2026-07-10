@@ -21,6 +21,22 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(com.careermate.auth.captcha.CaptchaRequiredException.class)
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> handleCaptchaRequired(
+            com.careermate.auth.captcha.CaptchaRequiredException e) {
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("captchaRequired", true);
+        data.put("challengeId", e.getChallengeId());
+        data.put("captchaImage", e.getCaptchaImage());
+        ApiResponse<java.util.Map<String, Object>> body = ApiResponse.<java.util.Map<String, Object>>builder()
+                .code(ErrorCode.BAD_REQUEST.getCode())
+                .message(e.getMessage())
+                .data(data)
+                .timestamp(System.currentTimeMillis())
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
     @ExceptionHandler(BizException.class)
     public ResponseEntity<ApiResponse<Void>> handleBizException(BizException e) {
         log.warn("Business exception: code={}, message={}", e.getCode(), e.getMessage());

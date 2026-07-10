@@ -257,7 +257,7 @@
 import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authStore } from '../stores/authStore'
-import { agreeTerms } from '../api/auth'
+import { agreeTerms, getCaptcha } from '../api/auth'
 
 const PHONE_PATTERN = /^1[3-9]\d{9}$/
 const VERIFY_CODE_PATTERN = /^\d{4,8}$/
@@ -327,6 +327,7 @@ watch(() => resetForm.phone, () => { resetForm.verifyCode = ''; resetForm.challe
 
 async function sendCode() {
   clearMessages()
+  if (!checkTerms()) return
   if (!PHONE_PATTERN.test(smsForm.phone)) {
     errorMsg.value = '请输入正确的手机号'
     return
@@ -379,10 +380,16 @@ async function submitPasswordLogin() {
   if (!checkTerms()) return
   if (!pwdForm.account) { errorMsg.value = '请输入账号'; return }
   if (!pwdForm.password) { errorMsg.value = '请输入密码'; return }
+  if (captchaRequired.value && !pwdForm.captcha) { errorMsg.value = '请输入图形验证码'; return }
   try {
-    const result = await authStore.login(pwdForm.account, pwdForm.password, { rememberMe: pwdForm.rememberMe })
+    const result = await authStore.login(pwdForm.account, pwdForm.password, {
+      rememberMe: pwdForm.rememberMe,
+      captcha: pwdForm.captcha,
+      captchaChallengeId: captchaChallengeId.value,
+    })
     await agreeTerms('v1').catch(() => {})
     captchaRequired.value = false
+    pwdForm.captcha = ''
     if (result?.isNewUser || result?.onboardingCompleted === false) {
       showOnboarding.value = true
       onboardingStep.value = 0
@@ -391,19 +398,27 @@ async function submitPasswordLogin() {
     }
   } catch (e) {
     const msg = e?.message || ''
-    // 识别是否需要验证码
-    if (msg.includes('图形验证') || msg.includes('captcha') || e?.captchaRequired) {
+    // 后端(透传 auth-gateway)在需要图形验证码时，将 {captchaRequired, captchaImage, challengeId} 放在响应 data 里
+    const d = e?.payload?.data
+    if (d?.captchaRequired || msg.includes('图形验证')) {
       captchaRequired.value = true
-      captchaImage.value = e?.captchaImage || ''
-      captchaChallengeId.value = e?.challengeId || ''
+      captchaImage.value = d?.captchaImage || ''
+      captchaChallengeId.value = d?.challengeId || ''
+      pwdForm.captcha = ''
     }
     errorMsg.value = msg || '账号或密码错误，请重试'
   }
 }
 
 async function refreshCaptcha() {
-  // 触发重新请求验证码（预留，当前依赖后端在下次登录失败时返回）
-  captchaImage.value = ''
+  try {
+    const data = await getCaptcha()
+    captchaImage.value = data?.captchaImage || ''
+    captchaChallengeId.value = data?.challengeId || ''
+    pwdForm.captcha = ''
+  } catch (e) {
+    // ignore
+  }
 }
 
 async function sendResetCode() {

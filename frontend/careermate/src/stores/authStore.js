@@ -95,10 +95,10 @@ async function init() {
   }
 }
 
-async function login(username, password, { rememberMe = false } = {}) {
+async function login(username, password, { rememberMe = false, captcha = '', captchaChallengeId = '' } = {}) {
   state.loading = true
   try {
-    const result = await loginApi({ account: username, password, rememberMe })
+    const result = await loginApi({ account: username, password, rememberMe, captcha, captchaChallengeId })
     persistToken(result?.token || '')
     persistUser(result?.user || null)
     state.onboardingCompleted = result?.onboardingCompleted !== false
