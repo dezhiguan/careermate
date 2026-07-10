@@ -73,14 +73,9 @@ public class PasswordResetService {
         String traceId = currentTraceId();
         String maskedPhone = PhoneSupport.maskPhone(phone);
         String phoneHash = phoneHash(phone);
-        String ipHash = ipHash(resolveClientIp());
 
-        try {
-            smsAuthRateLimiter.checkSendAllowed(SCENE, phoneHash, ipHash, maskedPhone, traceId);
-        } catch (BizException ex) {
-            mapRateLimitException(ex);
-        }
-
+        // 发码限流收口到 Auth Gateway：网关(/auth/password/reset/init, scene=RESET)统一强制限额，
+        // careermate 不再维护本地发码限流；超限时网关返回 429，由 AuthGatewayClient 翻译上抛。
         UserEntity user = findUserByPhone(phone);
         boolean activeUser = user != null && isActive(user);
 
@@ -91,7 +86,6 @@ public class PasswordResetService {
         String challengeHash = TokenReplayGuard.hashOutId(challengeId, pepper());
         smsAuthRateLimiter.storePendingChallenge(SCENE, phoneHash, challengeHash, providerOutId);
 
-        smsAuthRateLimiter.recordSend(SCENE, phoneHash, ipHash);
         auditService.recordSuccess(
                 user != null ? user.getId() : null,
                 AuditActionType.PASSWORD_RESET_SMS_SEND,
@@ -103,9 +97,8 @@ public class PasswordResetService {
         log.info("Password reset send success, phone={}, traceId={}, smsSent={}",
                 maskedPhone, traceId, activeUser);
 
-        long cooldown = smsAuthRateLimiter.sendCooldownRemainingSeconds(SCENE, phoneHash);
         return SmsSendResponse.builder()
-                .cooldownSeconds(cooldown > 0 ? cooldown : DEFAULT_COOLDOWN_SECONDS)
+                .cooldownSeconds(DEFAULT_COOLDOWN_SECONDS)
                 .challengeId(challengeId)
                 .build();
     }

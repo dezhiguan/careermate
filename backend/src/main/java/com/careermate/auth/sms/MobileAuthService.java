@@ -88,29 +88,27 @@ public class MobileAuthService {
         String traceId = currentTraceId();
         String maskedPhone = PhoneSupport.maskPhone(phone);
         String phoneHash = phoneHash(phone);
-        String ipHash = ipHash(resolveClientIp());
 
         if (requiresCaptcha(request)) {
             throw new BizException(ErrorCode.SMS_CAPTCHA_REQUIRED);
         }
 
-        smsAuthRateLimiter.checkSendAllowed(scene, phoneHash, ipHash, maskedPhone, traceId);
-
+        // 发码限流收口到 Auth Gateway：网关(/auth/sms/send)统一强制冷却/每日/每IP限额，
+        // 并对 careermate 与 RAGForge 同号共享同一份计数；超限时网关返回 429，由 AuthGatewayClient 翻译上抛。
+        // careermate 不再维护本地发码限流（避免与网关双重、且两产品行为不一致）。
         authGatewayClient.sendSms(phone, "login");
         String providerOutId = null;
         String challengeId = UUID.randomUUID().toString();
         String challengeHash = TokenReplayGuard.hashOutId(challengeId, pepper());
         smsAuthRateLimiter.storePendingChallenge(scene, phoneHash, challengeHash, providerOutId);
 
-        smsAuthRateLimiter.recordSend(scene, phoneHash, ipHash);
         auditService.recordSuccess(null, AuditActionType.SMS_SEND, "SMS", scene.value(),
                 "send phone=" + maskedPhone + ", provider=auth-gateway");
         log.info("Mobile auth send success, phone={}, scene={}, traceId={}, provider=auth-gateway",
                 maskedPhone, scene.value(), traceId);
 
-        long cooldown = smsAuthRateLimiter.sendCooldownRemainingSeconds(scene, phoneHash);
         return SmsSendResponse.builder()
-                .cooldownSeconds(cooldown > 0 ? cooldown : DEFAULT_COOLDOWN_SECONDS)
+                .cooldownSeconds(DEFAULT_COOLDOWN_SECONDS)
                 .challengeId(challengeId)
                 .outId(providerOutId)
                 .build();
