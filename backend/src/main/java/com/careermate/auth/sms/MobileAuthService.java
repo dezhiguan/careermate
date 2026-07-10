@@ -139,7 +139,7 @@ public class MobileAuthService {
             throw new BizException(ErrorCode.MOBILE_AUTH_EXPIRED);
         }
 
-        AuthGatewayClient.TokenResponse tokenResponse = authGatewayClient.loginMobile(phone, verifyCode);
+        AuthGatewayClient.TokenResponse tokenResponse = authGatewayClient.loginMobile(phone, verifyCode, request.isRememberMe());
         smsAuthRateLimiter.clearLoginFailure(scene, phoneHash);
         tokenReplayGuard.markChallengeUsed(scene, challengeHash);
 
@@ -242,11 +242,13 @@ public class MobileAuthService {
 
     private AuthTokenResponse buildTokenResponse(UserEntity user, boolean isNewUser, AuthGatewayClient.TokenResponse tokenResponse) {
         cookieSupport.writeRefreshCookie(tokenResponse.getRefreshToken());
+        boolean onboardingDone = user.getOnboardingCompletedAt() != null;
         return AuthTokenResponse.builder()
                 .token(tokenResponse.getAccessToken())
                 .tokenType(StringUtils.hasText(tokenResponse.getTokenType()) ? tokenResponse.getTokenType() : "Bearer")
                 .expiresIn(tokenResponse.getExpiresIn())
                 .isNewUser(isNewUser)
+                .onboardingCompleted(onboardingDone)
                 .user(AuthTokenResponse.UserInfo.builder()
                         .userId(user.getId())
                         .username(user.getUsername())

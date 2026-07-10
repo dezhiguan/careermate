@@ -1,8 +1,12 @@
 import { reactive, computed } from 'vue'
 import {
+  agreeTerms as agreeTermsApi,
+  completeOnboarding as completeOnboardingApi,
   confirmPasswordReset as confirmPasswordResetApi,
   getCurrentUser,
   login as loginApi,
+  logout as logoutApi,
+  logoutAll as logoutAllApi,
   mobileLogin as mobileLoginApi,
   register as registerApi,
   sendPasswordResetSms as sendPasswordResetSmsApi,
@@ -10,6 +14,14 @@ import {
   updateProfile as updateProfileApi,
 } from '../api/auth'
 import { TOKEN_KEY, USER_KEY } from '../api/http'
+
+const BROADCAST_CHANNEL_NAME = 'careermate_auth'
+let bc = null
+try {
+  bc = new BroadcastChannel(BROADCAST_CHANNEL_NAME)
+} catch (e) {
+  // BroadcastChannel not supported
+}
 
 const state = reactive({
   token: localStorage.getItem(TOKEN_KEY) || '',
@@ -23,6 +35,8 @@ const state = reactive({
   })(),
   initialized: false,
   loading: false,
+  onboardingCompleted: true,
+  termsAgreed: false,
 })
 
 function persistUser(user) {
@@ -81,12 +95,13 @@ async function init() {
   }
 }
 
-async function login(username, password) {
+async function login(username, password, { rememberMe = false } = {}) {
   state.loading = true
   try {
-    const result = await loginApi({ username, password })
+    const result = await loginApi({ account: username, password, rememberMe })
     persistToken(result?.token || '')
     persistUser(result?.user || null)
+    state.onboardingCompleted = result?.onboardingCompleted !== false
     return result
   } finally {
     state.loading = false
@@ -122,22 +137,55 @@ async function resetPassword(payload) {
   }
 }
 
-async function mobileLogin(phone, verifyCode, challengeId) {
+async function mobileLogin(phone, verifyCode, challengeId, { rememberMe = false } = {}) {
   state.loading = true
   try {
-    const result = await mobileLoginApi(phone, verifyCode, challengeId)
+    const result = await mobileLoginApi(phone, verifyCode, challengeId, 'mobile_login', rememberMe)
     persistToken(result?.token || '')
     persistUser(result?.user || null)
+    state.onboardingCompleted = result?.onboardingCompleted !== false
     return result
   } finally {
     state.loading = false
   }
 }
 
-function logout() {
+async function logout() {
+  try {
+    await logoutApi()
+  } catch (e) {
+    // best-effort; clear local state regardless
+  }
   clearAuth()
   state.initialized = false
+  if (bc) bc.postMessage({ type: 'logout' })
   window.location.hash = '/login'
+}
+
+async function logoutAll() {
+  try {
+    await logoutAllApi()
+  } catch (e) {
+    // best-effort
+  }
+  clearAuth()
+  state.initialized = false
+  if (bc) bc.postMessage({ type: 'logout' })
+  window.location.hash = '/login'
+}
+
+async function markOnboardingComplete() {
+  try {
+    await completeOnboardingApi()
+  } catch (e) {
+    // best-effort
+  }
+  state.onboardingCompleted = true
+}
+
+async function agreeTerms() {
+  await agreeTermsApi('v1')
+  state.termsAgreed = true
 }
 
 async function updateProfile(payload) {
@@ -161,6 +209,17 @@ function applyUserProfile(user) {
 
 const isAuthenticated = computed(() => !!state.token && !!state.currentUser?.authenticated)
 
+// 跨 tab 同步登出
+if (bc) {
+  bc.onmessage = (event) => {
+    if (event.data?.type === 'logout') {
+      clearAuth()
+      state.initialized = false
+      window.location.hash = '/login'
+    }
+  }
+}
+
 export const authStore = {
   state,
   init,
@@ -172,8 +231,11 @@ export const authStore = {
   resetPassword,
   mobileLogin,
   logout,
+  logoutAll,
   updateProfile,
   applyUserProfile,
   fetchCurrentUser,
+  markOnboardingComplete,
+  agreeTerms,
   isAuthenticated: () => isAuthenticated.value,
 }

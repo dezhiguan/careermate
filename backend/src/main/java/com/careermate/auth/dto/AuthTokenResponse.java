@@ -16,6 +16,7 @@ public class AuthTokenResponse {
     private Long expiresIn;
     private UserInfo user;
     private Boolean isNewUser;
+    private Boolean onboardingCompleted;
 
     @Data
     @Builder

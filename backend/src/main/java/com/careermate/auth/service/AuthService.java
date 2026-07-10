@@ -15,4 +15,8 @@ public interface AuthService {
     CurrentUserResponse currentUser();
 
     CurrentUserResponse updateProfile(UpdateProfileRequest request);
+
+    void logout();
+
+    void logoutAll();
 }
