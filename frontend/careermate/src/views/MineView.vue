@@ -268,7 +268,10 @@
       </div>
     </section>
 
-    <button type="button" class="logout-btn" @click="handleLogout">退出登录</button>
+    <div style="display:flex;gap:10px;padding:0 16px 24px;">
+      <button type="button" class="logout-btn" style="flex:1" @click="handleLogout">退出登录</button>
+      <button type="button" class="logout-btn" style="flex:1;background:#f8fafc;color:#4f46e5;border:1px solid #4f46e5;" @click="$router.push('/mine/account-settings')">账号与安全</button>
+    </div>
   </div>
 </template>
 

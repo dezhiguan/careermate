@@ -23,6 +23,12 @@ public class MobileLoginRequest {
 
     private String scene = "mobile_login";
 
+    private Boolean rememberMe;
+
+    public boolean isRememberMe() {
+        return Boolean.TRUE.equals(rememberMe);
+    }
+
     public String resolveChallengeId() {
         if (org.springframework.util.StringUtils.hasText(challengeId)) {
             return challengeId.trim();

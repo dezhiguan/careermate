@@ -72,6 +72,12 @@ const routes = [
     component: () => import('../views/AgentRuns.vue'),
     meta: { title: '深度任务' },
   },
+  {
+    path: '/mine/account-settings',
+    name: 'account-settings',
+    component: () => import('../views/AccountSettings.vue'),
+    meta: { title: '账号与安全' },
+  },
   { path: '/match', redirect: '/opportunity' },
   { path: '/dashboard', redirect: '/opportunity' },
   { path: '/resume', redirect: '/mine/resume' },

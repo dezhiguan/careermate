@@ -43,19 +43,41 @@ public class AuthGatewayClient {
     }
 
     public TokenResponse loginPassword(String account, String password) {
+        return loginPassword(account, password, false);
+    }
+
+    public TokenResponse loginPassword(String account, String password, boolean rememberMe) {
         MultiValueMap<String, String> form = clientForm();
         form.add("account", account);
         form.add("password", password);
         form.add("target_aud", properties.getAudience());
+        if (rememberMe) {
+            form.add("remember_me", "true");
+        }
         return postForm("/auth/login/password", form, TokenResponse.class);
     }
 
     public TokenResponse loginMobile(String phone, String code) {
+        return loginMobile(phone, code, false);
+    }
+
+    public TokenResponse loginMobile(String phone, String code, boolean rememberMe) {
         MultiValueMap<String, String> form = clientForm();
         form.add("phone", phone);
         form.add("code", code);
         form.add("target_aud", properties.getAudience());
+        if (rememberMe) {
+            form.add("remember_me", "true");
+        }
         return postForm("/auth/login/mobile", form, TokenResponse.class);
+    }
+
+    public void revokeSession(String jti) {
+        try {
+            postJson("/auth/sessions/revoke", Map.of("jti", jti), Map.class);
+        } catch (Exception ignored) {
+            // best-effort; session_version invalidation is the primary guard
+        }
     }
 
     public void sendSms(String phone, String scene) {

@@ -40,6 +40,26 @@ public class UserEntity {
 
     private String status;
 
+    private Boolean emailVerified;
+
+    private OffsetDateTime emailVerifiedAt;
+
+    private OffsetDateTime usernameUpdatedAt;
+
+    private Integer loginFailedCount;
+
+    private OffsetDateTime loginLockedUntil;
+
+    private OffsetDateTime termsAgreedAt;
+
+    private String termsVersion;
+
+    private OffsetDateTime onboardingCompletedAt;
+
+    private OffsetDateTime pendingDeletionAt;
+
+    private OffsetDateTime deletionScheduledAt;
+
     private OffsetDateTime createdAt;
 
     private OffsetDateTime updatedAt;

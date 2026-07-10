@@ -35,7 +35,25 @@ public enum ErrorCode {
 
     PASSWORD_RESET_INVALID(400, "验证码错误或已过期，请重新获取"),
     PASSWORD_RESET_LIMITED(429, "操作过于频繁，请稍后再试"),
-    PASSWORD_RESET_PROVIDER_ERROR(500, "验证码发送失败，请稍后再试");
+    PASSWORD_RESET_PROVIDER_ERROR(500, "验证码发送失败，请稍后再试"),
+
+    ACCOUNT_BANNED(403, "账号已被停用，请联系客服处理"),
+    ACCOUNT_LOCKED(429, "账号已因多次失败被暂时锁定，请15分钟后再试，或使用手机验证码登录"),
+    ACCOUNT_CANCELLING(403, "账号正在注销中，如需恢复请在7天内撤销注销"),
+    CAPTCHA_REQUIRED(400, "连续登录失败，请先完成图形验证"),
+    CAPTCHA_INVALID(400, "图形验证码错误，请重新输入"),
+    USERNAME_TAKEN(400, "该账号名已被使用，请换一个"),
+    USERNAME_FORMAT_INVALID(400, "账号名为4-32位，支持字母、数字、下划线、中划线，且不能全为数字"),
+    USERNAME_UPDATE_TOO_FREQUENT(400, "账号名每30天只能修改一次"),
+    EMAIL_ALREADY_BOUND(400, "该邮箱已绑定其他账号"),
+    EMAIL_FORMAT_INVALID(400, "请输入有效的邮箱地址"),
+    PASSWORD_WEAK(400, "密码至少8位，且包含字母和数字"),
+    PASSWORD_HISTORY_CONFLICT(400, "新密码不能与近3次使用的密码相同"),
+    SESSION_NOT_FOUND(404, "会话不存在或已过期"),
+    PHONE_VERIFY_REQUIRED(400, "请先完成手机号验证"),
+    PHONE_ALREADY_BOUND(400, "该手机号已绑定其他账号"),
+    ACCOUNT_DELETE_CONFIRM_INVALID(400, "请输入「注销」确认注销操作"),
+    ACCOUNT_NOT_CANCELLING(400, "当前账号不在注销流程中");
 
     private final Integer code;
     private final String message;
