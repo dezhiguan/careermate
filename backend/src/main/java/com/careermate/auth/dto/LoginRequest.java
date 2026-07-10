@@ -11,7 +11,7 @@ public class LoginRequest {
 
     private String account;
 
-    @NotBlank(message = "password不能为空")
+    @NotBlank(message = "请输入密码")
     private String password;
 
     private Boolean rememberMe;
