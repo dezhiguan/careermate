@@ -47,6 +47,15 @@ public class AuthGatewayClient {
     }
 
     public TokenResponse loginPassword(String account, String password, boolean rememberMe) {
+        return loginPassword(account, password, rememberMe, null, null);
+    }
+
+    /**
+     * 密码登录。captcha/challengeId 透传给 auth-gateway：失败次数达阈值后网关会要求图形验证码，
+     * 校验通过才放行。网关返回 CAPTCHA_REQUIRED 时，{@link #exchange} 会抛出 CaptchaRequiredException 携带图片。
+     */
+    public TokenResponse loginPassword(String account, String password, boolean rememberMe,
+                                       String captcha, String challengeId) {
         MultiValueMap<String, String> form = clientForm();
         form.add("account", account);
         form.add("password", password);
@@ -54,7 +63,29 @@ public class AuthGatewayClient {
         if (rememberMe) {
             form.add("remember_me", "true");
         }
+        if (captcha != null && !captcha.isBlank()) {
+            form.add("captcha", captcha);
+        }
+        if (challengeId != null && !challengeId.isBlank()) {
+            form.add("challenge_id", challengeId);
+        }
         return postForm("/auth/login/password", form, TokenResponse.class);
+    }
+
+    /** 代理获取一张新的图形验证码（前端"看不清换一张"）。返回 {captchaImage, challengeId}。 */
+    public Map<String, Object> getCaptcha() {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            @SuppressWarnings("unchecked")
+            ResponseEntity<Map<String, Object>> response = (ResponseEntity<Map<String, Object>>) (ResponseEntity<?>)
+                    restTemplate.exchange(properties.getBaseUrl() + "/auth/captcha",
+                            org.springframework.http.HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+            return response.getBody();
+        } catch (HttpStatusCodeException ex) {
+            throw toBizException(ex);
+        } catch (Exception ex) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR.getCode(), "认证服务不可用");
+        }
     }
 
     public TokenResponse loginMobile(String phone, String code) {
@@ -154,14 +185,28 @@ public class AuthGatewayClient {
     private BizException toBizException(HttpStatusCodeException ex) {
         String gatewayCode = null;
         String gatewayMessage = null;
+        String captchaImage = null;
+        String captchaChallengeId = null;
         try {
             Map<String, Object> payload = objectMapper.readValue(ex.getResponseBodyAsString(), new TypeReference<>() {});
             Object code = payload.getOrDefault("error", payload.get("code"));
             Object message = payload.getOrDefault("message", payload.get("msg"));
             gatewayCode = code == null ? null : String.valueOf(code);
             gatewayMessage = message == null ? null : String.valueOf(message);
+            Object img = payload.get("captchaImage");
+            Object cid = payload.get("challengeId");
+            captchaImage = img == null ? null : String.valueOf(img);
+            captchaChallengeId = cid == null ? null : String.valueOf(cid);
         } catch (Exception ignored) {
             // keep default mapping below
+        }
+
+        // 网关要求图形验证码（HTTP 423 CAPTCHA_REQUIRED）：透传图片与 challengeId 给前端展示回填
+        if ((gatewayCode != null && gatewayCode.toUpperCase().contains("CAPTCHA_REQUIRED"))
+                || ex.getStatusCode().value() == 423) {
+            String msg = gatewayMessage != null && !gatewayMessage.isBlank()
+                    ? gatewayMessage : "请输入图形验证码后重试";
+            throw new com.careermate.auth.captcha.CaptchaRequiredException(msg, captchaChallengeId, captchaImage);
         }
 
         String friendlyMessage = friendlyGatewayMessage(gatewayCode, gatewayMessage, ex.getStatusCode().value());

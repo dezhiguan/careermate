@@ -138,3 +138,9 @@ export function completeOnboarding() {
 export function agreeTerms(version = 'v1') {
   return request(`/user/terms/agree?version=${version}`, { method: 'POST' })
 }
+
+// ─── 图形验证码 ──────────────────────────────────────────────────────────────
+
+export function getCaptcha() {
+  return request('/auth/captcha', { method: 'GET' })
+}

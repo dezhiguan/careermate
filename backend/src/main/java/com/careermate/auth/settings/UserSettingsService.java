@@ -51,6 +51,7 @@ public class UserSettingsService {
     private final AliyunSmsProperties smsProperties;
     private final SecurityProperties securityProperties;
     private final AuthGatewayClient authGatewayClient;
+    private final com.careermate.auth.events.AuthEventService authEventService;
 
     public UserSettingsService(
             UserMapper userMapper,
@@ -61,7 +62,8 @@ public class UserSettingsService {
             TokenReplayGuard tokenReplayGuard,
             AliyunSmsProperties smsProperties,
             SecurityProperties securityProperties,
-            AuthGatewayClient authGatewayClient
+            AuthGatewayClient authGatewayClient,
+            com.careermate.auth.events.AuthEventService authEventService
     ) {
         this.userMapper = userMapper;
         this.sessionMapper = sessionMapper;
@@ -72,6 +74,26 @@ public class UserSettingsService {
         this.smsProperties = smsProperties;
         this.securityProperties = securityProperties;
         this.authGatewayClient = authGatewayClient;
+        this.authEventService = authEventService;
+    }
+
+    /** 踢下当前用户除 keepJti 外的所有设备：吊销各自 jti + 删除会话行。用于改密/换绑后。 */
+    private void revokeOtherSessions(UserEntity user, String keepJti) {
+        List<UserLoginSessionEntity> others = sessionMapper.selectList(
+                new LambdaQueryWrapper<UserLoginSessionEntity>()
+                        .eq(UserLoginSessionEntity::getUserId, user.getId()));
+        for (UserLoginSessionEntity s : others) {
+            if (keepJti != null && keepJti.equals(s.getId())) {
+                continue;
+            }
+            authEventService.revokeJti(s.getId(), null);
+            sessionMapper.deleteById(s.getId());
+        }
+    }
+
+    private String currentJti() {
+        CurrentUser cu = CurrentUserContext.get();
+        return cu == null ? null : cu.getJti();
     }
 
     // ─── 邮箱绑定（Phase 1：存储，不验证）────────────────────────────────────────
@@ -135,6 +157,8 @@ public class UserSettingsService {
         user.setSessionVersion(user.getSessionVersion() == null ? 1L : user.getSessionVersion() + 1);
         userMapper.updateById(user);
         savePasswordHistory(user.getId(), hash);
+        // 改密后踢下其他设备（保留当前设备），使已签发的旧 token 立即失效
+        revokeOtherSessions(user, currentJti());
         log.info("User {} set password, session_version={}", user.getId(), user.getSessionVersion());
     }
 
@@ -181,6 +205,8 @@ public class UserSettingsService {
         user.setPhoneVerifiedAt(OffsetDateTime.now(ZoneOffset.UTC));
         user.setSessionVersion(user.getSessionVersion() == null ? 1L : user.getSessionVersion() + 1);
         userMapper.updateById(user);
+        // 换绑手机后踢下其他设备（保留当前设备）
+        revokeOtherSessions(user, currentJti());
         log.info("User {} changed phone, session_version={}", user.getId(), user.getSessionVersion());
     }
 
@@ -216,8 +242,10 @@ public class UserSettingsService {
 
     // ─── 会话管理────────────────────────────────────────────────────────────────
 
-    public List<SessionInfoResponse> listSessions(String currentSessionId) {
+    public List<SessionInfoResponse> listSessions(String currentSessionIdFromHeader) {
         UserEntity user = requireCurrentUser();
+        // 当前设备判定优先用当前请求 token 的 jti（会话行 id == jti），header 仅作兜底
+        String currentSessionId = currentJti() != null ? currentJti() : currentSessionIdFromHeader;
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         List<UserLoginSessionEntity> sessions = sessionMapper.selectList(
                 new LambdaQueryWrapper<UserLoginSessionEntity>()
@@ -247,16 +275,23 @@ public class UserSettingsService {
             throw new BizException(ErrorCode.SESSION_NOT_FOUND);
         }
         sessionMapper.deleteById(sessionId);
-        authGatewayClient.revokeSession(sessionId);
+        // 会话行 id == access token 的 jti，直接吊销该 jti 使被踢设备下次请求即 401
+        authEventService.revokeJti(sessionId, null);
+        // 同步通知 auth-gateway（best-effort，失败不影响本地吊销）
+        try {
+            authGatewayClient.revokeSession(sessionId);
+        } catch (RuntimeException ex) {
+            log.warn("notify auth-gateway revokeSession failed (non-fatal): {}", ex.getMessage());
+        }
         log.info("User {} revoked session {}", user.getId(), sessionId);
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void revokeAllOtherSessions(String currentSessionId) {
+    public void revokeAllOtherSessions(String currentSessionIdFromHeader) {
         UserEntity user = requireCurrentUser();
-        sessionMapper.delete(new LambdaQueryWrapper<UserLoginSessionEntity>()
-                .eq(UserLoginSessionEntity::getUserId, user.getId())
-                .ne(UserLoginSessionEntity::getId, currentSessionId));
+        String keepJti = currentJti() != null ? currentJti() : currentSessionIdFromHeader;
+        // 逐个吊销其他会话的 jti，保留当前设备
+        revokeOtherSessions(user, keepJti);
         user.setSessionVersion(user.getSessionVersion() == null ? 1L : user.getSessionVersion() + 1);
         userMapper.updateById(user);
         log.info("User {} revoked all other sessions, session_version={}", user.getId(), user.getSessionVersion());

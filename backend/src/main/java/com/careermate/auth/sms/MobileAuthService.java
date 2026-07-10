@@ -54,6 +54,7 @@ public class MobileAuthService {
     private final AuthGatewayClient authGatewayClient;
     private final AuthGatewayCookieSupport cookieSupport;
     private final TokenReplayGuard tokenReplayGuard;
+    private final com.careermate.auth.session.LoginSessionRecorder loginSessionRecorder;
 
     public MobileAuthService(
             SmsAuthRateLimiter smsAuthRateLimiter,
@@ -66,7 +67,8 @@ public class MobileAuthService {
             AuditService auditService,
             AuthGatewayClient authGatewayClient,
             AuthGatewayCookieSupport cookieSupport,
-            TokenReplayGuard tokenReplayGuard
+            TokenReplayGuard tokenReplayGuard,
+            com.careermate.auth.session.LoginSessionRecorder loginSessionRecorder
     ) {
         this.smsAuthRateLimiter = smsAuthRateLimiter;
         this.smsProperties = smsProperties;
@@ -79,6 +81,7 @@ public class MobileAuthService {
         this.authGatewayClient = authGatewayClient;
         this.cookieSupport = cookieSupport;
         this.tokenReplayGuard = tokenReplayGuard;
+        this.loginSessionRecorder = loginSessionRecorder;
     }
 
     public SmsSendResponse sendCode(SmsSendRequest request) {
@@ -186,6 +189,8 @@ public class MobileAuthService {
                 String.valueOf(user.getId()),
                 "mobile login phone=" + maskedPhone + ", newUser=" + isNewUser
                         + ", provider=auth-gateway");
+        loginSessionRecorder.record(user.getId(), tokenResponse.getAccessToken(),
+                request.isRememberMe(), currentRequest());
         return buildTokenResponse(user, isNewUser, tokenResponse);
     }
 

@@ -111,6 +111,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         .username(user.getUsername())
                         .role(user.getRole())
                         .authenticated(true)
+                        .jti(claims.getId())
+                        .authUserKey(userKey(claims))
+                        .issuedAtEpochSeconds(issuedAtEpochSeconds(claims))
                         .build()
         );
         return true;
@@ -142,6 +145,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || "/api/auth/register".equals(path)
                 || "/api/auth/login".equals(path)
                 || "/api/auth/sms/send".equals(path)
+                || "/api/auth/captcha".equals(path)
                 || "/api/auth/mobile/login".equals(path)
                 || "/api/auth/password-reset/sms/send".equals(path)
                 || "/api/auth/password-reset/confirm".equals(path)

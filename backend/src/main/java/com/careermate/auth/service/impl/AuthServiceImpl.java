@@ -44,6 +44,8 @@ public class AuthServiceImpl implements AuthService {
     private final AuthGatewayClient authGatewayClient;
     private final AuthGatewayCookieSupport cookieSupport;
     private final AuditService auditService;
+    private final com.careermate.auth.session.LoginSessionRecorder loginSessionRecorder;
+    private final com.careermate.auth.events.AuthEventService authEventService;
 
     public AuthServiceImpl(
             UserMapper userMapper,
@@ -52,7 +54,9 @@ public class AuthServiceImpl implements AuthService {
             JwtTokenProvider jwtTokenProvider,
             AuthGatewayClient authGatewayClient,
             AuthGatewayCookieSupport cookieSupport,
-            AuditService auditService
+            AuditService auditService,
+            com.careermate.auth.session.LoginSessionRecorder loginSessionRecorder,
+            com.careermate.auth.events.AuthEventService authEventService
     ) {
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
@@ -61,6 +65,8 @@ public class AuthServiceImpl implements AuthService {
         this.authGatewayClient = authGatewayClient;
         this.cookieSupport = cookieSupport;
         this.auditService = auditService;
+        this.loginSessionRecorder = loginSessionRecorder;
+        this.authEventService = authEventService;
     }
 
     @Override
@@ -108,7 +114,10 @@ public class AuthServiceImpl implements AuthService {
             assertAccountLoginable(user);
         }
         try {
-            AuthTokenResponse response = loginFromGateway(account, request.getPassword(), user, false, request.isRememberMe());
+            // captcha/challengeId 透传给 auth-gateway（权威图形验证码，与 RAGForge 一致）；
+            // 网关要求验证码时会抛 CaptchaRequiredException（非 BizException），直接向上传播携带图片
+            AuthTokenResponse response = loginFromGateway(account, request.getPassword(), user, false,
+                    request.isRememberMe(), request.getCaptcha(), request.getCaptchaChallengeId());
             if (user != null) {
                 clearLoginFailure(user);
             }
@@ -123,9 +132,33 @@ public class AuthServiceImpl implements AuthService {
         } catch (BizException ex) {
             if (user != null && ex.getCode() == 401) {
                 recordLoginFailure(user);
+                RuntimeException enriched = buildLoginFailure(user);
+                if (enriched != null) {
+                    throw enriched;
+                }
             }
             throw ex;
         }
+    }
+
+    // 图形验证码 + 锁定由 auth-gateway 统一负责（阈值 5，与 RAGForge 一致）。
+    // CareerMate 本地仅保留失败计数用于"还可以尝试 N 次"的友好提示，不再本地硬锁定，
+    // 以免抢在网关图形验证码之前把用户锁死。
+    private static final int GATEWAY_CAPTCHA_THRESHOLD = 5;
+
+    /**
+     * 根据当前失败次数生成友好的登录失败提示（剩余次数）。
+     * 返回 null 表示无需增强（第 1 次失败或已达网关验证码阶段），由调用方沿用网关原始异常与文案。
+     */
+    private RuntimeException buildLoginFailure(UserEntity user) {
+        int count = user.getLoginFailedCount() == null ? 0 : user.getLoginFailedCount();
+        // 第 2~4 次失败给出剩余次数提醒；第 5 次起由网关返回图形验证码（CaptchaRequiredException 已在网关客户端抛出）
+        if (count >= 2 && count < GATEWAY_CAPTCHA_THRESHOLD) {
+            int remaining = GATEWAY_CAPTCHA_THRESHOLD - count;
+            return new BizException(ErrorCode.UNAUTHORIZED.getCode(),
+                    "密码错误，还可以尝试 " + remaining + " 次，之后需完成图形验证码");
+        }
+        return null;
     }
 
     private UserEntity resolveUserByAccount(String account) {
@@ -157,18 +190,18 @@ public class AuthServiceImpl implements AuthService {
         if (!"ACTIVE".equalsIgnoreCase(status)) {
             throw new BizException(ErrorCode.UNAUTHORIZED.getCode(), "账号状态异常，请联系客服");
         }
+        // 锁定/图形验证码交由 auth-gateway 统一负责，本地不再硬锁定（避免抢在网关验证码之前锁死账号）。
+        // 兼容历史遗留的本地锁：若之前已写入未过期的 loginLockedUntil，仍尊重之。
         if (user.getLoginLockedUntil() != null && user.getLoginLockedUntil().isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
             throw new BizException(ErrorCode.ACCOUNT_LOCKED);
         }
     }
 
     private void recordLoginFailure(UserEntity user) {
+        // 仅累计失败次数用于"还可以尝试 N 次"提示；不再本地设置锁定时间（锁定/验证码归 auth-gateway）
         int count = user.getLoginFailedCount() == null ? 0 : user.getLoginFailedCount();
         count++;
         user.setLoginFailedCount(count);
-        if (count >= 5) {
-            user.setLoginLockedUntil(OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(15));
-        }
         userMapper.updateById(user);
     }
 
@@ -253,6 +286,13 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void logout() {
         clearRefreshCookie();
+        // 单设备退出：精确吊销当前 access token 的 jti，使旧 token 立即失效（此前仅清 cookie，token 仍有效至过期）
+        CurrentUser cu = CurrentUserContext.get();
+        if (cu != null && StringUtils.hasText(cu.getJti())) {
+            // TTL 用默认值即可覆盖 15 分钟 access token 生命周期
+            authEventService.revokeJti(cu.getJti(), null);
+            deleteSessionQuietly(cu.getJti());
+        }
         auditService.recordSuccess(
                 currentUserId(),
                 AuditActionType.LOGIN,
@@ -275,8 +315,34 @@ public class AuthServiceImpl implements AuthService {
         }
         user.setSessionVersion(user.getSessionVersion() == null ? 1L : user.getSessionVersion() + 1);
         userMapper.updateById(user);
+        // 退出全部设备：用户级吊销 —— 该用户当前时刻之前签发的所有 access token 全部失效
+        if (StringUtils.hasText(cu.getAuthUserKey())) {
+            authEventService.revokeUserAfter(cu.getAuthUserKey(), java.time.Instant.now().getEpochSecond());
+        }
+        deleteAllSessionsQuietly(user.getId());
         clearRefreshCookie();
         auditService.recordSuccess(user.getId(), AuditActionType.LOGIN, "USER", String.valueOf(user.getId()), "logout-all");
+    }
+
+    private void deleteSessionQuietly(String jti) {
+        try {
+            loginSessionRecorder.deleteById(jti);
+        } catch (RuntimeException ignored) {
+            // best-effort
+        }
+    }
+
+    private void deleteAllSessionsQuietly(Long localUserId) {
+        try {
+            loginSessionRecorder.deleteAllForUser(localUserId);
+        } catch (RuntimeException ignored) {
+            // best-effort
+        }
+    }
+
+    private HttpServletRequest currentHttpRequest() {
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        return attrs == null ? null : attrs.getRequest();
     }
 
     private void clearRefreshCookie() {
@@ -302,13 +368,26 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AuthTokenResponse loginFromGateway(String account, String password, UserEntity localUser, boolean isNewUser) {
-        return loginFromGateway(account, password, localUser, isNewUser, false);
+        return loginFromGateway(account, password, localUser, isNewUser, false, null, null);
     }
 
     private AuthTokenResponse loginFromGateway(String account, String password, UserEntity localUser, boolean isNewUser, boolean rememberMe) {
-        AuthGatewayClient.TokenResponse tokenResponse = rememberMe
-                ? authGatewayClient.loginPassword(account, password, true)
-                : authGatewayClient.loginPassword(account, password);
+        return loginFromGateway(account, password, localUser, isNewUser, rememberMe, null, null);
+    }
+
+    private AuthTokenResponse loginFromGateway(String account, String password, UserEntity localUser, boolean isNewUser,
+                                               boolean rememberMe, String captcha, String captchaChallengeId) {
+        // 仅在带图形验证码时走 5 参重载；否则沿用 2/3 参重载，保持与既有调用/测试桩兼容
+        boolean hasCaptcha = (captcha != null && !captcha.isBlank())
+                || (captchaChallengeId != null && !captchaChallengeId.isBlank());
+        AuthGatewayClient.TokenResponse tokenResponse;
+        if (hasCaptcha) {
+            tokenResponse = authGatewayClient.loginPassword(account, password, rememberMe, captcha, captchaChallengeId);
+        } else if (rememberMe) {
+            tokenResponse = authGatewayClient.loginPassword(account, password, true);
+        } else {
+            tokenResponse = authGatewayClient.loginPassword(account, password);
+        }
         cookieSupport.writeRefreshCookie(tokenResponse.getRefreshToken());
         long authUserId = jwtTokenProvider.getUserId(tokenResponse.getAccessToken());
         UserEntity user = localUser != null ? localUser : userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
@@ -317,6 +396,9 @@ public class AuthServiceImpl implements AuthService {
         if (user != null && !Long.valueOf(authUserId).equals(user.getAuthUserId())) {
             user.setAuthUserId(authUserId);
             userMapper.updateById(user);
+        }
+        if (user != null) {
+            loginSessionRecorder.record(user.getId(), tokenResponse.getAccessToken(), rememberMe, currentHttpRequest());
         }
         String username = user != null && StringUtils.hasText(user.getUsername()) ? user.getUsername() : account;
         String role = user != null && StringUtils.hasText(user.getRole()) ? user.getRole() : jwtTokenProvider.getPlatformRole(tokenResponse.getAccessToken());

@@ -94,6 +94,52 @@ public class AuthEventService {
         return false;
     }
 
+    // ─── 本地主动吊销（供 CareerMate 自身的退出/踢设备/改密/换绑调用）───────────────
+    // 复用与 auth-gateway webhook 相同的 Redis 存储与过滤器判定逻辑：
+    // - 单 token 吊销：写 revoked:jti:<jti>
+    // - 用户级吊销：写 revoked:user:<userKey> = cutoff，凡 iat<=cutoff 的 token 均失效
+
+    /**
+     * 吊销单个 access token（按 jti）。用于单设备退出、踢出指定会话。
+     *
+     * @param jti                token 的 jti
+     * @param tokenExpEpochSeconds token 的过期时间（epoch 秒），用于设置刚好覆盖到过期的 TTL；为 null 则用默认 TTL
+     */
+    public void revokeJti(String jti, Long tokenExpEpochSeconds) {
+        if (redisTemplate == null || !StringUtils.hasText(jti)) {
+            return;
+        }
+        Duration ttl = properties.getRevokedJtiTtl();
+        if (tokenExpEpochSeconds != null) {
+            long remaining = tokenExpEpochSeconds - Instant.now().getEpochSecond();
+            ttl = remaining > 0 ? Duration.ofSeconds(remaining) : Duration.ofSeconds(1);
+        }
+        try {
+            redisTemplate.opsForValue().set(REVOKED_JTI_PREFIX + jti, "local", ttl);
+        } catch (RuntimeException ex) {
+            log.warn("revokeJti failed (storage unavailable); jti stays valid until natural expiry");
+        }
+    }
+
+    /**
+     * 用户级吊销：将该用户在 cutoff（epoch 秒）之前签发的所有 access token 全部失效。
+     * 用于"退出全部设备"、改密/换绑后踢下全部设备。
+     */
+    public void revokeUserAfter(String userKey, long cutoffEpochSeconds) {
+        if (redisTemplate == null || !StringUtils.hasText(userKey)) {
+            return;
+        }
+        try {
+            redisTemplate.opsForValue().set(
+                    USER_REVOKED_AFTER_PREFIX + userKey,
+                    String.valueOf(cutoffEpochSeconds),
+                    properties.getUserRevocationTtl()
+            );
+        } catch (RuntimeException ex) {
+            log.warn("revokeUserAfter failed (storage unavailable); tokens stay valid until natural expiry");
+        }
+    }
+
     private AuthEventPayload parse(String rawBody) {
         try {
             return objectMapper.readValue(rawBody, AuthEventPayload.class);

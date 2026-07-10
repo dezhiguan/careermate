@@ -5,9 +5,11 @@ import com.careermate.auth.dto.CurrentUserResponse;
 import com.careermate.auth.dto.LoginRequest;
 import com.careermate.auth.dto.RegisterRequest;
 import com.careermate.auth.dto.UpdateProfileRequest;
+import com.careermate.auth.gateway.AuthGatewayClient;
 import com.careermate.auth.service.AuthService;
 import com.careermate.common.api.ApiResponse;
 import jakarta.validation.Valid;
+import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -20,9 +22,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthGatewayClient authGatewayClient;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AuthGatewayClient authGatewayClient) {
         this.authService = authService;
+        this.authGatewayClient = authGatewayClient;
+    }
+
+    /** 获取/刷新图形验证码（连续失败后前端点"看不清换一张"）。代理到 auth-gateway，返回 {captchaImage, challengeId}。 */
+    @GetMapping("/captcha")
+    public ApiResponse<Map<String, Object>> captcha() {
+        return ApiResponse.success(authGatewayClient.getCaptcha());
     }
 
     @PostMapping("/register")
