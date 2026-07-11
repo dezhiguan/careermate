@@ -1,8 +1,8 @@
 <template>
   <!-- 三区块首页 -->
   <div v-if="!activeSession" class="interview-page">
-    <div v-if="noDefaultResumeHint" class="banner warn">
-      请先到简历页创建并设置默认简历。
+    <div v-if="noDefaultResumeHint || !hasDefaultResume" class="banner warn">
+      模拟练习会基于你的简历出专属题目，请先到简历页上传并设为默认简历。
       <router-link to="/mine" class="banner-link">前往我的 →</router-link>
     </div>
     <div v-if="pageError" class="banner error">{{ pageError }}</div>
@@ -140,7 +140,13 @@
             <div class="start-title">开始新的模拟面试</div>
             <div class="start-desc">项目经历 · 技术深度 · 技能缺口 · 系统设计 · 行为面试</div>
           </div>
-          <button type="button" class="btn-start" :disabled="creating" @click="startNewSession">
+          <button
+            type="button"
+            class="btn-start"
+            :disabled="creating || !hasDefaultResume"
+            :title="!hasDefaultResume ? '请先上传并设置默认简历后再开始模拟练习' : ''"
+            @click="startNewSession"
+          >
             {{ creating ? '生成题目中...' : '开始 →' }}
           </button>
         </div>
@@ -306,8 +312,12 @@ import {
   submitInterviewAnswer,
 } from '../api/interview'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
+import { homeStore } from '../stores/homeStore'
 
 const router = useRouter()
+
+// 评审 P0-4：模拟练习硬依赖默认简历，入口即判断，避免点了才 400（迟到失败）
+const hasDefaultResume = computed(() => !!homeStore.state.defaultResume)
 
 const kbQuery = ref('')
 const companyQuery = ref('')
