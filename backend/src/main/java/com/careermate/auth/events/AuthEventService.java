@@ -31,15 +31,18 @@ public class AuthEventService {
     private final AuthEventProperties properties;
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate redisTemplate;
+    private final LocalAccountPurger localAccountPurger;
 
     public AuthEventService(
             AuthEventProperties properties,
             ObjectMapper objectMapper,
-            ObjectProvider<StringRedisTemplate> redisTemplateProvider
+            ObjectProvider<StringRedisTemplate> redisTemplateProvider,
+            LocalAccountPurger localAccountPurger
     ) {
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.redisTemplate = redisTemplateProvider.getIfAvailable();
+        this.localAccountPurger = localAccountPurger;
     }
 
     public AuthEventResult handle(String expectedType, String rawBody, HttpHeaders headers) {
@@ -64,6 +67,14 @@ public class AuthEventService {
         int revokedCount = revokeTokens(payload);
         if ("user.password.changed".equals(effectiveType) || StringUtils.hasText(userKey(payload))) {
             revokeUser(payload);
+        }
+        // 应用级注销到期：网关发 user.app_removed(app=careermate) → 清理本地个人数据（PIPL 合规）。
+        if ("user.app_removed".equals(effectiveType) && isCareermateApp(payload) && StringUtils.hasText(payload.userId())) {
+            try {
+                localAccountPurger.purgeByAuthUserId(Long.parseLong(payload.userId()));
+            } catch (RuntimeException ex) {
+                log.warn("local account purge failed for authUserId={}: {}", payload.userId(), ex.getMessage());
+            }
         }
         redisTemplate.opsForValue().set(eventKey, effectiveType, properties.getIdempotencyTtl());
 
@@ -215,6 +226,12 @@ public class AuthEventService {
         } catch (RuntimeException ignored) {
             return Instant.now().getEpochSecond();
         }
+    }
+
+    /** user.app_removed 事件的 app 是否为 careermate（从 payload.data.app 读取）。 */
+    private boolean isCareermateApp(AuthEventPayload payload) {
+        Object app = payload.data() == null ? null : payload.data().get("app");
+        return app != null && "careermate".equalsIgnoreCase(String.valueOf(app));
     }
 
     private String userKey(AuthEventPayload payload) {

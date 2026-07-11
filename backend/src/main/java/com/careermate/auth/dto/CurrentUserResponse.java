@@ -21,4 +21,6 @@ public class CurrentUserResponse {
     private Boolean emailVerified;
     private Boolean hasPassword;
     private String status;
+    /** 注销冷静期到期时间（CANCELLING 时非空），供前端"注销中"中间页展示剩余天数。 */
+    private String deletionScheduledAt;
 }

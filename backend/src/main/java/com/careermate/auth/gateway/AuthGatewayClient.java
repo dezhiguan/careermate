@@ -119,6 +119,38 @@ public class AuthGatewayClient {
         }
     }
 
+    /**
+     * 应用级注销：委托网关把当前用户在指定 app 的 membership 置为 PENDING_DELETION（Bearer 识别用户）。
+     * 短信+确认字 step-up 由 CareerMate 自己完成，故此处仅传 Bearer。返回网关响应体（含 deletionScheduledAt）。
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> requestAppDeletion(String userAccessToken, String app) {
+        return (Map<String, Object>) bearerExchange(org.springframework.http.HttpMethod.POST,
+                "/auth/apps/" + app + "/deletion-request", userAccessToken);
+    }
+
+    /** 撤销应用级注销：委托网关把该 membership 恢复 ACTIVE。 */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> cancelAppDeletion(String userAccessToken, String app) {
+        return (Map<String, Object>) bearerExchange(org.springframework.http.HttpMethod.DELETE,
+                "/auth/apps/" + app + "/deletion-request", userAccessToken);
+    }
+
+    private Object bearerExchange(org.springframework.http.HttpMethod method, String path, String userAccessToken) {
+        HttpHeaders headers = new HttpHeaders();
+        String bearer = userAccessToken != null && userAccessToken.startsWith("Bearer ")
+                ? userAccessToken : "Bearer " + userAccessToken;
+        headers.set("Authorization", bearer);
+        try {
+            return restTemplate.exchange(properties.getBaseUrl() + path, method,
+                    new HttpEntity<>(headers), Map.class).getBody();
+        } catch (HttpStatusCodeException ex) {
+            throw toBizException(ex);
+        } catch (Exception ex) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR.getCode(), "认证服务不可用");
+        }
+    }
+
     public TokenResponse loginMobile(String phone, String code) {
         return loginMobile(phone, code, false);
     }
