@@ -191,7 +191,7 @@ public class MobileAuthService {
                         + ", provider=auth-gateway");
         loginSessionRecorder.record(user.getId(), tokenResponse.getAccessToken(),
                 request.isRememberMe(), currentRequest());
-        return buildTokenResponse(user, isNewUser, tokenResponse);
+        return buildTokenResponse(user, isNewUser, tokenResponse, request.isRememberMe());
     }
 
     /** 短信登录准入：ACTIVE、CANCELLING（冷静期，需能登录以撤销注销）放行；BANNED 等拒绝。 */
@@ -253,8 +253,8 @@ public class MobileAuthService {
         return user;
     }
 
-    private AuthTokenResponse buildTokenResponse(UserEntity user, boolean isNewUser, AuthGatewayClient.TokenResponse tokenResponse) {
-        cookieSupport.writeRefreshCookie(tokenResponse.getRefreshToken());
+    private AuthTokenResponse buildTokenResponse(UserEntity user, boolean isNewUser, AuthGatewayClient.TokenResponse tokenResponse, boolean rememberMe) {
+        cookieSupport.writeRefreshCookie(tokenResponse.getRefreshToken(), rememberMe);
         boolean onboardingDone = user.getOnboardingCompletedAt() != null;
         return AuthTokenResponse.builder()
                 .token(tokenResponse.getAccessToken())

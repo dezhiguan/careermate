@@ -36,6 +36,7 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/sms/send",
                                 "/api/auth/captcha",
+                                "/api/auth/refresh",
                                 "/api/auth/mobile/login",
                                 "/api/auth/password-reset/sms/send",
                                 "/api/auth/password-reset/confirm",

@@ -20,7 +20,18 @@ public class AuthGatewayCookieSupport {
         this.properties = securityProperties.getAuthGateway();
     }
 
+    private static final Duration DEFAULT_TTL = Duration.ofDays(7);
+    private static final Duration REMEMBER_TTL = Duration.ofDays(30);
+
     public void writeRefreshCookie(String refreshToken) {
+        writeRefreshCookie(refreshToken, false);
+    }
+
+    /**
+     * 写 refresh cookie。rememberMe=true 时 cookie 有效期 30 天（与网关 remember 的 refresh token TTL 对齐），
+     * 否则 7 天。此前写死 7 天，导致"记住我30天"在浏览器侧被截断。
+     */
+    public void writeRefreshCookie(String refreshToken, boolean rememberMe) {
         if (!StringUtils.hasText(refreshToken)) {
             return;
         }
@@ -33,7 +44,7 @@ public class AuthGatewayCookieSupport {
                 .secure(properties.isRefreshCookieSecure())
                 .sameSite("Lax")
                 .path(properties.getRefreshCookiePath())
-                .maxAge(Duration.ofDays(7));
+                .maxAge(rememberMe ? REMEMBER_TTL : DEFAULT_TTL);
         if (StringUtils.hasText(properties.getRefreshCookieDomain())) {
             builder.domain(properties.getRefreshCookieDomain());
         }
