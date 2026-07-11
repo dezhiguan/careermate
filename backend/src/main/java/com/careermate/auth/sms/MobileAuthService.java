@@ -159,7 +159,7 @@ public class MobileAuthService {
             isNewUser = lookup.newlyCreated();
         } else {
             isNewUser = false;
-            if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            if (isMobileLoginBlocked(user)) {
                 auditService.recordFailure(user.getId(), AuditActionType.MOBILE_LOGIN, "USER",
                         String.valueOf(user.getId()), "user inactive");
                 throw new BizException(ErrorCode.MOBILE_AUTH_INVALID);
@@ -171,7 +171,7 @@ public class MobileAuthService {
             }
         }
 
-        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+        if (isMobileLoginBlocked(user)) {
             auditService.recordFailure(user.getId(), AuditActionType.MOBILE_LOGIN, "USER",
                     String.valueOf(user.getId()), "user inactive");
             throw new BizException(ErrorCode.MOBILE_AUTH_INVALID);
@@ -192,6 +192,12 @@ public class MobileAuthService {
         loginSessionRecorder.record(user.getId(), tokenResponse.getAccessToken(),
                 request.isRememberMe(), currentRequest());
         return buildTokenResponse(user, isNewUser, tokenResponse);
+    }
+
+    /** 短信登录准入：ACTIVE、CANCELLING（冷静期，需能登录以撤销注销）放行；BANNED 等拒绝。 */
+    private boolean isMobileLoginBlocked(UserEntity user) {
+        String status = user.getStatus();
+        return !"ACTIVE".equalsIgnoreCase(status) && !"CANCELLING".equalsIgnoreCase(status);
     }
 
     private MobileUserLookup findOrCreateMobileUser(String phone) {

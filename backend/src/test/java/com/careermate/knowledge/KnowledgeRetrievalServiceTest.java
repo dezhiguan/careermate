@@ -328,4 +328,37 @@ class KnowledgeRetrievalServiceTest {
         verify(ragForgeClient).search(eq(595L), eq("字节 公司"), eq(5), org.mockito.ArgumentMatchers.any());
         verify(ragForgeClient, never()).searchJd(anyString(), anyInt());
     }
+
+    // ---- 评审第五章 #2：静默回退改显式（shouldFallbackToJd 判定） ----
+
+    @Test
+    void shouldFallbackToJdTrueWhenMarketOrCompanyKbUnsetButJdSet() {
+        // jdKbId 已配（setUp 里为 "16"），marketKbId/companyKbId 未配 → 会降级到 JD 库
+        assertTrue(service.shouldFallbackToJd(RagRetrieveScene.MARKET));
+        assertTrue(service.shouldFallbackToJd(RagRetrieveScene.COMPANY));
+    }
+
+    @Test
+    void shouldNotFallbackWhenDedicatedKbConfigured() {
+        properties.setMarketKbId("597");
+        properties.setCompanyKbId("595");
+        assertFalse(service.shouldFallbackToJd(RagRetrieveScene.MARKET));
+        assertFalse(service.shouldFallbackToJd(RagRetrieveScene.COMPANY));
+    }
+
+    @Test
+    void shouldNotFallbackWhenJdKbAlsoUnset() {
+        // 专库与 JD 库都未配 → 不存在「降级到 JD」这回事（会走 KB_NOT_CONFIGURED）
+        properties.setJdKbId("");
+        assertFalse(service.shouldFallbackToJd(RagRetrieveScene.MARKET));
+        assertFalse(service.shouldFallbackToJd(RagRetrieveScene.COMPANY));
+    }
+
+    @Test
+    void shouldNotFallbackForNonMarketCompanyScenes() {
+        assertFalse(service.shouldFallbackToJd(RagRetrieveScene.OPPORTUNITY));
+        assertFalse(service.shouldFallbackToJd(RagRetrieveScene.INTERVIEW));
+        assertFalse(service.shouldFallbackToJd(RagRetrieveScene.RESUME));
+        assertFalse(service.shouldFallbackToJd(RagRetrieveScene.GENERAL));
+    }
 }

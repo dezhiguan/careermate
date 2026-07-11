@@ -184,10 +184,9 @@ public class AuthServiceImpl implements AuthService {
         if ("BANNED".equalsIgnoreCase(status)) {
             throw new BizException(ErrorCode.ACCOUNT_BANNED);
         }
-        if ("CANCELLING".equalsIgnoreCase(status)) {
-            throw new BizException(ErrorCode.ACCOUNT_CANCELLING);
-        }
-        if (!"ACTIVE".equalsIgnoreCase(status)) {
+        // CANCELLING（注销冷静期）允许登录：用户需登录后才能在账号设置里"撤销注销"。
+        // 前端依据 /me 返回的 status=CANCELLING 展示撤销入口。
+        if (!"ACTIVE".equalsIgnoreCase(status) && !"CANCELLING".equalsIgnoreCase(status)) {
             throw new BizException(ErrorCode.UNAUTHORIZED.getCode(), "账号状态异常，请联系客服");
         }
         // 锁定/图形验证码交由 auth-gateway 统一负责，本地不再硬锁定（避免抢在网关验证码之前锁死账号）。
