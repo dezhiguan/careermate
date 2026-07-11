@@ -41,17 +41,20 @@ public class ResumeService {
     private final ResumeFileParserService fileParserService;
     private final ResumeVersionPdfRenderer pdfRenderer;
     private final ResumeVersionDocxRenderer docxRenderer;
+    private final ResumeProfileAutoFillService profileAutoFillService;
 
     public ResumeService(ResumeMapper resumeMapper,
                          RagForgeClient ragForgeClient,
                          ResumeFileParserService fileParserService,
                          ResumeVersionPdfRenderer pdfRenderer,
-                         ResumeVersionDocxRenderer docxRenderer) {
+                         ResumeVersionDocxRenderer docxRenderer,
+                         ResumeProfileAutoFillService profileAutoFillService) {
         this.resumeMapper = resumeMapper;
         this.ragForgeClient = ragForgeClient;
         this.fileParserService = fileParserService;
         this.pdfRenderer = pdfRenderer;
         this.docxRenderer = docxRenderer;
+        this.profileAutoFillService = profileAutoFillService;
     }
 
     public Optional<ResumeEntity> getDefaultActiveResume(Long userId) {
@@ -108,6 +111,8 @@ public class ResumeService {
 
         // 异步同步到 RAGForge Personal KB，不阻塞主流程
         asyncSyncToRag(entity.getId(), entity.getTitle(), entity.getContent(), null);
+        // 评审 P0-1：异步从简历自动回填画像空字段，不阻塞主流程
+        asyncAutoFillProfile(userId, entity.getContent());
 
         return toDetail(entity);
     }
@@ -261,6 +266,8 @@ public class ResumeService {
 
         // 同步到 RAGForge（复用已有异步逻辑）
         asyncSyncToRag(entity.getId(), entity.getTitle(), entity.getContent(), null);
+        // 评审 P0-1：异步从简历自动回填画像空字段，不阻塞主流程
+        asyncAutoFillProfile(userId, entity.getContent());
 
         return toDetail(entity);
     }
@@ -355,6 +362,19 @@ public class ResumeService {
             return normalized;
         }
         return normalized.substring(0, PREVIEW_MAX_LEN) + "...";
+    }
+
+    private void asyncAutoFillProfile(Long userId, String content) {
+        if (userId == null || content == null || content.isBlank()) {
+            return;
+        }
+        java.util.concurrent.CompletableFuture.runAsync(MdcContext.wrap(() -> {
+            try {
+                profileAutoFillService.autoFill(userId, content);
+            } catch (Exception e) {
+                log.warn("async auto-fill profile failed: userId={}, err={}", userId, e.getMessage());
+            }
+        }));
     }
 
     private void asyncSyncToRag(Long resumeId, String title, String content, Long ignoredOldDocId) {
