@@ -87,6 +87,18 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
 
     @Override
     @Transactional
+    public void updateAiScore(Long userId, String versionId, Integer aiScore) {
+        if (aiScore == null) {
+            return;
+        }
+        ResumeVersionEntity entity = requireOwnedVersion(userId, versionId);
+        entity.setAiScore(java.math.BigDecimal.valueOf(Math.max(0, Math.min(100, aiScore))));
+        entity.setUpdatedAt(LocalDateTime.now());
+        resumeVersionMapper.updateById(entity);
+    }
+
+    @Override
+    @Transactional
     public void deleteVersion(Long userId, String versionId) {
         ResumeVersionEntity entity = requireOwnedVersion(userId, versionId);
         resumeVersionMapper.deleteById(entity.getId());
@@ -298,6 +310,7 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
                 entity.getTargetJdTitle(),
                 entity.getVersionSeq(),
                 normalizeChangeSummary(entity.getChangeSummary(), parseNotes(entity.getOptimizationNotes())),
+                entity.getAiScore(),
                 toOffsetDateTime(entity.getCreatedAt())
         );
     }

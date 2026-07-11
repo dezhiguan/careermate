@@ -1,5 +1,6 @@
 package com.careermate.resume.version.dto;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 public record ResumeVersionListItemVO(
@@ -11,6 +12,7 @@ public record ResumeVersionListItemVO(
         String targetJdTitle,
         Integer versionSeq,
         String changeSummary,
+        BigDecimal aiScore,
         OffsetDateTime createdAt
 ) {
 }

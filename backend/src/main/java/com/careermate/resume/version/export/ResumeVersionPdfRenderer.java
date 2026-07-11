@@ -197,9 +197,16 @@ public class ResumeVersionPdfRenderer {
                 .replace("🚀", "")
                 .replace("→", "->")
                 .replace("～", "~")
+                // 内嵌中文字体 STSong-Light-UniGB 缺少 ™ © ® ✓ 字形，直接输出会显示为空白，
+                // 映射为可渲染的等价写法，保证符号在 PDF 中可见（° √ 在 GB 字体中有字形，保留原样）。
+                .replace("™", "(TM)")
+                .replace("©", "(C)")
+                .replace("®", "(R)")
+                .replace("✓", "√")
+                .replace("✔", "√")
                 // 仅剔除补充平面(星平面)的彩色 emoji/图形（内嵌中文字体下会显示为豆腐块），
-                // 不再用 \p{So}\p{Cn} 一刀切，从而保留 ™ © ® ✓ ° ↑ ↓ 等合法技术/排版符号，
-                // 避免 PDF 静默丢字并与 DOCX 内容保持一致。
+                // 不再用 \p{So}\p{Cn} 一刀切，从而保留 ° ↑ ↓ √ 等合法技术/排版符号，
+                // 避免 PDF 静默丢字。
                 .replaceAll("[\\x{1F000}-\\x{1FFFF}]", "")
                 .trim();
     }

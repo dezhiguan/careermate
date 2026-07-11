@@ -1,6 +1,7 @@
 package com.careermate.resume.version.workflow;
 
 import com.careermate.common.exception.BizException;
+import com.careermate.jobmatch.JobMatchAnalyzer;
 import com.careermate.llm.LlmClient;
 import com.careermate.llm.StreamCallback;
 import com.careermate.llm.dto.ChatMessage;
@@ -54,6 +55,7 @@ class GenerateResumeWorkflowRunner {
     private final ResumeVersionService resumeVersionService;
     private final ObjectMapper objectMapper;
     private final PromptTemplateService promptTemplateService;
+    private final JobMatchAnalyzer jobMatchAnalyzer;
 
     GenerateResumeWorkflowRunner(
             WorkspaceSessionRepository workspaceSessionRepository,
@@ -62,7 +64,8 @@ class GenerateResumeWorkflowRunner {
             LlmClient llmClient,
             ResumeVersionService resumeVersionService,
             ObjectMapper objectMapper,
-            PromptTemplateService promptTemplateService
+            PromptTemplateService promptTemplateService,
+            JobMatchAnalyzer jobMatchAnalyzer
     ) {
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.resumeContextProvider = resumeContextProvider;
@@ -71,6 +74,7 @@ class GenerateResumeWorkflowRunner {
         this.resumeVersionService = resumeVersionService;
         this.objectMapper = objectMapper;
         this.promptTemplateService = promptTemplateService;
+        this.jobMatchAnalyzer = jobMatchAnalyzer;
     }
 
     GenerateResumeWorkflowResult execute(GenerateResumeWorkflowRun run, GenerateResumeWorkflowEventSink eventSink) {
@@ -223,7 +227,22 @@ class GenerateResumeWorkflowRunner {
                 run.changeSummary(),
                 run.optimizationNotes()
         );
+        // 回填 ATS 参考分（确定性打分，失败不影响已保存的版本）
+        resumeVersionService.updateAiScore(run.userId(), saved.versionId(), computeAiScore(run));
         run.setSavedVersion(saved);
+    }
+
+    /** 生成简历 vs 目标 JD 的确定性 ATS 参考分（0-100）；打分失败不影响简历保存。 */
+    private Integer computeAiScore(GenerateResumeWorkflowRun run) {
+        try {
+            if (run.markdown() == null || run.jdContent() == null || run.jdContent().isBlank()) {
+                return null;
+            }
+            return jobMatchAnalyzer.scoreResumeAgainstJd(run.markdown(), run.jdContent());
+        } catch (Exception e) {
+            log.warn("computeAiScore failed, sessionId={}, err={}", run.sessionId(), e.getMessage());
+            return null;
+        }
     }
 
     private void stepEmitCard(GenerateResumeWorkflowRun run) {

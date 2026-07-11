@@ -56,6 +56,8 @@ class GenerateResumeWorkflowRunnerTest {
     private ResumeVersionService resumeVersionService;
     @Mock
     private AgentSessionService agentSessionService;
+    @Mock
+    private com.careermate.jobmatch.JobMatchAnalyzer jobMatchAnalyzer;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private PromptTemplateService promptTemplateService;
@@ -71,7 +73,8 @@ class GenerateResumeWorkflowRunnerTest {
                 llmClient,
                 resumeVersionService,
                 objectMapper,
-                promptTemplateService
+                promptTemplateService,
+                jobMatchAnalyzer
         );
     }
 
@@ -112,7 +115,8 @@ class GenerateResumeWorkflowRunnerTest {
                 llmClient,
                 resumeVersionService,
                 objectMapper,
-                promptTemplateService
+                promptTemplateService,
+                jobMatchAnalyzer
         );
 
         stubHappyPath();

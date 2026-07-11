@@ -123,6 +123,19 @@ public class JobMatchAnalyzer {
         return result;
     }
 
+    /**
+     * 轻量确定性打分（0-100）：仅基于技能关键词重合，不调用 LLM / RAG，
+     * 供「按 JD 生成简历」在保存时快速回填 ATS 参考分（aiScore），不引入额外成本与延迟。
+     */
+    public int scoreResumeAgainstJd(String resumeContent, String jdContent) {
+        String resume = normalize(resumeContent);
+        String jd = normalize(jdContent);
+        List<String> jdSkills = detectSkills(jd);
+        List<String> resumeSkills = detectSkills(resume);
+        List<String> matched = jdSkills.stream().filter(resumeSkills::contains).toList();
+        return calculateScore(jd, resume, jdSkills, matched);
+    }
+
     private List<String> detectSkills(String text) {
         if (text == null || text.isBlank()) {
             return List.of();

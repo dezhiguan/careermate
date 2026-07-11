@@ -28,6 +28,9 @@ public interface ResumeVersionService {
             List<Map<String, Object>> optimizationNotes
     );
 
+    /** 为已保存的简历版本回填 ATS 参考分（0-100）；仅在归属校验通过时更新。 */
+    void updateAiScore(Long userId, String versionId, Integer aiScore);
+
     /**
      * 导出指定版本简历为 PDF，写入 response 输出流。
      *

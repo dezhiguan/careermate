@@ -7,6 +7,7 @@ import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell;
+import org.apache.poi.xwpf.usermodel.XWPFTableRow;
 import org.commonmark.ext.gfm.tables.TableBlock;
 import org.commonmark.ext.gfm.tables.TableBody;
 import org.commonmark.ext.gfm.tables.TableCell;
@@ -49,6 +50,7 @@ public class ResumeVersionDocxRenderer {
     private static final int H2_SIZE = 14;
     private static final int H3_SIZE = 12;
     private static final String CODE_FONT = "Consolas";
+    private static final String CJK_FONT = "宋体";
     private static final String HEADER_FILL = "F1F5F9";
 
     public void render(String markdown, OutputStream outputStream) throws Exception {
@@ -60,7 +62,34 @@ public class ResumeVersionDocxRenderer {
             if (!visitor.wroteSomething()) {
                 renderPlainFallback(docx, source);
             }
+            applyCjkFont(docx);
             docx.write(outputStream);
+        }
+    }
+
+    /**
+     * 为文档内所有 run（正文/标题/列表/表格/代码块）设置东亚(中文)字体，
+     * 使中文在 headless(如 LibreOffice) 或缺省字体环境下也能稳定渲染，
+     * 并保证代码块中的中文注释不落到无中文字形的 Consolas 上（拉丁字体保持不变）。
+     */
+    private void applyCjkFont(XWPFDocument docx) {
+        for (XWPFParagraph paragraph : docx.getParagraphs()) {
+            applyCjkFont(paragraph);
+        }
+        for (XWPFTable table : docx.getTables()) {
+            for (XWPFTableRow row : table.getRows()) {
+                for (XWPFTableCell cell : row.getTableCells()) {
+                    for (XWPFParagraph paragraph : cell.getParagraphs()) {
+                        applyCjkFont(paragraph);
+                    }
+                }
+            }
+        }
+    }
+
+    private void applyCjkFont(XWPFParagraph paragraph) {
+        for (XWPFRun run : paragraph.getRuns()) {
+            run.setFontFamily(CJK_FONT, XWPFRun.FontCharRange.eastAsia);
         }
     }
 
