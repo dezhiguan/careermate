@@ -439,15 +439,13 @@ class GenerateResumeWorkflowRunner {
             return mergeChunkContent(direct);
         }
 
-        // TODO(T10-follow-up): 迁移至 KnowledgeRetrievalService.retrieve(OPPORTUNITY, ...)
-        List<RagForgeChunk> chunks = ragForgeClient.searchJd("工程师", JD_SEARCH_TOP_K);
-        List<RagForgeChunk> filtered = filterByDocId(chunks, docId);
-        if (filtered.isEmpty()) {
-            chunks = ragForgeClient.searchJd("Java 后端", JD_SEARCH_TOP_K);
-            filtered = filterByDocId(chunks, docId);
-        }
-        if (!filtered.isEmpty()) {
-            return mergeChunkContent(filtered);
+        // 修复假 404：原先用「搜『工程师』/『Java 后端』泛词取 top-K 再按 docId 过滤」，
+        // 若该 JD 不在泛词搜的 top-K 内（岗位非工程师/库里更相关 JD 超过 K/语义排名靠后）就取不到，
+        // 尽管 JD 就在库里、docId 也固定。改为按 docId 精确直取（/search + docIds，API-Key 开放，
+        // 与 OpportunityService.prepare 一致），JD 在库就一定取得到。
+        List<RagForgeChunk> byDocId = filterByDocId(ragForgeClient.searchJdByDocId(docId, JD_SEARCH_TOP_K), docId);
+        if (!byDocId.isEmpty()) {
+            return mergeChunkContent(byDocId);
         }
 
         String cached = stringValue(jdSnapshot.get("jdContent"));

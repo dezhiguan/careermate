@@ -148,7 +148,8 @@ class GenerateResumeWorkflowRunnerTest {
                 ResumeContext.builder().available(true).resumeId(10L).content("原始简历").build()
         );
         when(ragForgeClient.fetchDocumentChunks(1L)).thenReturn(List.of());
-        when(ragForgeClient.searchJd(anyString(), eq(50))).thenReturn(List.of(
+        // 修复后：按 docId 精确直取（不再用 searchJd 泛词搜 + 过滤）
+        when(ragForgeClient.searchJdByDocId(eq(1L), eq(50))).thenReturn(List.of(
                 new RagForgeChunk(1L, 1L, "jd.md", "# JD 内容", "JD", 0.9)
         ));
         when(resumeVersionService.createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))

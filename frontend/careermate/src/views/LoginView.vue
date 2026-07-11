@@ -60,7 +60,7 @@
               <div class="sms-row">
                 <input v-model.trim="resetForm.verifyCode" type="text" inputmode="numeric" maxlength="8" placeholder="请输入验证码" required />
                 <button type="button" class="btn-sms" :disabled="resetSmsSending || resetCooldown > 0" @click="sendResetCode">
-                  {{ resetSmsSending ? '发送中...' : resetCooldown > 0 ? `${resetCooldown}秒后重试` : '获取验证码' }}
+                  {{ resetSmsSending ? '发送中...' : resetCooldown > 0 ? `${resetCooldown}秒后重发` : '获取验证码' }}
                 </button>
               </div>
             </label>
@@ -106,7 +106,7 @@
               <div class="sms-row">
                 <input v-model.trim="smsForm.verifyCode" type="text" inputmode="numeric" maxlength="8" placeholder="请输入验证码" required />
                 <button type="button" class="btn-sms" :disabled="smsSending || cooldown > 0" @click="sendCode">
-                  {{ smsSending ? '发送中...' : cooldown > 0 ? `${cooldown}秒后重试` : '获取验证码' }}
+                  {{ smsSending ? '发送中...' : cooldown > 0 ? `${cooldown}秒后重发` : '获取验证码' }}
                 </button>
               </div>
             </label>

@@ -154,7 +154,8 @@ public class UserSettingsService {
                 .ne(UserEntity::getId, user.getId())) > 0) {
             throw new BizException(ErrorCode.USERNAME_TAKEN);
         }
-        verifySmsChallenge(user.getPhone(), request.getChallengeId(), request.getVerifyCode(), SmsScene.MOBILE_LOGIN);
+        // 修改账号名属低风险操作（仅昵称/登录名，已受登录态 + 30 天频控 + 唯一性约束保护），
+        // 不再强制短信二次验证，降低改名门槛。
         user.setUsername(newUsername);
         user.setUsernameUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
         userMapper.updateById(user);

@@ -159,7 +159,7 @@ class GenerateResumeFromJdWorkflowTest {
                 ResumeContext.builder().available(true).resumeId(10L).content("原始简历").build()
         );
         when(ragForgeClient.fetchDocumentChunks(1L)).thenReturn(List.of());
-        when(ragForgeClient.searchJd(any(), eq(50))).thenReturn(List.of());
+        when(ragForgeClient.searchJdByDocId(eq(1L), eq(50))).thenReturn(List.of());
 
         assertThrows(BizException.class, () ->
                 workflow.doGenerate(1L, "WS-abc", "doc-1", null)
@@ -663,7 +663,7 @@ class GenerateResumeFromJdWorkflowTest {
                 ResumeContext.builder().available(true).resumeId(10L).content("原始简历").build()
         );
         when(ragForgeClient.fetchDocumentChunks(1L)).thenReturn(List.of());
-        when(ragForgeClient.searchJd(any(), eq(50))).thenReturn(List.of(
+        when(ragForgeClient.searchJdByDocId(eq(1L), eq(50))).thenReturn(List.of(
                 new RagForgeChunk(1L, 1L, "jd.md", "# JD 内容", "JD", 0.9)
         ));
     }

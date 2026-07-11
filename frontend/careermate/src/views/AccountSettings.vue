@@ -110,13 +110,6 @@
         <p class="modal-tip">账号名每30天只能修改一次，4-32位字母/数字/下划线/中划线，不能全为数字。</p>
         <label class="field-label">新账号名</label>
         <input v-model.trim="usernameForm.username" type="text" placeholder="请输入新账号名" class="field-input" />
-        <label class="field-label" style="margin-top:12px;">手机验证码</label>
-        <div class="sms-row">
-          <input v-model.trim="usernameForm.verifyCode" type="text" inputmode="numeric" placeholder="请输入验证码" class="field-input" style="flex:1" />
-          <button class="btn-sms" :disabled="smsSending || smsCooldown > 0" @click="sendSettingsSms('username')">
-            {{ smsSending ? '...' : smsCooldown > 0 ? `${smsCooldown}s` : '获取验证码' }}
-          </button>
-        </div>
         <p v-if="modalError" class="modal-error">{{ modalError }}</p>
         <div class="modal-actions">
           <button class="btn-secondary" @click="closeModal">取消</button>
@@ -148,7 +141,7 @@
         <div class="sms-row">
           <input v-model.trim="pwdForm.verifyCode" type="text" inputmode="numeric" placeholder="请输入验证码" class="field-input" style="flex:1" />
           <button class="btn-sms" :disabled="smsSending || smsCooldown > 0" @click="sendSettingsSms('password')">
-            {{ smsSending ? '...' : smsCooldown > 0 ? `${smsCooldown}s` : '获取验证码' }}
+            {{ smsSending ? '...' : smsCooldown > 0 ? `${smsCooldown}秒后重发` : '获取验证码' }}
           </button>
         </div>
         <p v-if="modalError" class="modal-error">{{ modalError }}</p>
@@ -170,7 +163,7 @@
           <div class="sms-row">
             <input v-model.trim="phoneForm.oldVerifyCode" type="text" inputmode="numeric" placeholder="请输入验证码" class="field-input" style="flex:1" />
             <button class="btn-sms" :disabled="smsSending || smsCooldown > 0" @click="sendSettingsSms('phone-old')">
-              {{ smsSending ? '...' : smsCooldown > 0 ? `${smsCooldown}s` : '获取验证码' }}
+              {{ smsSending ? '...' : smsCooldown > 0 ? `${smsCooldown}秒后重发` : '获取验证码' }}
             </button>
           </div>
           <p v-if="modalError" class="modal-error">{{ modalError }}</p>
@@ -188,7 +181,7 @@
           <div class="sms-row">
             <input v-model.trim="phoneForm.newVerifyCode" type="text" inputmode="numeric" placeholder="请输入验证码" class="field-input" style="flex:1" />
             <button class="btn-sms" :disabled="smsSending || smsCooldown > 0" @click="sendSettingsSms('phone-new')">
-              {{ smsSending ? '...' : smsCooldown > 0 ? `${smsCooldown}s` : '获取验证码' }}
+              {{ smsSending ? '...' : smsCooldown > 0 ? `${smsCooldown}秒后重发` : '获取验证码' }}
             </button>
           </div>
           <p v-if="modalError" class="modal-error">{{ modalError }}</p>
@@ -215,7 +208,7 @@
         <div class="sms-row">
           <input v-model.trim="cancelForm.verifyCode" type="text" inputmode="numeric" placeholder="请输入验证码" class="field-input" style="flex:1" />
           <button class="btn-sms" :disabled="smsSending || smsCooldown > 0" @click="sendSettingsSms('cancel')">
-            {{ smsSending ? '...' : smsCooldown > 0 ? `${smsCooldown}s` : '获取验证码' }}
+            {{ smsSending ? '...' : smsCooldown > 0 ? `${smsCooldown}秒后重发` : '获取验证码' }}
           </button>
         </div>
         <p v-if="modalError" class="modal-error">{{ modalError }}</p>
@@ -335,10 +328,11 @@ async function submitBindEmail() {
 
 async function submitUpdateUsername() {
   modalError.value = ''
-  if (!usernameForm.challengeId) { modalError.value = '请先获取验证码'; return }
+  if (!usernameForm.username) { modalError.value = '请输入新账号名'; return }
   submitting.value = true
   try {
-    await updateUsername({ username: usernameForm.username, verifyCode: usernameForm.verifyCode, challengeId: usernameForm.challengeId })
+    // 改账号名不再需要手机验证码
+    await updateUsername({ username: usernameForm.username })
     await authStore.fetchCurrentUser()
     closeModal()
   } catch (e) { modalError.value = e?.message || '修改失败' } finally { submitting.value = false }
