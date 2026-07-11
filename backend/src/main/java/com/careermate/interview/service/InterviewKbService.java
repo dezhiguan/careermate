@@ -92,19 +92,19 @@ public class InterviewKbService {
                     20
             );
             if (context.isBlank()) {
-                log.warn("getKbQuestions: empty rag context, query={}", safeQuery);
-                return fallbackKbQuestions(safeQuery);
+                // 评审 P0-3：知识库无命中时，不再直接返回「暂无题目」，改用 AI 通用知识现场生成，
+                // 保证推荐关键词（如 Spring Boot）也总能拿到有用考点题。
+                log.warn("getKbQuestions: empty rag context, fallback to general generation, query={}", safeQuery);
+                return generateGeneralKbQuestions(safeQuery);
             }
             String prompt = InterviewKbPrompts.kbQuestionsPrompt(safeQuery, context);
             KbQuestionsVO parsed = parseLlmJson(prompt, KbQuestionsVO.class);
-            if (parsed == null) {
-                return fallbackKbQuestions(safeQuery);
+            if (parsed == null || parsed.getQuestions() == null || parsed.getQuestions().isEmpty()) {
+                // LLM 未从知识库提炼出题目，同样回退到通用生成而非空结果。
+                return generateGeneralKbQuestions(safeQuery);
             }
             if (parsed.getQuery() == null || parsed.getQuery().isBlank()) {
                 parsed.setQuery(safeQuery);
-            }
-            if (parsed.getQuestions() == null) {
-                parsed.setQuestions(Collections.emptyList());
             }
             parsed.setMeta(CacheMeta.fresh());
             return parsed;
@@ -226,6 +226,26 @@ public class InterviewKbService {
     private static void ensureFreshMeta(KbQuestionsVO vo) {
         if (vo.getMeta() == null) {
             vo.setMeta(CacheMeta.fresh());
+        }
+    }
+
+    /**
+     * 知识库无命中时的 AI 现场生成（评审 P0-3）。生成失败或仍为空则退回 {@link #fallbackKbQuestions}。
+     */
+    private KbQuestionsVO generateGeneralKbQuestions(String query) {
+        try {
+            KbQuestionsVO parsed = parseLlmJson(InterviewKbPrompts.kbQuestionsGeneralPrompt(query), KbQuestionsVO.class);
+            if (parsed == null || parsed.getQuestions() == null || parsed.getQuestions().isEmpty()) {
+                return fallbackKbQuestions(query);
+            }
+            if (parsed.getQuery() == null || parsed.getQuery().isBlank()) {
+                parsed.setQuery(query);
+            }
+            parsed.setMeta(CacheMeta.fresh());
+            return parsed;
+        } catch (Exception e) {
+            log.warn("generateGeneralKbQuestions failed: query={}, err={}", query, e.getMessage());
+            return fallbackKbQuestions(query);
         }
     }
 

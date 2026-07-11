@@ -78,6 +78,24 @@ class InterviewKbServiceTest {
     }
 
     @Test
+    void computeKbQuestionsGeneratesFromGeneralKnowledgeWhenKbEmpty() {
+        // 评审 P0-3：知识库对推荐关键词无命中时，改用 AI 通用知识现场生成，而非返回「暂无题目」。
+        when(knowledgeRetrievalService.retrieveContextText(RagRetrieveScene.INTERVIEW, "Spring Boot 面试题 考点", 20))
+                .thenReturn("");
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder()
+                .content("{\"questions\":[{\"question\":\"Spring Boot 自动配置原理？\",\"answer\":\"基于 @EnableAutoConfiguration\",\"category\":\"技术\"}],\"aiSummary\":\"AI 依据通用知识生成，暂未匹配到知识库资料\"}")
+                .build());
+
+        KbQuestionsVO result = service.computeKbQuestions("Spring Boot");
+
+        assertEquals("Spring Boot", result.getQuery());
+        assertEquals(1, result.getQuestions().size());
+        assertEquals("Spring Boot 自动配置原理？", result.getQuestions().get(0).getQuestion());
+        assertFalse(result.getQuestions().isEmpty());
+        assertEquals("FRESH", result.getMeta().state().name());
+    }
+
+    @Test
     void getCompanyPrepMergesCompanyAndInterviewContextThenParsesJson() {
         when(knowledgeRetrievalService.retrieveMergedContextText(any(), eq(4000)))
                 .thenReturn("字节跳动后端面经");
