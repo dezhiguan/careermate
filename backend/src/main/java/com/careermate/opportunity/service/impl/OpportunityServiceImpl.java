@@ -370,11 +370,16 @@ public class OpportunityServiceImpl implements OpportunityService {
     }
 
     private static String buildWelcomeContent(OpportunityListItemVO jdMeta) {
-        String company = jdMeta.company() == null ? "未知公司" : jdMeta.company();
-        String title = jdMeta.title() == null ? "未知岗位" : jdMeta.title();
-        String skills = topSkills(jdMeta.skills());
+        return buildWelcomeContent(jdMeta.company(), jdMeta.title(), jdMeta.skills());
+    }
+
+    static String buildWelcomeContent(String companyRaw, String titleRaw, List<String> skillsList) {
+        String company = companyRaw == null ? "未知公司" : companyRaw;
+        String title = titleRaw == null ? "未知岗位" : titleRaw;
+        String skills = topSkills(skillsList);
+        // 评审 P0-2：原文案「这岗位重 XXX」缺谓语、技能为空时更显突兀，改为通顺表达
         return "我看到你选了「" + company + " - " + title + "」，\n"
-                + "这岗位重 " + skills + "，\n"
+                + "这个岗位比较看重" + skills + "，\n"
                 + "要不要我帮你按这个 JD 重写一版简历?";
     }
 

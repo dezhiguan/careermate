@@ -126,7 +126,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { listOpportunities, prepareWithAi } from '../api/opportunity'
+import { listOpportunities } from '../api/opportunity'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 import { homeStore } from '../stores/homeStore'
 
@@ -301,21 +301,6 @@ async function handleWorkspaceAction(item, entryAction) {
         matchScore: item.matchScore,
       },
     })
-    await navigateToWorkspace(router, resp)
-  } catch (e) {
-    error.value = e?.message || '准备失败，请稍后重试'
-  } finally {
-    preparingId.value = ''
-  }
-}
-
-/** 保留旧接口兼容路径，供回归或外部调用 */
-async function handlePrepare(item) {
-  if (!item?.jdId || preparingId.value) return
-  preparingId.value = item.jdId
-  error.value = ''
-  try {
-    const resp = await prepareWithAi(item.jdId)
     await navigateToWorkspace(router, resp)
   } catch (e) {
     error.value = e?.message || '准备失败，请稍后重试'
