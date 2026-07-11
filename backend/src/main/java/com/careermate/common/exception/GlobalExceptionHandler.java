@@ -95,6 +95,24 @@ public class GlobalExceptionHandler {
         return ApiResponse.fail(ErrorCode.BAD_REQUEST.getCode(), "文件大小不能超过 10MB");
     }
 
+    /** 缺少必填请求参数（如 ?q= 未传）：原先落到通用 500「系统异常」，改为友好 400。 */
+    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleMissingParam(
+            org.springframework.web.bind.MissingServletRequestParameterException e) {
+        log.warn("Missing required parameter: {}", e.getParameterName());
+        return ApiResponse.fail(ErrorCode.BAD_REQUEST.getCode(), "缺少必填参数：" + e.getParameterName());
+    }
+
+    /** 请求参数类型不匹配（如给 int 参数传了非数字）：改为友好 400。 */
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException e) {
+        log.warn("Parameter type mismatch: name={}, value={}", e.getName(), e.getValue());
+        return ApiResponse.fail(ErrorCode.BAD_REQUEST.getCode(), "参数格式不正确：" + e.getName());
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse<Void> handleException(Exception e) {
