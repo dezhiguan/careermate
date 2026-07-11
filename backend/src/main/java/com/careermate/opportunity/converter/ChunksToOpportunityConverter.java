@@ -48,7 +48,7 @@ public class ChunksToOpportunityConverter {
                 .max(Double::compareTo)
                 .orElse(null);
 
-        String title = parsed.title() != null ? parsed.title() : filename;
+        String title = sanitizeTitle(parsed.title() != null ? parsed.title() : filename);
         String publishedAt = parsed.publishedAt() == null ? null : parsed.publishedAt().toString();
 
         return new OpportunityListItemVO(
@@ -72,5 +72,27 @@ public class ChunksToOpportunityConverter {
                 null,
                 false
         );
+    }
+
+    /**
+     * 清洗对用户展示的岗位标题（评审 P0-2）：去掉 .md 文件后缀、开头的 markdown 标题符号，
+     * 以及 {@code 【JD】/【J0】} 之类内部标记，避免把源文件名/内部编号泄露到界面。
+     */
+    static String sanitizeTitle(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String cleaned = raw.trim().replaceFirst("^#+\\s*", "");
+        // 剥离开头连续的【…】内部标记
+        while (cleaned.startsWith("【")) {
+            int end = cleaned.indexOf('】');
+            if (end < 0) {
+                break;
+            }
+            cleaned = cleaned.substring(end + 1).trim();
+        }
+        // 去掉结尾的 .md 文件后缀（忽略大小写，允许前置空格）
+        cleaned = cleaned.replaceFirst("(?i)\\s*\\.md$", "");
+        return cleaned.trim();
     }
 }

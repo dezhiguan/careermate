@@ -90,7 +90,24 @@ class ChunksToOpportunityConverterTest {
         OpportunityListItemVO item = converter.convert(chunks).get(0);
 
         assertNull(item.company());
-        assertEquals("fallback-title.md", item.title());
+        // 评审 P0-2：文件名兜底标题需去掉 .md 后缀，不把源文件名泄露到界面
+        assertEquals("fallback-title", item.title());
         assertEquals(List.of(), item.skills());
+    }
+
+    @Test
+    void sanitizeTitleStripsInternalMarkersAndMdSuffix() {
+        // .md 后缀
+        assertEquals("北京·Java后端·25-40K", ChunksToOpportunityConverter.sanitizeTitle("北京·Java后端·25-40K.md"));
+        // 开头【JD】标记 + .md
+        assertEquals("杭州后端开发", ChunksToOpportunityConverter.sanitizeTitle("【JD】杭州后端开发.md"));
+        // 开头【J0】内部编号
+        assertEquals("某大型互联网公司", ChunksToOpportunityConverter.sanitizeTitle("【J0】某大型互联网公司.MD"));
+        // markdown 标题符号 + 连续标记
+        assertEquals("算法工程师", ChunksToOpportunityConverter.sanitizeTitle("# 【JD】【J1】算法工程师"));
+        // 干净标题保持不变
+        assertEquals("Java 后端工程师", ChunksToOpportunityConverter.sanitizeTitle("  Java 后端工程师  "));
+        // null 安全
+        assertNull(ChunksToOpportunityConverter.sanitizeTitle(null));
     }
 }
