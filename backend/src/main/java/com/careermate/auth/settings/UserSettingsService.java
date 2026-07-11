@@ -96,19 +96,6 @@ public class UserSettingsService {
         return cu == null ? null : cu.getJti();
     }
 
-    /** 取当前请求的 Bearer access token，用于向 auth-gateway 代理落密码（网关据其 user_id 定位用户）。 */
-    private String currentBearerToken() {
-        org.springframework.web.context.request.RequestAttributes attrs =
-                org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
-        if (attrs instanceof org.springframework.web.context.request.ServletRequestAttributes sra) {
-            String header = sra.getRequest().getHeader("Authorization");
-            if (StringUtils.hasText(header)) {
-                return header;
-            }
-        }
-        throw new BizException(ErrorCode.UNAUTHORIZED.getCode(), "登录状态已失效，请重新登录后再设置密码");
-    }
-
     // ─── 邮箱绑定（Phase 1：存储，不验证）────────────────────────────────────────
 
     @Transactional(rollbackFor = Exception.class)
@@ -163,11 +150,15 @@ public class UserSettingsService {
         if (!PASSWORD_PATTERN.matcher(newPassword).matches()) {
             throw new BizException(ErrorCode.PASSWORD_WEAK);
         }
-        verifySmsChallenge(user.getPhone(), request.getChallengeId(), request.getVerifyCode(), SmsScene.MOBILE_LOGIN);
         checkPasswordHistory(user.getId(), newPassword);
-        // 关键：密码必须落到 auth-gateway（登录校验网关这份），否则设置了却登不进去。
-        // 放在本地写库之前：若网关失败则整体事务回滚，避免"本地已改、网关未改"的不一致。
-        authGatewayClient.setCredentialPassword(currentBearerToken(), newPassword);
+        // 密码必须落到 auth-gateway（登录校验网关这份），否则设置了却登不进去。
+        // 走网关的重置流程（resetVerify + resetConfirm）：无需旧密码，OTP 由网关校验（RESET scene），
+        // 与"忘记密码"同一套已验证的机制，也适用于网关已有密码的账号。
+        // 前端"设置密码"的验证码必须以 RESET scene 下发（sendPasswordResetSms）。
+        // 置于本地写库之前：网关失败则整体事务回滚，避免"本地已改、网关未改"的不一致。
+        AuthGatewayClient.ResetVerifyResponse resetVerify =
+                authGatewayClient.resetVerify(user.getPhone(), request.getVerifyCode());
+        authGatewayClient.resetConfirm(resetVerify.getResetTicket(), newPassword);
         String hash = passwordEncoder.encode(newPassword);
         user.setPasswordHash(hash);
         user.setSessionVersion(user.getSessionVersion() == null ? 1L : user.getSessionVersion() + 1);

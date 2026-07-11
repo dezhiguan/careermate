@@ -72,25 +72,6 @@ public class AuthGatewayClient {
         return postForm("/auth/login/password", form, TokenResponse.class);
     }
 
-    /**
-     * 在 auth-gateway 落用户密码（凭证统一存网关 auth_users，登录也校验网关这份）。
-     * 用当前用户的 access token 鉴权（网关据 token 的 user_id 定位用户）。
-     * 首次设置时网关无旧密码，oldPassword 传空即可直接设置；已有网关密码时会要求旧密码（此处不处理该边界）。
-     *
-     * @param userAccessToken 当前用户 access token（可带或不带 "Bearer " 前缀）
-     */
-    public void setCredentialPassword(String userAccessToken, String newPassword) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        String bearer = userAccessToken != null && userAccessToken.startsWith("Bearer ")
-                ? userAccessToken : "Bearer " + userAccessToken;
-        headers.set("Authorization", bearer);
-        java.util.Map<String, Object> body = new java.util.HashMap<>();
-        body.put("oldPassword", null);
-        body.put("newPassword", newPassword);
-        exchange("/auth/credential/set-password", new HttpEntity<>(body, headers), Map.class);
-    }
-
     /** 代理获取一张新的图形验证码（前端"看不清换一张"）。返回 {captchaImage, challengeId}。 */
     public Map<String, Object> getCaptcha() {
         try {

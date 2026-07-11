@@ -229,7 +229,7 @@ import {
   cancelAccount, revokeCancellation,
   listSessions, revokeSession, revokeAllOtherSessions,
 } from '../api/auth'
-import { sendSmsCode } from '../api/auth'
+import { sendSmsCode, sendPasswordResetSms } from '../api/auth'
 
 const router = useRouter()
 
@@ -285,7 +285,11 @@ async function sendSettingsSms(target) {
   if (!phone) { modalError.value = '未找到手机号'; return }
   smsSending.value = true
   try {
-    const data = await sendSmsCode(phone)
+    // 设置密码走网关 reset 流程，验证码必须以 RESET scene 下发（否则网关 resetVerify 校验不到）；
+    // 其余场景（账号名/换绑/注销）仍用登录 scene 验证码。
+    const data = target === 'password'
+      ? await sendPasswordResetSms(phone)
+      : await sendSmsCode(phone)
     if (!data?.challengeId) throw new Error('发送失败')
     if (target === 'username') usernameForm.challengeId = data.challengeId
     else if (target === 'password') pwdForm.challengeId = data.challengeId
