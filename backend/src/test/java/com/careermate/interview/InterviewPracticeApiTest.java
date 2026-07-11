@@ -95,7 +95,8 @@ class InterviewPracticeApiTest {
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("请先创建并设置默认简历后再开始面试训练"));
+                .andExpect(jsonPath("$.message")
+                        .value("面试训练会基于你的简历出专属题目，请先到「我的简历」上传并设为默认简历，然后回来开始练习。"));
     }
 
     @Test

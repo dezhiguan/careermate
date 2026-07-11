@@ -84,7 +84,8 @@ class JobMatchApiTest {
                         .content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("请先创建并设置默认简历后再进行岗位匹配"));
+                .andExpect(jsonPath("$.message")
+                        .value("岗位匹配需要读取你的简历来评估契合度，请先到「我的简历」上传并设为默认简历后再试。"));
     }
 
     @Test

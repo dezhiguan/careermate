@@ -40,7 +40,8 @@ public class InterviewPracticeService {
     public static final String QUESTION_ANSWERED = "ANSWERED";
 
     private static final int QUESTION_COUNT = 5;
-    private static final String NO_DEFAULT_RESUME_MSG = "请先创建并设置默认简历后再开始面试训练";
+    private static final String NO_DEFAULT_RESUME_MSG =
+            "面试训练会基于你的简历出专属题目，请先到「我的简历」上传并设为默认简历，然后回来开始练习。";
 
     private final InterviewSessionMapper sessionMapper;
     private final InterviewQuestionMapper questionMapper;

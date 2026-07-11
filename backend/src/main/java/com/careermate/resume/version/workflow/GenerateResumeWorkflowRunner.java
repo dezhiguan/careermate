@@ -127,7 +127,8 @@ class GenerateResumeWorkflowRunner {
     private void stepLoadResume(GenerateResumeWorkflowRun run) {
         ResumeContext resumeContext = resumeContextProvider.getResumeContext(run.userId());
         if (!resumeContext.isAvailable() || resumeContext.getContent() == null || resumeContext.getContent().isBlank()) {
-            throw new BizException(400, "请先上传简历");
+            // 保留「请先上传简历」子串：inferFailedStep/isRetryable 依赖它路由到 LOAD_RESUME 步骤。
+            throw new BizException(400, "请先上传简历：定制简历会基于你的原始简历按目标 JD 改写，去「我的简历」上传后即可生成。");
         }
         run.setResumeContext(resumeContext);
     }
@@ -368,7 +369,7 @@ class GenerateResumeWorkflowRunner {
     private static String stepFailureMessage(GenerateResumeWorkflowStep step) {
         return switch (step) {
             case LOAD_JD -> "读取 JD 失败，请重试或重新选择岗位";
-            case LOAD_RESUME -> "请先上传简历";
+            case LOAD_RESUME -> "请先上传简历：定制简历会基于你的原始简历按目标 JD 改写，去「我的简历」上传后即可生成。";
             case GENERATE_RESUME -> "简历生成失败，请稍后重试";
             case QUALITY_CHECK -> "生成结果为空，请重试";
             default -> "简历生成失败，请稍后重试";

@@ -101,12 +101,12 @@ public class RagRetrieverTool implements AgentTool {
             );
         }
         String summary = result.getErrorCode() == null
-                ? "RAG 检索未返回结果"
+                ? "知识库暂未返回相关内容，本次先用通用能力作答。"
                 : switch (result.getErrorCode()) {
-            case ERROR_RAGFORGE_DISABLED -> "RAGForge 未启用，已降级";
-            case ERROR_KB_NOT_CONFIGURED -> "当前场景知识库未配置，已降级";
-            case ERROR_EMPTY_RESULTS -> "知识库暂无相关内容";
-            default -> "RAG 检索未返回结果";
+            case ERROR_RAGFORGE_DISABLED -> "知识检索暂未启用，本次先用通用能力作答。";
+            case ERROR_KB_NOT_CONFIGURED -> "该场景的知识库还没配置好，本次先用通用能力作答，结果可能不够精准。";
+            case ERROR_EMPTY_RESULTS -> "知识库里暂时没找到相关内容，换个说法或关键词也许更好。";
+            default -> "知识库暂未返回相关内容，本次先用通用能力作答。";
         };
         return AgentToolResult.builder()
                 .toolName(name())

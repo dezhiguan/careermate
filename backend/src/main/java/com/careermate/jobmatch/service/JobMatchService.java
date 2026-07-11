@@ -87,7 +87,8 @@ public class JobMatchService {
             throw new BizException(401, "未认证");
         }
         ResumeEntity resume = resumeService.getDefaultActiveResume(userId)
-                .orElseThrow(() -> new BizException(400, "请先创建并设置默认简历后再进行岗位匹配"));
+                .orElseThrow(() -> new BizException(400,
+                        "岗位匹配需要读取你的简历来评估契合度，请先到「我的简历」上传并设为默认简历后再试。"));
 
         JobMatchAnalysisResult analysis = jobMatchAnalyzer.analyze(
                 resume.getContent(),
