@@ -13,9 +13,9 @@ public class UpdateUsernameRequest {
     @Pattern(regexp = "^(?!\\d+$)[a-zA-Z0-9_\\-]+$", message = "账号名只能包含字母、数字、下划线、中划线，且不能全为数字")
     private String username;
 
-    @NotBlank(message = "请输入验证码")
+    // 改账号名不再需要短信二次验证：以下两字段仅为兼容旧前端请求体而保留，
+    // 去掉 @NotBlank 强校验，服务层也不再消费（否则会在 DTO 校验层就 400 挡住无验证码的改名请求）。
     private String verifyCode;
 
-    @NotBlank(message = "challengeId不能为空")
     private String challengeId;
 }

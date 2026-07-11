@@ -35,8 +35,9 @@ public class OpportunityController {
             @RequestParam(required = false) String city,
             @RequestParam(required = false) String position,
             @RequestParam(required = false) String mode,
-            @RequestParam(defaultValue = "1") @Min(1) Integer page,
-            @RequestParam(defaultValue = "10") @Min(1) @Max(20) Integer size
+            @RequestParam(defaultValue = "1") @Min(value = 1, message = "页码需大于等于 1") Integer page,
+            @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页数量需在 1-20 之间")
+            @Max(value = 20, message = "每页数量需在 1-20 之间") Integer size
     ) {
         OpportunityListRequest request = new OpportunityListRequest(keyword, city, position, mode, page, size);
         return ApiResponse.success(opportunityService.list(CurrentUserContext.getUserId(), request));
