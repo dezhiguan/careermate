@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -170,6 +171,33 @@ class MarketIntelligenceServiceTest {
         assertTrue(result.getMissingSkills().isEmpty());
         assertEquals("", result.getAiSummary());
         verify(knowledgeRetrievalService, never()).retrieve(any());
+    }
+
+    @Test
+    void getResumeGapComputesSynchronouslyReturnsTerminalStateNotLoadingWhenCacheEnabled() {
+        // 修复验证：缓存开启且未命中时，getResumeGap 应同步计算并返回终态（非 LOADING），
+        // 不再走「异步刷新+返回 LOADING」导致永远转圈。
+        org.springframework.cache.CacheManager cacheManager =
+                org.mockito.Mockito.mock(org.springframework.cache.CacheManager.class);
+        org.springframework.cache.Cache cache = org.mockito.Mockito.mock(org.springframework.cache.Cache.class);
+        org.mockito.Mockito.when(cacheManager.getCache("market:resume-gap")).thenReturn(cache);
+        org.mockito.Mockito.when(cache.get(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(ResumeGapVO.class))).thenReturn(null); // 未命中
+        @SuppressWarnings("unchecked")
+        org.springframework.beans.factory.ObjectProvider<org.springframework.cache.CacheManager> provider =
+                org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+        org.mockito.Mockito.when(provider.getIfAvailable()).thenReturn(cacheManager);
+        org.springframework.context.ApplicationContext ctx =
+                org.mockito.Mockito.mock(org.springframework.context.ApplicationContext.class);
+
+        MarketIntelligenceService cachedService = new MarketIntelligenceService(
+                knowledgeRetrievalService, llmClient, resumeContextProvider, new ObjectMapper(), provider, ctx);
+        when(resumeContextProvider.getResumeContext(1L)).thenReturn(ResumeContext.builder().available(false).build());
+
+        ResumeGapVO result = cachedService.getResumeGap(1L);
+
+        assertNotNull(result.getMeta());
+        assertNotEquals("LOADING", result.getMeta().state().name(), "应同步返回终态，不再永远 LOADING");
     }
 
     @Test

@@ -90,8 +90,12 @@ public class MarketIntelligenceService {
             ensureFreshMeta(cached);
             return cached;
         }
-        refreshAsync(() -> self().computeSalaryInsight(safeCity, safeRole, safeYears));
-        return loadingSalaryInsight();
+        // 修复永远 LOADING（同考点速查根因）：原「refreshAsync 异步计算 + 返回 LOADING」在无请求
+        // 上下文的异步线程里 LLM 失败、且 @Cacheable 写 Redis 序列化失败被吞 → 结果永不入缓存 →
+        // 每次都 LOADING。改为同步计算 + 手动静默缓存（写失败不影响请求）。
+        SalaryInsightVO result = computeSalaryInsight(safeCity, safeRole, safeYears);
+        cachePutQuietly("market:salary", cacheKey, result, result.getMeta());
+        return result;
     }
 
     public SkillTrendsVO getSkillTrends(String role) {
@@ -110,8 +114,9 @@ public class MarketIntelligenceService {
             ensureFreshMeta(cached);
             return cached;
         }
-        refreshAsync(() -> self().computeSkillTrends(safeCity, safeRole));
-        return loadingSkillTrends();
+        SkillTrendsVO result = computeSkillTrends(safeCity, safeRole);
+        cachePutQuietly("market:skill-trends", cacheKey, result, result.getMeta());
+        return result;
     }
 
     public ResumeGapVO getResumeGap(Long userId) {
@@ -129,15 +134,11 @@ public class MarketIntelligenceService {
             ensureFreshMeta(cached);
             return cached;
         }
-        refreshAsync(() -> self().computeResumeGap(userId, safeJdId));
-        return loadingResumeGap();
+        ResumeGapVO result = computeResumeGap(userId, safeJdId);
+        cachePutQuietly("market:resume-gap", cacheKey, result, result.getMeta());
+        return result;
     }
 
-    @Cacheable(
-            cacheNames = "market:salary",
-            key = "T(com.careermate.cache.CacheKeys).marketSalary(#city, #role, #years)",
-            unless = "#result.meta != null && #result.meta.state().name() == 'DEGRADED'"
-    )
     public SalaryInsightVO computeSalaryInsight(String city, String role, String years) {
         try {
             String query = role + " " + city + " " + years + " 薪资 月薪";
@@ -168,11 +169,6 @@ public class MarketIntelligenceService {
         }
     }
 
-    @Cacheable(
-            cacheNames = "market:skill-trends",
-            key = "T(com.careermate.cache.CacheKeys).marketSkillTrends(#city, #role)",
-            unless = "#result.meta != null && #result.meta.state().name() == 'DEGRADED'"
-    )
     public SkillTrendsVO computeSkillTrends(String city, String role) {
         try {
             String query = role + " " + city + " 技能要求 技术栈 必备";
@@ -203,11 +199,6 @@ public class MarketIntelligenceService {
         }
     }
 
-    @Cacheable(
-            cacheNames = "market:resume-gap",
-            key = "T(com.careermate.cache.CacheKeys).marketResumeGap(#userId, #jdId)",
-            unless = "#result.meta != null && #result.meta.state().name() == 'DEGRADED'"
-    )
     public ResumeGapVO computeResumeGap(Long userId, String jdId) {
         try {
             ResumeContext resumeContext = resumeContextProvider.getResumeContext(userId);
@@ -289,10 +280,6 @@ public class MarketIntelligenceService {
         return cacheManager != null && applicationContext != null;
     }
 
-    private MarketIntelligenceService self() {
-        return applicationContext.getBean(MarketIntelligenceService.class);
-    }
-
     private <T> T cacheValue(String cacheName, String cacheKey, Class<T> type) {
         try {
             Cache cache = cacheManager.getCache(cacheName);
@@ -303,14 +290,19 @@ public class MarketIntelligenceService {
         }
     }
 
-    private void refreshAsync(Runnable runnable) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                runnable.run();
-            } catch (Exception e) {
-                log.warn("market cache async refresh failed: {}", e.getMessage());
+    /** 手动写缓存：跳过 null 与 DEGRADED 结果；写失败（如序列化异常）只记日志、绝不影响请求。 */
+    private void cachePutQuietly(String cacheName, String cacheKey, Object value, CacheMeta meta) {
+        if (value == null || (meta != null && "DEGRADED".equals(meta.state().name()))) {
+            return;
+        }
+        try {
+            Cache cache = cacheManager.getCache(cacheName);
+            if (cache != null) {
+                cache.put(cacheKey, value);
             }
-        });
+        } catch (Exception e) {
+            log.warn("market cache put failed, cache={}, key={}, err={}", cacheName, cacheKey, e.getMessage());
+        }
     }
 
     private static void ensureFreshMeta(SalaryInsightVO vo) {
