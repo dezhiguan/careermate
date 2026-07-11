@@ -267,6 +267,8 @@ public class AuthServiceImpl implements AuthService {
                 .emailVerified(user.getEmailVerified())
                 .hasPassword(StringUtils.hasText(user.getPasswordHash()))
                 .status(user.getStatus())
+                .deletionScheduledAt(user.getDeletionScheduledAt() == null ? null
+                        : user.getDeletionScheduledAt().toInstant().toString())
                 .build();
     }
 

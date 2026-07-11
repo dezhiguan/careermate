@@ -39,14 +39,16 @@ class AuthEventServiceTest {
     private ObjectProvider<StringRedisTemplate> redisTemplateProvider;
 
     private AuthEventProperties properties;
+    private com.careermate.auth.events.LocalAccountPurger localAccountPurger;
     private AuthEventService service;
 
     @BeforeEach
     void setUp() {
         properties = new AuthEventProperties();
+        localAccountPurger = mock(com.careermate.auth.events.LocalAccountPurger.class);
         properties.setHmacSecret("event-secret");
         when(redisTemplateProvider.getIfAvailable()).thenReturn(redisTemplate);
-        service = new AuthEventService(properties, new ObjectMapper(), redisTemplateProvider);
+        service = new AuthEventService(properties, new ObjectMapper(), redisTemplateProvider, localAccountPurger);
     }
 
     @Test
@@ -138,7 +140,7 @@ class AuthEventServiceTest {
     void missingRedisKeepsJwtRevocationCheckDisabled() {
         ObjectProvider<StringRedisTemplate> emptyProvider = mock(ObjectProvider.class);
         when(emptyProvider.getIfAvailable()).thenReturn(null);
-        AuthEventService noRedisService = new AuthEventService(properties, new ObjectMapper(), emptyProvider);
+        AuthEventService noRedisService = new AuthEventService(properties, new ObjectMapper(), emptyProvider, localAccountPurger);
 
         assertThat(noRedisService.isJwtRevoked(new AuthJwtToken("jti-1", "42", 99L))).isFalse();
     }

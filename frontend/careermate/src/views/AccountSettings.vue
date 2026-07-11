@@ -386,9 +386,10 @@ async function submitCancelAccount() {
   submitting.value = true
   try {
     await cancelAccount({ verifyCode: cancelForm.verifyCode, challengeId: cancelForm.challengeId, confirmText: cancelForm.confirmText })
-    await authStore.fetchCurrentUser()
-    closeModal()
-  } catch (e) { modalError.value = e?.message || '操作失败' } finally { submitting.value = false }
+    // 应用级注销：立即登出跳登录页；30 天内重新登录会落到"注销中"中间页可恢复。
+    try { sessionStorage.setItem('cm_cancel_pending', '1') } catch (e) { /* ignore */ }
+    await authStore.logout()
+  } catch (e) { modalError.value = e?.message || '操作失败'; submitting.value = false }
 }
 
 async function doRevokeCancellation() {

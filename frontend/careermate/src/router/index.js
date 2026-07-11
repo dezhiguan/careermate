@@ -23,6 +23,7 @@ function setRouteLoading(v) {
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
+  { path: '/account/cancelling', name: 'account-cancelling', component: () => import('../views/AccountCancelling.vue') },
   { path: '/', redirect: '/chat' },
   {
     path: '/opportunity',
@@ -106,6 +107,14 @@ router.beforeEach(async (to) => {
     // 兜底：未认证却要进受保护页时，清掉本地可能残留的失效/注入 token，避免登出不彻底（TC-CM-04）
     authStore.clearAuth()
     return '/login'
+  }
+  // 注销冷静期（CANCELLING）：不进主界面，统一落"注销中"中间页；已恢复(非 CANCELLING)访问中间页则回主界面。
+  const cancelling = authStore.state.currentUser?.status === 'CANCELLING'
+  if (cancelling && to.path !== '/account/cancelling') {
+    return '/account/cancelling'
+  }
+  if (!cancelling && to.path === '/account/cancelling') {
+    return '/chat'
   }
   // 非阻塞后台加载首页数据：避免深链/刷新时首页接口慢或失败导致 router-view 空白（主区白屏）。
   // 各页面在 onMounted 自行拉数据；鉴权失效由 http 层全局 handleUnauthorized 统一兜底，

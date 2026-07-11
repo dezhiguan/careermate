@@ -253,12 +253,18 @@ public class UserSettingsService {
             throw new BizException(ErrorCode.ACCOUNT_DELETE_CONFIRM_INVALID);
         }
         verifySmsChallenge(user.getPhone(), request.getChallengeId(), request.getVerifyCode(), SmsScene.MOBILE_LOGIN);
+        // 应用级注销：委托网关把 careermate membership 置 PENDING_DELETION（30 天冷静期，权威在网关）。
+        // 只退 CareerMate，不影响 RAGForge 与共享身份；到期由网关发 user.app_removed 事件驱动本地清理。
+        java.util.Map<String, Object> gwResp = authGatewayClient.requestAppDeletion(currentBearerToken(), "careermate");
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        OffsetDateTime scheduledAt = parseGatewayScheduledAt(gwResp, now.plusDays(30));
         user.setStatus("CANCELLING");
         user.setPendingDeletionAt(now);
-        user.setDeletionScheduledAt(now.plusDays(7));
+        user.setDeletionScheduledAt(scheduledAt);
         userMapper.updateById(user);
-        log.info("User {} requested account cancellation, scheduled deletion at {}", user.getId(), user.getDeletionScheduledAt());
+        // 注销即登出全设备：用户级吊销 + 删除本地会话行。
+        revokeAllSessions(user);
+        log.info("User {} requested account cancellation (app-level), scheduled deletion at {}", user.getId(), scheduledAt);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -267,11 +273,34 @@ public class UserSettingsService {
         if (!"CANCELLING".equalsIgnoreCase(user.getStatus())) {
             throw new BizException(ErrorCode.ACCOUNT_NOT_CANCELLING);
         }
+        // 委托网关撤销 careermate membership 的注销
+        authGatewayClient.cancelAppDeletion(currentBearerToken(), "careermate");
         user.setStatus("ACTIVE");
         user.setPendingDeletionAt(null);
         user.setDeletionScheduledAt(null);
         userMapper.updateById(user);
-        log.info("User {} revoked account cancellation", user.getId());
+        log.info("User {} revoked account cancellation (app-level)", user.getId());
+    }
+
+    private OffsetDateTime parseGatewayScheduledAt(java.util.Map<String, Object> resp, OffsetDateTime fallback) {
+        Object v = resp == null ? null : resp.get("deletionScheduledAt");
+        if (v == null) {
+            return fallback;
+        }
+        try {
+            return java.time.Instant.parse(String.valueOf(v)).atOffset(ZoneOffset.UTC);
+        } catch (RuntimeException ex) {
+            return fallback;
+        }
+    }
+
+    /** 注销时吊销该用户全部会话（含当前设备）：用户级吊销 + 删除本地会话行。 */
+    private void revokeAllSessions(UserEntity user) {
+        if (user.getAuthUserId() != null) {
+            authEventService.revokeUserAfter(String.valueOf(user.getAuthUserId()),
+                    java.time.Instant.now().getEpochSecond());
+        }
+        revokeOtherSessions(user, null); // keepJti=null → 全部吊销并删行
     }
 
     // ─── 会话管理────────────────────────────────────────────────────────────────
