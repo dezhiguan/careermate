@@ -49,14 +49,14 @@
       >
         <div class="upload-icon">📄</div>
         <div class="upload-title">上传简历文件</div>
-        <div class="upload-desc">支持 PDF、Word、TXT · 点击或拖拽</div>
+        <div class="upload-desc">支持 PDF、Word、Markdown · 点击或拖拽</div>
         <div v-if="uploading" class="upload-progress">上传中...</div>
       </div>
 
       <input
         ref="fileInputRef"
         type="file"
-        accept=".pdf,.doc,.docx,.txt"
+        accept=".pdf,.doc,.docx,.md,.markdown"
         class="hidden-input"
         @change="onFileSelected"
       >

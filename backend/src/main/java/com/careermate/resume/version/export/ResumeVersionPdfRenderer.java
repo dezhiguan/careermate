@@ -72,11 +72,13 @@ public class ResumeVersionPdfRenderer {
             renderPlainFallback(pdf, source, fonts.body);
         } else {
             for (ResumeStructureParser.ResumeSection section : structure.sections()) {
-                if (section.title() != null && !section.title().isBlank()) {
+                String content = section.contentMarkdown();
+                boolean hasContent = content != null && !content.isBlank();
+                // 空区块（有标题无内容）不渲染标题，避免产生“孤儿标题+分隔线”。
+                if (section.title() != null && !section.title().isBlank() && hasContent) {
                     renderSectionTitle(pdf, section.title(), fonts);
                 }
-                String content = section.contentMarkdown();
-                if (content != null && !content.isBlank()) {
+                if (hasContent) {
                     SectionContentVisitor visitor = new SectionContentVisitor(pdf, fonts);
                     Node document = MarkdownExportSupport.parser().parse(content);
                     document.accept(visitor);
@@ -195,7 +197,10 @@ public class ResumeVersionPdfRenderer {
                 .replace("🚀", "")
                 .replace("→", "->")
                 .replace("～", "~")
-                .replaceAll("[\\p{So}\\p{Cn}]", "")
+                // 仅剔除补充平面(星平面)的彩色 emoji/图形（内嵌中文字体下会显示为豆腐块），
+                // 不再用 \p{So}\p{Cn} 一刀切，从而保留 ™ © ® ✓ ° ↑ ↓ 等合法技术/排版符号，
+                // 避免 PDF 静默丢字并与 DOCX 内容保持一致。
+                .replaceAll("[\\x{1F000}-\\x{1FFFF}]", "")
                 .trim();
     }
 

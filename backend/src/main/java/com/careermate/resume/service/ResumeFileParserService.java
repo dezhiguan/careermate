@@ -45,8 +45,8 @@ public class ResumeFileParserService {
             throw new BizException(400, "只支持 PDF、Word（doc/docx）、Markdown 格式");
         }
 
+        BodyContentHandler handler = new BodyContentHandler(MAX_CONTENT_CHARS);
         try (InputStream is = file.getInputStream()) {
-            BodyContentHandler handler = new BodyContentHandler(MAX_CONTENT_CHARS);
             Metadata metadata = new Metadata();
             ParseContext context = new ParseContext();
             context.set(Parser.class, parser);
@@ -59,9 +59,36 @@ public class ResumeFileParserService {
         } catch (BizException e) {
             throw e;
         } catch (Exception e) {
+            // 文本超过 MAX_CONTENT_CHARS 时 Tika 抛 WriteLimitReachedException（包在 SAXException 内），
+            // 此时 handler 已累积到上限的正文，按“已截断”正常返回，而非整份拒绝。
+            if (isWriteLimitReached(e)) {
+                String partial = handler.toString().trim();
+                if (!partial.isBlank()) {
+                    log.info("简历文本超过 {} 字符，已自动截断: filename={}", MAX_CONTENT_CHARS, originalFilename);
+                    return partial;
+                }
+            }
+            // 不向用户暴露底层解析器的内部异常信息
             log.warn("简历文件解析失败: filename={} err={}", originalFilename, e.getMessage());
-            throw new BizException(400, "文件解析失败，请确认文件格式正确：" + e.getMessage());
+            throw new BizException(400, "文件解析失败，请确认文件是有效且未加密的 PDF、Word 或 Markdown");
         }
+    }
+
+    /** 判断异常链中是否为 Tika 的“写入字符数超限”（超长文档，可按截断处理）。 */
+    private boolean isWriteLimitReached(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t.getClass().getName().contains("WriteLimitReachedException")) {
+                return true;
+            }
+            String msg = t.getMessage();
+            if (msg != null && msg.contains("more than") && msg.contains("characters")) {
+                return true;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return false;
     }
 
     private String extractExtension(String filename) {

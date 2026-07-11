@@ -100,10 +100,10 @@ final class ResumeStructureParser {
             }
             Matcher heading = MARKDOWN_HEADING.matcher(line);
             if (heading.matches()) {
-                String title = cleanMarkdownText(heading.group(1));
-                if (isKnownSectionTitle(title) || i > nameLineIndex + 2) {
-                    return i;
-                }
+                // 任意 Markdown 标题都是显式的区块边界，不再依赖简体“已知标题词表”，
+                // 以兼容繁体（專業技能）、英文（Summary）与自定义标题，避免首个区块
+                // 被误并入联系方式区而在 PDF 中整段静默丢失。
+                return i;
             } else if (isKnownSectionTitle(cleanMarkdownText(line))) {
                 return i;
             }

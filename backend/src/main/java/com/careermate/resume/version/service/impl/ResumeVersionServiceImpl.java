@@ -67,8 +67,19 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     @Transactional
     public ResumeVersionVO updateVersion(Long userId, String versionId, String versionName, String contentMarkdown) {
         ResumeVersionEntity entity = requireOwnedVersion(userId, versionId);
-        entity.setVersionName(versionName);
-        entity.setContentMarkdown(contentMarkdown);
+        // 部分更新：支持仅改名或仅改内容，未提供的字段保持原值，避免“改名必须携带全文”。
+        boolean changed = false;
+        if (versionName != null && !versionName.isBlank()) {
+            entity.setVersionName(versionName.trim());
+            changed = true;
+        }
+        if (contentMarkdown != null && !contentMarkdown.isBlank()) {
+            entity.setContentMarkdown(contentMarkdown);
+            changed = true;
+        }
+        if (!changed) {
+            throw new BizException(400, "请至少提供要修改的版本名或简历内容");
+        }
         entity.setUpdatedAt(LocalDateTime.now());
         resumeVersionMapper.updateById(entity);
         return toDetailVO(entity);

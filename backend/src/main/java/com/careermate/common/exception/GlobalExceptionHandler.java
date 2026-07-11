@@ -14,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.stream.Collectors;
 
@@ -84,6 +85,14 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
         log.warn("Method not supported: method={}, supported={}", e.getMethod(), e.getSupportedHttpMethods());
         return ApiResponse.fail(405, "请求方法不支持");
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleMaxUploadSize(MaxUploadSizeExceededException e) {
+        // 容器 multipart 上限先于业务校验触发，给用户友好文案而非裸露 500 系统异常
+        log.warn("Upload exceeds size limit: {}", e.getMessage());
+        return ApiResponse.fail(ErrorCode.BAD_REQUEST.getCode(), "文件大小不能超过 10MB");
     }
 
     @ExceptionHandler(Exception.class)
