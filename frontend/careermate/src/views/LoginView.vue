@@ -136,13 +136,13 @@
               <span class="field-label">密码</span>
               <input v-model="pwdForm.password" type="password" placeholder="请输入密码" autocomplete="current-password" required />
             </label>
-            <!-- 验证码（连续失败 ≥3 次后显示）-->
-            <template v-if="captchaRequired">
+            <!-- 图形验证码：仅当后端要求且已下发验证码图片时才显示（避免残留状态显示空框挡登录）-->
+            <template v-if="captchaRequired && captchaImage">
               <label>
                 <span class="field-label">图形验证码</span>
                 <div class="sms-row">
-                  <input v-model.trim="pwdForm.captcha" type="text" placeholder="请输入图形验证码" maxlength="6" required />
-                  <img v-if="captchaImage" :src="captchaImage" class="captcha-img" @click="refreshCaptcha" title="点击刷新" />
+                  <input v-model.trim="pwdForm.captcha" type="text" placeholder="请输入图形验证码" maxlength="6" />
+                  <img :src="captchaImage" class="captcha-img" @click="refreshCaptcha" title="点击刷新" />
                 </div>
               </label>
             </template>
@@ -380,7 +380,8 @@ async function submitPasswordLogin() {
   if (!checkTerms()) return
   if (!pwdForm.account) { errorMsg.value = '请输入账号'; return }
   if (!pwdForm.password) { errorMsg.value = '请输入密码'; return }
-  if (captchaRequired.value && !pwdForm.captcha) { errorMsg.value = '请输入图形验证码'; return }
+  // 仅当确有验证码图片时才强制填写（避免残留状态误挡）
+  if (captchaRequired.value && captchaImage.value && !pwdForm.captcha) { errorMsg.value = '请输入图形验证码'; return }
   try {
     const result = await authStore.login(pwdForm.account, pwdForm.password, {
       rememberMe: pwdForm.rememberMe,
@@ -388,8 +389,7 @@ async function submitPasswordLogin() {
       captchaChallengeId: captchaChallengeId.value,
     })
     await agreeTerms('v1').catch(() => {})
-    captchaRequired.value = false
-    pwdForm.captcha = ''
+    resetCaptcha()
     if (result?.isNewUser || result?.onboardingCompleted === false) {
       showOnboarding.value = true
       onboardingStep.value = 0
@@ -400,15 +400,28 @@ async function submitPasswordLogin() {
     const msg = e?.message || ''
     // 后端(透传 auth-gateway)在需要图形验证码时，将 {captchaRequired, captchaImage, challengeId} 放在响应 data 里
     const d = e?.payload?.data
-    if (d?.captchaRequired || msg.includes('图形验证')) {
+    if (d?.captchaRequired && d?.captchaImage) {
       captchaRequired.value = true
-      captchaImage.value = d?.captchaImage || ''
-      captchaChallengeId.value = d?.challengeId || ''
+      captchaImage.value = d.captchaImage
+      captchaChallengeId.value = d.challengeId || ''
       pwdForm.captcha = ''
+    } else {
+      // 本次响应不需要图形验证码：清空残留状态，避免空验证码框挡住后续登录
+      resetCaptcha()
     }
     errorMsg.value = msg || '账号或密码错误，请重试'
   }
 }
+
+function resetCaptcha() {
+  captchaRequired.value = false
+  captchaImage.value = ''
+  captchaChallengeId.value = ''
+  pwdForm.captcha = ''
+}
+
+// 切换登录方式 Tab 时清掉图形验证码残留状态
+watch(activeTab, () => { resetCaptcha() })
 
 async function refreshCaptcha() {
   try {
@@ -452,6 +465,7 @@ async function submitPasswordReset() {
     })
     successMsg.value = '密码已重置，请使用新密码登录'
     Object.assign(resetForm, { phone: '', verifyCode: '', challengeId: '', newPassword: '', confirmPassword: '' })
+    resetCaptcha()
     view.value = 'login'
     activeTab.value = 'password'
   } catch (e) {
