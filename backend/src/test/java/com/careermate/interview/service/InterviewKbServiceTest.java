@@ -96,6 +96,38 @@ class InterviewKbServiceTest {
     }
 
     @Test
+    void getKbQuestionsComputesSynchronouslyAndReturnsFreshNotLoadingWhenCacheEnabled() {
+        // 评审 P0-3 根因修复：缓存开启且未命中时，getKbQuestions 应同步计算并返回 FRESH，
+        // 而非返回 LOADING 后异步计算（异步线程失败→永不入缓存→前端永远转圈）。
+        org.springframework.cache.CacheManager cacheManager =
+                org.mockito.Mockito.mock(org.springframework.cache.CacheManager.class);
+        org.springframework.cache.Cache cache = org.mockito.Mockito.mock(org.springframework.cache.Cache.class);
+        when(cacheManager.getCache("interview:kb-questions")).thenReturn(cache);
+        when(cache.get(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(KbQuestionsVO.class))).thenReturn(null); // 未命中
+        @SuppressWarnings("unchecked")
+        org.springframework.beans.factory.ObjectProvider<org.springframework.cache.CacheManager> provider =
+                org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(cacheManager);
+        org.springframework.context.ApplicationContext ctx =
+                org.mockito.Mockito.mock(org.springframework.context.ApplicationContext.class);
+
+        InterviewKbService cachedService =
+                new InterviewKbService(knowledgeRetrievalService, llmClient, new ObjectMapper(), provider, ctx);
+        when(ctx.getBean(InterviewKbService.class)).thenReturn(cachedService);
+        when(knowledgeRetrievalService.retrieveContextText(RagRetrieveScene.INTERVIEW, "Spring Boot 面试题 考点", 20))
+                .thenReturn("Spring Boot 自动配置、starter");
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder()
+                .content("{\"questions\":[{\"question\":\"Spring Boot 自动配置原理？\",\"answer\":\"...\",\"category\":\"技术\"}],\"aiSummary\":\"重点\"}")
+                .build());
+
+        KbQuestionsVO result = cachedService.getKbQuestions("Spring Boot");
+
+        assertEquals("FRESH", result.getMeta().state().name(), "应同步返回 FRESH，不再是 LOADING");
+        assertEquals(1, result.getQuestions().size());
+    }
+
+    @Test
     void getCompanyPrepMergesCompanyAndInterviewContextThenParsesJson() {
         when(knowledgeRetrievalService.retrieveMergedContextText(any(), eq(4000)))
                 .thenReturn("字节跳动后端面经");

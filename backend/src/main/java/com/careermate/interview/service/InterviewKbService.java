@@ -15,7 +15,6 @@ import com.careermate.llm.dto.ChatResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
@@ -74,8 +73,10 @@ public class InterviewKbService {
             ensureFreshMeta(cached);
             return cached;
         }
-        refreshAsync(() -> self().computeKbQuestions(safeQuery));
-        return loadingKbQuestions(safeQuery);
+        // 评审 P0-3 根因修复：原先「refreshAsync 异步计算 + 返回 LOADING」在无请求上下文的
+        // 异步线程里 LLM 调用失败，结果永不入缓存 → 前端永远 LOADING（转圈/暂无题目）。
+        // 改为同步计算（与工作正常的 getCompanyPrep 一致），结果照样被 @Cacheable 缓存供后续快取。
+        return self().computeKbQuestions(safeQuery);
     }
 
     @Cacheable(
@@ -213,16 +214,6 @@ public class InterviewKbService {
         }
     }
 
-    private void refreshAsync(Runnable runnable) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                runnable.run();
-            } catch (Exception e) {
-                log.warn("interview kb cache async refresh failed: {}", e.getMessage());
-            }
-        });
-    }
-
     private static void ensureFreshMeta(KbQuestionsVO vo) {
         if (vo.getMeta() == null) {
             vo.setMeta(CacheMeta.fresh());
@@ -255,15 +246,6 @@ public class InterviewKbService {
         vo.setQuestions(Collections.emptyList());
         vo.setAiSummary("暂无相关面试资料");
         vo.setMeta(CacheMeta.degraded());
-        return vo;
-    }
-
-    private static KbQuestionsVO loadingKbQuestions(String query) {
-        KbQuestionsVO vo = new KbQuestionsVO();
-        vo.setQuery(query);
-        vo.setQuestions(Collections.emptyList());
-        vo.setAiSummary("");
-        vo.setMeta(CacheMeta.loading());
         return vo;
     }
 
