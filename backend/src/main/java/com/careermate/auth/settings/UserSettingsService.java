@@ -96,6 +96,19 @@ public class UserSettingsService {
         return cu == null ? null : cu.getJti();
     }
 
+    /** 取当前请求的 Bearer access token，用于向 auth-gateway 代理落密码（网关据其 user_id 定位用户）。 */
+    private String currentBearerToken() {
+        org.springframework.web.context.request.RequestAttributes attrs =
+                org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        if (attrs instanceof org.springframework.web.context.request.ServletRequestAttributes sra) {
+            String header = sra.getRequest().getHeader("Authorization");
+            if (StringUtils.hasText(header)) {
+                return header;
+            }
+        }
+        throw new BizException(ErrorCode.UNAUTHORIZED.getCode(), "登录状态已失效，请重新登录后再设置密码");
+    }
+
     // ─── 邮箱绑定（Phase 1：存储，不验证）────────────────────────────────────────
 
     @Transactional(rollbackFor = Exception.class)
@@ -152,6 +165,9 @@ public class UserSettingsService {
         }
         verifySmsChallenge(user.getPhone(), request.getChallengeId(), request.getVerifyCode(), SmsScene.MOBILE_LOGIN);
         checkPasswordHistory(user.getId(), newPassword);
+        // 关键：密码必须落到 auth-gateway（登录校验网关这份），否则设置了却登不进去。
+        // 放在本地写库之前：若网关失败则整体事务回滚，避免"本地已改、网关未改"的不一致。
+        authGatewayClient.setCredentialPassword(currentBearerToken(), newPassword);
         String hash = passwordEncoder.encode(newPassword);
         user.setPasswordHash(hash);
         user.setSessionVersion(user.getSessionVersion() == null ? 1L : user.getSessionVersion() + 1);
@@ -159,7 +175,7 @@ public class UserSettingsService {
         savePasswordHistory(user.getId(), hash);
         // 改密后踢下其他设备（保留当前设备），使已签发的旧 token 立即失效
         revokeOtherSessions(user, currentJti());
-        log.info("User {} set password, session_version={}", user.getId(), user.getSessionVersion());
+        log.info("User {} set password (synced to gateway), session_version={}", user.getId(), user.getSessionVersion());
     }
 
     // ─── 换绑手机号 Step1：验证旧号──────────────────────────────────────────────

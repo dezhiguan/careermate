@@ -101,7 +101,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             writeUnauthorized(response, "用户不存在");
             return false;
         }
-        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+        // ACTIVE 正常；CANCELLING（注销冷静期）也需能鉴权 —— 否则用户无法调用撤销注销接口，
+        // 会被永久锁死。其余状态（BANNED 等）一律拒绝。
+        String status = user.getStatus();
+        boolean allowed = "ACTIVE".equalsIgnoreCase(status) || "CANCELLING".equalsIgnoreCase(status);
+        if (!allowed) {
             writeUnauthorized(response, "用户已被禁用");
             return false;
         }
