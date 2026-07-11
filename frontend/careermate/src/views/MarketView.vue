@@ -391,11 +391,23 @@ function isEmptyState(state) {
 }
 
 function scheduleLoadingRefetch() {
-  if (!hasLoadingState() || loadingRefetchCount.value >= LOADING_REFETCH_MAX) return
+  if (!hasLoadingState()) return
+  if (loadingRefetchCount.value >= LOADING_REFETCH_MAX) {
+    // 评审 P1-1：轮询到上限仍未出数据，判定为超时，把仍处 LOADING 的模块降级，
+    // 触发「AI 暂时不可用，请稍后重试」面板，避免骨架屏永远转圈。
+    markLoadingStatesTimedOut()
+    return
+  }
   loadingRefetchCount.value += 1
   loadingRefetchTimer = window.setTimeout(() => {
     loadMarketData({ autoRefresh: true })
   }, LOADING_REFETCH_DELAY_MS)
+}
+
+function markLoadingStatesTimedOut() {
+  if (isLoadingState(salaryState.value)) salaryState.value = META_STATE.DEGRADED
+  if (isLoadingState(skillsState.value)) skillsState.value = META_STATE.DEGRADED
+  if (isLoadingState(gapState.value)) gapState.value = META_STATE.DEGRADED
 }
 
 function hasLoadingState() {
