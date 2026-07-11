@@ -4,7 +4,7 @@
 **版本**：V1.0
 **被测功能**：应用级账号注销 / 撤销（委托 auth-gateway membership + 事件驱动清理 + 注销中中间页）
 **设计依据**：`docs/design/account-cancellation-redesign-v1.md`（V3.0）
-**状态**：待评审 / 未执行
+**状态**：已执行（2026-07-12，见 `account-cancellation-test-execution-v1.md`，0 Fail，2 隐藏缺陷已修）
 **用例总数**：126
 
 ---
