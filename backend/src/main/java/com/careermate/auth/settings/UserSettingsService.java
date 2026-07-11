@@ -276,10 +276,12 @@ public class UserSettingsService {
         }
         // 委托网关撤销 careermate membership 的注销
         authGatewayClient.cancelAppDeletion(currentBearerToken(), "careermate");
-        user.setStatus("ACTIVE");
-        user.setPendingDeletionAt(null);
-        user.setDeletionScheduledAt(null);
-        userMapper.updateById(user);
+        // 显式 set 清空时间戳列：MyBatis-Plus updateById 默认跳过 null 字段，直接 setXxx(null)+updateById 不会清列。
+        userMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserEntity>()
+                .eq(UserEntity::getId, user.getId())
+                .set(UserEntity::getStatus, "ACTIVE")
+                .set(UserEntity::getPendingDeletionAt, null)
+                .set(UserEntity::getDeletionScheduledAt, null));
         log.info("User {} revoked account cancellation (app-level)", user.getId());
     }
 
