@@ -13,11 +13,11 @@
 
 | 判定 | 数量 | 说明 |
 |---|---|---|
-| ✅ 实测通过（Live/E2E） | 32 | 生产接口 + Playwright UI 实跑 |
+| ✅ 实测通过（Live/E2E） | 46 | 生产接口 + Playwright UI 实跑（含 §7 第二轮 Live 补充） |
 | ✅ 代码/架构分析通过（By-Design） | 41 | 跨服务隔离、幂等、事件路由等有代码级证据 |
 | ✅ 单元测试覆盖通过 | 27 | LocalAccountPurger 3 + AuthEventService 8 + 网关侧 16 |
-| ⏸ 阻塞（本轮短信限流，核心已前轮 E2E 覆盖） | 26 | 极限并发 / 验证码错误码分支，逻辑已由单测或前轮实测保障 |
-| **总计** | **126** | **0 Fail，2 处隐藏缺陷已发现并修复** |
+| ⏸ 阻塞（仅极限并发 CONC，逻辑已由行级锁+单测保障） | 12 | 多副本竞态，建议下轮补一轮并发 Live |
+| **总计** | **126** | **0 Fail，2 处隐藏缺陷已发现并修复，BUG-2 修复已线上确认** |
 
 **最高价值深挖结论（RAG 隔离）：CareerMate 注销对 RAGForge 零影响，架构隔离成立 —— 见 §4。**
 
@@ -106,7 +106,37 @@
 对照 `account-cancellation-redesign-v1.md`（V3.0）逐项核对：**无漏做**。
 应用级委托、冷静期取网关口径、注销即登出、中间页 status 驱动、事件驱动清理（网关 cron 行级锁，非自建定时任务）、LocalAccountPurger 匿名化+内容删除、登录自愈 ensureMembership —— 全部实现且验证。
 
+---
+
+## 7. 第二轮 Live 补充执行（2026-07-12 · 短信限流解除后）
+
+真实登录 → 换 token → 生产接口逐条实跑，覆盖前轮阻塞的确认字/验证码/撤销分支：
+
+| 用例 | 结果 | 证据 |
+|---|---|---|
+| CANCEL-04 确认字「删除」 | ✅ | 400「请输入「注销」确认注销操作」 |
+| CANCEL-05 「注 销」含空格 | ✅ | 400（严格匹配，无 trim） |
+| CANCEL-06 「注銷」繁体 | ✅ | 400 |
+| CANCEL-07 「 注销 」前后空格 | ✅ | 400（严格匹配，无 trim） |
+| CANCEL-10 缺 challengeId | ✅ | 400「challengeId不能为空」 |
+| CANCEL-11 伪造 challengeId | ✅ | 400「验证码已失效，请重新获取」 |
+| CANCEL-08 正确确认字 + 错误验证码 | ✅ | 400「验证码错误或已过期」，`/me` 仍 ACTIVE（未触发注销） |
+| CANCEL-01 真码注销 | ✅ | code=0，`/me` 转 CANCELLING |
+| SESSION 注销即登出 | ✅ | 注销后原 token 立即 HTTP 401（会话被吊销） |
+| LOGIN 冷静期内重登 | ✅ | code=0 放行（网关只拦 DELETED，CANCELLING 通过） |
+| CANCEL-02 冷静期取网关口径 | ✅ | `/me` status=CANCELLING，delAt≈now+30d（2026-08-10） |
+| REVOKE-01 撤销注销 | ✅ | code=0，网关+本地 ACTIVE |
+| **BUG-2 撤销清列 · 线上验证** | ✅ | 撤销后 `/me` status=ACTIVE 且 `deletionScheduledAt=null`（ca427ee 修复线上生效） |
+| REVOKE-04 非注销态再撤销 | ✅ | 400「当前账号不在注销流程中」 |
+
+**OBS-1（数据卫生，低风险）**：本轮开测前观察到测试账号 `status=ACTIVE` 却残留 `deletionScheduledAt` —— 系 ca427ee 部署前的一次撤销留下的旧数据。真实撤销即被清空（见 BUG-2 行）。前端路由守卫以 `status==='CANCELLING'` 为准、不看该字段，故无功能影响。**建议**：对存量 `status='ACTIVE' AND deletion_scheduled_at IS NOT NULL` 的行做一次性数据订正（UPDATE 清空两列），消除脏数据。
+
+**账号复位**：执行完毕，测试账号已回到 ACTIVE + 字段干净状态。
+
+---
+
 **修订记录**
 | 日期 | 版本 | 变更 |
 |---|---|---|
 | 2026-07-12 | V1.0 | 首次执行报告，126 用例，0 Fail，2 隐藏缺陷已修 |
+| 2026-07-12 | V1.1 | 第二轮 Live 补充 14 例（限流解除后），BUG-2 修复线上确认；新增 OBS-1 数据卫生建议 |
