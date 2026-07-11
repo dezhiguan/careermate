@@ -21,7 +21,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -73,17 +72,16 @@ public class InterviewKbService {
             ensureFreshMeta(cached);
             return cached;
         }
-        // 评审 P0-3 根因修复：原先「refreshAsync 异步计算 + 返回 LOADING」在无请求上下文的
-        // 异步线程里 LLM 调用失败，结果永不入缓存 → 前端永远 LOADING（转圈/暂无题目）。
-        // 改为同步计算（与工作正常的 getCompanyPrep 一致），结果照样被 @Cacheable 缓存供后续快取。
-        return self().computeKbQuestions(safeQuery);
+        // 评审 P0-3 根因修复：
+        // 1) 原「refreshAsync 异步计算 + 返回 LOADING」在无请求上下文的异步线程里 LLM 调用失败，
+        //    结果永不入缓存 → 前端永远 LOADING。改为同步计算（与正常工作的 getCompanyPrep 一致）。
+        // 2) 原 @Cacheable 自动写缓存若序列化失败会抛异常（异步时被吞→LOADING，同步后暴露为 500）。
+        //    改为手动静默写缓存：computeKbQuestions 自身已 try/catch 兜底不抛，缓存写失败也不影响请求。
+        KbQuestionsVO result = computeKbQuestions(safeQuery);
+        cachePutQuietly("interview:kb-questions", cacheKey, result);
+        return result;
     }
 
-    @Cacheable(
-            cacheNames = "interview:kb-questions",
-            key = "T(com.careermate.cache.CacheKeys).interviewKbQuestions(#tag)",
-            unless = "#result == null || (#result.meta != null && #result.meta.state().name() == 'DEGRADED')"
-    )
     public KbQuestionsVO computeKbQuestions(String tag) {
         try {
             String safeQuery = defaultText(tag, "Java后端");
@@ -200,10 +198,6 @@ public class InterviewKbService {
         return cacheManager != null && applicationContext != null;
     }
 
-    private InterviewKbService self() {
-        return applicationContext.getBean(InterviewKbService.class);
-    }
-
     private <T> T cacheValue(String cacheName, String cacheKey, Class<T> type) {
         try {
             Cache cache = cacheManager.getCache(cacheName);
@@ -211,6 +205,22 @@ public class InterviewKbService {
         } catch (Exception e) {
             log.warn("interview kb cache read failed, cache={}, key={}, err={}", cacheName, cacheKey, e.getMessage());
             return null;
+        }
+    }
+
+    /** 手动写缓存：只缓存有效(非 DEGRADED)结果；写失败(如序列化异常)只记日志，绝不影响请求。 */
+    private void cachePutQuietly(String cacheName, String cacheKey, KbQuestionsVO value) {
+        if (value == null || value.getMeta() == null
+                || "DEGRADED".equals(value.getMeta().state().name())) {
+            return;
+        }
+        try {
+            Cache cache = cacheManager.getCache(cacheName);
+            if (cache != null) {
+                cache.put(cacheKey, value);
+            }
+        } catch (Exception e) {
+            log.warn("interview kb cache put failed, cache={}, key={}, err={}", cacheName, cacheKey, e.getMessage());
         }
     }
 

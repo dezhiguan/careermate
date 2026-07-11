@@ -114,7 +114,6 @@ class InterviewKbServiceTest {
 
         InterviewKbService cachedService =
                 new InterviewKbService(knowledgeRetrievalService, llmClient, new ObjectMapper(), provider, ctx);
-        when(ctx.getBean(InterviewKbService.class)).thenReturn(cachedService);
         when(knowledgeRetrievalService.retrieveContextText(RagRetrieveScene.INTERVIEW, "Spring Boot 面试题 考点", 20))
                 .thenReturn("Spring Boot 自动配置、starter");
         when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder()
