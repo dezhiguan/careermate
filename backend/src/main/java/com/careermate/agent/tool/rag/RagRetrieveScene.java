@@ -6,6 +6,7 @@ public enum RagRetrieveScene {
     MARKET,
     COMPANY,
     RESUME,
+    SKILL,
     GENERAL;
 
     public static RagRetrieveScene fromValue(String value) {

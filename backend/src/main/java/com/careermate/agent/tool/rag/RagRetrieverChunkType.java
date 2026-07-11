@@ -6,5 +6,6 @@ public enum RagRetrieverChunkType {
     MARKET_REPORT,
     COMPANY,
     RESUME,
+    SKILL,
     GENERAL
 }

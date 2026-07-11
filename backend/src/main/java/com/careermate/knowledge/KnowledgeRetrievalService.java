@@ -192,6 +192,8 @@ public class KnowledgeRetrievalService {
             case MARKET -> searchKbIdOrFallbackJd(ragForgeProperties.getMarketKbId(), "薪资行情库", query, topK, chunkTypes);
             case COMPANY -> searchKbIdOrFallbackJd(ragForgeProperties.getCompanyKbId(), "目标公司库", query, topK, chunkTypes);
             case RESUME -> searchKbId(ragForgeProperties.getPersonalKbId(), query, topK, chunkTypes);
+            // 评审第五章 #3：接入岗位技能画像库（技能对齐用），未配置则返回空、不污染其它库
+            case SKILL -> searchKbId(ragForgeProperties.getSkillKbId(), query, topK, chunkTypes);
             case GENERAL -> searchGeneral(query, topK, chunkTypes);
         };
     }
@@ -253,6 +255,9 @@ public class KnowledgeRetrievalService {
                     ? Optional.empty()
                     : Optional.of(ERROR_KB_NOT_CONFIGURED);
             case RESUME -> kbConfigured(ragForgeProperties.getPersonalKbId())
+                    ? Optional.empty()
+                    : Optional.of(ERROR_KB_NOT_CONFIGURED);
+            case SKILL -> kbConfigured(ragForgeProperties.getSkillKbId())
                     ? Optional.empty()
                     : Optional.of(ERROR_KB_NOT_CONFIGURED);
             case GENERAL -> {
@@ -338,6 +343,7 @@ public class KnowledgeRetrievalService {
             case "MARKET_REPORT", "MARKET" -> RagRetrieverChunkType.MARKET_REPORT;
             case "RESUME", "PERSONAL_RESUME" -> RagRetrieverChunkType.RESUME;
             case "COMPANY" -> RagRetrieverChunkType.COMPANY;
+            case "SKILL", "SKILL_PROFILE" -> RagRetrieverChunkType.SKILL;
             default -> defaultChunkType(scene);
         };
     }
@@ -349,6 +355,7 @@ public class KnowledgeRetrievalService {
             case MARKET -> RagRetrieverChunkType.MARKET_REPORT;
             case COMPANY -> RagRetrieverChunkType.COMPANY;
             case RESUME -> RagRetrieverChunkType.RESUME;
+            case SKILL -> RagRetrieverChunkType.SKILL;
             case GENERAL -> RagRetrieverChunkType.GENERAL;
         };
     }

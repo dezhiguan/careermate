@@ -359,6 +359,57 @@ class KnowledgeRetrievalServiceTest {
         assertFalse(service.shouldFallbackToJd(RagRetrieveScene.OPPORTUNITY));
         assertFalse(service.shouldFallbackToJd(RagRetrieveScene.INTERVIEW));
         assertFalse(service.shouldFallbackToJd(RagRetrieveScene.RESUME));
+        assertFalse(service.shouldFallbackToJd(RagRetrieveScene.SKILL));
         assertFalse(service.shouldFallbackToJd(RagRetrieveScene.GENERAL));
+    }
+
+    // ---- 评审第五章 #3：接入岗位技能画像库（SKILL 场景） ----
+
+    @Test
+    void skillSceneUsesSkillKbWhenConfiguredAndMapsChunkType() {
+        properties.setSkillKbId("598");
+        when(ragForgeClient.search(eq(598L), anyString(), anyInt(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(new RagForgeChunk(1L, 2L, "skill.md", "Java 高频技能：JVM/并发/Spring", "SKILL", 0.9)));
+
+        RagRetrieveResult result = service.retrieve(RagRetrieveRequest.builder()
+                .query("Java 后端 技能")
+                .scene(RagRetrieveScene.SKILL)
+                .topK(5)
+                .build());
+
+        assertTrue(result.isSuccess());
+        assertEquals(RagRetrieverChunkType.SKILL, result.getChunks().get(0).getChunkType());
+        verify(ragForgeClient).search(eq(598L), eq("Java 后端 技能"), eq(5), org.mockito.ArgumentMatchers.any());
+        verify(ragForgeClient, never()).searchJd(anyString(), anyInt());
+    }
+
+    @Test
+    void skillSceneReturnsKbNotConfiguredWhenUnset() {
+        // skillKbId 未配 → 明确 KB_NOT_CONFIGURED，绝不回退到 JD 库（不污染技能语义）
+        RagRetrieveResult result = service.retrieve(RagRetrieveRequest.builder()
+                .query("技能")
+                .scene(RagRetrieveScene.SKILL)
+                .topK(5)
+                .build());
+
+        assertFalse(result.isSuccess());
+        assertEquals(KnowledgeRetrievalService.ERROR_KB_NOT_CONFIGURED, result.getErrorCode());
+        verify(ragForgeClient, never()).searchJd(anyString(), anyInt());
+    }
+
+    @Test
+    void skillSceneDefaultsChunkTypeWhenRawTypeBlank() {
+        properties.setSkillKbId("598");
+        when(ragForgeClient.search(eq(598L), anyString(), anyInt(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(new RagForgeChunk(3L, 4L, "s.md", "技能内容", null, 0.6)));
+
+        RagRetrieveResult result = service.retrieve(RagRetrieveRequest.builder()
+                .query("技能")
+                .scene(RagRetrieveScene.SKILL)
+                .topK(5)
+                .build());
+
+        assertTrue(result.isSuccess());
+        assertEquals(RagRetrieverChunkType.SKILL, result.getChunks().get(0).getChunkType());
     }
 }

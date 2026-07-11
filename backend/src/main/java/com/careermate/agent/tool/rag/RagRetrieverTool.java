@@ -65,7 +65,7 @@ public class RagRetrieverTool implements AgentTool {
                         .name("scene")
                         .type(AgentToolParameterType.STRING)
                         .required(false)
-                        .description("检索场景：OPPORTUNITY / INTERVIEW / MARKET / COMPANY / RESUME / GENERAL")
+                        .description("检索场景：OPPORTUNITY / INTERVIEW / MARKET / COMPANY / RESUME / SKILL / GENERAL")
                         .build())
                 .parameter(AgentToolParameter.builder()
                         .name("topK")
