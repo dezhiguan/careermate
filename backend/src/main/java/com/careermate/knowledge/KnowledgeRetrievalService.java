@@ -189,19 +189,36 @@ public class KnowledgeRetrievalService {
             case INTERVIEW -> ragForgeClient.searchInterview(query, topK);
             case OPPORTUNITY -> ragForgeClient.searchJd(query, topK);
             // A1-4：精确 scene→kbId（薪资行情库/目标公司库），未配置时回退 JD 库保持兼容
-            case MARKET -> searchKbIdOrFallbackJd(ragForgeProperties.getMarketKbId(), query, topK, chunkTypes);
-            case COMPANY -> searchKbIdOrFallbackJd(ragForgeProperties.getCompanyKbId(), query, topK, chunkTypes);
+            case MARKET -> searchKbIdOrFallbackJd(ragForgeProperties.getMarketKbId(), "薪资行情库", query, topK, chunkTypes);
+            case COMPANY -> searchKbIdOrFallbackJd(ragForgeProperties.getCompanyKbId(), "目标公司库", query, topK, chunkTypes);
             case RESUME -> searchKbId(ragForgeProperties.getPersonalKbId(), query, topK, chunkTypes);
             case GENERAL -> searchGeneral(query, topK, chunkTypes);
         };
     }
 
-    private List<RagForgeChunk> searchKbIdOrFallbackJd(String kbIdRaw, String query, int topK, List<String> chunkTypes) {
+    private List<RagForgeChunk> searchKbIdOrFallbackJd(String kbIdRaw, String kbLabel, String query, int topK, List<String> chunkTypes) {
         Long kbId = parseKbId(kbIdRaw);
         if (kbId == null) {
+            // 显式化「静默回退」：专库未配置时降级到 JD 库仍能作答，但会污染语义，必须在日志中可见，便于生产排查与补配。
+            log.warn("[KB-FALLBACK] {} 未配置 kbId，本次检索已降级到岗位 JD 库；作答依据可能不精准，"
+                    + "请在生产环境配置对应知识库 id 以启用专库检索。", kbLabel);
             return ragForgeClient.searchJd(query, topK);
         }
         return ragForgeClient.search(kbId, query, topK, chunkTypes);
+    }
+
+    /**
+     * 判断某 scene 当前是否会因专库未配置而降级到 JD 库（供启动自检 / 单测使用）。
+     * 仅 MARKET / COMPANY 存在「专库未配置→回退 JD」的语义，其它 scene 不回退。
+     */
+    boolean shouldFallbackToJd(RagRetrieveScene scene) {
+        return switch (scene) {
+            case MARKET -> !kbConfigured(ragForgeProperties.getMarketKbId())
+                    && kbConfigured(ragForgeProperties.getJdKbId());
+            case COMPANY -> !kbConfigured(ragForgeProperties.getCompanyKbId())
+                    && kbConfigured(ragForgeProperties.getJdKbId());
+            default -> false;
+        };
     }
 
     private List<RagForgeChunk> searchGeneral(String query, int topK, List<String> chunkTypes) {
