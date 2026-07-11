@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -78,6 +79,32 @@ class ResumeApiTest {
                 .role("USER")
                 .authenticated(true)
                 .build());
+    }
+
+    @Test
+    void fileReUploadReplacesPreviousResumeInsteadOfAccumulating() throws Exception {
+        loginAs(TestUsers.USER_A, TestUsers.USER_A_NAME);
+
+        org.springframework.mock.web.MockMultipartFile f1 = new org.springframework.mock.web.MockMultipartFile(
+                "file", "resume1.md", "text/markdown",
+                "第一份简历 三年 Java 经验".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        mockMvc.perform(multipart("/api/resumes/upload").file(f1).param("title", "简历一"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isDefault").value(true));
+
+        org.springframework.mock.web.MockMultipartFile f2 = new org.springframework.mock.web.MockMultipartFile(
+                "file", "resume2.md", "text/markdown",
+                "第二份简历 五年 Go 经验".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        mockMvc.perform(multipart("/api/resumes/upload").file(f2).param("title", "简历二"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isDefault").value(true));
+
+        // 修复验证：重新上传=替换 → 只剩 1 份 ACTIVE，且为最新那份、且为默认；旧份不再残留
+        mockMvc.perform(get("/api/resumes"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].title").value("简历二"))
+                .andExpect(jsonPath("$.data[0].isDefault").value(true));
     }
 
     @Test

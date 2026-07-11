@@ -246,19 +246,32 @@ public class ResumeService {
 
         OffsetDateTime now = OffsetDateTime.now();
 
-        boolean hasDefault = resumeMapper.selectCount(
+        // 修复「重新上传」语义：简历页只呈现一份默认简历，上传即「替换」。
+        // 先软删所有既有 ACTIVE 简历（腾出唯一默认位、避免旧份堆积成孤儿），
+        // 再插入新简历作为唯一默认，使新份立即可见、旧份不再残留。
+        java.util.List<ResumeEntity> replaced = resumeMapper.selectList(
                 new LambdaQueryWrapper<ResumeEntity>()
                         .eq(ResumeEntity::getUserId, userId)
                         .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
-                        .eq(ResumeEntity::getIsDefault, true)
-        ) > 0;
+        );
+        for (ResumeEntity prev : replaced) {
+            resumeMapper.update(
+                    null,
+                    new LambdaUpdateWrapper<ResumeEntity>()
+                            .eq(ResumeEntity::getId, prev.getId())
+                            .eq(ResumeEntity::getUserId, userId)
+                            .set(ResumeEntity::getStatus, STATUS_DELETED)
+                            .set(ResumeEntity::getIsDefault, false)
+                            .set(ResumeEntity::getUpdatedAt, now)
+            );
+        }
 
         ResumeEntity entity = new ResumeEntity();
         entity.setUserId(userId);
         entity.setTitle(resolvedTitle);
         entity.setContent(content);
         entity.setSourceType(SOURCE_TYPE_FILE);
-        entity.setIsDefault(!hasDefault);
+        entity.setIsDefault(true);
         entity.setStatus(STATUS_ACTIVE);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
@@ -268,6 +281,14 @@ public class ResumeService {
         asyncSyncToRag(entity.getId(), entity.getTitle(), entity.getContent(), null);
         // 评审 P0-1：异步从简历自动回填画像空字段，不阻塞主流程
         asyncAutoFillProfile(userId, entity.getContent());
+        // 异步清理被替换简历在 RAGForge 的旧文档，避免个人库残留过时简历
+        for (ResumeEntity prev : replaced) {
+            Long oldRagDocId = prev.getRagDocId();
+            if (oldRagDocId != null) {
+                java.util.concurrent.CompletableFuture.runAsync(MdcContext.wrap(() ->
+                        ragForgeClient.deleteDocument(oldRagDocId)));
+            }
+        }
 
         return toDetail(entity);
     }
