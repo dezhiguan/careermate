@@ -33,6 +33,33 @@ function handleUnauthorized(payload) {
   throw new Error(friendlyApiMessage(payload?.code, payload?.message || '未认证'))
 }
 
+// 静默续期：access token 过期(401)时用 httpOnly refresh cookie 换发新 AT，避免闲置/合盖后被直接踢出。
+// 并发的多个 401 只触发一次续期请求。
+let refreshPromise = null
+function trySilentRefresh() {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include', // 携带 httpOnly refresh cookie
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((p) => {
+        const t = p?.data?.token
+        if (t) {
+          localStorage.setItem(TOKEN_KEY, t)
+          return t
+        }
+        return null
+      })
+      .catch(() => null)
+      .finally(() => {
+        refreshPromise = null
+      })
+  }
+  return refreshPromise
+}
+
 function readTraceHeaders(response) {
   const traceId = response.headers.get('X-Trace-Id')
   const requestId = response.headers.get('X-Request-Id')
@@ -67,6 +94,14 @@ export async function requestWithMeta(path, options = {}) {
   }
 
   if (response.status === 401 || payload?.code === 401) {
+    // AT 过期时先静默续期并重试一次；仅在已登录(有token)、非续期端点、且未重试过时尝试
+    const hasToken = !!localStorage.getItem(TOKEN_KEY)
+    if (hasToken && !options._retried && path !== '/auth/refresh') {
+      const newToken = await trySilentRefresh()
+      if (newToken) {
+        return requestWithMeta(path, { ...options, _retried: true })
+      }
+    }
     handleUnauthorized(payload)
   }
 
