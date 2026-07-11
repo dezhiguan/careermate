@@ -132,8 +132,18 @@
         <p class="modal-tip">需短信验证身份。修改密码后所有其他设备将下线。</p>
         <label class="field-label">新密码</label>
         <input v-model="pwdForm.newPassword" type="password" placeholder="8-64位，含字母+数字" class="field-input" />
-        <div v-if="pwdForm.newPassword" class="strength-bar"><div class="strength-fill" :style="strengthStyle(pwdForm.newPassword)"></div></div>
-        <span v-if="pwdForm.newPassword" class="strength-label" :style="{ color: strengthColor(pwdForm.newPassword) }">{{ strengthText(pwdForm.newPassword) }}</span>
+        <template v-if="pwdForm.newPassword">
+          <div class="strength-seg-bar">
+            <span v-for="i in 4" :key="i" class="strength-seg"
+                  :style="{ background: i <= pwdStrength.seg ? pwdStrength.color : '#e5e9f0' }"></span>
+          </div>
+          <div class="strength-meta">
+            <span class="strength-level" :style="{ color: pwdStrength.color }">
+              <span class="strength-dot" :style="{ background: pwdStrength.color }"></span>{{ pwdStrength.text }}
+            </span>
+            <span class="strength-hint">{{ pwdStrength.hint }}</span>
+          </div>
+        </template>
         <label class="field-label" style="margin-top:12px;">手机验证码</label>
         <div class="sms-row">
           <input v-model.trim="pwdForm.verifyCode" type="text" inputmode="numeric" placeholder="请输入验证码" class="field-input" style="flex:1" />
@@ -411,18 +421,28 @@ function formatDate(ts) {
 }
 
 // 密码强度
-function strengthScore(pwd) {
-  if (!pwd) return 0
-  let s = 0
-  if (pwd.length >= 8) s++
-  if (/[a-zA-Z]/.test(pwd)) s++
-  if (/\d/.test(pwd)) s++
-  if (/[^a-zA-Z0-9]/.test(pwd)) s++
-  return Math.min(s, 3)
-}
-function strengthText(pwd) { const s = strengthScore(pwd); return s < 2 ? '弱' : s < 3 ? '中' : '强' }
-function strengthColor(pwd) { const s = strengthScore(pwd); return s < 2 ? '#ef4444' : s < 3 ? '#f59e0b' : '#10b981' }
-function strengthStyle(pwd) { const s = strengthScore(pwd); const w = s < 2 ? '33%' : s < 3 ? '66%' : '100%'; return { width: w, background: strengthColor(pwd) } }
+// 密码强度：6 维打分（长度≥8/≥12、小写、大写、数字、符号）→ 5 档（太短/弱/中/良/强）
+const pwdStrength = computed(() => {
+  const pwd = pwdForm.newPassword || ''
+  const meetsMin = pwd.length >= 8 && /[a-zA-Z]/.test(pwd) && /\d/.test(pwd)
+  if (!meetsMin) {
+    const hint = pwd.length < 8 ? '密码太短，至少 8 位'
+      : !/[a-zA-Z]/.test(pwd) ? '需包含字母'
+      : '需包含数字'
+    return { seg: 0, color: '#94a3b8', text: '太短', hint }
+  }
+  let score = 0
+  if (pwd.length >= 8) score++
+  if (pwd.length >= 12) score++
+  if (/[a-z]/.test(pwd)) score++
+  if (/[A-Z]/.test(pwd)) score++
+  if (/\d/.test(pwd)) score++
+  if (/[^a-zA-Z0-9]/.test(pwd)) score++
+  if (score >= 5) return { seg: 4, color: '#10b981', text: '强', hint: '很安全 👍' }
+  if (score >= 4) return { seg: 3, color: '#3b82f6', text: '良', hint: '较安全，再长一点更佳' }
+  if (score >= 3) return { seg: 2, color: '#f59e0b', text: '中', hint: '还不错，加符号会更安全' }
+  return { seg: 1, color: '#ef4444', text: '弱', hint: '建议加长或加入更多字符类型' }
+})
 </script>
 
 <style scoped>
@@ -480,7 +500,10 @@ function strengthStyle(pwd) { const s = strengthScore(pwd); const w = s < 2 ? '3
 .warning-box ul { margin: 6px 0; padding-left: 18px; }
 .warning-box li { margin-bottom: 3px; }
 
-.strength-bar { height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden; margin-top: 4px; }
-.strength-fill { height: 100%; border-radius: 2px; transition: width 0.3s, background 0.3s; }
-.strength-label { font-size: 11px; font-weight: 500; }
+.strength-seg-bar { display: flex; gap: 6px; margin-top: 8px; }
+.strength-seg { flex: 1; height: 6px; border-radius: 4px; background: #e5e9f0; transition: background 0.25s ease; }
+.strength-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.strength-level { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+.strength-dot { width: 8px; height: 8px; border-radius: 50%; }
+.strength-hint { font-size: 12px; color: #94a3b8; }
 </style>
