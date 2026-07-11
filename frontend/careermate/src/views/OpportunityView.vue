@@ -99,7 +99,8 @@
           <button
             type="button"
             class="btn-action"
-            :disabled="!!preparingId"
+            :disabled="!!preparingId || !hasResume"
+            :title="!hasResume ? '定制简历需要先上传简历，去「我的简历」上传后即可使用' : ''"
             @click.stop="handleWorkspaceAction(item, 'GENERATE_RESUME')"
           >
             定制简历
