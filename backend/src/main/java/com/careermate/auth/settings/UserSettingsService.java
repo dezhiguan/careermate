@@ -96,6 +96,19 @@ public class UserSettingsService {
         return cu == null ? null : cu.getJti();
     }
 
+    /** 取当前请求的 Bearer access token，用于向 auth-gateway 代理同步身份（网关据其 user_id 定位用户）。 */
+    private String currentBearerToken() {
+        org.springframework.web.context.request.RequestAttributes attrs =
+                org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        if (attrs instanceof org.springframework.web.context.request.ServletRequestAttributes sra) {
+            String header = sra.getRequest().getHeader("Authorization");
+            if (StringUtils.hasText(header)) {
+                return header;
+            }
+        }
+        return null;
+    }
+
     // ─── 邮箱绑定（Phase 1：存储，不验证）────────────────────────────────────────
 
     @Transactional(rollbackFor = Exception.class)
@@ -113,6 +126,13 @@ public class UserSettingsService {
         user.setEmail(email);
         user.setEmailVerified(false);
         userMapper.updateById(user);
+        // 同步邮箱到 auth-gateway，使邮箱可作为登录账号。best-effort：
+        // 网关侧若账号已有密码会要求密码校验（本流程无密码），失败仅记日志、不阻断本地绑定。
+        try {
+            authGatewayClient.bindCredentialEmail(currentBearerToken(), email, null);
+        } catch (RuntimeException ex) {
+            log.warn("sync email to gateway failed (email login may not work): {}", ex.getMessage());
+        }
         log.info("User {} bound email (unverified)", user.getId());
     }
 
@@ -138,6 +158,13 @@ public class UserSettingsService {
         user.setUsername(newUsername);
         user.setUsernameUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
         userMapper.updateById(user);
+        // 同步账号名到 auth-gateway，使账号名可作为登录账号。best-effort：
+        // 网关用户名规则不含中划线，含"-"的名会被网关拒；此类失败仅记日志、不阻断本地改名。
+        try {
+            authGatewayClient.setCredentialUsername(currentBearerToken(), newUsername);
+        } catch (RuntimeException ex) {
+            log.warn("sync username to gateway failed (username login may not work): {}", ex.getMessage());
+        }
         log.info("User {} updated username to {}", user.getId(), newUsername);
     }
 

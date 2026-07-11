@@ -72,6 +72,37 @@ public class AuthGatewayClient {
         return postForm("/auth/login/password", form, TokenResponse.class);
     }
 
+    /**
+     * 同步账号名到 auth-gateway（凭证/身份统一存网关，登录也按网关这份解析账号）。
+     * 用当前用户 access token 鉴权。网关无需旧密码。注意：网关用户名规则不含中划线。
+     */
+    public void setCredentialUsername(String userAccessToken, String username) {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("username", username);
+        credentialPost("/auth/credential/set-username", userAccessToken, body);
+    }
+
+    /**
+     * 同步邮箱到 auth-gateway（使邮箱可作为登录账号）。用当前用户 access token 鉴权。
+     * 网关侧若账号已有密码会要求校验密码；CareerMate 绑邮箱不收密码，故 password 传空，
+     * 该情况下网关会拒（由调用方按 best-effort 处理）。
+     */
+    public void bindCredentialEmail(String userAccessToken, String email, String password) {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("email", email);
+        body.put("password", password);
+        credentialPost("/auth/credential/bind-email", userAccessToken, body);
+    }
+
+    private void credentialPost(String path, String userAccessToken, java.util.Map<String, Object> body) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        String bearer = userAccessToken != null && userAccessToken.startsWith("Bearer ")
+                ? userAccessToken : "Bearer " + userAccessToken;
+        headers.set("Authorization", bearer);
+        exchange(path, new HttpEntity<>(body, headers), Map.class);
+    }
+
     /** 代理获取一张新的图形验证码（前端"看不清换一张"）。返回 {captchaImage, challengeId}。 */
     public Map<String, Object> getCaptcha() {
         try {
