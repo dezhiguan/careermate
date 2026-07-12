@@ -43,7 +43,7 @@ public enum ErrorCode {
     CAPTCHA_REQUIRED(400, "连续登录失败，请先完成图形验证"),
     CAPTCHA_INVALID(400, "图形验证码错误，请重新输入"),
     USERNAME_TAKEN(400, "该账号名已被使用，请换一个"),
-    USERNAME_FORMAT_INVALID(400, "账号名为4-32位，支持字母、数字、下划线、中划线，且不能全为数字"),
+    USERNAME_FORMAT_INVALID(400, "账号名为2-32位，支持中文、字母、数字或下划线"),
     USERNAME_UPDATE_TOO_FREQUENT(400, "账号名每30天只能修改一次"),
     EMAIL_ALREADY_BOUND(400, "该邮箱已绑定其他账号"),
     EMAIL_FORMAT_INVALID(400, "请输入有效的邮箱地址"),

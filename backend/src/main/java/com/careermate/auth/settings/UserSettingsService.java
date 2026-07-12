@@ -36,7 +36,7 @@ import java.util.regex.Pattern;
 public class UserSettingsService {
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
-    private static final Pattern USERNAME_PATTERN = Pattern.compile("^(?!\\d+$)[a-zA-Z0-9_\\-]{4,32}$");
+    private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_\\u4e00-\\u9fa5]{2,32}$");
     private static final Pattern PASSWORD_PATTERN = Pattern.compile("^(?=.*[a-zA-Z])(?=.*\\d).{8,64}$");
     private static final int MAX_SESSIONS = 10;
     private static final int PASSWORD_HISTORY_COUNT = 3;

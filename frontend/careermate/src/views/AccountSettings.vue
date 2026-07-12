@@ -107,7 +107,7 @@
     <div class="modal-mask" v-if="modal === 'username'" @click.self="closeModal">
       <div class="modal">
         <h3>修改账号名</h3>
-        <p class="modal-tip">账号名每30天只能修改一次，4-32位字母/数字/下划线/中划线，不能全为数字。</p>
+        <p class="modal-tip">账号名每30天只能修改一次，2-32 位中文、字母、数字或下划线。</p>
         <label class="field-label">新账号名</label>
         <input v-model.trim="usernameForm.username" type="text" placeholder="请输入新账号名" class="field-input" />
         <p v-if="modalError" class="modal-error">{{ modalError }}</p>

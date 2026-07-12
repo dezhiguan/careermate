@@ -9,7 +9,7 @@ import lombok.Data;
 public class RegisterRequest {
 
     @NotBlank(message = "账号名不能为空")
-    @Size(min = 4, max = 32, message = "账号名为4-32位，支持字母、数字、下划线、中划线，且不能全为数字")
+    @Size(min = 2, max = 32, message = "账号名为2-32位，支持中文、字母、数字或下划线")
     private String username;
 
     @NotBlank(message = "密码不能为空")
