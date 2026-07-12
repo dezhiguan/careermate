@@ -143,8 +143,21 @@ class GenerateResumeWorkflowRunner {
         Map<String, Object> snapshot = run.jdSnapshot();
         String jdContent = fetchJdContent(run.jdId(), snapshot);
         run.setJdContent(jdContent);
-        run.setCompany(stringValue(snapshot.get("company")));
-        run.setTitle(stringValue(snapshot.get("title")));
+        String company = stringValue(snapshot.get("company"));
+        String title = stringValue(snapshot.get("title"));
+        // BUG-14：snapshot 缺 company/title 时（如直接建会话未带机会元数据），
+        // 从 JD 正文的“公司/岗位”行或首个标题兜底提取，避免版本名恒显“未知公司”。
+        if (company == null || company.isBlank()) {
+            company = extractJdField(jdContent, "公司", "公司名称", "企业");
+        }
+        if (title == null || title.isBlank()) {
+            title = extractJdField(jdContent, "岗位", "职位", "职位名称");
+            if (title == null || title.isBlank()) {
+                title = firstHeadingOrLine(jdContent);
+            }
+        }
+        run.setCompany(company);
+        run.setTitle(title);
         String versionName = buildVersionName(run.company(), run.title());
         run.setVersionName(versionName);
         run.setTargetLabel(versionName);
@@ -573,6 +586,41 @@ class GenerateResumeWorkflowRunner {
         } catch (Exception e) {
             return "{}";
         }
+    }
+
+    /** 从 JD 正文里按“标签[:：]值”提取字段（用于 company/title 兜底），取首个命中，长度受限。 */
+    private static String extractJdField(String jdContent, String... labels) {
+        if (jdContent == null || jdContent.isBlank()) {
+            return null;
+        }
+        for (String line : jdContent.split("\n", -1)) {
+            String l = line.strip();
+            for (String label : labels) {
+                int idx = l.indexOf(label);
+                if (idx >= 0) {
+                    String rest = l.substring(idx + label.length()).replaceFirst("^[：:\\s]+", "").strip();
+                    rest = rest.replaceAll("[#*>`|]", "").strip();
+                    if (!rest.isBlank() && rest.length() <= 40) {
+                        return rest;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** JD 正文首个 Markdown 标题或首行非空文本（作为 title 兜底），长度受限。 */
+    private static String firstHeadingOrLine(String jdContent) {
+        if (jdContent == null || jdContent.isBlank()) {
+            return null;
+        }
+        for (String line : jdContent.split("\n", -1)) {
+            String l = line.replaceAll("^#{1,6}\\s*", "").replaceAll("[#*>`|]", "").strip();
+            if (!l.isBlank()) {
+                return l.length() > 40 ? l.substring(0, 40) : l;
+            }
+        }
+        return null;
     }
 
     private static String buildVersionName(String company, String title) {

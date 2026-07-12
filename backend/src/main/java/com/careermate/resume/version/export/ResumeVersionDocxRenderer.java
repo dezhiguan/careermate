@@ -150,6 +150,21 @@ public class ResumeVersionDocxRenderer {
         }
 
         @Override
+        public void visit(org.commonmark.node.HtmlBlock htmlBlock) {
+            // BUG-16：块级 HTML 剥标签后按正文渲染，避免内容整段丢失（与 PDF 一致）。
+            String text = ResumeVersionPdfRenderer.stripHtmlTags(htmlBlock.getLiteral());
+            if (text.isBlank()) {
+                return;
+            }
+            XWPFParagraph paragraph = docx.createParagraph();
+            paragraph.setSpacingAfter(80);
+            XWPFRun run = paragraph.createRun();
+            run.setFontSize(BODY_SIZE);
+            run.setText(text);
+            wroteSomething = true;
+        }
+
+        @Override
         public void visit(BulletList bulletList) {
             for (Node item = bulletList.getFirstChild(); item != null; item = item.getNext()) {
                 if (item instanceof ListItem listItem) {

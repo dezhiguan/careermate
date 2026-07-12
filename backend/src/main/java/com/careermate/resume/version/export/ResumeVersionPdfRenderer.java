@@ -180,6 +180,23 @@ public class ResumeVersionPdfRenderer {
         );
     }
 
+    /** 剥去 HTML 标签、还原常见实体，返回可读文本（用于块级 HTML 兜底渲染）。 */
+    static String stripHtmlTags(String html) {
+        if (html == null || html.isBlank()) {
+            return "";
+        }
+        return html
+                .replaceAll("(?is)<(script|style)[^>]*>.*?</\\1>", " ")
+                .replaceAll("<[^>]+>", " ")
+                .replace("&nbsp;", " ")
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replaceAll("[ \\t]+", " ")
+                .strip();
+    }
+
     private static String sanitizePdfText(String text) {
         if (text == null || text.isBlank()) {
             return "";
@@ -256,6 +273,19 @@ public class ResumeVersionPdfRenderer {
             Paragraph pdfParagraph = new Paragraph();
             pdfParagraph.setLeading(0, LINE_MULTIPLIER);
             appendInlines(paragraph, pdfParagraph, fonts.body, fonts.bold);
+            pdfParagraph.setSpacingAfter(3f);
+            addParagraph(pdfParagraph);
+        }
+
+        @Override
+        public void visit(org.commonmark.node.HtmlBlock htmlBlock) {
+            // BUG-16：块级 HTML 默认会被 commonmark 丢弃，这里剥标签后按正文渲染，避免内容整段丢失。
+            String text = stripHtmlTags(htmlBlock.getLiteral());
+            if (text.isBlank()) {
+                return;
+            }
+            Paragraph pdfParagraph = new Paragraph(sanitizePdfText(text), fonts.body);
+            pdfParagraph.setLeading(0, LINE_MULTIPLIER);
             pdfParagraph.setSpacingAfter(3f);
             addParagraph(pdfParagraph);
         }

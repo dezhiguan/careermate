@@ -72,6 +72,29 @@
       </button>
     </section>
 
+    <!-- H-04：其它简历（可切换默认） -->
+    <section v-if="otherResumes.length" class="resume-section">
+      <div class="section-title">其它简历</div>
+      <div v-for="r in otherResumes" :key="r.id" class="default-resume-card">
+        <div class="resume-card-head">
+          <span class="resume-name">{{ r.title || '简历' }}</span>
+          <span class="resume-date">{{ formatRelativeTime(r.updatedAt || r.createdAt) }}</span>
+        </div>
+        <p class="resume-preview-text">{{ r.contentPreview || '暂无预览' }}</p>
+        <div class="resume-actions">
+          <button
+            type="button"
+            class="action-btn"
+            :disabled="settingDefaultId === r.id"
+            @click="handleSetDefault(r)"
+          >
+            {{ settingDefaultId === r.id ? '...' : '设为默认' }}
+          </button>
+          <button type="button" class="action-btn action-btn--danger" @click="handleDeleteOther(r)">删除</button>
+        </div>
+      </div>
+    </section>
+
     <!-- 区块二：AI 定制版本 -->
     <section class="resume-section">
       <div class="section-title">AI 定制版本（{{ versions.length }}）</div>
@@ -226,6 +249,7 @@ import {
   downloadResumePdf,
   getResume,
   listResumes,
+  setDefaultResume,
   updateResume,
   uploadResumeFile,
 } from '../api/resume'
@@ -248,6 +272,7 @@ const uploadError = ref('')
 const fileInputRef = ref(null)
 const downloadingKey = ref('')
 const deleting = ref(false)
+const settingDefaultId = ref('')
 
 const resumeModalOpen = ref(false)
 const resumeModalMode = ref('preview')
@@ -269,6 +294,8 @@ const createContent = ref('')
 const creating = ref(false)
 
 const defaultResume = computed(() => resumes.value.find((r) => r.isDefault) || null)
+// H-04：非默认的其它简历，供“设为默认”切换（单份简历时列表为空、不展示）
+const otherResumes = computed(() => resumes.value.filter((r) => !r.isDefault))
 
 function formatRelativeTime(value) {
   if (!value) return ''
@@ -509,6 +536,36 @@ async function handleDeleteDefault() {
   uploadError.value = ''
   try {
     await deleteResume(defaultResume.value.id)
+    await loadResumes()
+  } catch (e) {
+    uploadError.value = e?.message || '删除失败'
+  } finally {
+    deleting.value = false
+  }
+}
+
+// H-04：把某份非默认简历设为默认
+async function handleSetDefault(r) {
+  if (!r?.id || settingDefaultId.value) return
+  settingDefaultId.value = r.id
+  uploadError.value = ''
+  try {
+    await setDefaultResume(r.id)
+    await loadResumes()
+  } catch (e) {
+    uploadError.value = e?.message || '设为默认失败'
+  } finally {
+    settingDefaultId.value = ''
+  }
+}
+
+async function handleDeleteOther(r) {
+  if (!r?.id || deleting.value) return
+  if (!window.confirm(`确定删除「${r.title || '简历'}」吗？删除后不可恢复。`)) return
+  deleting.value = true
+  uploadError.value = ''
+  try {
+    await deleteResume(r.id)
     await loadResumes()
   } catch (e) {
     uploadError.value = e?.message || '删除失败'

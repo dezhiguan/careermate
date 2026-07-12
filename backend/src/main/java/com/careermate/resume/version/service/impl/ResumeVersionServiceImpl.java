@@ -113,6 +113,8 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
         if (sessionId != null && !sessionId.isBlank()) {
             wrapper.eq(ResumeVersionEntity::getSessionId, sessionId);
         }
+        // BUG-19：兜底上限，避免版本堆积导致无分页全量返回（向后兼容仍返回数组）
+        wrapper.last("LIMIT 200");
         return resumeVersionMapper.selectList(wrapper).stream()
                 .map(this::toListItemVO)
                 .toList();

@@ -82,6 +82,8 @@ public class ResumeService {
                         .eq(ResumeEntity::getUserId, userId)
                         .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
                         .orderByDesc(ResumeEntity::getCreatedAt)
+                        // BUG-19：兜底上限，避免无分页全量返回导致响应膨胀（向后兼容仍返回数组）
+                        .last("LIMIT 200")
         );
         return rows.stream().map(this::toListItem).toList();
     }

@@ -45,6 +45,12 @@ public class ResumeFileParserService {
             throw new BizException(400, "只支持 PDF、Word（doc/docx）、Markdown 格式");
         }
 
+        // BUG-17：md/markdown 是纯文本，直接按字符集解码（UTF-8 优先，失败回退 GB18030），
+        // 避免 Tika 对非 UTF-8（如 GBK）文本误判为二进制/扫描件导致中文内容丢失。
+        if ("md".equals(ext) || "markdown".equals(ext)) {
+            return parseMarkdownText(file, originalFilename);
+        }
+
         BodyContentHandler handler = new BodyContentHandler(MAX_CONTENT_CHARS);
         try (InputStream is = file.getInputStream()) {
             Metadata metadata = new Metadata();
@@ -89,6 +95,46 @@ public class ResumeFileParserService {
             }
         }
         return false;
+    }
+
+    /** 解析 Markdown 纯文本：字符集自适应（UTF-8 严格 → GB18030 回退）+ 去 BOM + 截断。 */
+    private String parseMarkdownText(MultipartFile file, String originalFilename) {
+        try {
+            String text = decodeText(file.getBytes()).trim();
+            if (text.isBlank()) {
+                throw new BizException(400, "文件内容为空或无法提取文字（可能是扫描件）");
+            }
+            if (text.length() > MAX_CONTENT_CHARS) {
+                text = text.substring(0, MAX_CONTENT_CHARS);
+            }
+            return text;
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("Markdown 文件读取失败: filename={} err={}", originalFilename, e.getMessage());
+            throw new BizException(400, "文件解析失败，请确认文件是有效的 Markdown 文本");
+        }
+    }
+
+    /** UTF-8 严格解码，失败则以 GB18030（覆盖 GBK/GB2312）回退。 */
+    private String decodeText(byte[] raw) {
+        byte[] bytes = stripBom(raw);
+        try {
+            return java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (Exception utf8Failed) {
+            return new String(bytes, java.nio.charset.Charset.forName("GB18030"));
+        }
+    }
+
+    private byte[] stripBom(byte[] b) {
+        if (b.length >= 3 && (b[0] & 0xFF) == 0xEF && (b[1] & 0xFF) == 0xBB && (b[2] & 0xFF) == 0xBF) {
+            return java.util.Arrays.copyOfRange(b, 3, b.length);
+        }
+        return b;
     }
 
     private String extractExtension(String filename) {
