@@ -165,11 +165,9 @@ public class WorkspaceSessionRepository {
                         .eq(AgentSessionEntity::getSessionId, sessionId)
                         .last("LIMIT 1")
         );
-        if (session == null) {
+        // BUG-21：不存在与"存在但非本人"统一返回 404，消除存在性侧信道。
+        if (session == null || !userId.equals(session.getUserId())) {
             throw new BizException(404, "工作空间不存在");
-        }
-        if (!userId.equals(session.getUserId())) {
-            throw new BizException(403, "无权访问该工作空间");
         }
         return session;
     }

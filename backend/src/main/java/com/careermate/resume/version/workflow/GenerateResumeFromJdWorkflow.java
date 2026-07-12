@@ -27,6 +27,7 @@ public class GenerateResumeFromJdWorkflow {
     private final AgentSessionService agentSessionService;
     private final WorkspaceSessionRepository workspaceSessionRepository;
     private final ObjectMapper objectMapper;
+    private final ResumeGenerationRunService generationRunService;
 
     public GenerateResumeFromJdWorkflow(
             WorkspaceSessionRepository workspaceSessionRepository,
@@ -37,11 +38,13 @@ public class GenerateResumeFromJdWorkflow {
             AgentSessionService agentSessionService,
             ObjectMapper objectMapper,
             PromptTemplateService promptTemplateService,
-            JobMatchAnalyzer jobMatchAnalyzer
+            JobMatchAnalyzer jobMatchAnalyzer,
+            ResumeGenerationRunService generationRunService
     ) {
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.agentSessionService = agentSessionService;
         this.objectMapper = objectMapper;
+        this.generationRunService = generationRunService;
         this.runner = new GenerateResumeWorkflowRunner(
                 workspaceSessionRepository,
                 resumeContextProvider,
@@ -55,10 +58,14 @@ public class GenerateResumeFromJdWorkflow {
     }
 
     public void generate(Long userId, String sessionId, String jdId, SseEmitterService sseEmitterService) {
+        // #5.10：落 RUNNING 运行态，供崩溃/重启后的启动自愈识别并转 FAILED。
+        String runId = generationRunService.start(userId, sessionId, jdId);
         try {
             doGenerate(userId, sessionId, jdId, sseEmitterService);
+            generationRunService.markSuccess(runId);
         } catch (BizException e) {
             log.warn("generate resume failed: sessionId={}, code={}, msg={}", sessionId, e.getCode(), e.getMessage());
+            generationRunService.markFailed(runId, e.getMessage());
             GenerateResumeWorkflowStep failedStep = runner.inferFailedStep(e);
             GenerateResumeWorkflowFailure failure = runner.toFailure(failedStep, e);
             pushError(sseEmitterService, sessionId, jdId, failure);
@@ -68,6 +75,7 @@ public class GenerateResumeFromJdWorkflow {
             }
         } catch (Exception e) {
             log.error("generate resume unexpected error: sessionId={}", sessionId, e);
+            generationRunService.markFailed(runId, e.getMessage());
             GenerateResumeWorkflowFailure failure = runner.toFailure(
                     GenerateResumeWorkflowStep.GENERATE_RESUME, e
             );

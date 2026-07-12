@@ -3,7 +3,8 @@ package com.careermate.agent.tool;
 import com.careermate.agent.sse.SseEmitterService;
 import com.careermate.agent.sse.SseEventType;
 import com.careermate.model.entity.AgentSessionEntity;
-import com.careermate.resume.version.workflow.GenerateResumeFromJdWorkflow;
+import com.careermate.workspace.pending.PendingActionCreateResult;
+import com.careermate.workspace.pending.PendingActionService;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -15,18 +16,18 @@ import java.util.Map;
 @Component
 public class GenerateResumeFromJdTool implements AgentTool {
 
-    private final GenerateResumeFromJdWorkflow generateResumeFromJdWorkflow;
     private final WorkspaceSessionRepository workspaceSessionRepository;
     private final SseEmitterService sseEmitterService;
+    private final PendingActionService pendingActionService;
 
     public GenerateResumeFromJdTool(
-            GenerateResumeFromJdWorkflow generateResumeFromJdWorkflow,
             WorkspaceSessionRepository workspaceSessionRepository,
-            SseEmitterService sseEmitterService
+            SseEmitterService sseEmitterService,
+            PendingActionService pendingActionService
     ) {
-        this.generateResumeFromJdWorkflow = generateResumeFromJdWorkflow;
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.sseEmitterService = sseEmitterService;
+        this.pendingActionService = pendingActionService;
     }
 
     @Override
@@ -81,23 +82,27 @@ public class GenerateResumeFromJdTool implements AgentTool {
                     context.getUserId(), sessionId
             );
             String targetJdId = jdId != null && !jdId.isBlank() ? jdId : session.getJdId();
-            Map<String, Object> card = generateResumeFromJdWorkflow.generateAndReturnCard(
+            // #5.13：高风险写入必须先经用户确认。对话工具路径不再直接落库生成，
+            // 改为产出与入口 A 一致的 HITL 确认卡（pendingAction），确认后才由已确认的
+            // /generate-resume/stream 真正生成，堵住"对话入口绕过确认"的漏洞。
+            PendingActionCreateResult pending = pendingActionService.createGenerateResumePendingAction(
                     context.getUserId(), sessionId, targetJdId);
-            if (card != null) {
+            if (pending.confirmCard() != null) {
                 try {
-                    sseEmitterService.send(sessionId, SseEventType.UI_ACTION, Map.of("card", card));
+                    sseEmitterService.send(sessionId, SseEventType.UI_ACTION, Map.of("card", pending.confirmCard()));
                 } catch (Exception ignored) {
-                    // 推送失败不影响工具结果，前端重载历史消息时仍能看到卡片
+                    // 推送失败不影响工具结果，前端重载历史消息时仍能看到确认卡
                 }
             }
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("sessionId", sessionId);
             data.put("jdId", targetJdId);
-            data.put("sseEndpoint", "/api/workspace/" + sessionId + "/generate-resume/stream");
-            return AgentToolResult.success(name(), "已触发按 JD 生成简历", data);
+            data.put("actionId", pending.actionId());
+            data.put("requiresConfirmation", true);
+            return AgentToolResult.success(name(), "已生成确认卡，请确认后再按 JD 生成定制简历", data);
         } catch (Exception e) {
             log.warn("generate_resume_from_jd tool failed: {}", e.getMessage());
-            return AgentToolResult.failure(name(), "简历生成失败", e.getMessage());
+            return AgentToolResult.failure(name(), "简历生成确认发起失败", e.getMessage());
         }
     }
 }

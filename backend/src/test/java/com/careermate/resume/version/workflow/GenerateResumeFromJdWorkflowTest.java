@@ -70,6 +70,8 @@ class GenerateResumeFromJdWorkflowTest {
     private SseEmitterService sseEmitterService;
     @Mock
     private com.careermate.jobmatch.JobMatchAnalyzer jobMatchAnalyzer;
+    @Mock
+    private ResumeGenerationRunService generationRunService;
 
     private GenerateResumeFromJdWorkflow workflow;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -87,7 +89,8 @@ class GenerateResumeFromJdWorkflowTest {
                 agentSessionService,
                 objectMapper,
                 promptTemplateService,
-                jobMatchAnalyzer
+                jobMatchAnalyzer,
+                generationRunService
         );
     }
 

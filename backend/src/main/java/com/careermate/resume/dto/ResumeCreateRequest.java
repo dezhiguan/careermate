@@ -7,11 +7,11 @@ import lombok.Data;
 @Data
 public class ResumeCreateRequest {
 
-    @NotBlank(message = "title不能为空")
-    @Size(max = 128, message = "title最长128字符")
+    @NotBlank(message = "标题不能为空")
+    @Size(max = 128, message = "标题最长 128 字符")
     private String title;
 
-    @NotBlank(message = "content不能为空")
-    @Size(max = 50000, message = "content最长50000字符")
+    @NotBlank(message = "简历内容不能为空")
+    @Size(max = 50000, message = "简历内容最长 50000 字符")
     private String content;
 }

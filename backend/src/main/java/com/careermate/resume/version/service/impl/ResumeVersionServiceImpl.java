@@ -291,11 +291,9 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
                         .eq(ResumeVersionEntity::getVersionId, versionId)
                         .last("LIMIT 1")
         );
-        if (entity == null) {
+        // BUG-21：不存在与"存在但非本人"统一返回 404，消除存在性侧信道（与 resumes 一致）。
+        if (entity == null || !userId.equals(entity.getUserId())) {
             throw new BizException(404, "简历版本不存在");
-        }
-        if (!userId.equals(entity.getUserId())) {
-            throw new BizException(403, "无权访问该简历版本");
         }
         return entity;
     }

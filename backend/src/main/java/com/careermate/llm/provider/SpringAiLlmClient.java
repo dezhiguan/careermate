@@ -26,6 +26,7 @@ import reactor.core.Disposable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -110,8 +111,15 @@ public class SpringAiLlmClient implements LlmClient {
                 },
                 latch::countDown);
 
+        long timeoutMs = properties.getTimeoutMs() != null && properties.getTimeoutMs() > 0
+                ? properties.getTimeoutMs() : 60000L;
         try {
-            latch.await();
+            // #5.1：带超时等待，避免上游挂起导致 latch.await() 永久阻塞、agent-executor 线程泄漏。
+            if (!latch.await(timeoutMs, TimeUnit.MILLISECONDS)) {
+                sub.dispose();
+                callback.onError(new RuntimeException("LLM 流式响应超时（" + timeoutMs + "ms 未完成）"));
+                return;
+            }
         } catch (InterruptedException e) {
             sub.dispose();
             Thread.currentThread().interrupt();
@@ -156,10 +164,21 @@ public class SpringAiLlmClient implements LlmClient {
     private org.springframework.ai.chat.prompt.ChatOptions buildOptions(ChatRequest request) {
         String model = StringUtils.hasText(request.getModel()) ? request.getModel() : properties.getModel();
         Double temperature = request.getTemperature() != null ? request.getTemperature() : properties.getTemperature();
+        // #5.1：显式设置 maxTokens（优先请求级，否则用全局配置），避免超长输出导致 token 爆炸/超时。
+        Integer maxTokens = request.getMaxTokens() != null ? request.getMaxTokens() : properties.getMaxTokens();
         if (PROVIDER_OPENAI.equals(providerName)) {
-            return OpenAiChatOptions.builder().model(model).temperature(temperature).build();
+            OpenAiChatOptions.Builder b = OpenAiChatOptions.builder().model(model).temperature(temperature);
+            if (maxTokens != null) {
+                b.maxTokens(maxTokens);
+            }
+            return b.build();
         }
-        return DashScopeChatOptions.builder().withModel(model).withTemperature(temperature).build();
+        DashScopeChatOptions.DashscopeChatOptionsBuilder b =
+                DashScopeChatOptions.builder().withModel(model).withTemperature(temperature);
+        if (maxTokens != null) {
+            b.withMaxToken(maxTokens);
+        }
+        return b.build();
     }
 
     private void applyUsage(ChatResponse out, org.springframework.ai.chat.model.ChatResponse resp) {

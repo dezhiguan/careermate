@@ -77,14 +77,15 @@ class ResumeVersionPdfExportTest {
     }
 
     @Test
-    void exportPdfOtherUserThrows403() {
+    void exportPdfOtherUserThrows404() {
         ResumeVersionEntity entity = sampleEntity("ver-other", "# test");
         entity.setUserId(2L);
         when(resumeVersionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
 
         MockHttpServletResponse response = new MockHttpServletResponse();
+        // BUG-21：越权与不存在统一 404，消除存在性侧信道
         BizException ex = assertThrows(BizException.class, () -> service.exportPdf(1L, "ver-other", response));
-        assertEquals(403, ex.getCode());
+        assertEquals(404, ex.getCode());
     }
 
     @Test
