@@ -23,6 +23,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -588,20 +590,23 @@ class GenerateResumeWorkflowRunner {
         }
     }
 
-    /** 从 JD 正文里按“标签[:：]值”提取字段（用于 company/title 兜底），取首个命中，长度受限。 */
+    /**
+     * 从 JD 正文里按“标签[：:] 值”提取字段（用于 company/title 兜底），取首个命中，长度受限。
+     * 要求标签后紧跟冒号，避免把“岗位描述”这类小标题误当作岗位名，并清理首尾标点/装饰符。
+     */
     private static String extractJdField(String jdContent, String... labels) {
         if (jdContent == null || jdContent.isBlank()) {
             return null;
         }
         for (String line : jdContent.split("\n", -1)) {
-            String l = line.strip();
+            String l = line.replaceAll("[#*>`|]", "").strip();
             for (String label : labels) {
-                int idx = l.indexOf(label);
-                if (idx >= 0) {
-                    String rest = l.substring(idx + label.length()).replaceFirst("^[：:\\s]+", "").strip();
-                    rest = rest.replaceAll("[#*>`|]", "").strip();
-                    if (!rest.isBlank() && rest.length() <= 40) {
-                        return rest;
+                Matcher m = Pattern.compile(Pattern.quote(label) + "\\s*[：:]\\s*(.+)").matcher(l);
+                if (m.find()) {
+                    String v = m.group(1).replaceAll("^[\\p{Punct}：:，,、\\s]+", "")
+                            .replaceAll("[，,；;。\\s]+$", "").strip();
+                    if (!v.isBlank() && v.length() <= 40) {
+                        return v;
                     }
                 }
             }
