@@ -97,7 +97,8 @@ class ResumeDownloadSecurityTest {
 
     @Test
     void resumeAndVersionDownloadsRequireBearerAndReturnBinary() throws Exception {
-        String username = "test_resume_download_" + System.nanoTime();
+        // 账号名限长 32：短前缀 + 有界正数后缀，避免超长被 @Size 拒绝
+        String username = "resdl_" + Math.abs(System.nanoTime() % 1_000_000_000_000L);
         String token = registerAndGetToken(username);
 
         String createBody = objectMapper.writeValueAsString(Map.of(
