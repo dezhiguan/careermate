@@ -59,6 +59,7 @@ public class ChunksToOpportunityConverter {
                 parsed.company(),
                 title,
                 parsed.level(),
+                parsed.salaryRange(),
                 parsed.city(),
                 parsed.experienceRange(),
                 parsed.experienceMin(),

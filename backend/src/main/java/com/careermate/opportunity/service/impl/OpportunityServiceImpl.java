@@ -290,7 +290,7 @@ public class OpportunityServiceImpl implements OpportunityService {
                 matched.ragScore(),
                 matched.externalUrl(),
                 jdContent,
-                null,
+                matched.salaryRange(),
                 null,
                 null
         );
@@ -593,6 +593,7 @@ public class OpportunityServiceImpl implements OpportunityService {
                 item.company(),
                 item.title(),
                 item.level(),
+                item.salaryRange(),
                 item.city(),
                 item.experienceRange(),
                 item.experienceMin(),
@@ -617,6 +618,7 @@ public class OpportunityServiceImpl implements OpportunityService {
                 item.company(),
                 item.title(),
                 item.level(),
+                item.salaryRange(),
                 item.city(),
                 item.experienceRange(),
                 item.experienceMin(),

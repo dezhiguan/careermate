@@ -59,7 +59,7 @@ class OpportunityControllerTest {
         when(opportunityService.list(eq(1L), any())).thenReturn(new PageResult<>(
                 1, 1, 10, true, "MATCH",
                 List.of(new OpportunityListItemVO(
-                        "doc-100", 100L, "星天科技", "算法工程师", null, "北京",
+                        "doc-100", 100L, "星天科技", "算法工程师", null, "15-20K", "北京",
                         "1-3年", 1, 3, "硕士", "100-499人", "2026-06-09",
                         87, "HIGH", List.of("技能命中 Java"), List.of("Java", "Redis"),
                         0.87, null, false
@@ -74,6 +74,7 @@ class OpportunityControllerTest {
                 .andExpect(jsonPath("$.data.sortStrategy").value("MATCH"))
                 .andExpect(jsonPath("$.data.items[0].jdId").value("doc-100"))
                 .andExpect(jsonPath("$.data.items[0].company").value("星天科技"))
+                .andExpect(jsonPath("$.data.items[0].salaryRange").value("15-20K"))
                 .andExpect(jsonPath("$.data.items[0].matchScore").value(87))
                 .andExpect(jsonPath("$.data.items[0].skills[0]").value("Java"));
     }

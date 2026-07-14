@@ -8,6 +8,7 @@ public record OpportunityListItemVO(
         String company,
         String title,
         String level,
+        String salaryRange,
         String city,
         String experienceRange,
         Integer experienceMin,
