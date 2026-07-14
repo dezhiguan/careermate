@@ -234,6 +234,7 @@ public class ResumeVersionPdfRenderer {
         private final Font sectionTitle;
         private final Font body;
         private final Font bold;
+        private final Font marker;
 
         private Fonts(BaseFont baseFont) {
             this.name = new Font(baseFont, NAME_SIZE, Font.BOLD);
@@ -241,6 +242,9 @@ public class ResumeVersionPdfRenderer {
             this.sectionTitle = new Font(baseFont, SECTION_TITLE_SIZE, Font.BOLD);
             this.body = new Font(baseFont, BODY_SIZE, Font.NORMAL);
             this.bold = new Font(baseFont, BODY_SIZE, Font.BOLD);
+            // 项目符号/序号用标准 Helvetica（所有 PDF 阅读器均内置），避免用非内嵌的
+            // CJK 字体绘制 “•” 导致移动端阅读器字形替换错乱（例如显示成“煉”）。
+            this.marker = new Font(Font.HELVETICA, BODY_SIZE, Font.NORMAL);
         }
     }
 
@@ -314,7 +318,7 @@ public class ResumeVersionPdfRenderer {
             Paragraph paragraph = new Paragraph();
             paragraph.setLeading(0, LINE_MULTIPLIER);
             paragraph.setIndentationLeft(12f);
-            paragraph.add(new Chunk(marker, fonts.body));
+            paragraph.add(new Chunk(marker, fonts.marker));
             appendInlines(listItem, paragraph, fonts.body, fonts.bold);
             paragraph.setSpacingAfter(1.5f);
             addParagraph(paragraph);
@@ -377,7 +381,7 @@ public class ResumeVersionPdfRenderer {
                     Paragraph paragraph = new Paragraph();
                     paragraph.setLeading(0, LINE_MULTIPLIER);
                     paragraph.setIndentationLeft(8f);
-                    paragraph.add(new Chunk("• ", fonts.body));
+                    paragraph.add(new Chunk("• ", fonts.marker));
                     paragraph.add(new Chunk(sanitizePdfText(line), fonts.body));
                     paragraph.setSpacingAfter(1.5f);
                     addParagraph(paragraph);
