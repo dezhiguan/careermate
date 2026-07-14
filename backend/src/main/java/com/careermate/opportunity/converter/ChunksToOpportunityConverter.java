@@ -39,9 +39,11 @@ public class ChunksToOpportunityConverter {
                 .filter(content -> content != null && !content.isBlank())
                 .collect(Collectors.joining("\n"));
 
-        ParsedJd parsed = jdMarkdownParser.parse(mergedContent);
         Long docId = sorted.get(0).docId();
         String filename = sorted.get(0).filename();
+        // 语义检索常只召回文档部分 chunk，头部（公司/标题元信息）可能缺失，
+        // 因此以文件名作为兜底解析公司/城市/岗位，避免前端出现「未知公司」。
+        ParsedJd parsed = jdMarkdownParser.parse(mergedContent, filename);
         Double ragScore = sorted.stream()
                 .map(RagForgeChunk::finalScore)
                 .filter(score -> score != null)

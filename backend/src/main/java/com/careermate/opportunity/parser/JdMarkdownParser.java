@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 public final class JdMarkdownParser {
 
+    private static final String JD_FILENAME_PREFIX = "【JD】";
     private static final Pattern H1_PATTERN = Pattern.compile("^#\\s*【JD】(.+)$", Pattern.MULTILINE);
     private static final Pattern META_PATTERN = Pattern.compile(
             "\\*\\*(公司|城市|发布时间|经验|学历|规模|技术标签|薪资)\\*\\*[:：]\\s*(.+)$",
@@ -25,6 +26,37 @@ public final class JdMarkdownParser {
     private static final Set<String> EXPERIENCE_NOISE = Set.of("不限", "应届");
 
     public JdMarkdownParser() {
+    }
+
+    /**
+     * 解析 JD，并以文件名作为兜底数据源。
+     *
+     * <p>机会列表走 RAG 语义检索，命中的往往只是文档的部分 chunk（正文段落），
+     * 承载 {@code # 【JD】} 标题与 {@code **公司**：} 元信息的头部 chunk 常常不在召回结果里，
+     * 导致仅解析正文时公司/标题为空（前端显示「未知公司」，标题回退成整段文件名）。
+     * 而文件名 {@code 【JD】{城市} · {公司} · {岗位} · {薪资}.md} 由采集侧确定性生成，
+     * 每个 chunk 都携带，可作为可靠兜底。内容解析优先，文件名解析补空。
+     */
+    public ParsedJd parse(String markdown, String filename) {
+        ParsedJd fromContent = parse(markdown);
+        FilenameMeta fromName = parseFilename(filename);
+        return new ParsedJd(
+                firstNonBlank(fromContent.company(), fromName.company()),
+                firstNonBlank(fromContent.title(), fromName.title()),
+                fromContent.level(),
+                firstNonBlank(fromContent.city(), fromName.city()),
+                fromContent.experienceRange(),
+                fromContent.experienceMin(),
+                fromContent.experienceMax(),
+                fromContent.education(),
+                fromContent.companySize(),
+                fromContent.publishedAt(),
+                fromContent.skills(),
+                fromContent.jobDescription(),
+                firstNonBlank(fromContent.salaryRange(), fromName.salary()),
+                fromContent.salaryMin(),
+                fromContent.salaryMax()
+        );
     }
 
     public ParsedJd parse(String markdown) {
@@ -77,6 +109,91 @@ public final class JdMarkdownParser {
         } catch (Exception ignored) {
             return ParsedJd.empty();
         }
+    }
+
+    /**
+     * 从 JD 文件名解析城市/公司/岗位/薪资。
+     *
+     * <p>采集侧生成规则：{@code 【JD】} + 非空字段按 {@code 城市 · 公司 · 岗位 · 薪资} 顺序用「 · 」拼接 + {@code .md}
+     * （见 collector 的 chunk_builder.build_boss_jd）。城市在 Boss 数据中基本恒有且很短，
+     * 薪资恒在末位，据此按序还原字段；缺薪资时末位不匹配薪资特征即退化为 城市·公司·岗位。
+     */
+    static FilenameMeta parseFilename(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return FilenameMeta.EMPTY;
+        }
+        String name = filename.trim();
+        int slash = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
+        if (slash >= 0) {
+            name = name.substring(slash + 1);
+        }
+        int dot = name.lastIndexOf('.');
+        if (dot > 0) {
+            name = name.substring(0, dot);
+        }
+        // 去掉「 (1)」这类系统去重后缀
+        name = name.replaceFirst("\\s*\\(\\d+\\)\\s*$", "").trim();
+        // 仅信任采集侧确定性生成的「【JD】…」命名，其它文件名不臆测字段
+        if (!name.startsWith(JD_FILENAME_PREFIX)) {
+            return FilenameMeta.EMPTY;
+        }
+        name = name.substring(JD_FILENAME_PREFIX.length()).trim();
+        if (name.isEmpty()) {
+            return FilenameMeta.EMPTY;
+        }
+
+        List<String> tokens = Arrays.stream(name.split("·"))
+                .map(String::trim)
+                .filter(token -> !token.isEmpty())
+                .collect(Collectors.toCollection(ArrayList::new));
+        if (tokens.isEmpty()) {
+            return FilenameMeta.EMPTY;
+        }
+
+        String salary = null;
+        if (tokens.size() >= 2 && isSalaryToken(tokens.get(tokens.size() - 1))) {
+            salary = tokens.remove(tokens.size() - 1);
+        }
+
+        String city = null;
+        String company = null;
+        String title = null;
+        if (tokens.size() >= 3) {
+            // 城市 · 公司 · 岗位[ · 岗位补充...]
+            city = tokens.get(0);
+            company = tokens.get(1);
+            title = String.join(" · ", tokens.subList(2, tokens.size()));
+        } else if (tokens.size() == 2) {
+            if (salary != null) {
+                // 有薪资却只剩两段，说明城市被丢弃：公司 · 岗位
+                company = tokens.get(0);
+                title = tokens.get(1);
+            } else {
+                // 城市基本恒有，优先按 城市 · 公司 还原
+                city = tokens.get(0);
+                company = tokens.get(1);
+            }
+        } else {
+            company = tokens.get(0);
+        }
+
+        return new FilenameMeta(
+                blankToNull(city),
+                blankToNull(company),
+                blankToNull(title),
+                blankToNull(salary)
+        );
+    }
+
+    private static boolean isSalaryToken(String token) {
+        if (token == null) {
+            return false;
+        }
+        return token.matches(".*\\d.*") && token.matches(".*[KkWw千万薪].*");
+    }
+
+    record FilenameMeta(String city, String company, String title, String salary) {
+        static final FilenameMeta EMPTY = new FilenameMeta(null, null, null, null);
     }
 
     private static String[] parseTitleParts(String markdown) {
