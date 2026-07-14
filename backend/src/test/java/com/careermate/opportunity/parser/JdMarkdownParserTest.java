@@ -220,6 +220,55 @@ class JdMarkdownParserTest {
     }
 
     @Test
+    void bossH1SalarySegmentParsedAsSalaryNotLevel() {
+        // Boss 真实数据 H1：公司 | 岗位 | 薪资 | 城市
+        String markdown = """
+                # 【JD】北京字节跳动 | 测试工程师 | 13-23K | 北京
+                **公司**:北京字节跳动
+                **城市**:北京
+                """;
+        ParsedJd parsed = parser.parse(markdown);
+
+        assertEquals("北京字节跳动", parsed.company());
+        assertEquals("测试工程师", parsed.title());
+        assertNull(parsed.level(), "薪资不应被误标为级别");
+        assertEquals("13-23K", parsed.salaryRange());
+        assertEquals("北京", parsed.city());
+    }
+
+    @Test
+    void salaryMetaFieldTakesPrecedenceOverTitleSegment() {
+        String markdown = """
+                # 【JD】星天科技 | 算法工程师 | 20-30K | 北京
+                **薪资**:20-30K·15薪
+                """;
+        ParsedJd parsed = parser.parse(markdown);
+
+        assertEquals("20-30K·15薪", parsed.salaryRange());
+        assertNull(parsed.level());
+    }
+
+    @Test
+    void nonSalaryTitleSegmentStillParsedAsLevel() {
+        // 设计样例语义：第三段是级别而非薪资时，保持按级别解析
+        String markdown = """
+                # 【JD】星天科技 | 算法工程师 | 高级 | 北京
+                """;
+        ParsedJd parsed = parser.parse(markdown);
+
+        assertEquals("高级", parsed.level());
+        assertNull(parsed.salaryRange());
+        assertEquals("北京", parsed.city());
+    }
+
+    @Test
+    void filenameSalaryFillsWhenContentHasNoSalary() {
+        ParsedJd parsed = parser.parse("正文", "【JD】北京 · 北京字节跳动 · 测试工程师 · 13-23K.md");
+
+        assertEquals("13-23K", parsed.salaryRange());
+    }
+
+    @Test
     void parseSpecialCharactersDoesNotThrow() {
         String markdown = """
                 # 【JD】星天科技 🚀 | 算法工程师：信号处理 |  | 北京。

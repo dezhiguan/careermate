@@ -60,7 +60,8 @@
             <div class="company-name">{{ item.company || '未知公司' }}</div>
             <div class="job-meta">
               {{ item.title || '岗位' }}
-              <template v-if="item.level"> · {{ item.level }}</template>
+              <template v-if="item.salaryRange"> · {{ item.salaryRange }}</template>
+              <template v-else-if="item.level"> · {{ item.level }}</template>
               <template v-if="item.city"> · {{ item.city }}</template>
             </div>
           </div>

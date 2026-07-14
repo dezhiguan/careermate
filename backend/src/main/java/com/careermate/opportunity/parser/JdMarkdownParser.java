@@ -72,13 +72,23 @@ public final class JdMarkdownParser {
             Integer[] experienceBounds = parseExperience(experienceRange);
             String rawSkills = extractMeta(markdown, "技术标签");
             String publishedRaw = extractMeta(markdown, "发布时间");
+            String salaryField = blankToNull(extractMeta(markdown, "薪资"));
 
             String company = firstNonBlank(companyField, titlePart(titleParts, 0));
             String title = titlePart(titleParts, 1);
             String level;
+            String salaryFromTitle = null;
             String cityFallback;
             if (titleParts.length >= 4) {
-                level = blankToNull(titlePart(titleParts, 2));
+                // Boss 真实数据 H1 为「公司 | 岗位 | 薪资 | 城市」，设计样例为「公司 | 岗位 | 级别 | 城市」，
+                // 同一段位既可能是薪资也可能是级别——按薪资特征判别，避免把薪资误标成级别。
+                String segment = blankToNull(titlePart(titleParts, 2));
+                if (isSalaryToken(segment)) {
+                    salaryFromTitle = segment;
+                    level = null;
+                } else {
+                    level = segment;
+                }
                 cityFallback = titlePart(titleParts, 3);
             } else if (titleParts.length == 3) {
                 level = null;
@@ -88,6 +98,8 @@ public final class JdMarkdownParser {
                 cityFallback = null;
             }
             String city = firstNonBlank(cityField, cityFallback);
+            // 元信息 **薪资** 为权威来源，优先于 H1 段位
+            String salaryRange = firstNonBlank(salaryField, salaryFromTitle);
 
             return new ParsedJd(
                     blankToNull(company),
@@ -102,7 +114,7 @@ public final class JdMarkdownParser {
                     parseDate(publishedRaw),
                     parseSkills(rawSkills),
                     blankToNull(extractJobDescription(markdown)),
-                    null,
+                    salaryRange,
                     null,
                     null
             );
