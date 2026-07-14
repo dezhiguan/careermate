@@ -687,6 +687,29 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+@media (min-width: 768px) {
+  .page-header {
+    padding: 22px 32px 14px;
+    background: transparent;
+    border-bottom: none;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .page-title { font-size: 22px; }
+  .page-sub { font-size: 13px; }
+  .page-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 8px 32px 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    align-items: start;
+    gap: 20px;
+  }
+}
+
 .card {
   background: #fff;
   border-radius: 12px;

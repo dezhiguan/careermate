@@ -1299,8 +1299,8 @@ onMounted(async () => {
 
 @media (min-width: 768px) {
   .mine-page {
-    padding: 24px;
-    max-width: 640px;
+    padding: 28px 24px;
+    max-width: 760px;
     margin: 0 auto;
   }
 }

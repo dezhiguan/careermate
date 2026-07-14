@@ -140,6 +140,7 @@ onMounted(refreshRuns)
 
 <style scoped>
 .runs-view { max-width: 760px; margin: 0 auto; padding: 24px; }
+@media (min-width: 768px) { .runs-view { max-width: 900px; padding: 32px 40px; } }
 .runs-header h2 { margin: 0 0 6px; }
 .desc { color: #666; font-size: 13px; margin: 0 0 18px; }
 .start-box { display: flex; gap: 10px; margin-bottom: 12px; }

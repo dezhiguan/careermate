@@ -621,6 +621,13 @@ onMounted(async () => {
   overflow-x: hidden;
 }
 
+@media (min-width: 768px) {
+  .resume-page {
+    max-width: 860px;
+    padding: 28px 24px;
+  }
+}
+
 .page-header {
   display: flex;
   align-items: center;

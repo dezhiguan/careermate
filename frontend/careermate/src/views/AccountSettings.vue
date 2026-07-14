@@ -446,6 +446,7 @@ const pwdStrength = computed(() => {
 .settings-header h2 { margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; }
 .back-btn { border: 0; background: none; color: #4f46e5; font-size: 14px; cursor: pointer; padding: 0; font-family: inherit; }
 .settings-body { padding: 16px 20px; max-width: 600px; margin: 0 auto; display: grid; gap: 16px; }
+@media (min-width: 768px) { .settings-body { max-width: 720px; padding: 28px 24px; gap: 18px; } }
 
 .section-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
 .section-title { padding: 14px 16px 10px; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f1f5f9; }

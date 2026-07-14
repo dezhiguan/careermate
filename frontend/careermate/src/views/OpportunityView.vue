@@ -461,8 +461,31 @@ onBeforeUnmount(() => {
 
 @media (min-width: 768px) {
   .card-list {
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    padding: 16px 20px;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    padding: 20px 32px;
+    max-width: 1240px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .page-header {
+    padding: 20px 32px 16px;
+    max-width: 1240px;
+    margin: 0 auto;
+    width: 100%;
+    background: transparent;
+    border-bottom: none;
+  }
+  .page-title {
+    font-size: 22px;
+  }
+  .page-sub {
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .card-list {
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   }
 }
 

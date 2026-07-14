@@ -540,7 +540,17 @@ async function enterMarketWorkspace(entryAction) {
 .filter-select:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.15); }
 .filter-sub { font-size: 11px; color: #94a3b8; margin: 0; }
 .market-content { padding: 14px 14px 0; display: flex; flex-direction: column; gap: 12px; }
+
+@media (min-width: 768px) {
+  .filter-bar { padding: 22px 32px 14px; background: transparent; border-bottom: none; }
+  .filter-title { font-size: 22px; }
+  .filter-controls { gap: 12px; }
+  .market-content { max-width: 880px; margin: 0 auto; width: 100%; padding: 8px 32px 0; }
+}
 .card { background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #e2e8f0; }
+@media (min-width: 768px) {
+  .card { padding: 22px; border-radius: 14px; }
+}
 .card-title { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
 .card-context { font-weight: 500; color: #64748b; font-size: 12px; }
 .snapshot-card { min-height: 260px; }
