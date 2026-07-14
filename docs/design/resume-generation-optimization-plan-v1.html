@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CareerMate 简历生成能力优化方案 V1.0</title>
+<style>
+  :root{
+    --ink:#1a2230; --sub:#5b6675; --line:#e3e8ef; --bg:#f6f8fb;
+    --brand:#2563eb; --brand-weak:#eaf1ff; --ok:#0f9d58; --warn:#c47f00;
+    --risk:#d64545; --risk-weak:#fdecec; --card:#ffffff; --code:#0b3d91;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.7;font-size:15px}
+  .wrap{max-width:960px;margin:0 auto;padding:48px 32px 96px}
+  header.doc{border-bottom:3px solid var(--brand);padding-bottom:24px;margin-bottom:8px}
+  header.doc h1{font-size:27px;margin:0 0 12px;letter-spacing:.3px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 20px;color:var(--sub);font-size:13.5px}
+  .meta b{color:var(--ink);font-weight:600}
+  .pill{display:inline-block;background:var(--brand-weak);color:var(--brand);
+    border-radius:999px;padding:2px 12px;font-size:12.5px;font-weight:600}
+  .pill.review{background:#fff4e0;color:var(--warn)}
+  h2{font-size:20px;margin:44px 0 14px;padding-left:12px;border-left:4px solid var(--brand)}
+  h3{font-size:16.5px;margin:26px 0 10px;color:var(--ink)}
+  h4{font-size:14.5px;margin:16px 0 6px;color:var(--sub);font-weight:600;letter-spacing:.5px}
+  p{margin:10px 0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;background:var(--card)}
+  th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:#f0f4f9;font-weight:600}
+  td code,p code,li code{background:#eef2f7;color:var(--code);padding:1px 6px;border-radius:4px;
+    font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:16px 0;
+    box-shadow:0 1px 2px rgba(20,30,50,.03)}
+  .card.p{border-left:4px solid var(--brand)}
+  .tag{display:inline-block;font-size:12px;font-weight:700;border-radius:6px;padding:2px 9px;margin-right:8px;vertical-align:middle}
+  .tag.hi{background:#e8f5ec;color:var(--ok)}
+  .tag.lo{background:#eef1f5;color:var(--sub)}
+  .flag{background:var(--risk-weak);border:1px solid #f4c9c9;border-radius:8px;padding:12px 16px;margin:14px 0}
+  .flag b{color:var(--risk)}
+  .note{background:#fff9ec;border:1px solid #f0e0b8;border-radius:8px;padding:12px 16px;margin:14px 0}
+  ul,ol{margin:10px 0;padding-left:24px}
+  li{margin:5px 0}
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 22px;margin:22px 0}
+  .toc ol{columns:2;column-gap:36px;margin:6px 0 0}
+  .toc a{color:var(--brand);text-decoration:none}
+  .toc a:hover{text-decoration:underline}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;margin:12px 0;font-size:14px}
+  .kv dt{color:var(--sub);font-weight:600}
+  .kv dd{margin:0}
+  pre{background:#0f1729;color:#d5deec;border-radius:8px;padding:14px 16px;overflow-x:auto;
+    font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.6px;line-height:1.55}
+  .anchor{color:var(--sub);font-size:12.5px;font-family:"SF Mono",Menlo,Consolas,monospace}
+  .phase{display:flex;gap:14px;align-items:flex-start;margin:12px 0}
+  .phase .dot{flex:0 0 auto;width:14px;height:14px;border-radius:50%;background:var(--brand);margin-top:6px}
+  .phase .body{flex:1}
+  .date{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;color:var(--brand);font-weight:600}
+  footer.doc{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--sub);font-size:13px}
+  /* ===== 简历模板预览 ===== */
+  .tpl-wrap{display:flex;gap:24px;flex-wrap:wrap;margin:20px 0 8px}
+  .tpl{flex:1 1 360px;min-width:320px}
+  .tpl-cap{display:flex;align-items:baseline;gap:10px;margin-bottom:9px;flex-wrap:wrap}
+  .tpl-cap .badge{font-size:12px;font-weight:700;padding:3px 11px;border-radius:6px}
+  .badge.pdf{background:var(--risk-weak);color:var(--risk)}
+  .badge.word{background:#e6effb;color:#295fb0}
+  .tpl-cap .desc{font-size:12.5px;color:var(--sub)}
+  .page{background:#fff;border:1px solid #dce2ea;border-radius:6px;padding:26px 28px;
+    box-shadow:0 3px 14px rgba(20,30,50,.08);font-size:11px;line-height:1.55;color:#222}
+  .page .r-sec{margin:14px 0 6px}
+  .page .r-job{margin:7px 0 4px}
+  .page .r-role{font-weight:600}
+  .page .r-meta{float:right;font-weight:400}
+  .page ul{margin:4px 0 8px;padding-left:18px}
+  .page ul li{margin:2px 0;line-height:1.5}
+  .page .r-skills{margin:2px 0 6px}
+  .page .r-clear{clear:both}
+  /* PDF 精排版：居中抬头 + 品牌色分节线 */
+  .page.pdf .r-name{text-align:center;font-size:21px;font-weight:700;color:#12233f;letter-spacing:2px}
+  .page.pdf .r-contact{text-align:center;font-size:9.5px;color:#8a93a2;margin:5px 0 15px}
+  .page.pdf .r-sec{font-size:12px;font-weight:700;color:var(--brand);
+    border-bottom:1.6px solid var(--brand);padding-bottom:3px;letter-spacing:1px}
+  .page.pdf .r-role,.page.pdf .r-name{color:#12233f}
+  .page.pdf .r-meta{color:#8a93a2;font-size:10px}
+  /* Word ATS 版：左对齐、纯黑、衬线、单栏无图形 */
+  .page.word{font-family:Georgia,"Times New Roman","Songti SC",serif;color:#111}
+  .page.word .r-name{font-size:18px;font-weight:700;color:#000;letter-spacing:.5px}
+  .page.word .r-contact{font-size:10px;color:#333;margin:3px 0 12px}
+  .page.word .r-sec{font-size:12px;font-weight:700;text-transform:uppercase;color:#000;
+    border-bottom:1px solid #000;padding-bottom:2px;letter-spacing:.5px}
+  .page.word .r-meta{color:#333;font-size:10px}
+  .tpl-legend{font-size:12.5px;color:var(--sub);margin-top:4px}
+  .cmp2{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px}
+  .cmp2 th,.cmp2 td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  .cmp2 th{background:#f0f4f9}
+  /* ===== Canvas 就地编辑预览 ===== */
+  .canvas{max-width:580px;margin:16px 0;border:1px solid #d7dde6;border-radius:12px;overflow:hidden;
+    box-shadow:0 6px 22px rgba(20,30,50,.12);background:#fff}
+  .canvas-bar{display:flex;align-items:center;gap:10px;padding:11px 16px;background:#f4f6fa;border-bottom:1px solid #e3e8ef}
+  .canvas-bar .ttl{font-weight:600;font-size:13.5px;color:var(--ink)}
+  .canvas-bar .spacer{flex:1}
+  .canvas-bar .ico{width:27px;height:27px;border-radius:7px;display:inline-flex;align-items:center;
+    justify-content:center;background:#fff;border:1px solid #e0e5ee;color:var(--sub);font-size:14px}
+  .canvas-bar .ico.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .canvas-body{padding:16px 20px;font-size:12.5px;line-height:1.75;color:#1a2230;min-height:150px}
+  .canvas-body .h{font-weight:700;color:#12233f;margin:12px 0 4px}
+  .canvas-body .h:first-child{margin-top:0}
+  .canvas-sel{background:#fff3bf;border-radius:3px;padding:0 2px;box-shadow:0 0 0 1px #f2d98a}
+  .canvas-caret{display:inline-block;width:2px;height:1.05em;background:var(--brand);vertical-align:-2px;margin-left:1px}
+  .canvas-aichip{display:inline-flex;align-items:center;gap:5px;background:var(--brand);color:#fff;
+    border-radius:999px;padding:3px 11px;font-size:11px;font-weight:600;margin:6px 0 2px;box-shadow:0 2px 8px rgba(37,99,235,.35)}
+  .canvas-foot{display:flex;align-items:center;gap:14px;padding:9px 16px;background:#fafbfd;
+    border-top:1px solid #eef1f6;font-size:12px;color:var(--sub)}
+  .canvas-foot .saved{color:var(--ok);font-weight:600}
+  .canvas-foot .spacer{flex:1}
+  .canvas-foot .act{color:var(--brand);font-weight:600}
+  /* ===== 决策框 ===== */
+  .decision{background:#f3f7ff;border:1px solid #d5e2fb;border-radius:10px;padding:15px 18px;margin:14px 0}
+  .decision h5{margin:0 0 8px;font-size:14px;color:var(--brand)}
+  .decision .opt{margin:7px 0;padding-left:2px;font-size:14px}
+  .decision .rec{display:inline-block;font-size:11px;font-weight:700;background:#e8f5ec;color:var(--ok);
+    border-radius:5px;padding:1px 7px;margin-left:6px}
+  .decision .chosen{display:inline-block;font-size:11px;font-weight:700;background:var(--ok);color:#fff;
+    border-radius:5px;padding:1px 8px;margin-left:6px}
+  .decision .verdict{background:#e8f5ec;border:1px solid #bfe3cc;border-radius:7px;padding:6px 12px;
+    margin:0 0 9px;font-size:13px;font-weight:600;color:#0b7a43}
+  .tag.mid{background:#fff4e0;color:var(--warn)}
+  @media(max-width:640px){.toc ol{columns:1}.kv{grid-template-columns:1fr}.tpl{flex-basis:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <h1>CareerMate 简历生成能力优化方案</h1>
+  <div class="meta">
+    <span><b>版本</b> V1.5</span>
+    <span><b>拟制日期</b> 2026-07-14</span>
+    <span><b>拟制</b> 架构组</span>
+    <span><b>状态</b> <span class="pill" style="background:#e8f5ec;color:#0b7a43">已审核通过</span></span>
+    <span><b>对标基线</b> 业界开源方案（本地文件优先）</span>
+  </div>
+</header>
+
+<h4>修订记录</h4>
+<table>
+  <tr><th style="width:70px">版本</th><th style="width:110px">日期</th><th style="width:90px">拟制</th><th>说明</th></tr>
+  <tr><td>V1.0</td><td>2026-07-14</td><td>架构组</td><td>首版。基于业界开源方案三轴（文本即真源 / 模板渲染 / 防编造护栏）对照 CareerMate 现状，提出 P1–P3 三项优化。</td></tr>
+  <tr><td>V1.1</td><td>2026-07-14</td><td>架构组</td><td>去除对标项目具名，统一为「业界开源方案」中性表述；P3 落为「内置两套简历模板（PDF 精排版 + Word ATS 版）」并新增版式可视化预览供审核。</td></tr>
+  <tr><td>V1.2</td><td>2026-07-14</td><td>架构组</td><td>新增 P4「简历就地编辑（对话内 Canvas）」——后端编辑/保存/导出闭环已具备（复用 <code>PUT /{versionId}</code>），补前端可编辑面板；含编辑态预览与两处待拍板决策（是否过事实校验 / 版本语义）。</td></tr>
+  <tr><td>V1.3</td><td>2026-07-14</td><td>架构组</td><td>P1 升级为「三级降级阶梯」（L1 有信息 / L2 仅画像 / L3 什么都没有出默认骨架简历）；新增 <code>DRAFT_SKELETON</code> 状态与占位词豁免+导出护栏，新增默认骨架预览与「默认简历形态 A/B」决策。</td></tr>
+  <tr><td>V1.4</td><td>2026-07-14</td><td>架构组</td><td>定稿三处决策：P1-L3=A 引导占位骨架；P4-①=A 保存时轻量提示；P4-②=A 原地覆盖。据此收敛条件项与影响文件。</td></tr>
+  <tr><td>V1.5</td><td>2026-07-14</td><td>架构组</td><td>P4-② 决策<b>改判为 B · 编辑 fork 新版本</b>（<code>origin=MANUAL_EDIT</code>），保留「AI 原版 vs 手改版」可追溯，消解 V1.4 的覆盖取舍。相应更新影响文件/验收/风险/附录。<b>决策已闭合，可据此出研发落地提示词。</b></td></tr>
+</table>
+
+<div class="toc">
+  <h4 style="margin-top:0">目录</h4>
+  <ol>
+    <li><a href="#bg">背景与问题（为什么做）</a></li>
+    <li><a href="#cur">现状三轴对照</a></li>
+    <li><a href="#scope">优化目标与范围</a></li>
+    <li><a href="#p1">P1 · 无上传冷启动建档（三级降级）</a></li>
+    <li><a href="#p2">P2 · 确定性事实校验 Gate</a></li>
+    <li><a href="#p3">P3 · 内置简历模板（PDF/Word）</a></li>
+    <li><a href="#p4">P4 · 简历就地编辑（Canvas）</a></li>
+    <li><a href="#plan">分阶段目标日期</a></li>
+    <li><a href="#risk">风险与回滚</a></li>
+    <li><a href="#accept">验收标准（Playwright）</a></li>
+    <li><a href="#ref">附录 · 关键文件锚点</a></li>
+  </ol>
+</div>
+
+<h2 id="bg">1. 背景与问题（为什么做）</h2>
+<p>近期评估了一类<b>本地文件优先、CLI 无关</b>的开源求职流水线方案的简历生成设计，与 CareerMate 现有实现做了逐轴对照。两套系统哲学相反：</p>
+<ul>
+  <li><b>业界开源方案</b>：无上传冷启动、单个 Markdown 文件即真源、确定性脚本做事实核对。</li>
+  <li><b>CareerMate</b>：强制上传简历、结构化落库（<code>ResumeEntity</code> + <code>ResumeVersionEntity</code>）、多 Agent（Writer/Critic）辩论校验。</li>
+</ul>
+<p>对照后识别出三处可优化项。其中两处直接影响<b>新用户转化</b>与<b>输出可信度</b>，为本方案重点；第三处为体验增强项，优先级较低。</p>
+
+<div class="flag">
+  <b>对照中发现的两处现状缺口（本方案待验证前提）：</b>
+  <ul style="margin-bottom:0">
+    <li>职业画像 <code>CareerProfile</code>（含真实 <code>targetRole / skillKeywords / seniority</code>）当前<b>未接入简历生成链路</b>，一个真实信号源被闲置。</li>
+    <li>Writer/Critic 辩论在达 <code>MAX_ROUND</code>（默认 5 轮）未收敛时会「输出最后草稿并落库」；且 <code>CriticVerdict</code> 解析失败返回中立分 0.5。全链路依赖 LLM 判断真实性，<b>缺少字符串级的确定性事实兜底</b>，存在「看起来真实的编造稿蒙混落库」的风险窗口。</li>
+  </ul>
+</div>
+<p class="note" style="margin-top:0"><b>实施前置动作：</b>上述两处结论来自代码走查，实施 P1/P2 前需由研发在最新分支复核对应文件（见附录锚点），确认行为未变更后再动工。</p>
+
+<h2 id="cur">2. 现状三轴对照</h2>
+
+<h3>轴一 · 简历真源</h3>
+<table>
+  <tr><th style="width:180px">维度</th><th>业界开源方案</th><th>CareerMate（现状）</th></tr>
+  <tr><td>「上传」步骤</td><td>无。冷启动由 AI 从粘贴/LinkedIn/口述写入 Markdown 文件</td><td><b>强制</b>。简历为空即 <code>BizException(400,"请先上传简历")</code></td></tr>
+  <tr><td>真源载体</td><td>单个可 diff 的 Markdown 文件</td><td><code>ResumeEntity</code>（Tika 解析入库）+ 多版本 <code>ResumeVersionEntity</code></td></tr>
+  <tr><td>新用户门槛</td><td>零，无简历也能开始</td><td>硬门槛，必须先有文件</td></tr>
+</table>
+
+<h3>轴二 · 版式渲染</h3>
+<table>
+  <tr><th style="width:180px">维度</th><th>业界开源方案</th><th>CareerMate（现状）</th></tr>
+  <tr><td>渲染路径</td><td>Markdown → HTML/LaTeX 模板 → 浏览器/pdflatex</td><td>Markdown → <code>ResumeStructureParser</code> → iText(PDF)/POI(Word)</td></tr>
+  <tr><td>版式定义</td><td><b>外置模板文件</b>，换风格只改模板</td><td><b>硬编码在 Renderer</b>（A4/边距/字体链均写在 Java 内）</td></tr>
+  <tr><td>中文/服务端确定性</td><td>弱（无中文字体处理，依赖浏览器较重）</td><td><b>强</b>（字体探测、Emoji 去污、表格转 bullet）</td></tr>
+</table>
+<p class="note" style="margin-top:0"><b>结论：</b>渲染引擎本身 CareerMate 更工程化，<b>不动 iText/POI</b>。仅将版式抽象为可配置模板并内置两套开箱版式（见 P3），补齐「换风格需改代码」的短板。</p>
+
+<h3>轴三 · 防编造护栏</h3>
+<table>
+  <tr><th style="width:180px">维度</th><th>业界开源方案</th><th>CareerMate（现状）</th></tr>
+  <tr><td>机制</td><td>Prompt 边界 +「关键词只重组不捏造」+ 确定性事实校验脚本</td><td>四层：<code>FabricationRiskDetector</code> 拦截 → Writer 硬约束 → <code>ResumeCritic</code> 评审 → 占位词检测</td></tr>
+  <tr><td>哲学</td><td>确定性事实核对</td><td>LLM 判断真实性为主</td></tr>
+  <tr><td>整体强度</td><td>轻</td><td><b>重</b>（多 Agent 辩论，明显更强）</td></tr>
+</table>
+<p class="note" style="margin-top:0"><b>结论：</b>CareerMate 这块整体更强，唯一短板是<b>缺确定性兜底</b>——即业界开源方案用一个确定性脚本就做到的事实核对。P2 即补此短板。</p>
+
+<h2 id="scope">3. 优化目标与范围</h2>
+<div class="kv">
+  <dt>目标</dt><dd>① 消除新用户「无简历文件即无法开始」的转化门槛；② 为 LLM 判断补一道确定性事实底线；③ 内置多套导出模板；④ 打通简历就地编辑闭环。</dd>
+  <dt>范围内</dt><dd>简历生成工作流（<code>resume/version/workflow</code>）、冷启动建档、事实校验 Gate、导出模板配置层、对话内就地编辑面板（复用已有版本编辑接口）。</dd>
+  <dt>范围外</dt><dd>不改 iText/POI 渲染引擎；不改多 Agent 辩论收敛算法本身；不引入 pgvector 等基础设施变更。</dd>
+  <dt>兼容性</dt><dd>保持现有「上传→生成」主链路不变；新增能力以旁路/新增 Gate 形式接入，不破坏 <code>ResumeEntity</code>/<code>ResumeVersionEntity</code> 结构。</dd>
+</div>
+
+<h2 id="p1">4. P1 · 无上传冷启动建档（三级降级阶梯） <span class="tag hi">高优先级</span></h2>
+<div class="card p">
+  <h4>问题</h4>
+  <p>新用户无简历文件时被 <code>stepLoadResume()</code> 的 400 硬门槛挡住，直接流失；同时已采集的真实画像 <code>CareerProfile</code> 未被利用。新用户「有多少信息」参差不齐——从「口述了一堆经历」到「什么都不填、只想先看到一份简历」——单一路径覆盖不了。</p>
+
+  <h4>方案：按用户已有信息量三级降级，任何情况下都能产出一份简历</h4>
+  <table class="cmp2">
+    <tr><th style="width:64px">层级</th><th style="width:210px">用户已提供</th><th>生成策略</th></tr>
+    <tr><td><b>L1</b></td><td>口述 / 粘贴片段 / LinkedIn 等真实信息</td><td>LLM 基于真实信息生成初版 <code>ResumeEntity</code>（<code>origin=COLD_START</code>）</td></tr>
+    <tr><td><b>L2</b></td><td>仅有画像 <code>CareerProfile</code>（目标岗位/技能等）</td><td>用画像预填结构，其余章节留<b>引导占位</b></td></tr>
+    <tr><td><b>L3</b></td><td><b>什么都没有</b></td><td>产出<b>系统默认骨架简历</b>：默认格式 + 标准章节 + 引导占位，状态标 <code>DRAFT_SKELETON</code>，直接进 Canvas（P4）待填</td></tr>
+  </table>
+  <p><b>核心约束（不可动摇）：</b>所谓「默认内容」<b>只能是章节结构 + 填写引导</b>，<b>绝不预置任何虚构的公司/学历/经历</b>。L1/L2 写入的内容也只允许来自<b>用户本次对话明确提供</b>或 <code>CareerProfile</code> 已存在的事实，不得凭空补全。此约束与 P2 事实 Gate 天然衔接。</p>
+
+  <div class="flag">
+    <b>护栏冲突提示（必须处理）：</b>P2 的质量校验会<b>拒绝含「待补充/示例/XXX」占位词</b>的简历，而 L3 骨架天然含占位。解法：为骨架引入独立状态 <code>DRAFT_SKELETON</code>——<b>豁免占位词检测</b>，但<b>导出/投递前强制校验「已离开骨架状态」</b>（占位是否填充完成）；未完成只能导出带「草稿·未完成」水印或直接禁止投递。既能「啥都没有也先出一份」，又杜绝半成品当真简历投出去。
+  </div>
+
+  <h4>L3 默认骨架预览（示意，供审核默认格式）</h4>
+  <div class="tpl-wrap">
+    <div class="tpl" style="flex-basis:520px">
+      <div class="tpl-cap"><span class="badge word" style="background:#fdecec;color:var(--risk)">DRAFT_SKELETON</span><span class="desc">默认骨架 · 引导占位 · 进 Canvas 待填</span></div>
+      <div class="page pdf">
+        <div class="r-name" style="color:#9aa4b2">你的姓名</div>
+        <div class="r-contact">城市　·　手机　·　邮箱　·　GitHub / 个人主页</div>
+        <div class="r-sec">个人优势</div>
+        <div style="color:#8a93a2">（点此填写你的核心竞争力，例如「6 年 Java 后端，主导过高并发交易系统…」）</div>
+        <div class="r-sec">专业技能</div>
+        <div style="color:#8a93a2">（列出你最擅长的技术栈，如 Java / Spring Boot / MySQL / Redis …）</div>
+        <div class="r-sec">工作经历</div>
+        <div style="color:#8a93a2">（公司 — 职位　起止时间）<br>· （一句话讲清你做了什么、带来什么可量化结果）</div>
+        <div class="r-sec">项目经历</div>
+        <div style="color:#8a93a2">（项目名称）<br>· （技术方案 + 你的角色 + 成果）</div>
+        <div class="r-sec">教育经历</div>
+        <div style="color:#8a93a2">（学校 — 专业 · 学历　起止时间）</div>
+      </div>
+    </div>
+  </div>
+  <p class="tpl-legend">默认骨架<b>只给结构与引导，不含任何虚构事实</b>；灰字为填写引导，用户在 Canvas 逐段替换后状态才转为可导出。</p>
+
+  <h4>待拍板决策（请审核时选定）</h4>
+  <div class="decision">
+    <h5>决策 · L3 默认简历形态</h5>
+    <div class="verdict">✓ 定稿（2026-07-14）：采用 A · 引导占位骨架</div>
+    <div class="opt"><b>A</b> <b>引导占位骨架</b>：每段是填写引导（如上预览），用户逐段替换。护栏最干净、与 P4 Canvas 天然衔接。<span class="chosen">✓ 已选定</span></div>
+    <div class="opt" style="opacity:.6"><b>B</b> <b>带水印示例简历</b>：预置一份打「示例·请替换」水印的样例，用户照改。风险：用户可能忘删水印或误投他人示例内容。（未采用）</div>
+  </div>
+
+  <h4>字段设计</h4>
+  <ul>
+    <li><code>ResumeEntity.origin</code>（新增枚举）：<code>UPLOAD</code> / <code>MANUAL</code> / <code>COLD_START</code>，默认 <code>UPLOAD</code>，保证存量语义不变。</li>
+    <li><code>ResumeEntity.status</code>（新增枚举）：<code>DRAFT_SKELETON</code> / <code>READY</code>，默认 <code>READY</code>；仅 <code>READY</code> 可无水印导出/投递。</li>
+    <li><code>ResumeEntity.sourceSignals</code>（新增，JSON）：记录建档所依据的信号来源（<code>conversation</code> / <code>career_profile</code> / <code>default_skeleton</code>），供审计与 P2 取证。</li>
+    <li>复用现有 <code>CareerProfileContextProvider</code> 将画像注入生成上下文——补上「画像未接入生成链路」的缺口（支撑 L1/L2 预填）。</li>
+    <li>默认骨架模板置于配置层（章节顺序 + 引导文案），随 <code>language.output</code> 出中/英文引导。</li>
+  </ul>
+
+  <h4>影响文件（待研发复核后修改）</h4>
+  <ul class="anchor">
+    <li>resume/version/workflow/GenerateResumeWorkflowRunner.java（stepLoadResume 分支：空简历→按 L1/L2/L3 降级，不再抛错）</li>
+    <li>resume/service/ResumeService.java（新增 createFromColdStart / createDefaultSkeleton）</li>
+    <li>agent/context/CareerProfileContextProvider.java（接入生成上下文，支撑 L1/L2 预填）</li>
+    <li>model/entity/ResumeEntity.java（新增 origin / status / sourceSignals 字段 + 迁移脚本）</li>
+    <li>resume/version/export/*（导出前校验 status；DRAFT_SKELETON 加水印或拦截）</li>
+  </ul>
+
+  <h4>验收标准</h4>
+  <ol>
+    <li><b>L1</b>：无简历账号提供 3 段真实经历 → 初版<b>仅含</b>用户提供 + 画像已有事实，无凭空补全，<code>origin=COLD_START</code>、<code>status=READY</code>。</li>
+    <li><b>L2</b>：仅有画像时生成 → 画像字段被预填，其余为引导占位。</li>
+    <li><b>L3</b>：什么都不提供也能拿到默认骨架简历，<code>status=DRAFT_SKELETON</code>，且<b>不含任何虚构公司/学历/经历</b>。</li>
+    <li><b>护栏</b>：<code>DRAFT_SKELETON</code> 未填完即导出 → 带「草稿·未完成」水印或被拦截；填充完成转 <code>READY</code> 后正常导出。</li>
+    <li>存量「上传→生成」链路回归无影响（origin 默认 UPLOAD、status 默认 READY）。</li>
+  </ol>
+</div>
+
+<h2 id="p2">5. P2 · 确定性事实校验 Gate <span class="tag hi">高优先级</span></h2>
+<div class="card p">
+  <h4>问题</h4>
+  <p>全链路靠 LLM 判断真实性；<code>MAX_ROUND</code> 未收敛仍落库、<code>CriticVerdict</code> 解析失败给中立 0.5，缺字符串级确定性兜底。占位词检测挡得住「公司A/XXX」，挡不住「某大厂真实感项目」。</p>
+
+  <h4>方案</h4>
+  <p>在工作流第 6 步 <code>QUALITY_CHECK</code> 内新增一道<b>不可绕过的确定性 Gate</b>（即业界开源方案「确定性事实核对」哲学）：从生成版本抽取<b>强事实</b>，逐条比对源 <code>ResumeEntity</code> + <code>CareerProfile</code>，源中无支撑者判为可疑。</p>
+
+  <h4>校验对象（强事实）</h4>
+  <ul>
+    <li>公司/机构名、学历与院校、证书名称、职称/头衔</li>
+    <li>量化数字（金额、百分比、规模、年限）——要求在源文本中有可对齐的出处</li>
+  </ul>
+
+  <h4>判定与动作</h4>
+  <table>
+    <tr><th style="width:150px">命中情况</th><th>动作</th></tr>
+    <tr><td>强事实全部有源支撑</td><td>通过，正常落库</td></tr>
+    <tr><td>存在无源强事实</td><td>拒绝自动落库；在返回卡片标红「疑似无出处：{列表}」，要求用户确认来源或移除后再存</td></tr>
+    <tr><td>解析异常</td><td><b>fail-closed</b>：视为未通过，走人工确认，不静默放行</td></tr>
+  </table>
+
+  <h4>字段设计</h4>
+  <ul>
+    <li><code>ResumeVersionEntity.factCheck</code>（新增，JSON）：<code>{status: PASS|SUSPECT|ERROR, unsourcedFacts:[...], checkedAt}</code>，作为可信度可审计凭证。</li>
+    <li>校验器独立成 <code>ResumeFactVerifier</code>（确定性、无 LLM 调用），便于单测与复用。</li>
+  </ul>
+
+  <h4>影响文件（待研发复核后修改）</h4>
+  <ul class="anchor">
+    <li>resume/version/workflow/GenerateResumeWorkflowRunner.java（QUALITY_CHECK 内挂载 Gate）</li>
+    <li>resume/version/verify/ResumeFactVerifier.java（新增，确定性抽取+比对）</li>
+    <li>resume/version/entity/ResumeVersionEntity.java（新增 factCheck 字段 + 迁移）</li>
+  </ul>
+
+  <h4>验收标准</h4>
+  <ol>
+    <li>构造一份含源简历中不存在的「腾讯 3 年经历」的生成稿 → Gate 判 SUSPECT，不落库，卡片标红列出该条。</li>
+    <li>正常重组真实经历的生成稿 → Gate PASS，正常落库，<code>factCheck.status=PASS</code>。</li>
+    <li>校验器抛异常时 → fail-closed 走人工确认，无静默放行。</li>
+    <li>Gate 为确定性逻辑，同一输入多次运行结论一致（可重放）。</li>
+  </ol>
+</div>
+
+<h2 id="p3">6. P3 · 内置简历模板（PDF 精排版 + Word ATS 版） <span class="tag mid" style="background:#fff4e0;color:var(--warn)">中优先级</span></h2>
+<div class="card">
+  <h4>问题</h4>
+  <p>版式参数（A4/边距/字号/字体链/章节样式）硬编码在 <code>ResumeVersionPdfRenderer</code>/<code>DocxRenderer</code>，换风格需改代码重编译；且当前只有一种版式，无法针对「给人看」与「过 ATS 机器解析」两类投递场景分别优化。</p>
+  <h4>方案</h4>
+  <p>内置<b>两套开箱模板</b>，导出时由用户选择；版式参数抽成 <code>ResumeLayoutProfile</code> 配置，Renderer 从配置读取而非写死。<b>不改渲染引擎本身</b>，iText/POI 保持不动。</p>
+  <ul>
+    <li><b>PDF 精排版</b>（iText 渲染）：居中抬头、品牌色分节线、排版精致，用于直接投递 / 企业邮箱附件 / 给人看。</li>
+    <li><b>Word · ATS 友好版</b>（POI 渲染）：单栏、纯黑、衬线、无图形无颜色，最大化机器可解析度，用于投递 ATS 系统或需二次编辑的场景。</li>
+  </ul>
+
+  <h4 style="margin-top:22px">版式预览（示意，内容为示例数据，供审核排版）</h4>
+  <div class="tpl-wrap">
+    <!-- 模板 A：PDF 精排版 -->
+    <div class="tpl">
+      <div class="tpl-cap"><span class="badge pdf">PDF 精排版</span><span class="desc">iText · 给人看 / 直接投递</span></div>
+      <div class="page pdf">
+        <div class="r-name">张　明</div>
+        <div class="r-contact">深圳　·　138-0000-0000　·　zhangming@example.com　·　github.com/zhangming</div>
+
+        <div class="r-sec">个人优势</div>
+        <div>6 年 Java 后端研发，主导过日均千万级交易系统的架构与稳定性治理；熟悉高并发、分布式事务与服务治理，具备从 0 到 1 的系统落地经验。</div>
+
+        <div class="r-sec">专业技能</div>
+        <div class="r-skills">Java · Spring Boot · Spring Cloud · MySQL · Redis · Kafka · 分布式事务 · Kubernetes</div>
+
+        <div class="r-sec">工作经历</div>
+        <div class="r-job"><span class="r-meta">2021.06 – 至今</span><span class="r-role">某科技有限公司　—　高级 Java 工程师</span></div>
+        <ul class="r-clear">
+          <li>主导交易清算平台重构，QPS 由 800 提升至 5000，P99 延迟下降 42%</li>
+          <li>落地分库分表与 Redis 多级缓存，大促期间零故障支撑</li>
+        </ul>
+        <div class="r-job"><span class="r-meta">2018.07 – 2021.05</span><span class="r-role">某互联网公司　—　Java 工程师</span></div>
+        <ul class="r-clear">
+          <li>负责订单中心微服务拆分，接口平均响应时间下降 35%</li>
+        </ul>
+
+        <div class="r-sec">项目经历</div>
+        <div class="r-job"><span class="r-role">实时风控引擎（个人练习项目）</span></div>
+        <ul>
+          <li>基于 Kafka + Flink 的规则引擎，支持毫秒级风险决策</li>
+        </ul>
+
+        <div class="r-sec">教育经历</div>
+        <div class="r-job"><span class="r-meta">2014.09 – 2018.06</span><span class="r-role">某大学　—　计算机科学与技术 · 本科</span></div>
+      </div>
+    </div>
+
+    <!-- 模板 B：Word ATS 友好版 -->
+    <div class="tpl">
+      <div class="tpl-cap"><span class="badge word">Word · ATS 版</span><span class="desc">POI · 过机器解析 / 可二次编辑</span></div>
+      <div class="page word">
+        <div class="r-name">张 明</div>
+        <div class="r-contact">深圳 | 138-0000-0000 | zhangming@example.com | github.com/zhangming</div>
+
+        <div class="r-sec">个人优势</div>
+        <div>6 年 Java 后端研发，主导过日均千万级交易系统的架构与稳定性治理；熟悉高并发、分布式事务与服务治理，具备从 0 到 1 的系统落地经验。</div>
+
+        <div class="r-sec">专业技能</div>
+        <div class="r-skills">Java, Spring Boot, Spring Cloud, MySQL, Redis, Kafka, 分布式事务, Kubernetes</div>
+
+        <div class="r-sec">工作经历</div>
+        <div class="r-job"><span class="r-meta">2021.06 – 至今</span><span class="r-role">某科技有限公司 — 高级 Java 工程师</span></div>
+        <ul class="r-clear">
+          <li>主导交易清算平台重构，QPS 由 800 提升至 5000，P99 延迟下降 42%</li>
+          <li>落地分库分表与 Redis 多级缓存，大促期间零故障支撑</li>
+        </ul>
+        <div class="r-job"><span class="r-meta">2018.07 – 2021.05</span><span class="r-role">某互联网公司 — Java 工程师</span></div>
+        <ul class="r-clear">
+          <li>负责订单中心微服务拆分，接口平均响应时间下降 35%</li>
+        </ul>
+
+        <div class="r-sec">项目经历</div>
+        <div class="r-job"><span class="r-role">实时风控引擎（个人练习项目）</span></div>
+        <ul>
+          <li>基于 Kafka + Flink 的规则引擎，支持毫秒级风险决策</li>
+        </ul>
+
+        <div class="r-sec">教育经历</div>
+        <div class="r-job"><span class="r-meta">2014.09 – 2018.06</span><span class="r-role">某大学 — 计算机科学与技术 · 本科</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="tpl-legend">说明：两套模板<b>内容完全一致，仅排版不同</b>——体现「一份真源、多版式导出」。示例中「个人练习项目」标注即对应 Writer 硬约束（学习/练习项目须如实标注），模板层不引入任何编造。</p>
+
+  <h4>模板选型</h4>
+  <table class="cmp2">
+    <tr><th style="width:130px">模板</th><th style="width:90px">引擎</th><th>适用场景</th><th>版式特点</th></tr>
+    <tr><td>PDF 精排版</td><td>iText</td><td>直接投递、企业邮箱附件、给人看</td><td>居中抬头、品牌色分节线、字号层次分明、排版精致</td></tr>
+    <tr><td>Word · ATS 版</td><td>POI</td><td>投递 ATS 系统、HR 需二次编辑</td><td>单栏、纯黑、衬线、无图形无颜色，最大化机器可解析度</td></tr>
+  </table>
+
+  <h4>影响文件</h4>
+  <ul class="anchor">
+    <li>resume/version/export/ResumeVersionPdfRenderer.java / ResumeVersionDocxRenderer.java（读取配置，落两套预设版式）</li>
+    <li>resume/version/export/ResumeLayoutProfile.java（新增配置模型 + PDF_PRECISE / WORD_ATS 两套预设）</li>
+    <li>resume/version/dto/*ExportRequest（新增 template 选择参数，默认 PDF_PRECISE，保证存量行为不变）</li>
+  </ul>
+  <h4>验收标准</h4>
+  <ol>
+    <li>同一简历分别选 PDF 精排版 / Word ATS 版导出，两份文件<b>内容一致、版式不同</b>，与本页预览观感一致。</li>
+    <li>Word ATS 版为单栏纯文本结构，主流 ATS 解析器能正确抽取姓名/联系方式/各章节。</li>
+    <li>不指定模板时默认 PDF 精排版，且与现状输出保持一致（无回归）。</li>
+  </ol>
+</div>
+
+<h2 id="p4">7. P4 · 简历就地编辑（对话内 Canvas） <span class="tag hi">高优先级</span></h2>
+<div class="card p">
+  <h4>问题</h4>
+  <p>AI 生成的简历用户常想微调（改一句措辞、补一条经历、删一段）。当前只能「重新生成」或「下载后用外部工具改」，改完无法回流到系统版本，<b>再次导出仍是旧内容</b>——编辑闭环断了。</p>
+
+  <h4>方案</h4>
+  <p>在对话内提供 <b>Canvas 可编辑面板</b>（即用户截图中 ChatGPT 的「写作」面板交互）：面板加载版本的 <code>contentMarkdown</code>，用户就地编辑，失焦/停顿后<b>自动保存</b>，保存后再导出即编辑后版本。桌面端可另提供独立 md 编辑页作补充。</p>
+
+  <div class="flag" style="background:#e8f5ec;border-color:#bfe3cc">
+    <b style="color:var(--ok)">利好：后端闭环已具备，几乎零新增接口。</b> 经代码走查，<code>ResumeVersionController</code> 已有：
+    <ul style="margin-bottom:0">
+      <li><code>GET /{versionId}</code> → 取 <code>contentMarkdown</code> 载入编辑器</li>
+      <li><b><code>PUT /{versionId}</code></b> → <code>updateVersion()</code> 直接 <code>setContentMarkdown()</code> 落库（即「保存」）</li>
+      <li><code>GET /{versionId}/export/pdf|docx</code> → 从<b>同一版本实体</b>渲染 → 保存后再下载天然是改后版</li>
+    </ul>
+  </div>
+  <p>因此 P4 <b>主体工作量在前端</b>：Canvas 面板组件 + 自动保存（防抖）+ 保存态提示。后端仅按下方决策选做小幅增强。</p>
+
+  <h4>编辑态预览（示意，供审核交互）</h4>
+  <div class="canvas">
+    <div class="canvas-bar">
+      <span class="ttl">简历 · 张明（Java 后端）</span>
+      <span class="spacer"></span>
+      <span class="ico on" title="编辑">✎</span>
+      <span class="ico" title="导出">⭳</span>
+    </div>
+    <div class="canvas-body">
+      <div class="h">个人优势</div>
+      <div>6 年 Java 后端研发，主导过日均千万级交易系统的架构与稳定性治理；<span class="canvas-sel">熟悉高并发、分布式事务与服务治理</span>，具备从 0 到 1 的系统落地经验。<span class="canvas-caret"></span></div>
+      <div class="canvas-aichip">✦ 让 AI 改写选中这句</div>
+      <div class="h">工作经历</div>
+      <div><b>某科技有限公司 — 高级 Java 工程师</b>　2021.06 – 至今</div>
+      <div>· 主导交易清算平台重构，QPS 由 800 提升至 5000，P99 延迟下降 42%</div>
+    </div>
+    <div class="canvas-foot">
+      <span class="saved">✓ 已保存 · 刚刚</span>
+      <span class="spacer"></span>
+      <span class="act">✦ AI 改写选中</span>
+      <span class="act">⭳ 导出 PDF / Word</span>
+    </div>
+  </div>
+  <p class="tpl-legend">交互要点：① 就地编辑，停顿即自动保存（走 <code>PUT /{versionId}</code>）；② 选中一段可「让 AI 改写这一句」再写回面板——这是相比"下载后外部编辑"的差异化能力；③ 底部一键导出，导出的就是当前编辑后内容。</p>
+
+  <h4>待拍板决策（请审核时选定）</h4>
+  <div class="decision">
+    <h5>决策 ① · 手工编辑是否也过事实校验？</h5>
+    <div class="verdict">✓ 定稿（2026-07-14）：采用 A · 保存时轻量提示不拦截</div>
+    <div class="opt"><b>A</b> 保存时做<b>轻量事实校验，仅提示不拦截</b>：新增的强事实若在原简历无出处，标黄提醒「确认属实?」，用户可忽略。<span class="chosen">✓ 已选定</span></div>
+    <div class="opt" style="opacity:.6"><b>B</b> 完全放开：用户编辑自己的简历，尊重自主，不做任何校验。（未采用）</div>
+  </div>
+  <div class="decision">
+    <h5>决策 ② · 编辑的版本语义</h5>
+    <div class="verdict">✓ 定稿（2026-07-14，V1.5 改判）：采用 B · 编辑 fork 新版本，保留可追溯</div>
+    <div class="opt" style="opacity:.6"><b>A</b> 原地覆盖 <code>contentMarkdown</code>（现有 <code>PUT</code> 行为，最简单）。缺点：手改覆盖 AI 原版、不可回溯。（未采用）</div>
+    <div class="opt"><b>B</b> 编辑时 <b>fork 出新版本</b>，标 <code>origin=MANUAL_EDIT</code>，保留「AI 生成版 vs 手改版」可追溯。<span class="chosen">✓ 已选定</span></div>
+    <p style="margin:6px 0 0;font-size:13px;color:var(--sub)"><b>实现要点：</b><b>首次</b>手工编辑时 fork 一个 <code>MANUAL_EDIT</code> 版本，同一编辑会话后续更新该手改版、不重复 fork；AI 原版始终保留，与多版本产品定位一致。</p>
+  </div>
+
+  <h4>影响文件</h4>
+  <ul class="anchor">
+    <li>前端 · workspace 简历卡片 → 升级为可编辑 Canvas 组件 + 自动保存（防抖 300–800ms）+ 保存态</li>
+    <li>后端 · <b>复用</b> resume/version/controller/ResumeVersionController.java 的 <code>GET / export</code>；<b>决策②=B</b>：ResumeVersionService 新增 <code>forkVersion()</code>——首次手工编辑 fork 出 <code>origin=MANUAL_EDIT</code> 新版本，后续编辑更新该手改版，AI 原版保留</li>
+    <li>后端 · <b>决策①=A</b>：保存路径挂 <code>ResumeFactVerifier</code>（复用 P2 校验器）返回提示项，<b>仅提示不拦截</b></li>
+  </ul>
+
+  <h4>验收标准</h4>
+  <ol>
+    <li>在 Canvas 改动一句话，失焦后自动保存成功（<code>PUT /{versionId}</code> 200）；刷新页面编辑仍在。</li>
+    <li>保存后重新导出 PDF / Word，文件内容含该改动。</li>
+    <li>断网/保存失败时给出可重试提示，<b>不静默丢改动</b>。</li>
+    <li>（决策①）编辑加入原简历无出处的强事实，保存时出现标黄提示<b>且不拦截</b>，用户可忽略后仍能保存。</li>
+    <li>（决策②）首次手工编辑<b>fork 出 <code>origin=MANUAL_EDIT</code> 新版本</b>，AI 原版仍可见；同会话后续编辑更新该手改版、不重复 fork；再次导出即手改版最新内容。</li>
+  </ol>
+</div>
+
+<h2 id="plan">8. 分阶段目标日期</h2>
+<p>按「先低风险补漏、再拓能力、最后体验增强」排序。日期为目标节点，以评审通过日为准顺延。</p>
+
+<div class="phase"><div class="dot"></div><div class="body">
+  <span class="date">2026-07-15 ~ 07-25</span> · <b>阶段一 · P2 事实校验 Gate</b><br>
+  改动最小、风险最低、直接补可信度短板。07-18 前出详设+提示词交研发，07-25 前完成开发自测（含 <code>mvn test-compile</code> 全绿 + 前端 <code>npm build</code>）并灰度。
+</div></div>
+
+<div class="phase"><div class="dot"></div><div class="body">
+  <span class="date">2026-07-28 ~ 08-08</span> · <b>阶段二 · P1 无上传冷启动建档</b><br>
+  依赖 P2 的事实 Gate 作为建档护栏，故排其后。含 <code>ResumeEntity</code> 字段迁移，需数据兼容评审。08-08 前上线并做新用户转化对比。
+</div></div>
+
+<div class="phase"><div class="dot"></div><div class="body">
+  <span class="date">2026-08-11 ~ 08-20</span> · <b>阶段三 · P4 简历就地编辑（对话内 Canvas）</b><br>
+  后端闭环已具备（复用 <code>PUT /{versionId}</code>），本阶段以<b>前端为主、风险低</b>，可与阶段二部分并行。08-20 前完成 Canvas 面板 + 自动保存 + 编辑后导出联调；决策①②按审核结论落地。
+</div></div>
+
+<div class="phase"><div class="dot"></div><div class="body">
+  <span class="date">2026-08-21 ~ 08-29</span> · <b>阶段四 · P3 内置简历模板（PDF 精排版 + Word ATS 版）</b><br>
+  可与前序解耦独立排期。08-29 前完成两套预设化改造、模板选择参数与回归。
+</div></div>
+
+<h2 id="risk">9. 风险与回滚</h2>
+<table>
+  <tr><th style="width:190px">风险</th><th>缓解 / 回滚</th></tr>
+  <tr><td>P1 建档路径被误用于绕过真实性</td><td>建档强制走 P2 Gate；<code>sourceSignals</code> 全程审计；仅在无活跃简历时触发。</td></tr>
+  <tr><td>L3 默认骨架被当真简历投出去</td><td><code>DRAFT_SKELETON</code> 状态：豁免占位词检测但导出/投递前强制校验已填充；未完成加「草稿·未完成」水印或拦截；默认骨架只含结构不含虚构事实。</td></tr>
+  <tr><td>P2 Gate 误报（真实事实判无源）</td><td>判定为「拒绝自动落库+人工确认」而非「直接删」，用户可确认来源放行；比对规则可配置阈值，先灰度观察误报率再收紧。</td></tr>
+  <tr><td>实体字段迁移影响存量</td><td>新增字段均带默认值（origin=UPLOAD、factCheck 可空），存量语义不变；迁移脚本可回滚。</td></tr>
+  <tr><td>P4 手工编辑绕过防编造护栏</td><td>决策①=A：保存时轻量校验、仅提示不拦截，兜住无意夸大又不侵犯用户自主。</td></tr>
+  <tr><td>P4 fork 导致版本膨胀</td><td>决策②=B 的注意点：仅在<b>首次</b>手工编辑时 fork 一个 <code>MANUAL_EDIT</code> 版本，同一编辑会话后续更新该版本、不每次保存都 fork；AI 原版与手改版并存可对比。</td></tr>
+  <tr><td>P4 自动保存丢改动 / 并发写</td><td>保存失败可重试提示、不静默丢；<code>PUT</code> 走用户维度校验，编辑基于最新 <code>GET</code> 版本，避免跨会话覆盖。</td></tr>
+  <tr><td>对照结论与最新代码偏移</td><td>实施前置动作强制研发复核附录锚点，行为不符则先对齐再动工。</td></tr>
+</table>
+
+<h2 id="accept">10. 验收标准（Playwright 端到端）</h2>
+<p>每项优化除单元测试外，均需以下 E2E 场景通过（延续 CareerMate 现有 Playwright 约定）：</p>
+<pre>场景 A（P1）：新账号无简历 → 触发从 JD 生成
+  期望：进入建档引导；提交经历后生成初版简历；
+        断言 origin=COLD_START，且产物不含用户未提供的公司/学历。
+
+场景 B（P2）：注入含无源「大厂经历」的生成稿
+  期望：卡片标红「疑似无出处」，无新版本落库；
+        断言 factCheck.status=SUSPECT。
+
+场景 C（P2 反例）：真实经历重组稿
+  期望：正常落库；断言 factCheck.status=PASS。
+
+场景 D（回归）：存量「上传→生成」全链路
+  期望：与优化前输出一致，origin=UPLOAD，无异常。
+
+场景 E（P3）：同一简历分别导出 PDF 精排版 / Word ATS 版
+  期望：两份内容一致、版式不同，与预览观感一致；
+        Word ATS 版可被主流 ATS 正确解析；默认模板与现状一致。
+
+场景 F（P4）：Canvas 就地编辑 → 自动保存 → 重新导出
+  期望：面板改动一句话，失焦后自动保存（PUT /{versionId} 200）；
+        刷新页面编辑仍在；重新导出 PDF/Word 含该改动；
+        断网时保存失败给可重试提示，不静默丢改动。</pre>
+<p class="note"><b>合并前置：</b>按既有规范，合入 main 前须 <code>mvn test-compile</code>（非仅 compile）+ 前端 <code>npm build</code> 全部通过；Playwright 用例仅本地验证，<b>不随生产代码提交</b>。</p>
+
+<h2 id="ref">11. 附录 · 关键文件锚点（供研发复核）</h2>
+<p class="anchor">路径基准：<code>careermate/backend/src/main/java/com/careermate/</code></p>
+<table>
+  <tr><th style="width:auto">文件</th><th>关注点</th></tr>
+  <tr><td class="anchor">resume/version/workflow/GenerateResumeWorkflowRunner.java</td><td>stepLoadResume 空简历分支（P1）、QUALITY_CHECK 占位词检测段（P2 挂载点）</td></tr>
+  <tr><td class="anchor">resume/ResumeContextProvider.java</td><td>默认活跃简历读取、8000 字截断</td></tr>
+  <tr><td class="anchor">agent/debate/ResumeWriter.java · ResumeCritic.java · CriticVerdict.java</td><td>Writer 硬约束、Critic 真实性评审、解析失败中立 0.5</td></tr>
+  <tr><td class="anchor">agent/debate/WriterCriticDebateEngine.java</td><td>共识阈值 0.85、MAX_ROUND 5 落库行为</td></tr>
+  <tr><td class="anchor">agent/multiagent/FabricationRiskDetector.java · CriticAgent.java</td><td>输入端编造意图拦截</td></tr>
+  <tr><td class="anchor">agent/context/CareerProfileContextProvider.java</td><td>画像上下文（当前未接入生成，P1 接入点）</td></tr>
+  <tr><td class="anchor">resume/version/export/ResumeVersionPdfRenderer.java · ResumeVersionDocxRenderer.java</td><td>硬编码版式（P3 抽配置）</td></tr>
+  <tr><td class="anchor">resume/version/controller/ResumeVersionController.java</td><td>P4 复用：<code>GET /{id}</code> 载入、<code>PUT /{id}</code> 保存、<code>export/pdf|docx</code> 导出——闭环已具备</td></tr>
+  <tr><td class="anchor">resume/version/service/impl/ResumeVersionServiceImpl.java</td><td>updateVersion 落 contentMarkdown（P4 保存）；决策②=B 新增 forkVersion（首次手改 fork 出 <code>MANUAL_EDIT</code> 版本）</td></tr>
+  <tr><td class="anchor">model/entity/ResumeEntity.java · resume/version/entity/ResumeVersionEntity.java</td><td>P1/P2 新增字段落点</td></tr>
+</table>
+
+<footer class="doc">
+  CareerMate 简历生成能力优化方案 · V1.5 · 2026-07-14 · 已审核通过<br>
+  对标基线：业界开源本地文件优先方案。本方案仅为架构设计，落地代码由研发依提示词执行并经架构组审核。
+</footer>
+
+</div>
+</body>
+</html>
