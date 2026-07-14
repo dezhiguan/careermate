@@ -32,6 +32,7 @@ public class GenerateResumeWorkflowRun {
     private String changeSummary;
     private List<Map<String, Object>> optimizationNotes = List.of();
     private ResumeVersionVO savedVersion;
+    private com.careermate.resume.version.verify.FactCheckResult factCheck;
     private Map<String, Object> card;
     private String resumePromptId;
     private String resumePromptVersion;
@@ -169,6 +170,14 @@ public class GenerateResumeWorkflowRun {
 
     public void setSavedVersion(ResumeVersionVO savedVersion) {
         this.savedVersion = savedVersion;
+    }
+
+    public com.careermate.resume.version.verify.FactCheckResult factCheck() {
+        return factCheck;
+    }
+
+    public void setFactCheck(com.careermate.resume.version.verify.FactCheckResult factCheck) {
+        this.factCheck = factCheck;
     }
 
     public Map<String, Object> card() {

@@ -58,6 +58,8 @@ class GenerateResumeWorkflowRunnerTest {
     private AgentSessionService agentSessionService;
     @Mock
     private com.careermate.jobmatch.JobMatchAnalyzer jobMatchAnalyzer;
+    @org.mockito.Mock
+    private com.careermate.resume.coldstart.ColdStartResumeService coldStartResumeService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private PromptTemplateService promptTemplateService;
@@ -74,7 +76,9 @@ class GenerateResumeWorkflowRunnerTest {
                 resumeVersionService,
                 objectMapper,
                 promptTemplateService,
-                jobMatchAnalyzer
+                jobMatchAnalyzer,
+                new com.careermate.resume.version.verify.ResumeFactVerifier(),
+                coldStartResumeService
         );
     }
 
@@ -116,7 +120,9 @@ class GenerateResumeWorkflowRunnerTest {
                 resumeVersionService,
                 objectMapper,
                 promptTemplateService,
-                jobMatchAnalyzer
+                jobMatchAnalyzer,
+                new com.careermate.resume.version.verify.ResumeFactVerifier(),
+                coldStartResumeService
         );
 
         stubHappyPath();

@@ -72,6 +72,8 @@ class GenerateResumeFromJdWorkflowTest {
     private com.careermate.jobmatch.JobMatchAnalyzer jobMatchAnalyzer;
     @Mock
     private ResumeGenerationRunService generationRunService;
+    @Mock
+    private com.careermate.resume.coldstart.ColdStartResumeService coldStartResumeService;
 
     private GenerateResumeFromJdWorkflow workflow;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -90,7 +92,9 @@ class GenerateResumeFromJdWorkflowTest {
                 objectMapper,
                 promptTemplateService,
                 jobMatchAnalyzer,
-                generationRunService
+                generationRunService,
+                new com.careermate.resume.version.verify.ResumeFactVerifier(),
+                coldStartResumeService
         );
     }
 
@@ -155,6 +159,44 @@ class GenerateResumeFromJdWorkflowTest {
                 eq("WORKFLOW_LOAD_RESUME_FAILED")
         );
         verify(resumeVersionService, never()).createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        // P1：无简历时冷启动帮用户建一份初始骨架
+        verify(coldStartResumeService).createForUser(1L);
+    }
+
+    @Test
+    void factCheckSuspectSkipsSaveAndEmitsWarningCard() {
+        stubHappyPath();
+        // 源简历为「原始简历」，生成稿凭空出现「字节跳动有限公司」→ 无出处 → SUSPECT
+        mockLlmStreamOnly("# 简历\n\n## 工作经历\n字节跳动有限公司 高级工程师");
+
+        workflow.doGenerate(1L, "WS-abc", "doc-1", null);
+
+        // P2：疑似无出处 → 不自动落库，出标红「需确认」卡片
+        verify(resumeVersionService, never())
+                .createVersion(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        ArgumentCaptor<String> metadataCaptor = ArgumentCaptor.forClass(String.class);
+        verify(workspaceSessionRepository).appendMessage(
+                eq(1L), any(), eq("assistant"), any(), eq("CARD"), metadataCaptor.capture(), eq(null));
+        String metadata = metadataCaptor.getValue();
+        assertTrue(metadata.contains("RESUME_FACT_CHECK"));
+        assertTrue(metadata.contains("字节跳动有限公司"));
+    }
+
+    @Test
+    void buildFactCheckSuspectCardListsUnsourcedFacts() {
+        var card = GenerateResumeWorkflowRunner.buildFactCheckSuspectCard(
+                "针对腾讯", "预览内容", List.of("阿里巴巴集团", "50%"));
+        assertEquals("RESUME_FACT_CHECK", card.get("type"));
+        assertEquals("warning", card.get("severity"));
+        assertEquals(List.of("阿里巴巴集团", "50%"), card.get("unsourcedFacts"));
+    }
+
+    @Test
+    void factCheckSuspectMessageIsFriendlyAndListsFacts() {
+        String msg = GenerateResumeWorkflowRunner.factCheckSuspectMessage("针对腾讯", List.of("阿里巴巴集团"));
+        assertTrue(msg.contains("针对腾讯"));
+        assertTrue(msg.contains("阿里巴巴集团"));
+        assertTrue(msg.contains("1 处"));
     }
 
     @Test

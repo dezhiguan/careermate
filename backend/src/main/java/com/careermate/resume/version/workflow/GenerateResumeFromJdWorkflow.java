@@ -39,7 +39,9 @@ public class GenerateResumeFromJdWorkflow {
             ObjectMapper objectMapper,
             PromptTemplateService promptTemplateService,
             JobMatchAnalyzer jobMatchAnalyzer,
-            ResumeGenerationRunService generationRunService
+            ResumeGenerationRunService generationRunService,
+            com.careermate.resume.version.verify.ResumeFactVerifier factVerifier,
+            com.careermate.resume.coldstart.ColdStartResumeService coldStartResumeService
     ) {
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.agentSessionService = agentSessionService;
@@ -53,7 +55,9 @@ public class GenerateResumeFromJdWorkflow {
                 resumeVersionService,
                 objectMapper,
                 promptTemplateService,
-                jobMatchAnalyzer
+                jobMatchAnalyzer,
+                factVerifier,
+                coldStartResumeService
         );
     }
 
