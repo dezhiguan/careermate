@@ -26,6 +26,8 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.never;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
@@ -51,7 +53,8 @@ class ResumeVersionServiceImplTest {
                 new ObjectMapper(),
                 pdfRenderer,
                 new ResumeVersionDocxRenderer(),
-                agentArtifactService
+                agentArtifactService,
+                new com.careermate.resume.version.verify.ResumeFactVerifier()
         );
     }
 
@@ -100,19 +103,72 @@ class ResumeVersionServiceImplTest {
     }
 
     @Test
-    void updateVersionPersistsNameAndContent() {
+    void updateVersionForksWhenEditingGeneratedVersionContent() {
         ResumeVersionEntity entity = entity("v-1", LocalDateTime.now());
-        entity.setId(10L);
         entity.setUserId(1L);
+        entity.setOrigin("GENERATED");
+        entity.setContentMarkdown("# 原内容");
         when(resumeVersionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
 
-        var updated = service.updateVersion(1L, "v-1", "新标题", "# 新内容");
+        var updated = service.updateVersion(1L, "v-1", "手改版", "# 新内容");
 
-        assertEquals("针对【腾讯】算法工程师 · v1", updated.versionName());
-        assertEquals("# 新内容", updated.contentMarkdown());
+        // P4②=B：首次手改 AI 版内容 → fork 出 MANUAL_EDIT 新版本，指向原版
+        ArgumentCaptor<ResumeVersionEntity> captor = ArgumentCaptor.forClass(ResumeVersionEntity.class);
+        verify(resumeVersionMapper).insert(captor.capture());
+        ResumeVersionEntity fork = captor.getValue();
+        assertEquals("MANUAL_EDIT", fork.getOrigin());
+        assertEquals("v-1", fork.getParentVersionId());
+        assertEquals("# 新内容", fork.getContentMarkdown());
+        assertEquals("# 原内容", entity.getContentMarkdown());
+        assertEquals("MANUAL_EDIT", updated.origin());
+    }
+
+    @Test
+    void updateVersionInPlaceWhenAlreadyManualEdit() {
+        ResumeVersionEntity entity = entity("v-2", LocalDateTime.now());
+        entity.setId(20L);
+        entity.setUserId(1L);
+        entity.setOrigin("MANUAL_EDIT");
+        when(resumeVersionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
+
+        var updated = service.updateVersion(1L, "v-2", "新标题", "# 新内容");
+
         verify(resumeVersionMapper).updateById(entity);
+        verify(resumeVersionMapper, never()).insert(any(ResumeVersionEntity.class));
         assertEquals("新标题", entity.getVersionName());
         assertEquals("# 新内容", entity.getContentMarkdown());
+        assertEquals("MANUAL_EDIT", updated.origin());
+    }
+
+    @Test
+    void updateVersionNameOnlyDoesNotForkGeneratedVersion() {
+        ResumeVersionEntity entity = entity("v-4", LocalDateTime.now());
+        entity.setUserId(1L);
+        entity.setOrigin("GENERATED");
+        when(resumeVersionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
+
+        service.updateVersion(1L, "v-4", "只改名", null);
+
+        // 仅改名不 fork（仅内容编辑才 fork）
+        verify(resumeVersionMapper).updateById(entity);
+        verify(resumeVersionMapper, never()).insert(any(ResumeVersionEntity.class));
+        assertEquals("只改名", entity.getVersionName());
+    }
+
+    @Test
+    void updateVersionSaveVerifyFlagsNewUnsourcedFact() {
+        ResumeVersionEntity entity = entity("v-3", LocalDateTime.now());
+        entity.setUserId(1L);
+        entity.setOrigin("MANUAL_EDIT");
+        entity.setContentMarkdown("# 我的简历\n后端开发经验");
+        when(resumeVersionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
+
+        var updated = service.updateVersion(1L, "v-3", null, "# 我的简历\n阿里巴巴集团 高级工程师");
+
+        // P4①=A：编辑新增了编辑前没有的「阿里巴巴集团」→ factCheck 标记（仅提示不拦截）
+        assertNotNull(entity.getFactCheck());
+        assertTrue(entity.getFactCheck().contains("阿里巴巴集团"));
+        assertNotNull(updated.factCheck());
     }
 
     @Test

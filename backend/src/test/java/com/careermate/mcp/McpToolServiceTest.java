@@ -164,6 +164,8 @@ class McpToolServiceTest {
                 "# Markdown",
                 List.of(Map.of("type", "note")),
                 BigDecimal.TEN,
+                null,
+                null,
                 null
         ));
 

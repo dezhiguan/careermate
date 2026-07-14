@@ -58,6 +58,8 @@ class GenerateResumeWorkflowRunnerTest {
     private AgentSessionService agentSessionService;
     @Mock
     private com.careermate.jobmatch.JobMatchAnalyzer jobMatchAnalyzer;
+    @org.mockito.Mock
+    private com.careermate.resume.coldstart.ColdStartResumeService coldStartResumeService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private PromptTemplateService promptTemplateService;
@@ -74,7 +76,9 @@ class GenerateResumeWorkflowRunnerTest {
                 resumeVersionService,
                 objectMapper,
                 promptTemplateService,
-                jobMatchAnalyzer
+                jobMatchAnalyzer,
+                new com.careermate.resume.version.verify.ResumeFactVerifier(),
+                coldStartResumeService
         );
     }
 
@@ -116,7 +120,9 @@ class GenerateResumeWorkflowRunnerTest {
                 resumeVersionService,
                 objectMapper,
                 promptTemplateService,
-                jobMatchAnalyzer
+                jobMatchAnalyzer,
+                new com.careermate.resume.version.verify.ResumeFactVerifier(),
+                coldStartResumeService
         );
 
         stubHappyPath();
@@ -160,7 +166,7 @@ class GenerateResumeWorkflowRunnerTest {
                 .thenReturn(new ResumeVersionVO(
                         "ver-1", "针对【腾讯】算法 · v1", "WS-abc", 1L, "腾讯 算法", "腾讯", "算法", 1,
                         "",
-                        "# 简历", List.of(), null, OffsetDateTime.now()
+                        "# 简历", List.of(), null, OffsetDateTime.now(), null, null
                 ));
         when(workspaceSessionRepository.appendMessage(any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new com.careermate.model.entity.AgentMessageEntity());

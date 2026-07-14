@@ -110,11 +110,12 @@ class WorkspaceSessionRepositoryTest {
         assertEquals(session.getSessionId(), repository.requireSession(TestUsers.USER_A, session.getSessionId()).getSessionId());
 
         loginAs(TestUsers.USER_B);
-        BizException forbidden = assertThrows(
+        // BUG-21：不存在与"存在但非本人"统一返回 404，消除存在性侧信道
+        BizException notFound = assertThrows(
                 BizException.class,
                 () -> repository.requireSession(TestUsers.USER_B, session.getSessionId())
         );
-        assertEquals(403, forbidden.getCode());
+        assertEquals(404, notFound.getCode());
     }
 
     @Test

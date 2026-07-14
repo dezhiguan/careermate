@@ -194,6 +194,13 @@
             <span>{{ resumeModalMeta.changeSummary }}</span>
           </div>
           <div
+            v-if="resumeModalMode === 'preview' && resumeModalFactWarning"
+            class="fact-warning-banner"
+          >
+            <span class="fact-warning-kicker">请确认</span>
+            <span>{{ resumeModalFactWarning }}</span>
+          </div>
+          <div
             v-if="resumeModalMode === 'preview'"
             class="modal-body modal-preview markdown-preview"
             v-html="renderMarkdown(resumeModalContent)"
@@ -284,6 +291,22 @@ const editTitle = ref('')
 const editContent = ref('')
 const resumeModalLoading = ref(false)
 const resumeModalError = ref('')
+const resumeModalFactWarning = ref('')
+
+// P4①=A：把后端 factCheck(JSON) 转成友好的标黄提示；无疑点返回空串
+function parseFactWarning(factCheck) {
+  if (!factCheck) return ''
+  try {
+    const fc = typeof factCheck === 'string' ? JSON.parse(factCheck) : factCheck
+    const facts = fc && Array.isArray(fc.unsourcedFacts) ? fc.unsourcedFacts : []
+    if (fc && fc.status === 'SUSPECT' && facts.length) {
+      return `这几处信息在原简历里没找到出处，请确认属实：${facts.join('、')}`
+    }
+  } catch (e) {
+    /* 忽略解析异常，不阻断保存 */
+  }
+  return ''
+}
 const resumeSaving = ref(false)
 const resumeModalMeta = ref({ targetJdLabel: '', aiScore: null, changeSummary: '' })
 const expandedSummaryId = ref('')
@@ -445,6 +468,7 @@ async function saveResume() {
 
   resumeSaving.value = true
   resumeModalError.value = ''
+  resumeModalFactWarning.value = ''
   try {
     let savedTitle = title
     if (resumeModalType.value === 'default') {
@@ -464,18 +488,31 @@ async function saveResume() {
         contentMarkdown: content,
       })
       savedTitle = updated.versionName || resumeModalTitle.value || '历史定制简历'
-      const idx = versions.value.findIndex((v) => v.versionId === resumeModalItem.value.versionId)
-      if (idx >= 0) {
-        versions.value[idx] = {
-          ...versions.value[idx],
+      // P4②=B：首次编辑 AI 版内容会 fork 出「手改版」新版本（versionId 变化），保留 AI 原版
+      const forked = updated.versionId && updated.versionId !== resumeModalItem.value.versionId
+      if (forked) {
+        await loadVersions()
+        resumeModalItem.value = {
+          ...resumeModalItem.value,
+          versionId: updated.versionId,
           versionName: updated.versionName,
-          targetCompany: updated.targetCompany ?? versions.value[idx].targetCompany,
-          targetJdTitle: updated.targetJdTitle ?? versions.value[idx].targetJdTitle,
-          versionSeq: updated.versionSeq ?? versions.value[idx].versionSeq,
-          changeSummary: updated.changeSummary ?? versions.value[idx].changeSummary,
         }
+      } else {
+        const idx = versions.value.findIndex((v) => v.versionId === resumeModalItem.value.versionId)
+        if (idx >= 0) {
+          versions.value[idx] = {
+            ...versions.value[idx],
+            versionName: updated.versionName,
+            targetCompany: updated.targetCompany ?? versions.value[idx].targetCompany,
+            targetJdTitle: updated.targetJdTitle ?? versions.value[idx].targetJdTitle,
+            versionSeq: updated.versionSeq ?? versions.value[idx].versionSeq,
+            changeSummary: updated.changeSummary ?? versions.value[idx].changeSummary,
+          }
+        }
+        resumeModalItem.value = { ...resumeModalItem.value, versionName: updated.versionName }
       }
-      resumeModalItem.value = { ...resumeModalItem.value, versionName: updated.versionName }
+      // P4①=A：保存时轻量事实校验——新增无出处强事实标黄提示，不拦截
+      resumeModalFactWarning.value = parseFactWarning(updated.factCheck)
     }
 
     resumeModalTitle.value = savedTitle
@@ -923,6 +960,26 @@ onMounted(async () => {
 
 .change-summary-kicker {
   color: #4338ca;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.fact-warning-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 16px 0;
+  border: 1px solid #f0d488;
+  background: #fff8e6;
+  color: #6b5310;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.fact-warning-kicker {
+  color: #a86b00;
   font-size: 11px;
   font-weight: 700;
 }

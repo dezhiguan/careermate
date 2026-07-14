@@ -60,6 +60,8 @@ class GenerateResumeWorkflowRunner {
     private final ObjectMapper objectMapper;
     private final PromptTemplateService promptTemplateService;
     private final JobMatchAnalyzer jobMatchAnalyzer;
+    private final com.careermate.resume.version.verify.ResumeFactVerifier factVerifier;
+    private final com.careermate.resume.coldstart.ColdStartResumeService coldStartResumeService;
 
     GenerateResumeWorkflowRunner(
             WorkspaceSessionRepository workspaceSessionRepository,
@@ -69,7 +71,9 @@ class GenerateResumeWorkflowRunner {
             ResumeVersionService resumeVersionService,
             ObjectMapper objectMapper,
             PromptTemplateService promptTemplateService,
-            JobMatchAnalyzer jobMatchAnalyzer
+            JobMatchAnalyzer jobMatchAnalyzer,
+            com.careermate.resume.version.verify.ResumeFactVerifier factVerifier,
+            com.careermate.resume.coldstart.ColdStartResumeService coldStartResumeService
     ) {
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.resumeContextProvider = resumeContextProvider;
@@ -77,6 +81,8 @@ class GenerateResumeWorkflowRunner {
         this.llmClient = llmClient;
         this.resumeVersionService = resumeVersionService;
         this.objectMapper = objectMapper;
+        this.factVerifier = factVerifier;
+        this.coldStartResumeService = coldStartResumeService;
         this.promptTemplateService = promptTemplateService;
         this.jobMatchAnalyzer = jobMatchAnalyzer;
     }
@@ -135,8 +141,10 @@ class GenerateResumeWorkflowRunner {
     private void stepLoadResume(GenerateResumeWorkflowRun run) {
         ResumeContext resumeContext = resumeContextProvider.getResumeContext(run.userId());
         if (!resumeContext.isAvailable() || resumeContext.getContent() == null || resumeContext.getContent().isBlank()) {
+            // P1：无简历时先冷启动建一份初始骨架（L2 画像预填 / L3 默认引导占位），再引导用户填写
+            coldStartResumeService.createForUser(run.userId());
             // 保留「请先上传简历」子串：inferFailedStep/isRetryable 依赖它路由到 LOAD_RESUME 步骤。
-            throw new BizException(400, "请先上传简历：定制简历会基于你的原始简历按目标 JD 改写，去「我的简历」上传后即可生成。");
+            throw new BizException(400, "请先上传简历：我已帮你建好一份初始简历骨架，去「我的简历」把带「填写引导」的地方补充完整后即可生成定制版。");
         }
         run.setResumeContext(resumeContext);
     }
@@ -234,9 +242,27 @@ class GenerateResumeWorkflowRunner {
         run.setMarkdown(markdown);
         run.setChangeSummary(meta.changeSummary());
         run.setOptimizationNotes(meta.changes());
+        // P2 确定性事实校验 Gate：LLM 判断之外的字符串级兜底
+        run.setFactCheck(runFactCheck(markdown, run.resumeContext()));
+    }
+
+    private com.careermate.resume.version.verify.FactCheckResult runFactCheck(
+            String markdown, ResumeContext resumeContext) {
+        try {
+            String source = resumeContext != null ? resumeContext.getContent() : null;
+            return factVerifier.verify(markdown, source);
+        } catch (Exception e) {
+            // fail-closed：校验自身异常按「需确认」处理，绝不静默放行
+            log.warn("resume fact-check errored, fail-closed: {}", e.getMessage());
+            return com.careermate.resume.version.verify.FactCheckResult.error(null);
+        }
     }
 
     private void stepSaveVersion(GenerateResumeWorkflowRun run) {
+        // P2：疑似无出处（SUSPECT/ERROR）→ 拒绝自动落库，改由 EMIT_CARD 出标红确认卡
+        if (run.factCheck() != null && run.factCheck().requiresConfirmation()) {
+            return;
+        }
         ResumeVersionVO saved = resumeVersionService.createVersion(
                 run.userId(),
                 run.sessionId(),
@@ -271,6 +297,35 @@ class GenerateResumeWorkflowRunner {
         String preview = run.markdown().length() <= PREVIEW_MAX
                 ? run.markdown()
                 : run.markdown().substring(0, PREVIEW_MAX) + "…";
+
+        // P2：事实校验未通过 → 出标红「需确认」卡片，不落库、不给下载入口
+        if (run.factCheck() != null && run.factCheck().requiresConfirmation()) {
+            Map<String, Object> suspectCard = buildFactCheckSuspectCard(
+                    run.versionName(), preview, run.factCheck().unsourcedFacts());
+            run.setCard(suspectCard);
+            workspaceSessionRepository.appendMessage(
+                    run.userId(),
+                    run.session(),
+                    "assistant",
+                    factCheckSuspectMessage(run.versionName(), run.factCheck().unsourcedFacts()),
+                    "CARD",
+                    writeJson(Map.of("card", suspectCard)),
+                    null
+            );
+            if (run.sseEmitterService() != null) {
+                run.sseEmitterService().send(
+                        run.sessionId(),
+                        com.careermate.agent.sse.SseEventType.UI_ACTION,
+                        Map.of("card", suspectCard));
+                run.sseEmitterService().send(
+                        run.sessionId(),
+                        com.careermate.agent.sse.SseEventType.DONE,
+                        Map.of("factCheck", "SUSPECT"));
+                run.sseEmitterService().complete(run.sessionId());
+            }
+            return;
+        }
+
         Map<String, Object> card = buildGeneratedCard(
                 run.savedVersion().versionId(),
                 run.savedVersion().versionName(),
@@ -509,6 +564,35 @@ class GenerateResumeWorkflowRunner {
                 .map(RagForgeChunk::content)
                 .filter(c -> c != null && !c.isBlank())
                 .collect(Collectors.joining("\n"));
+    }
+
+    /** 事实校验未通过时的「需确认」卡片——标红列出疑似无出处项，不带下载入口（未落库）。 */
+    static Map<String, Object> buildFactCheckSuspectCard(
+            String versionName, String preview, List<String> unsourcedFacts) {
+        Map<String, Object> card = new LinkedHashMap<>();
+        card.put("type", "RESUME_FACT_CHECK");
+        card.put("title", "简历已生成，有几处想和你确认一下");
+        card.put("versionName", versionName);
+        card.put("previewMarkdown", preview);
+        card.put("severity", "warning");
+        card.put("unsourcedFacts", unsourcedFacts == null ? List.of() : List.copyOf(unsourcedFacts));
+        card.put("actions", List.of(
+                Map.of("label", "去修改这几处", "action", "NAVIGATE", "payload", "/mine/resume"),
+                Map.of("label", "重新生成", "action", "REGENERATE_RESUME", "payload", versionName)
+        ));
+        return card;
+    }
+
+    /** 友好的确认提示文案。 */
+    static String factCheckSuspectMessage(String versionName, List<String> unsourcedFacts) {
+        int n = unsourcedFacts == null ? 0 : unsourcedFacts.size();
+        String head = "我已经帮你生成了针对「" + versionName + "」的简历草稿。"
+                + "不过其中有 " + n + " 处信息我在你的原简历里没找到出处，先没帮你保存——";
+        String list = (unsourcedFacts == null || unsourcedFacts.isEmpty())
+                ? ""
+                : "涉及：" + String.join("、", unsourcedFacts) + "。";
+        String tail = "如果这些确实属实，你可以补充说明或直接编辑；如果不确定，建议先移除，避免简历里出现无法佐证的内容。";
+        return head + list + tail;
     }
 
     static Map<String, Object> buildGeneratedCard(String versionId, String versionName, String preview) {

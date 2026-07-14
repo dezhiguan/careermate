@@ -46,14 +46,16 @@ import java.util.List;
 @Component
 public class ResumeVersionPdfRenderer {
 
-    private static final float MARGIN = 40f;
-    private static final float NAME_SIZE = 20f;
-    private static final float CONTACT_SIZE = 9f;
-    private static final float SECTION_TITLE_SIZE = 11f;
-    private static final float BODY_SIZE = 10.5f;
-    private static final float LINE_MULTIPLIER = 1.25f;
-    private static final Color CONTACT_COLOR = new Color(0x6B, 0x72, 0x80);
-    private static final Color SECTION_LINE_COLOR = new Color(0xD1, 0xD5, 0xDB);
+    // P3：版式参数取自 PDF 精排版预设，改版式改 ResumeLayoutProfile 即可
+    private static final ResumeLayoutProfile.PdfLayout LAYOUT = ResumeLayoutProfile.PDF_PRECISE;
+    private static final float MARGIN = LAYOUT.margin();
+    private static final float NAME_SIZE = LAYOUT.nameSize();
+    private static final float CONTACT_SIZE = LAYOUT.contactSize();
+    private static final float SECTION_TITLE_SIZE = LAYOUT.sectionTitleSize();
+    private static final float BODY_SIZE = LAYOUT.bodySize();
+    private static final float LINE_MULTIPLIER = LAYOUT.lineMultiplier();
+    private static final Color CONTACT_COLOR = new Color(LAYOUT.contactColorRgb());
+    private static final Color SECTION_LINE_COLOR = new Color(LAYOUT.sectionLineColorRgb());
 
     public void render(String markdown, OutputStream outputStream) throws Exception {
         String source = MarkdownExportSupport.stripOptimizationMetaFromMarkdown(markdown);

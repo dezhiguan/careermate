@@ -36,24 +36,31 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
 
     private static final int SEQ_RETRY_MAX = 3;
 
+    /** P4 版本来源。 */
+    static final String ORIGIN_GENERATED = "GENERATED";
+    static final String ORIGIN_MANUAL_EDIT = "MANUAL_EDIT";
+
     private final ResumeVersionMapper resumeVersionMapper;
     private final ObjectMapper objectMapper;
     private final ResumeVersionPdfRenderer pdfRenderer;
     private final ResumeVersionDocxRenderer docxRenderer;
     private final AgentArtifactService agentArtifactService;
+    private final com.careermate.resume.version.verify.ResumeFactVerifier factVerifier;
 
     public ResumeVersionServiceImpl(
             ResumeVersionMapper resumeVersionMapper,
             ObjectMapper objectMapper,
             ResumeVersionPdfRenderer pdfRenderer,
             ResumeVersionDocxRenderer docxRenderer,
-            AgentArtifactService agentArtifactService
+            AgentArtifactService agentArtifactService,
+            com.careermate.resume.version.verify.ResumeFactVerifier factVerifier
     ) {
         this.resumeVersionMapper = resumeVersionMapper;
         this.objectMapper = objectMapper;
         this.pdfRenderer = pdfRenderer;
         this.docxRenderer = docxRenderer;
         this.agentArtifactService = agentArtifactService;
+        this.factVerifier = factVerifier;
     }
 
     @Override
@@ -68,21 +75,76 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     public ResumeVersionVO updateVersion(Long userId, String versionId, String versionName, String contentMarkdown) {
         ResumeVersionEntity entity = requireOwnedVersion(userId, versionId);
         // 部分更新：支持仅改名或仅改内容，未提供的字段保持原值，避免“改名必须携带全文”。
-        boolean changed = false;
-        if (versionName != null && !versionName.isBlank()) {
-            entity.setVersionName(versionName.trim());
-            changed = true;
-        }
-        if (contentMarkdown != null && !contentMarkdown.isBlank()) {
-            entity.setContentMarkdown(contentMarkdown);
-            changed = true;
-        }
-        if (!changed) {
+        boolean nameChanged = versionName != null && !versionName.isBlank();
+        boolean contentChanged = contentMarkdown != null && !contentMarkdown.isBlank();
+        if (!nameChanged && !contentChanged) {
             throw new BizException(400, "请至少提供要修改的版本名或简历内容");
         }
+
+        // P4①=A：内容变更时做轻量事实校验（相对编辑前基线），仅提示不拦截
+        String factCheckJson = contentChanged
+                ? writeFactCheck(factVerifier.verify(contentMarkdown, entity.getContentMarkdown()))
+                : entity.getFactCheck();
+
+        // P4②=B：首次手工编辑 AI 版且内容变更 → fork 出 MANUAL_EDIT 新版本，保留 AI 原版
+        if (contentChanged && !ORIGIN_MANUAL_EDIT.equals(entity.getOrigin())) {
+            String forkName = nameChanged ? versionName.trim() : entity.getVersionName();
+            return forkAsManualEdit(entity, forkName, contentMarkdown, factCheckJson);
+        }
+
+        if (nameChanged) {
+            entity.setVersionName(versionName.trim());
+        }
+        if (contentChanged) {
+            entity.setContentMarkdown(contentMarkdown);
+        }
+        entity.setFactCheck(factCheckJson);
         entity.setUpdatedAt(LocalDateTime.now());
         resumeVersionMapper.updateById(entity);
         return toDetailVO(entity);
+    }
+
+    private ResumeVersionVO forkAsManualEdit(
+            ResumeVersionEntity source, String versionName, String content, String factCheckJson) {
+        LocalDateTime now = LocalDateTime.now();
+        ResumeVersionEntity fork = new ResumeVersionEntity();
+        fork.setVersionId(UUID.randomUUID().toString());
+        fork.setUserId(source.getUserId());
+        fork.setSessionId(source.getSessionId());
+        fork.setSourceResumeId(source.getSourceResumeId());
+        fork.setParentVersionId(source.getVersionId());
+        fork.setTargetJdId(source.getTargetJdId());
+        fork.setLegacyTargetJdIdRaw(source.getLegacyTargetJdIdRaw());
+        fork.setTargetJdLabel(source.getTargetJdLabel());
+        fork.setTargetCompany(source.getTargetCompany());
+        fork.setTargetJdTitle(source.getTargetJdTitle());
+        fork.setChangeSummary("在 AI 版基础上手动编辑");
+        fork.setContentMarkdown(content);
+        fork.setOptimizationNotes(source.getOptimizationNotes());
+        fork.setFactCheck(factCheckJson);
+        fork.setOrigin(ORIGIN_MANUAL_EDIT);
+        fork.setCreatedAt(now);
+        fork.setUpdatedAt(now);
+        insertWithSeqRetry(fork, source.getUserId(), source.getTargetJdId(),
+                fallbackText(source.getTargetCompany(), "未知公司"),
+                fallbackText(source.getTargetJdTitle(), "手改版"));
+        if (StringUtils.hasText(versionName)) {
+            fork.setVersionName(versionName);
+            resumeVersionMapper.updateById(fork);
+        }
+        return toDetailVO(fork);
+    }
+
+    private String writeFactCheck(com.careermate.resume.version.verify.FactCheckResult result) {
+        if (result == null || result.isPass()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(result);
+        } catch (Exception e) {
+            log.warn("serialize factCheck failed: {}", e.getMessage());
+            return null;
+        }
     }
 
     @Override
@@ -329,7 +391,9 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
                 entity.getContentMarkdown(),
                 parseNotes(entity.getOptimizationNotes()),
                 entity.getAiScore(),
-                toOffsetDateTime(entity.getCreatedAt())
+                toOffsetDateTime(entity.getCreatedAt()),
+                entity.getOrigin(),
+                entity.getFactCheck()
         );
     }
 

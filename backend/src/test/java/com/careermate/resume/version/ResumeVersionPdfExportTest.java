@@ -43,7 +43,8 @@ class ResumeVersionPdfExportTest {
         pdfRenderer = new ResumeVersionPdfRenderer();
         docxRenderer = new ResumeVersionDocxRenderer();
         service = new ResumeVersionServiceImpl(
-                resumeVersionMapper, new ObjectMapper(), pdfRenderer, docxRenderer, agentArtifactService
+                resumeVersionMapper, new ObjectMapper(), pdfRenderer, docxRenderer, agentArtifactService,
+                new com.careermate.resume.version.verify.ResumeFactVerifier()
         );
     }
 
@@ -123,7 +124,8 @@ class ResumeVersionPdfExportTest {
             throw new RuntimeException("render failed");
         }).when(failingRenderer).render(eq("# test"), any());
         ResumeVersionServiceImpl failingService = new ResumeVersionServiceImpl(
-                resumeVersionMapper, new ObjectMapper(), failingRenderer, docxRenderer, agentArtifactService
+                resumeVersionMapper, new ObjectMapper(), failingRenderer, docxRenderer, agentArtifactService,
+                new com.careermate.resume.version.verify.ResumeFactVerifier()
         );
 
         MockHttpServletResponse response = new MockHttpServletResponse();

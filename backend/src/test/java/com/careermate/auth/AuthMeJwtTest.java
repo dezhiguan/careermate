@@ -92,7 +92,8 @@ class AuthMeJwtTest {
 
     @Test
     void authMeReturnsRegisteredUserWhenBearerPresent() throws Exception {
-        String username = "test_auth_me_token_" + System.nanoTime();
+        // 账号名限长 32：短前缀 + 有界正数后缀，避免超长被 @Size 拒绝
+        String username = "authme_" + Math.abs(System.nanoTime() % 1_000_000_000_000L);
         RegisterRequest registerRequest = new RegisterRequest();
         registerRequest.setUsername(username);
         registerRequest.setPassword("Test123456!");

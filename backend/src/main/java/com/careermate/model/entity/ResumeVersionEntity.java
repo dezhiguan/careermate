@@ -34,6 +34,11 @@ public class ResumeVersionEntity {
     private String contentMarkdown;
     @TableField(value = "optimization_notes", typeHandler = JsonbStringTypeHandler.class)
     private String optimizationNotes;
+    /** P2 确定性事实校验结果（JSON：{status, unsourcedFacts, checkedAt}），null 表示未校验。 */
+    @TableField(value = "fact_check", typeHandler = JsonbStringTypeHandler.class)
+    private String factCheck;
+    /** P4 版本来源：GENERATED（AI 生成）/ MANUAL_EDIT（手工编辑派生），默认 GENERATED。 */
+    private String origin;
     private BigDecimal aiScore;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
