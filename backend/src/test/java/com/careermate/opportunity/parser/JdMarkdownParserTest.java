@@ -167,6 +167,59 @@ class JdMarkdownParserTest {
     }
 
     @Test
+    void filenameFallbackRecoversCompanyWhenHeaderChunkMissing() {
+        // 复现线上 bug：语义检索只召回正文 chunk，头部（# 【JD】/**公司**）缺失，
+        // 仅解析正文时公司为空。文件名兜底应还原 城市/公司/岗位。
+        String bodyOnly = """
+                ## 职位描述
+                岗位职责：负责测试用例设计与自动化测试执行……
+                """;
+        ParsedJd parsed = parser.parse(bodyOnly, "【JD】北京 · 北京字节跳动 · 测试工程师 · 13-23K.md");
+
+        assertEquals("北京字节跳动", parsed.company());
+        assertEquals("测试工程师", parsed.title());
+        assertEquals("北京", parsed.city());
+        assertEquals("13-23K", parsed.salaryRange());
+    }
+
+    @Test
+    void contentTakesPrecedenceOverFilename() {
+        // 头部 chunk 命中时，内容解析优先，文件名不覆盖。
+        ParsedJd parsed = parser.parse(FULL_SAMPLE, "【JD】上海 · 别的公司 · 别的岗位 · 30-40K.md");
+
+        assertEquals("星天科技", parsed.company());
+        assertEquals("算法工程师", parsed.title());
+        assertEquals("北京", parsed.city());
+    }
+
+    @Test
+    void filenameFallbackWithoutSalarySegment() {
+        ParsedJd parsed = parser.parse("正文若干", "【JD】北京 · 星天科技 · 算法工程师.md");
+
+        assertEquals("星天科技", parsed.company());
+        assertEquals("算法工程师", parsed.title());
+        assertEquals("北京", parsed.city());
+        assertNull(parsed.salaryRange());
+    }
+
+    @Test
+    void filenameFallbackStripsDedupSuffix() {
+        ParsedJd parsed = parser.parse("正文", "【JD】广州 · 纬致芯创科技 · java后端开发 · 14-18K (1).md");
+
+        assertEquals("广州", parsed.city());
+        assertEquals("纬致芯创科技", parsed.company());
+        assertEquals("java后端开发", parsed.title());
+        assertEquals("14-18K", parsed.salaryRange());
+    }
+
+    @Test
+    void filenameParseIsNullSafe() {
+        assertEquals(JdMarkdownParser.FilenameMeta.EMPTY, JdMarkdownParser.parseFilename(null));
+        assertEquals(JdMarkdownParser.FilenameMeta.EMPTY, JdMarkdownParser.parseFilename("  "));
+        assertEquals(JdMarkdownParser.FilenameMeta.EMPTY, JdMarkdownParser.parseFilename("【JD】.md"));
+    }
+
+    @Test
     void parseSpecialCharactersDoesNotThrow() {
         String markdown = """
                 # 【JD】星天科技 🚀 | 算法工程师：信号处理 |  | 北京。
