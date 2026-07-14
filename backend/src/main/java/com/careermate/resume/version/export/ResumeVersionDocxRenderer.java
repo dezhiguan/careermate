@@ -44,14 +44,16 @@ import java.util.List;
 @Component
 public class ResumeVersionDocxRenderer {
 
-    private static final int BODY_SIZE = 11;
-    private static final int CODE_SIZE = 10;
-    private static final int H1_SIZE = 18;
-    private static final int H2_SIZE = 14;
-    private static final int H3_SIZE = 12;
-    private static final String CODE_FONT = "Consolas";
+    // P3：版式参数取自 Word · ATS 友好版预设，改版式改 ResumeLayoutProfile 即可
+    private static final ResumeLayoutProfile.DocxLayout LAYOUT = ResumeLayoutProfile.WORD_ATS;
+    private static final int BODY_SIZE = LAYOUT.bodySize();
+    private static final int CODE_SIZE = LAYOUT.codeSize();
+    private static final int H1_SIZE = LAYOUT.h1Size();
+    private static final int H2_SIZE = LAYOUT.h2Size();
+    private static final int H3_SIZE = LAYOUT.h3Size();
+    private static final String CODE_FONT = LAYOUT.codeFont();
     private static final String CJK_FONT = "宋体";
-    private static final String HEADER_FILL = "F1F5F9";
+    private static final String HEADER_FILL = LAYOUT.headerFillHex();
 
     public void render(String markdown, OutputStream outputStream) throws Exception {
         String source = MarkdownExportSupport.stripOptimizationMetaFromMarkdown(markdown);

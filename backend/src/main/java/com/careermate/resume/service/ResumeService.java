@@ -11,6 +11,9 @@ import com.careermate.resume.dto.ResumeCreateRequest;
 import com.careermate.resume.dto.ResumeDetailResponse;
 import com.careermate.resume.dto.ResumeListItemResponse;
 import com.careermate.resume.dto.ResumeUpdateRequest;
+import com.careermate.resume.coldstart.ColdStartResume;
+import com.careermate.resume.coldstart.ResumeOrigin;
+import com.careermate.resume.coldstart.ResumeReadiness;
 import com.careermate.resume.version.export.ResumeExportResponseHeaders;
 import com.careermate.resume.version.export.ResumeVersionDocxRenderer;
 import com.careermate.resume.version.export.ResumeVersionPdfRenderer;
@@ -107,6 +110,8 @@ public class ResumeService {
         entity.setSourceType(SOURCE_TYPE_TEXT);
         entity.setIsDefault(!hasDefault);
         entity.setStatus(STATUS_ACTIVE);
+        entity.setOrigin(ResumeOrigin.MANUAL);
+        entity.setReadiness(ResumeReadiness.READY);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         insertResumeEntity(entity);
@@ -116,6 +121,36 @@ public class ResumeService {
         // 评审 P0-1：异步从简历自动回填画像空字段，不阻塞主流程
         asyncAutoFillProfile(userId, entity.getContent());
 
+        return toDetail(entity);
+    }
+
+    /**
+     * P1 冷启动建档：持久化一份由 {@link ColdStartResume} 描述的初版简历（默认引导占位骨架）。
+     * 草稿骨架刻意不同步 RAGForge，待用户填充完成转 READY 后再随 updateResume 同步。
+     */
+    @Transactional
+    public ResumeDetailResponse createColdStartResume(Long userId, ColdStartResume cold) {
+        OffsetDateTime now = OffsetDateTime.now();
+        boolean hasDefault = resumeMapper.selectCount(
+                new LambdaQueryWrapper<ResumeEntity>()
+                        .eq(ResumeEntity::getUserId, userId)
+                        .eq(ResumeEntity::getStatus, STATUS_ACTIVE)
+                        .eq(ResumeEntity::getIsDefault, true)
+        ) > 0;
+
+        ResumeEntity entity = new ResumeEntity();
+        entity.setUserId(userId);
+        entity.setTitle(cold.title());
+        entity.setContent(cold.content());
+        entity.setSourceType(SOURCE_TYPE_TEXT);
+        entity.setIsDefault(!hasDefault);
+        entity.setStatus(STATUS_ACTIVE);
+        entity.setOrigin(cold.origin() != null ? cold.origin() : ResumeOrigin.COLD_START);
+        entity.setReadiness(cold.readiness() != null ? cold.readiness() : ResumeReadiness.DRAFT_SKELETON);
+        entity.setSourceSignals(cold.sourceSignals());
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        insertResumeEntity(entity);
         return toDetail(entity);
     }
 
@@ -129,6 +164,7 @@ public class ResumeService {
     public void exportPdf(Long id, HttpServletResponse response) {
         Long userId = requireUserId();
         ResumeEntity entity = getActiveResumeOrThrow(userId, id);
+        ResumeReadiness.ensureExportable(entity.getReadiness());
         try {
             ResumeExportResponseHeaders.pdf(response, entity.getTitle());
             pdfRenderer.render(entity.getContent(), response.getOutputStream());
@@ -145,6 +181,7 @@ public class ResumeService {
     public void exportDocx(Long id, HttpServletResponse response) {
         Long userId = requireUserId();
         ResumeEntity entity = getActiveResumeOrThrow(userId, id);
+        ResumeReadiness.ensureExportable(entity.getReadiness());
         try {
             ResumeExportResponseHeaders.docx(response, entity.getTitle());
             docxRenderer.render(entity.getContent(), response.getOutputStream());
@@ -163,6 +200,8 @@ public class ResumeService {
         ResumeEntity entity = getActiveResumeOrThrow(userId, id);
         entity.setTitle(request.getTitle().trim());
         entity.setContent(request.getContent().trim());
+        // 用户填充骨架后自动转 READY（草稿骨架标记消失即视为填充完成）
+        entity.setReadiness(ResumeReadiness.resolveAfterEdit(entity.getContent()));
         entity.setUpdatedAt(OffsetDateTime.now());
         resumeMapper.updateById(entity);
 

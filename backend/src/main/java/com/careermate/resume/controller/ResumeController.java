@@ -5,7 +5,9 @@ import com.careermate.resume.dto.ResumeCreateRequest;
 import com.careermate.resume.dto.ResumeDetailResponse;
 import com.careermate.resume.dto.ResumeListItemResponse;
 import com.careermate.resume.dto.ResumeUpdateRequest;
+import com.careermate.resume.coldstart.ColdStartResumeService;
 import com.careermate.resume.service.ResumeService;
+import com.careermate.security.CurrentUserContext;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,9 +27,12 @@ import java.util.List;
 public class ResumeController {
 
     private final ResumeService resumeService;
+    private final ColdStartResumeService coldStartResumeService;
 
-    public ResumeController(ResumeService resumeService) {
+    public ResumeController(ResumeService resumeService,
+                           ColdStartResumeService coldStartResumeService) {
         this.resumeService = resumeService;
+        this.coldStartResumeService = coldStartResumeService;
     }
 
     @GetMapping
@@ -38,6 +43,16 @@ public class ResumeController {
     @PostMapping
     public ApiResponse<ResumeDetailResponse> create(@RequestBody @Valid ResumeCreateRequest request) {
         return ApiResponse.success(resumeService.createResume(request));
+    }
+
+    /**
+     * P1 无上传冷启动建档：用户没有简历、也没上传时，按画像 L2 / 默认 L3 生成一份初始骨架，
+     * 落库后引导用户到 Canvas 填写。
+     */
+    @PostMapping("/cold-start")
+    public ApiResponse<ResumeDetailResponse> coldStart() {
+        Long userId = CurrentUserContext.getUserId();
+        return ApiResponse.success(coldStartResumeService.createForUser(userId));
     }
 
     @PostMapping("/upload")
