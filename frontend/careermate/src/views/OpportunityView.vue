@@ -9,10 +9,19 @@
           </p>
         </div>
       </div>
-      <div class="filter-chip-row" aria-label="机会筛选条件">
-        <span class="filter-chip">城市 · {{ activeCity }}</span>
-        <span class="filter-chip">年限 · {{ activeYears }}</span>
-        <span class="filter-chip">岗位 · {{ activeRole }}</span>
+      <div class="filter-bar" aria-label="机会筛选">
+        <label class="filter-field">
+          <span class="filter-label">城市</span>
+          <select class="filter-select" :value="activeCity" @change="onCityChange($event)">
+            <option v-for="c in CITY_OPTIONS" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">排序</span>
+          <select class="filter-select" v-model="sortMode">
+            <option v-for="s in SORT_OPTIONS" :key="s.value" :value="s.value">{{ s.label }}</option>
+          </select>
+        </label>
       </div>
     </header>
 
@@ -39,12 +48,12 @@
 
     <div v-else class="card-list">
       <article
-        v-for="(item, index) in items"
+        v-for="(item, index) in displayItems"
         :key="item.jdId"
         class="jd-card"
         :class="{ 'jd-card-high': item.matchTier === 'HIGH' }"
       >
-        <div v-if="item.matchTier === 'HIGH'" class="high-badge">⭐ AI 强推{{ index === 0 ? ' TOP 1' : '' }}</div>
+        <div v-if="item.matchTier === 'HIGH'" class="high-badge">⭐ AI 强推{{ index === 0 && sortMode === 'match' ? ' TOP 1' : '' }}</div>
         <button
           v-if="item.isDemo"
           type="button"
@@ -146,10 +155,57 @@ const degraded = ref(false)
 const degradedRetryCount = ref(0)
 let degradedRefreshTimer = null
 
+const CITY_OPTIONS = ['不限', '北京', '上海', '广州', '深圳', '杭州', '成都', '武汉', '南京', '西安']
+const SORT_OPTIONS = [
+  { value: 'match', label: '匹配度' },
+  { value: 'salaryDesc', label: '薪资高→低' },
+  { value: 'fresh', label: '最新发布' },
+]
+const sortMode = ref('match')
+
 const activeKeyword = computed(() => String(route.query.keyword || '').trim())
 const activeCity = computed(() => String(route.query.city || '不限').trim())
 const activeYears = computed(() => String(route.query.years || '不限').trim())
 const activeRole = computed(() => activeKeyword.value || String(route.query.position || '全部').trim())
+
+function onCityChange(evt) {
+  const city = String(evt?.target?.value || '不限')
+  const query = { ...route.query, t: String(Date.now()) }
+  if (city === '不限') {
+    delete query.city
+  } else {
+    query.city = city
+  }
+  router.replace({ path: '/opportunity', query })
+}
+
+// 薪资排序键：取字符串中最大数字，「万」量级近似折算到「K」量级便于同轴比较
+function parseSalaryKey(range) {
+  if (!range) return -1
+  const nums = String(range).match(/\d+(?:\.\d+)?/g)
+  if (!nums) return -1
+  let key = Math.max(...nums.map(Number))
+  if (/万/.test(range)) key *= 10
+  return key
+}
+
+function parseFreshKey(publishedAt) {
+  if (!publishedAt) return 0
+  const t = Date.parse(publishedAt)
+  return Number.isNaN(t) ? 0 : t
+}
+
+// 排序仅对已加载结果重排（匹配度=服务端 AI 排序原样）；薪资/最新为客户端重排
+const displayItems = computed(() => {
+  const list = items.value.slice()
+  if (sortMode.value === 'salaryDesc') {
+    return list.sort((a, b) => parseSalaryKey(b.salaryRange) - parseSalaryKey(a.salaryRange))
+  }
+  if (sortMode.value === 'fresh') {
+    return list.sort((a, b) => parseFreshKey(b.publishedAt) - parseFreshKey(a.publishedAt))
+  }
+  return list
+})
 
 watch(
   () => [route.query.keyword, route.query.city, route.query.position, route.query.years, route.query.t],
@@ -389,25 +445,41 @@ onBeforeUnmount(() => {
   color: #64748b;
 }
 
-.filter-chip-row {
+.filter-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   margin-top: 10px;
   align-items: center;
 }
 
-.filter-chip {
+.filter-field {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
-  padding: 5px 10px;
+  gap: 6px;
+  min-height: 32px;
+  padding: 3px 10px 3px 12px;
   border-radius: 999px;
   background: #f1f5f9;
-  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.filter-label {
   font-size: 12px;
   font-weight: 600;
-  line-height: 1.2;
+  color: #64748b;
+}
+
+.filter-select {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  padding-right: 2px;
 }
 
 .resume-banner {

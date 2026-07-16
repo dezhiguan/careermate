@@ -82,6 +82,22 @@ public class WorkspaceSessionRepository {
         );
     }
 
+    /** 最近在推进的 JD 会话线（ACTIVE，按最近活跃倒序），供"继续会话线"一键返回。 */
+    public List<AgentSessionEntity> listRecentJdLines(Long userId, int limit) {
+        if (userId == null) {
+            return List.of();
+        }
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        return agentSessionMapper.selectList(
+                new LambdaQueryWrapper<AgentSessionEntity>()
+                        .eq(AgentSessionEntity::getUserId, userId)
+                        .eq(AgentSessionEntity::getWorkspaceType, WORKSPACE_JD_PREP)
+                        .eq(AgentSessionEntity::getStatus, STATUS_ACTIVE)
+                        .orderByDesc(AgentSessionEntity::getUpdatedAt)
+                        .last("LIMIT " + safeLimit)
+        );
+    }
+
     public AgentSessionEntity findReusableWorkspace(Long userId, String workspaceType, Map<String, Object> contextMetadata) {
         String normalizedType = normalizeWorkspaceType(workspaceType);
         if (WORKSPACE_JD_PREP.equals(normalizedType)) {

@@ -38,6 +38,9 @@ public class CompanyAtmosphereService {
     private static final String NO_ATMOSPHERE_SUMMARY =
             "暂无该公司的氛围情报，建议结合面试沟通与公开渠道进一步了解。";
     private static final Pattern JSON_BLOCK = Pattern.compile("\\{[\\s\\S]*\\}");
+    /** 匹配 JD 正文里的「公司:XXX」/「**公司**：XXX」结构化字段。 */
+    private static final Pattern COMPANY_FIELD =
+            Pattern.compile("公司[*\\s]*[:：]\\s*([^\\n\\r|｜，,。;；\\s*]{2,20})");
     private static final Set<String> VALID_SENTIMENTS = Set.of("POSITIVE", "NEGATIVE", "NEUTRAL");
 
     private final KnowledgeRetrievalService knowledgeRetrievalService;
@@ -108,6 +111,51 @@ public class CompanyAtmosphereService {
             log.warn("getCompanyAtmosphere failed: company={}, err={}", company, e.getMessage());
             return fallback(company == null ? "" : company.trim());
         }
+    }
+
+    /**
+     * 由 JD 文档 id 自动解析公司名后查氛围（"这个 JD 的公司氛围"）。
+     *
+     * @param jdDocId 目标 JD 的 RAGForge docId
+     */
+    public CompanyAtmosphereVO getCompanyAtmosphereByJd(Long jdDocId) {
+        try {
+            if (jdDocId == null) {
+                return fallback("");
+            }
+            RagRetrieveResult jd = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
+                    .query("公司 岗位")
+                    .scene(RagRetrieveScene.OPPORTUNITY)
+                    .topK(20)
+                    .docIds(List.of(jdDocId))
+                    .build());
+            String company = extractCompanyFromJd(jd);
+            if (company == null || company.isBlank()) {
+                log.warn("getCompanyAtmosphereByJd: cannot resolve company from jdDocId={}", jdDocId);
+                return fallback("");
+            }
+            return getCompanyAtmosphere(company);
+        } catch (Exception e) {
+            log.warn("getCompanyAtmosphereByJd failed: jdDocId={}, err={}", jdDocId, e.getMessage());
+            return fallback("");
+        }
+    }
+
+    /** 从 JD 正文解析公司名：优先「公司:XXX」结构化字段，其次 JD 标题内的公司段。 */
+    static String extractCompanyFromJd(RagRetrieveResult jd) {
+        if (jd == null || !jd.isSuccess()) {
+            return null;
+        }
+        String text = KnowledgeRetrievalSupport.joinChunkContents(jd.getChunks(), MAX_CONTEXT_CHARS);
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Matcher m = COMPANY_FIELD.matcher(text);
+        if (m.find()) {
+            String c = m.group(1).trim();
+            return c.isEmpty() ? null : c;
+        }
+        return null;
     }
 
     private static String toContextText(RagRetrieveResult ragResult) {

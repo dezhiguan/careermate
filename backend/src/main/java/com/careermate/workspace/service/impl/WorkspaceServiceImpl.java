@@ -7,6 +7,7 @@ import com.careermate.resume.version.dto.ResumeVersionListItemVO;
 import com.careermate.resume.version.service.ResumeVersionService;
 import com.careermate.workspace.dto.ActionAckResponse;
 import com.careermate.workspace.dto.MessageVO;
+import com.careermate.workspace.dto.RecentLineVO;
 import com.careermate.workspace.dto.WorkspaceCreateRequest;
 import com.careermate.workspace.dto.WorkspaceCreateResponse;
 import com.careermate.workspace.dto.WorkspaceVO;
@@ -96,6 +97,33 @@ public class WorkspaceServiceImpl implements WorkspaceService {
                 contextSummary,
                 contextChips
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RecentLineVO> listRecentLines(Long userId, int limit) {
+        return workspaceSessionRepository.listRecentJdLines(userId, limit).stream()
+                .map(s -> new RecentLineVO(
+                        s.getSessionId(),
+                        recentLineTitle(s),
+                        s.getJdId(),
+                        WorkspaceSessionRepository.displayWorkspaceType(s.getWorkspaceType()),
+                        s.getUpdatedAt() != null ? s.getUpdatedAt() : s.getCreatedAt()
+                ))
+                .toList();
+    }
+
+    /** 会话线展示标题：优先 session.title，其次从 jdSnapshot 拼「公司 · 岗位」，再兜底。 */
+    private String recentLineTitle(AgentSessionEntity session) {
+        if (session.getTitle() != null && !session.getTitle().isBlank()) {
+            return session.getTitle().trim();
+        }
+        Map<String, Object> snapshot = parseJsonMap(session.getJdSnapshot());
+        String company = stringMeta(snapshot, "company", "");
+        String title = stringMeta(snapshot, "title", "");
+        String joined = String.join(" · ", java.util.stream.Stream.of(company, title)
+                .filter(s -> s != null && !s.isBlank()).toList());
+        return joined.isBlank() ? "JD 会话线" : joined;
     }
 
     @Override
@@ -275,7 +303,8 @@ public class WorkspaceServiceImpl implements WorkspaceService {
                 userId, normalizedType, contextMetadata
         );
         if (existing != null) {
-            appendWorkspaceEntryCard(userId, existing, normalizedType, entryAction, title, contextMetadata, null);
+            // 复用已有会话线：不再 append 欢迎卡，回到原线即续聊，
+            // 避免同一条 JD 对话被反复的问候卡塞脏、破坏"连续对话"体感。
             String redirectPath = "/chat/" + existing.getSessionId();
             return new WorkspaceCreateResponse(existing.getSessionId(), redirectPath, normalizedType);
         }

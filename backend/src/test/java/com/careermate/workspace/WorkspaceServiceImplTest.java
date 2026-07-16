@@ -36,6 +36,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -326,6 +327,57 @@ class WorkspaceServiceImplTest {
         verify(workspaceSessionRepository).appendMessage(
                 anyLong(), eq(session), eq("assistant"), anyString(), eq("CARD"), anyString(), eq(1)
         );
+    }
+
+    @Test
+    void listRecentLinesMapsSessionsToVO() {
+        AgentSessionEntity a = baseSession(20L, 1L);
+        a.setSessionId("WS-a");
+        a.setTitle("字节 Java");
+        AgentSessionEntity b = baseSession(21L, 1L);
+        b.setSessionId("WS-b");
+        b.setTitle(null); // 无 title → 兜底
+        b.setJdSnapshot("{\"company\":\"腾讯\",\"title\":\"后端\"}");
+        when(workspaceSessionRepository.listRecentJdLines(1L, 8)).thenReturn(List.of(a, b));
+
+        List<com.careermate.workspace.dto.RecentLineVO> lines = service.listRecentLines(1L, 8);
+
+        assertEquals(2, lines.size());
+        assertEquals("WS-a", lines.get(0).sessionId());
+        assertEquals("字节 Java", lines.get(0).title());
+        assertEquals("腾讯 · 后端", lines.get(1).title());
+    }
+
+    @Test
+    void listRecentLinesEmptyWhenNone() {
+        when(workspaceSessionRepository.listRecentJdLines(1L, 8)).thenReturn(List.of());
+        assertTrue(service.listRecentLines(1L, 8).isEmpty());
+    }
+
+    @Test
+    void createWorkspaceReusesExistingLineWithoutWelcomeCard() {
+        // 复用已有 JD 会话线：直接跳回原线，且不再 append 欢迎卡（保持连续对话不被塞脏）
+        AgentSessionEntity existing = baseSession(20L, 1L);
+        existing.setSessionId("WS-existing");
+        existing.setWorkspaceType(WorkspaceSessionRepository.WORKSPACE_JD_PREP);
+        when(workspaceSessionRepository.findReusableWorkspace(
+                eq(1L), eq(WorkspaceSessionRepository.WORKSPACE_JD_PREP), any()
+        )).thenReturn(existing);
+
+        WorkspaceCreateResponse response = service.createWorkspace(1L, new WorkspaceCreateRequest(
+                WorkspaceSessionRepository.WORKSPACE_JD_PREP,
+                "字节 Java",
+                "定制简历",
+                "GENERATE_RESUME",
+                Map.of("jdId", "599")
+        ));
+
+        assertEquals("WS-existing", response.workspaceId());
+        assertEquals("/chat/WS-existing", response.redirectPath());
+        verify(workspaceSessionRepository, never()).createWorkspace(
+                anyLong(), anyString(), anyString(), any(), any());
+        verify(workspaceSessionRepository, never()).appendMessage(
+                anyLong(), any(), anyString(), anyString(), anyString(), any(), any());
     }
 
     @Test

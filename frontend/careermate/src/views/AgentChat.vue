@@ -121,6 +121,20 @@
         </div>
 
         <div class="messages-area" ref="msgContainer">
+          <section v-if="recentLines.length && showZeroStateExample" class="recent-lines">
+            <div class="recent-lines-title">继续你的会话线</div>
+            <button
+              v-for="ln in recentLines"
+              :key="ln.sessionId"
+              type="button"
+              class="recent-line-item"
+              @click="resumeLine(ln.sessionId)"
+            >
+              <span class="recent-line-name">{{ ln.title }}</span>
+              <span class="recent-line-time">{{ formatVersionDate(ln.lastActiveAt) }}</span>
+            </button>
+          </section>
+
           <section v-if="showZeroStateExample" class="zero-chat-card">
             <div class="zero-chat-label">示例 · 点 chip 开始真实对话</div>
             <div class="zero-chat-bubbles">
@@ -234,6 +248,16 @@
           </select>
           <span v-else class="canvas-vername">{{ resumeViewerTitle }}</span>
           <span class="canvas-spacer" />
+          <button
+            v-if="prevVersion"
+            type="button"
+            class="canvas-act"
+            :class="{ 'canvas-act-on': diffMode }"
+            :disabled="diffLoading"
+            @click="toggleDiff"
+          >
+            {{ diffMode ? '退出对比' : '对比上一版' }}
+          </button>
           <button type="button" class="canvas-act" :disabled="pdfDownloading" @click="canvasExportPdf">PDF</button>
           <button type="button" class="canvas-act" :disabled="wordDownloading" @click="canvasExportWord">Word</button>
           <button type="button" class="canvas-act" @click="copyResumeMarkdown(activeVersionId)">复制</button>
@@ -244,7 +268,44 @@
           <span>{{ resumeViewerSummary }}</span>
         </div>
         <div class="canvas-body">
-          <div class="canvas-paper markdown-preview" v-html="renderMd(resumeViewerContent)"></div>
+          <div v-if="diffMode" class="canvas-paper canvas-diff">
+            <div class="diff-legend">
+              <span class="diff-legend-add">＋ 新增</span>
+              <span class="diff-legend-del">－ 删除</span>
+              <span class="diff-legend-hint">对比「{{ prevVersion?.versionName || '上一版' }}」</span>
+            </div>
+            <div
+              v-for="(ln, idx) in diffLines"
+              :key="idx"
+              class="diff-line"
+              :class="`diff-${ln.type}`"
+            >
+              <span class="diff-gutter">{{ ln.type === 'add' ? '＋' : ln.type === 'del' ? '－' : '' }}</span>
+              <span class="diff-text">{{ ln.text || ' ' }}</span>
+            </div>
+          </div>
+          <div v-else class="canvas-paper markdown-preview" v-html="renderMd(resumeViewerContent)"></div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="pendingExportFormat" class="modal-overlay" @click.self="pendingExportFormat = ''">
+      <div class="modal-panel fact-confirm">
+        <div class="modal-header">
+          <span>⚠ 导出前终检</span>
+          <button type="button" class="modal-close" @click="pendingExportFormat = ''">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="fact-confirm-lead">
+            以下内容在你的原始简历 / 画像里没找到出处，导出前请再确认属实——小职不替你担保这些是真的：
+          </p>
+          <ul class="fact-list">
+            <li v-for="(f, i) in factSuspects" :key="i">{{ f }}</li>
+          </ul>
+          <div class="fact-confirm-actions">
+            <button type="button" class="fact-btn-ghost" @click="pendingExportFormat = ''">再改改</button>
+            <button type="button" class="fact-btn-primary" @click="confirmExport">确认属实，继续导出</button>
+          </div>
         </div>
       </div>
     </div>
@@ -286,7 +347,7 @@ import {
   listAgentSessions,
   sendAgentMessageStream,
 } from '../api/agent'
-import { getWorkspace, getMessages, postAction, openResumeGenerateStreamByEndpoint, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
+import { getWorkspace, getMessages, postAction, openResumeGenerateStreamByEndpoint, listRecentLines, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
 import { getOpportunityDetail } from '../api/opportunity'
 import { downloadVersionDocx, downloadVersionPdf, getVersion, listVersions } from '../api/resumeVersion'
 import { getCareerProfile } from '../api/profile'
@@ -378,6 +439,15 @@ const resumeViewerSummary = ref('')
 const activeVersionId = ref('')
 const versionsDrawerOpen = ref(false)
 const workspaceVersions = ref([])
+// Canvas 逐行对比：与"上一版"做行级 diff，高亮小职到底改了哪几行
+const diffMode = ref(false)
+const diffLoading = ref(false)
+const diffLines = ref([])
+// 导出前 Critic 终检：当前版本落库的事实核对结果（疑似无出处的强事实）
+const resumeViewerFactCheck = ref(null)
+const pendingExportFormat = ref('')
+// 最近会话线：落地页（无 wsId）时列出用户在推进的 JD 对话线，一键返回续聊
+const recentLines = ref([])
 const pdfDownloading = ref(false)
 const wordDownloading = ref(false)
 const currentTraceId = ref('')
@@ -893,8 +963,11 @@ async function openResumeVersion(versionId) {
     resumeViewerTitle.value = detail?.versionName || '简历预览'
     resumeViewerContent.value = detail?.contentMarkdown || ''
     resumeViewerSummary.value = detail?.changeSummary || ''
+    resumeViewerFactCheck.value = parseFactCheck(detail?.factCheck)
     resumeViewerOpen.value = true
     versionsDrawerOpen.value = false
+    // 切版本时退出对比态，避免旧 diff 残留误导
+    diffMode.value = false
   } catch (e) {
     globalError.value = e?.message || '加载简历版本失败'
   }
@@ -907,27 +980,144 @@ function switchCanvasVersion(evt) {
   }
 }
 
+// 当前版本的"上一版"：按 createdAt 找严格更早、且时间最近的那一版（不依赖数组顺序）
+const prevVersion = computed(() => {
+  const list = workspaceVersions.value || []
+  const active = list.find((v) => v.versionId === activeVersionId.value)
+  if (!active) return null
+  const activeTime = new Date(active.createdAt || 0).getTime()
+  let best = null
+  let bestTime = -Infinity
+  for (const v of list) {
+    if (v.versionId === active.versionId) continue
+    const t = new Date(v.createdAt || 0).getTime()
+    if (t <= activeTime && t > bestTime) {
+      best = v
+      bestTime = t
+    }
+  }
+  return best
+})
+
+// 行级 diff（LCS）：返回 [{type:'same'|'add'|'del', text}]
+function computeLineDiff(oldText, newText) {
+  const a = String(oldText || '').split('\n')
+  const b = String(newText || '').split('\n')
+  const n = a.length
+  const m = b.length
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0))
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1])
+    }
+  }
+  const out = []
+  let i = 0
+  let j = 0
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      out.push({ type: 'same', text: b[j] })
+      i++
+      j++
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      out.push({ type: 'del', text: a[i] })
+      i++
+    } else {
+      out.push({ type: 'add', text: b[j] })
+      j++
+    }
+  }
+  while (i < n) {
+    out.push({ type: 'del', text: a[i] })
+    i++
+  }
+  while (j < m) {
+    out.push({ type: 'add', text: b[j] })
+    j++
+  }
+  return out
+}
+
+async function toggleDiff() {
+  if (diffMode.value) {
+    diffMode.value = false
+    return
+  }
+  const prev = prevVersion.value
+  if (!prev) return
+  diffLoading.value = true
+  try {
+    const detail = await getVersion(prev.versionId)
+    diffLines.value = computeLineDiff(detail?.contentMarkdown || '', resumeViewerContent.value)
+    diffMode.value = true
+  } catch (e) {
+    globalError.value = e?.message || '加载对比版本失败'
+  } finally {
+    diffLoading.value = false
+  }
+}
+
+// 事实核对：解析落库的 factCheck，取出"疑似无出处"的强事实
+function parseFactCheck(raw) {
+  if (!raw) return null
+  try {
+    return typeof raw === 'string' ? JSON.parse(raw) : raw
+  } catch (e) {
+    return null
+  }
+}
+const factSuspects = computed(() => {
+  const fc = resumeViewerFactCheck.value
+  const list = fc && Array.isArray(fc.unsourcedFacts) ? fc.unsourcedFacts : []
+  return list.filter((f) => f != null && String(f).trim())
+})
+
 async function canvasExportPdf() {
   if (!activeVersionId.value) return
-  pdfDownloading.value = true
-  try {
-    await downloadVersionPdf(activeVersionId.value, resumeViewerTitle.value)
-  } catch (e) {
-    globalError.value = e?.message || 'PDF 下载失败'
-  } finally {
-    pdfDownloading.value = false
+  // 导出前终检：有疑似无出处的强事实 → 先弹确认，属实才导出
+  if (factSuspects.value.length) {
+    pendingExportFormat.value = 'pdf'
+    return
   }
+  await runExport('pdf')
 }
 
 async function canvasExportWord() {
   if (!activeVersionId.value) return
-  wordDownloading.value = true
-  try {
-    await downloadVersionDocx(activeVersionId.value, resumeViewerTitle.value)
-  } catch (e) {
-    globalError.value = e?.message || 'Word 下载失败'
-  } finally {
-    wordDownloading.value = false
+  if (factSuspects.value.length) {
+    pendingExportFormat.value = 'word'
+    return
+  }
+  await runExport('word')
+}
+
+// 用户在终检弹窗点"确认属实，继续导出"
+async function confirmExport() {
+  const fmt = pendingExportFormat.value
+  pendingExportFormat.value = ''
+  if (fmt) await runExport(fmt)
+}
+
+async function runExport(format) {
+  if (!activeVersionId.value) return
+  if (format === 'pdf') {
+    pdfDownloading.value = true
+    try {
+      await downloadVersionPdf(activeVersionId.value, resumeViewerTitle.value)
+    } catch (e) {
+      globalError.value = e?.message || 'PDF 下载失败'
+    } finally {
+      pdfDownloading.value = false
+    }
+  } else {
+    wordDownloading.value = true
+    try {
+      await downloadVersionDocx(activeVersionId.value, resumeViewerTitle.value)
+    } catch (e) {
+      globalError.value = e?.message || 'Word 下载失败'
+    } finally {
+      wordDownloading.value = false
+    }
   }
 }
 
@@ -1251,6 +1441,21 @@ async function bootstrapChat() {
   sessionId.value = ''
   messages.value = []
   streamState.value = 'idle'
+  loadRecentLines()
+}
+
+async function loadRecentLines() {
+  try {
+    recentLines.value = await listRecentLines(8)
+  } catch (e) {
+    recentLines.value = []
+  }
+}
+
+function resumeLine(sid) {
+  if (sid) {
+    router.push({ name: 'chat-workspace', params: { wsId: sid } })
+  }
 }
 
 async function sendExamplePrompt(prompt) {
@@ -1549,6 +1754,119 @@ onBeforeUnmount(() => {
 .canvas-act:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.canvas-act-on {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+.fact-confirm {
+  max-width: 440px;
+}
+.fact-confirm-lead {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #b45309;
+  margin: 0 0 12px;
+}
+.fact-list {
+  margin: 0 0 16px;
+  padding: 10px 12px 10px 28px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  max-height: 220px;
+  overflow: auto;
+}
+.fact-list li {
+  font-size: 13px;
+  color: #92400e;
+  line-height: 1.8;
+}
+.fact-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.fact-btn-ghost {
+  font-size: 13px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 16px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+}
+.fact-btn-primary {
+  font-size: 13px;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+.canvas-diff {
+  font-family: 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #0f172a;
+}
+.diff-legend {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding-bottom: 10px;
+  margin-bottom: 8px;
+  border-bottom: 1px dashed #e2e8f0;
+  font-size: 12px;
+}
+.diff-legend-add {
+  color: #15803d;
+  font-weight: 600;
+}
+.diff-legend-del {
+  color: #b91c1c;
+  font-weight: 600;
+}
+.diff-legend-hint {
+  color: #94a3b8;
+  margin-left: auto;
+}
+.diff-line {
+  display: flex;
+  gap: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 0 6px;
+  border-radius: 4px;
+}
+.diff-gutter {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  color: #94a3b8;
+  user-select: none;
+}
+.diff-text {
+  flex: 1;
+  min-width: 0;
+}
+.diff-add {
+  background: #dcfce7;
+}
+.diff-add .diff-gutter {
+  color: #15803d;
+}
+.diff-del {
+  background: #fee2e2;
+  color: #7f1d1d;
+  text-decoration: line-through;
+  text-decoration-color: rgba(185, 28, 28, 0.4);
+}
+.diff-del .diff-gutter {
+  color: #b91c1c;
 }
 .canvas-close {
   font-size: 20px;
@@ -2062,6 +2380,59 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.recent-lines {
+  width: min(680px, 100%);
+  margin: 4px auto 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px;
+}
+
+.recent-lines-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.recent-line-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  margin-bottom: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.recent-line-item:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.recent-line-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-line-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #94a3b8;
 }
 
 .zero-chat-card {

@@ -50,6 +50,13 @@ export async function getWorkspace(sessionId) {
   return request(`/workspace/${encodeURIComponent(sessionId)}`, { method: 'GET' })
 }
 
+/** 最近在推进的 JD 会话线，供"继续会话线"一键返回。 */
+export async function listRecentLines(limit = 8) {
+  const resp = await request(`/workspace/recent?limit=${encodeURIComponent(limit)}`, { method: 'GET' })
+  const data = resp?.data ?? resp
+  return Array.isArray(data) ? data : []
+}
+
 export async function getMessages(sessionId, opts = {}) {
   const query = new URLSearchParams()
   if (opts.after != null) query.set('after', String(opts.after))

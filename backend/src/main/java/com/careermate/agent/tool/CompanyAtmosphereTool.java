@@ -42,7 +42,9 @@ public class CompanyAtmosphereTool implements AgentTool {
                         AgentToolRiskLevel.LOW
                 )
                 .parameter(AgentToolDefinitionSupport.stringParam(
-                        "company", true, "公司名，如「字节跳动」"))
+                        "company", false, "公司名，如「字节跳动」（与 jdDocId 二选一）"))
+                .parameter(AgentToolDefinitionSupport.stringParam(
+                        "jdDocId", false, "目标 JD 的文档 ID，自动解析公司名（与 company 二选一）"))
                 .example("字节这家公司加班严重吗")
                 .example("看看这家公司的氛围")
                 .build();
@@ -57,11 +59,14 @@ public class CompanyAtmosphereTool implements AgentTool {
     public AgentToolResult execute(AgentToolContext context) {
         Map<String, Object> args = context.getArgs();
         String company = stringArg(args, "company");
-        if (company == null) {
-            return AgentToolResult.failure(name(), "查询公司氛围失败", "缺少公司名参数 company");
+        Long jdDocId = parseLong(args, "jdDocId");
+        if (company == null && jdDocId == null) {
+            return AgentToolResult.failure(name(), "查询公司氛围失败", "需提供 company 或 jdDocId");
         }
 
-        CompanyAtmosphereVO vo = companyAtmosphereService.getCompanyAtmosphere(company);
+        CompanyAtmosphereVO vo = company != null
+                ? companyAtmosphereService.getCompanyAtmosphere(company)
+                : companyAtmosphereService.getCompanyAtmosphereByJd(jdDocId);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("companyName", vo.getCompanyName());
@@ -86,5 +91,24 @@ public class CompanyAtmosphereTool implements AgentTool {
         }
         String value = String.valueOf(args.get(key)).trim();
         return value.isEmpty() ? null : value;
+    }
+
+    private static Long parseLong(Map<String, Object> args, String key) {
+        Object raw = args == null ? null : args.get(key);
+        if (raw == null) {
+            return null;
+        }
+        if (raw instanceof Number number) {
+            return number.longValue();
+        }
+        String s = String.valueOf(raw).trim();
+        if (s.isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }
