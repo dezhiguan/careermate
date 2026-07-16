@@ -201,6 +201,19 @@
         </div>
 
         <div class="input-area">
+          <div class="focus-bar" role="group" aria-label="焦点">
+            <span class="focus-label">焦点</span>
+            <button
+              v-for="f in FOCUS_OPTIONS"
+              :key="f.key"
+              type="button"
+              class="focus-chip"
+              :class="{ 'focus-chip--on': activeFocuses.includes(f.key) }"
+              @click="toggleFocus(f.key)"
+            >
+              {{ f.label }}
+            </button>
+          </div>
           <div class="input-row">
             <input
               v-model="inputText"
@@ -348,6 +361,7 @@ import {
   sendAgentMessageStream,
 } from '../api/agent'
 import { getWorkspace, getMessages, postAction, openResumeGenerateStreamByEndpoint, listRecentLines, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
+import { confirmStage } from '../api/pipeline'
 import { getOpportunityDetail } from '../api/opportunity'
 import { downloadVersionDocx, downloadVersionPdf, getVersion, listVersions } from '../api/resumeVersion'
 import { getCareerProfile } from '../api/profile'
@@ -422,6 +436,20 @@ const currentPathMode = ref('')
 const deepModeOn = ref(false)
 const sessionCreating = ref(false)
 const globalError = ref('')
+// 焦点条：会话内检索信号（可多选），切焦点不新建会话、不中断对话
+const FOCUS_OPTIONS = [
+  { key: 'resume', label: '改简历' },
+  { key: 'jd', label: 'JD分析' },
+  { key: 'interview', label: '面试' },
+  { key: 'salary', label: '薪资' },
+  { key: 'company', label: '公司氛围' },
+]
+const activeFocuses = ref([])
+function toggleFocus(key) {
+  const i = activeFocuses.value.indexOf(key)
+  if (i >= 0) activeFocuses.value.splice(i, 1)
+  else activeFocuses.value.push(key)
+}
 const errorDetail = ref(null)
 const idSeed = ref(0)
 const activeStreamController = ref(null)
@@ -875,6 +903,22 @@ async function handleCardAction(actionItem) {
   }
   if (action === 'CANCEL_PENDING_ACTION') {
     await cancelPendingResumeAction(payload)
+    return
+  }
+  if (action === 'CONFIRM_STAGE') {
+    // Layer-2 一键确认：卡片已乐观置为已推进，这里落库；失败仅提示
+    try {
+      await confirmStage({
+        jdDocId: actionItem?.jdDocId,
+        stage: actionItem?.stage,
+        company: actionItem?.company,
+      })
+    } catch (e) {
+      globalError.value = e?.message || '流转阶段失败'
+    }
+    return
+  }
+  if (action === 'DISMISS_STAGE') {
     return
   }
   if (action === 'VIEW_JD') {
@@ -1496,6 +1540,9 @@ async function sendMessage() {
     await createNewSession({ withWelcome: false })
     if (!sessionId.value) return
   }
+  // 焦点作为会话内检索信号注入给小职（不污染可见气泡，仅提示路由）
+  const focusLabels = FOCUS_OPTIONS.filter((f) => activeFocuses.value.includes(f.key)).map((f) => f.label)
+  const outgoing = focusLabels.length ? `（当前关注：${focusLabels.join('、')}）\n${text}` : text
   clearGlobalError()
   currentTraceId.value = ''
 
@@ -1528,7 +1575,7 @@ async function sendMessage() {
   startStreamWatchdog(agentMessage)
 
   try {
-    await sendAgentMessageStream(sessionId.value, text, {
+    await sendAgentMessageStream(sessionId.value, outgoing, {
       onTraceHeader({ traceId }) {
         if (traceId) {
           currentTraceId.value = traceId
@@ -2707,6 +2754,38 @@ onBeforeUnmount(() => {
   padding: 12px 16px;
   background: #fff;
   z-index: 10;
+}
+
+.focus-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.focus-label {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-right: 2px;
+}
+
+.focus-chip {
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #64748b;
+  font-size: 11px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.focus-chip--on {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+  font-weight: 600;
 }
 
 .input-row {

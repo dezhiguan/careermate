@@ -123,9 +123,33 @@
           </button>
         </div>
       </article>
-      <div v-if="loadingMore" class="load-more-state">正在加载更多机会</div>
-      <div v-else-if="!hasMore" class="load-more-state">已加载全部机会</div>
+      <!-- 移动端：触底无限滚动 -->
+      <template v-if="!isDesktop">
+        <div v-if="loadingMore" class="load-more-state">正在加载更多机会</div>
+        <div v-else-if="!hasMore" class="load-more-state">已加载全部机会</div>
+      </template>
     </div>
+
+    <!-- 桌面：点击页码翻页 -->
+    <nav v-if="isDesktop && !loading && !degraded && totalPages > 1" class="pager" aria-label="分页导航">
+      <button type="button" class="pager-btn" :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">
+        上一页
+      </button>
+      <button
+        v-for="(p, i) in pageWindow"
+        :key="`${p}-${i}`"
+        type="button"
+        class="pager-num"
+        :class="{ active: p === currentPage, ellipsis: p === '…' }"
+        :disabled="p === '…'"
+        @click="goToPage(p)"
+      >
+        {{ p }}
+      </button>
+      <button type="button" class="pager-btn" :disabled="currentPage >= totalPages" @click="goToPage(currentPage + 1)">
+        下一页
+      </button>
+    </nav>
 
     <p v-if="error" class="error-text">{{ error }}</p>
   </div>
@@ -323,7 +347,34 @@ function appendUniqueItems(currentItems, nextItems) {
   return merged
 }
 
+// 分页分平台：桌面点击页码翻页、移动端触底无限滚动（设计 R54/R162）
+const PAGE_SIZE = 10
+const isDesktop = ref(false)
+function updateIsDesktop() {
+  isDesktop.value = typeof window !== 'undefined' && window.innerWidth >= 900
+}
+const totalPages = computed(() => Math.max(1, Math.ceil((totalCount.value || 0) / PAGE_SIZE)))
+const pageWindow = computed(() => {
+  const total = totalPages.value
+  const cur = currentPage.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const out = [1]
+  const start = Math.max(2, cur - 1)
+  const end = Math.min(total - 1, cur + 1)
+  if (start > 2) out.push('…')
+  for (let p = start; p <= end; p++) out.push(p)
+  if (end < total - 1) out.push('…')
+  out.push(total)
+  return out
+})
+async function goToPage(p) {
+  if (typeof p !== 'number' || p < 1 || p > totalPages.value || p === currentPage.value) return
+  await fetchList({ page: p, append: false })
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
 function handleScroll() {
+  if (isDesktop.value) return
   if (loading.value || loadingMore.value || degraded.value || !hasMore.value) return
   const scrollTop = window.scrollY || document.documentElement.scrollTop || 0
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
@@ -401,6 +452,8 @@ function tierClass(tier) {
 }
 
 onMounted(() => {
+  updateIsDesktop()
+  window.addEventListener('resize', updateIsDesktop, { passive: true })
   window.addEventListener('scroll', handleScroll, { passive: true })
   if (!activeKeyword.value && homeStore.state.initialized && homeStore.state.topOpportunities.length > 0) {
     hydrateFromBootstrap()
@@ -411,6 +464,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearDegradedRefreshTimer()
+  window.removeEventListener('resize', updateIsDesktop)
   window.removeEventListener('scroll', handleScroll)
 })
 </script>
@@ -536,6 +590,55 @@ onBeforeUnmount(() => {
   place-items: center;
   color: #64748b;
   font-size: 12px;
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin: 20px 16px 8px;
+}
+
+.pager-btn,
+.pager-num {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.pager-btn:hover:not(:disabled),
+.pager-num:hover:not(:disabled):not(.active) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.pager-num.active {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+  cursor: default;
+}
+
+.pager-num.ellipsis {
+  border: none;
+  background: transparent;
+  cursor: default;
+  color: #94a3b8;
+}
+
+.pager-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 @media (min-width: 768px) {

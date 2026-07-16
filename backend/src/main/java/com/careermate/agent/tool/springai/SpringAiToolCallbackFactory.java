@@ -30,7 +30,8 @@ public class SpringAiToolCallbackFactory {
     private static final Map<String, String> CARD_TYPES = Map.of(
             "get_company_atmosphere", "COMPANY_ATMOSPHERE",
             "generate_jd_aware_questions", "INTERVIEW_QUESTIONS",
-            "get_salary_guidance", "SALARY_GUIDANCE"
+            "get_salary_guidance", "SALARY_GUIDANCE",
+            "propose_stage_confirmation", "STAGE_CONFIRM"
     );
 
     private final AgentToolRegistry registry;
