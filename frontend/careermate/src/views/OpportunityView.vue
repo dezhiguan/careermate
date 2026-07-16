@@ -98,6 +98,10 @@
           </span>
         </div>
 
+        <div v-if="(item.missingSkills || []).length" class="gap-row">
+          <span class="gap-text">✗ 缺 {{ item.missingSkills.length }}：{{ item.missingSkills.slice(0, 4).join(' · ') }}</span>
+        </div>
+
         <div v-if="item.skills?.length" class="skills-row">
           <span v-for="skill in item.skills.slice(0, 4)" :key="skill" class="skill-chip">{{ skill }}</span>
         </div>
@@ -1088,6 +1092,14 @@ onBeforeUnmount(() => {
 .reason-text {
   font-size: 11px;
   color: #64748b;
+}
+
+.gap-row {
+  margin-bottom: 6px;
+}
+.gap-text {
+  font-size: 11px;
+  color: #b45309;
 }
 
 .skills-row {

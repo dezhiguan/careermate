@@ -19,6 +19,7 @@ public record OpportunityListItemVO(
         Integer matchScore,
         String matchTier,
         List<String> matchReasons,
+        List<String> missingSkills,
         List<String> skills,
         Double ragScore,
         String externalUrl,

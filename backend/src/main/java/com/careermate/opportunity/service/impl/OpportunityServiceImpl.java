@@ -547,7 +547,7 @@ public class OpportunityServiceImpl implements OpportunityService {
 
     private OpportunityListItemVO applyMatch(OpportunityListItemVO item, ResumeContext resumeContext) {
         if (!resumeContext.hasResume()) {
-            return copyItem(item, null, "UNKNOWN", List.of());
+            return copyItem(item, null, "UNKNOWN", List.of(), List.of());
         }
         List<String> jdSkills = item.skills() == null ? List.of() : item.skills();
         List<String> userSkills = resumeContext.userSkills();
@@ -555,6 +555,13 @@ public class OpportunityServiceImpl implements OpportunityService {
         intersection.retainAll(jdSkills);
         Set<String> union = new LinkedHashSet<>(userSkills);
         union.addAll(jdSkills);
+        // 缺失技能 = JD 要求但用户技能里没有的（保持 JD 中出现顺序）
+        List<String> missing = new ArrayList<>();
+        for (String s : jdSkills) {
+            if (!intersection.contains(s)) {
+                missing.add(s);
+            }
+        }
 
         int baseScore = (int) Math.floor(60.0 * intersection.size() / Math.max(union.size(), 1));
         int ragBonus = item.ragScore() == null ? 0 : (int) Math.floor(40.0 * item.ragScore());
@@ -568,7 +575,7 @@ public class OpportunityServiceImpl implements OpportunityService {
         if (item.ragScore() != null) {
             reasons.add(String.format(Locale.ROOT, "RAG 相关度 %.2f", item.ragScore()));
         }
-        return copyItem(item, matchScore, tier, reasons);
+        return copyItem(item, matchScore, tier, reasons, missing);
     }
 
     private static String resolveTier(int matchScore) {
@@ -585,7 +592,8 @@ public class OpportunityServiceImpl implements OpportunityService {
             OpportunityListItemVO item,
             Integer matchScore,
             String matchTier,
-            List<String> matchReasons
+            List<String> matchReasons,
+            List<String> missingSkills
     ) {
         return new OpportunityListItemVO(
                 item.jdId(),
@@ -604,6 +612,7 @@ public class OpportunityServiceImpl implements OpportunityService {
                 matchScore,
                 matchTier,
                 matchReasons,
+                missingSkills,
                 item.skills(),
                 item.ragScore(),
                 item.externalUrl(),
@@ -628,6 +637,7 @@ public class OpportunityServiceImpl implements OpportunityService {
                 item.publishedAt(),
                 null,
                 "UNKNOWN",
+                List.of(),
                 List.of(),
                 item.skills(),
                 item.ragScore(),
