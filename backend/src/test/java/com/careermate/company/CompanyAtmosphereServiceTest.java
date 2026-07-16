@@ -1,0 +1,173 @@
+package com.careermate.company;
+
+import com.careermate.agent.tool.rag.RagRetrieveResult;
+import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.agent.tool.rag.RagRetrievedChunk;
+import com.careermate.company.dto.CompanyAtmosphereVO;
+import com.careermate.company.service.CompanyAtmosphereService;
+import com.careermate.knowledge.KnowledgeRetrievalService;
+import com.careermate.llm.LlmClient;
+import com.careermate.llm.dto.ChatRequest;
+import com.careermate.llm.dto.ChatResponse;
+import com.careermate.market.dto.MarketSourceCitationVO;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class CompanyAtmosphereServiceTest {
+
+    @Mock
+    private KnowledgeRetrievalService knowledgeRetrievalService;
+    @Mock
+    private LlmClient llmClient;
+
+    private CompanyAtmosphereService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new CompanyAtmosphereService(knowledgeRetrievalService, llmClient, new ObjectMapper());
+        lenient().when(knowledgeRetrievalService.toMarketCitations(any()))
+                .thenReturn(List.of(new MarketSourceCitationVO()));
+        lenient().when(knowledgeRetrievalService.toSourceSummaries(any()))
+                .thenReturn(List.of("[COMPANY@a.md] 预览"));
+    }
+
+    @Test
+    void blankCompanyReturnsFallback() {
+        CompanyAtmosphereVO nullResult = service.getCompanyAtmosphere(null);
+        assertFalse(nullResult.isDataAvailable());
+        assertEquals("未知公司", nullResult.getCompanyName());
+        assertTrue(nullResult.getCultureTags().isEmpty());
+
+        CompanyAtmosphereVO blankResult = service.getCompanyAtmosphere("   ");
+        assertFalse(blankResult.isDataAvailable());
+    }
+
+    @Test
+    void emptyRagContextReturnsFallback() {
+        when(knowledgeRetrievalService.retrieveMerged(any()))
+                .thenReturn(RagRetrieveResult.fallback("字节", RagRetrieveScene.COMPANY, "EMPTY", 1));
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphere("字节");
+
+        assertFalse(result.isDataAvailable());
+        assertEquals("字节", result.getCompanyName());
+        assertTrue(result.getSourceSummaries().isEmpty());
+    }
+
+    @Test
+    void validJsonParsedAndSourcesAttached() {
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleResult());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"companyName":"字节跳动","workIntensity":"节奏快","teamReputation":"技术氛围强",
+                 "interviewStyle":"重系统设计","overtimeSignal":"历史大小周已取消",
+                 "cultureTags":[{"label":"技术氛围强","sentiment":"POSITIVE"},
+                                {"label":"节奏快","sentiment":"NEGATIVE"}],
+                 "aiSummary":"技术强、节奏快","dataAvailable":true}
+                """).build());
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphere("字节跳动");
+
+        assertTrue(result.isDataAvailable());
+        assertEquals("字节跳动", result.getCompanyName());
+        assertEquals("节奏快", result.getWorkIntensity());
+        assertEquals(2, result.getCultureTags().size());
+        assertEquals("POSITIVE", result.getCultureTags().get(0).getSentiment());
+        assertEquals(1, result.getCitations().size());
+        assertEquals(1, result.getSourceSummaries().size());
+    }
+
+    @Test
+    void companyNameBackfilledAndBadSentimentNormalized() {
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleResult());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"companyName":"","cultureTags":[{"label":"扁平","sentiment":"weird"},
+                 {"label":"  ","sentiment":"POSITIVE"},{"label":"稳定"}],
+                 "aiSummary":"x","dataAvailable":true}
+                """).build());
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphere("小红书");
+
+        // 名字回填自入参
+        assertEquals("小红书", result.getCompanyName());
+        // 非法 sentiment → NEUTRAL；空标签被剔除；缺省 sentiment → NEUTRAL
+        assertEquals(2, result.getCultureTags().size());
+        assertEquals("扁平", result.getCultureTags().get(0).getLabel());
+        assertEquals("NEUTRAL", result.getCultureTags().get(0).getSentiment());
+        assertEquals("NEUTRAL", result.getCultureTags().get(1).getSentiment());
+    }
+
+    @Test
+    void invalidJsonReturnsFallback() {
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleResult());
+        when(llmClient.chat(any(ChatRequest.class)))
+                .thenReturn(ChatResponse.builder().content("这不是 JSON").build());
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphere("字节");
+
+        assertFalse(result.isDataAvailable());
+    }
+
+    @Test
+    void emptyLlmResponseReturnsFallback() {
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleResult());
+        when(llmClient.chat(any(ChatRequest.class)))
+                .thenReturn(ChatResponse.builder().content("").build());
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphere("字节");
+
+        assertFalse(result.isDataAvailable());
+    }
+
+    @Test
+    void unparseableJsonBodyReturnsFallback() {
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleResult());
+        // 含 { } 但内容非法，触发 objectMapper 解析异常分支
+        when(llmClient.chat(any(ChatRequest.class)))
+                .thenReturn(ChatResponse.builder().content("{ not : valid json }").build());
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphere("字节");
+
+        assertFalse(result.isDataAvailable());
+    }
+
+    @Test
+    void retrievalExceptionReturnsFallback() {
+        when(knowledgeRetrievalService.retrieveMerged(any()))
+                .thenThrow(new RuntimeException("rag down"));
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphere("字节");
+
+        assertFalse(result.isDataAvailable());
+        assertEquals("字节", result.getCompanyName());
+    }
+
+    private static RagRetrieveResult sampleResult() {
+        return RagRetrieveResult.builder()
+                .success(true)
+                .query("字节")
+                .scene(RagRetrieveScene.COMPANY)
+                .chunks(List.of(RagRetrievedChunk.builder()
+                        .content("字节跳动 技术氛围强 节奏快 历史大小周")
+                        .contentPreview("字节跳动 技术氛围强")
+                        .citation("COMPANY@bytedance.md")
+                        .fileName("bytedance.md")
+                        .score(0.9)
+                        .build()))
+                .latencyMs(5L)
+                .build();
+    }
+}
