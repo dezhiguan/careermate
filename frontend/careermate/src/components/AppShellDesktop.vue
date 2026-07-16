@@ -59,6 +59,20 @@
         <button
           type="button"
           class="sidebar-item"
+          :class="{ active: isActive('/assets') }"
+          @click="go('/assets')"
+        >
+          <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 4h16v4H4z" />
+            <path d="M4 10h16v10H4z" />
+            <line x1="8" y1="14" x2="16" y2="14" />
+          </svg>
+          <span>资产</span>
+        </button>
+
+        <button
+          type="button"
+          class="sidebar-item"
           :class="{ active: isActive('/market') }"
           @click="go('/market')"
         >
