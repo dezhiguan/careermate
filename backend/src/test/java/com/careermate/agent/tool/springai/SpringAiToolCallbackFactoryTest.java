@@ -47,6 +47,9 @@ class SpringAiToolCallbackFactoryTest {
     @Mock
     private AgentTool unsupportedTool;
 
+    @Mock
+    private com.careermate.agent.sse.SseEmitterService sseEmitterService;
+
     private SpringAiToolCallbackFactory factory;
     private ObjectMapper objectMapper;
     private AgentToolContext baseContext;
@@ -54,7 +57,7 @@ class SpringAiToolCallbackFactoryTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        factory = new SpringAiToolCallbackFactory(registry, executionService, objectMapper);
+        factory = new SpringAiToolCallbackFactory(registry, executionService, objectMapper, sseEmitterService);
         baseContext = AgentToolContext.builder()
                 .userId(1L)
                 .sessionId("S-001")

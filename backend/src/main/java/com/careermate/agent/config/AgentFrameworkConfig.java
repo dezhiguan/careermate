@@ -26,8 +26,8 @@ public class AgentFrameworkConfig {
     public static final String CHAT_CLIENT_BEAN = "agentFrameworkChatClient";
     public static final String CHAT_MEMORY_BEAN = "agentFrameworkChatMemory";
 
-    /** A1-3：对话记忆窗口上限，防 prompt 过长。 */
-    private static final int CHAT_MEMORY_MAX_MESSAGES = 20;
+    /** 兜底默认：配置缺失时的对话记忆窗口上限（M4：由 20 提高，避免机会主线聊过 20 条即失忆）。 */
+    private static final int DEFAULT_CHAT_MEMORY_MAX_MESSAGES = 100;
 
     private static final String PROVIDER_OPENAI = "spring-ai-openai";
     private static final String PROVIDER_OPENAI_COMPATIBLE = "spring-ai-openai-compatible";
@@ -51,11 +51,23 @@ public class AgentFrameworkConfig {
     }
 
     @Bean(name = CHAT_MEMORY_BEAN)
-    public ChatMemory agentFrameworkChatMemory(ChatMemoryRepository chatMemoryRepository) {
+    public ChatMemory agentFrameworkChatMemory(
+            ChatMemoryRepository chatMemoryRepository,
+            AgentProperties agentProperties
+    ) {
         return MessageWindowChatMemory.builder()
                 .chatMemoryRepository(chatMemoryRepository)
-                .maxMessages(CHAT_MEMORY_MAX_MESSAGES)
+                .maxMessages(resolveMaxMessages(agentProperties))
                 .build();
+    }
+
+    /** M4：对话记忆窗口条数，取配置值（>0），否则回落默认，保证「机会内不失忆」。 */
+    static int resolveMaxMessages(AgentProperties agentProperties) {
+        if (agentProperties == null || agentProperties.getConversationMemoryMaxMessages() == null
+                || agentProperties.getConversationMemoryMaxMessages() <= 0) {
+            return DEFAULT_CHAT_MEMORY_MAX_MESSAGES;
+        }
+        return agentProperties.getConversationMemoryMaxMessages();
     }
 
     @Bean(name = CHAT_CLIENT_BEAN)

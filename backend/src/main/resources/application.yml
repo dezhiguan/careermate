@@ -109,6 +109,7 @@ careermate:
     stream-task-timeout-ms: ${AGENT_STREAM_TASK_TIMEOUT_MS:300000}
     conversation-context-max-messages: ${AGENT_CONVERSATION_CONTEXT_MAX_MESSAGES:10}
     conversation-context-max-chars: ${AGENT_CONVERSATION_CONTEXT_MAX_CHARS:6000}
+    conversation-memory-max-messages: ${AGENT_CONVERSATION_MEMORY_MAX_MESSAGES:100}
     kernel:
       enabled: ${AGENT_KERNEL_ENABLED:false}
     framework:
