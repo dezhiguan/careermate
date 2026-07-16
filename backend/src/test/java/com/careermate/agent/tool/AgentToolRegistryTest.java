@@ -33,7 +33,8 @@ class AgentToolRegistryTest {
             "get_company_atmosphere",
             "generate_jd_aware_questions",
             "get_salary_guidance",
-            "get_pipeline_board"
+            "get_pipeline_board",
+            "advance_application_stage"
     );
 
     @Autowired
@@ -42,7 +43,7 @@ class AgentToolRegistryTest {
     @Test
     void listDefinitionsContainsAllTools() {
         List<AgentToolDefinition> definitions = registry.listDefinitions();
-        assertEquals(15, definitions.size());
+        assertEquals(16, definitions.size());
         Set<String> names = definitions.stream()
                 .map(AgentToolDefinition::getName)
                 .collect(java.util.stream.Collectors.toSet());

@@ -92,6 +92,44 @@ public class PipelineService {
         return toVO(entity);
     }
 
+    /**
+     * 按 JD 流转阶段（对话驱动）：小职从对话推断意图后调用。
+     * 若该 JD 尚无投递记录则按目标阶段自动建一条（对话即事实来源），否则更新其阶段。
+     */
+    @Transactional
+    public ApplicationVO updateStageByJd(Long userId, Long jdDocId, String stageCode, String company, String roleTitle) {
+        if (userId == null) {
+            throw new BizException(401, "未认证");
+        }
+        if (jdDocId == null) {
+            throw new BizException(400, "缺少 jdDocId");
+        }
+        ApplicationStage stage = ApplicationStage.fromCode(stageCode);
+        if (stage == null) {
+            throw new BizException(400, "非法阶段：" + stageCode);
+        }
+        JobApplicationEntity existing = applicationMapper.selectOne(
+                new LambdaQueryWrapper<JobApplicationEntity>()
+                        .eq(JobApplicationEntity::getUserId, userId)
+                        .eq(JobApplicationEntity::getJdDocId, jdDocId)
+                        .isNull(JobApplicationEntity::getDeletedAt)
+                        .last("limit 1"));
+        if (existing == null) {
+            CreateApplicationRequest req = new CreateApplicationRequest();
+            req.setJdDocId(jdDocId);
+            req.setCompany(company);
+            req.setRoleTitle(roleTitle);
+            req.setStage(stage.name());
+            return createApplication(userId, req);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        existing.setStage(stage.name());
+        existing.setUpdatedAt(now);
+        existing.setLastActiveAt(now);
+        applicationMapper.updateById(existing);
+        return toVO(existing);
+    }
+
     /** 看板：按阶段分列（5 列固定，含空列），列内按最近活跃倒序。 */
     public PipelineBoardVO getBoard(Long userId) {
         PipelineBoardVO board = new PipelineBoardVO();

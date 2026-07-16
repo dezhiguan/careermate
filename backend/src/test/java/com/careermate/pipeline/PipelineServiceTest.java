@@ -119,6 +119,44 @@ class PipelineServiceTest {
     }
 
     @Test
+    void updateStageByJdUpdatesExisting() {
+        when(applicationMapper.selectOne(any())).thenReturn(entity(10L, 1L, 599L, "PREPARING"));
+
+        ApplicationVO vo = service.updateStageByJd(1L, 599L, "INTERVIEW_SCHEDULED", null, null);
+
+        verify(applicationMapper, never()).insert(any(JobApplicationEntity.class));
+        verify(applicationMapper, times(1)).updateById(any(JobApplicationEntity.class));
+        assertEquals("INTERVIEW_SCHEDULED", vo.getStage());
+        assertEquals("约面", vo.getStageLabel());
+    }
+
+    @Test
+    void updateStageByJdAutoCreatesWhenMissing() {
+        when(applicationMapper.selectOne(any())).thenReturn(null);
+
+        ApplicationVO vo = service.updateStageByJd(1L, 700L, "INTERVIEWING", "小红书", "Java 工程师");
+
+        verify(applicationMapper, times(1)).insert(any(JobApplicationEntity.class));
+        assertEquals("INTERVIEWING", vo.getStage());
+        assertEquals("小红书", vo.getCompany());
+    }
+
+    @Test
+    void updateStageByJdRejectsInvalidStage() {
+        assertThrows(BizException.class, () -> service.updateStageByJd(1L, 599L, "HIRED", null, null));
+    }
+
+    @Test
+    void updateStageByJdRejectsNullJd() {
+        assertThrows(BizException.class, () -> service.updateStageByJd(1L, null, "OFFER", null, null));
+    }
+
+    @Test
+    void updateStageByJdUnauthenticatedThrows() {
+        assertThrows(BizException.class, () -> service.updateStageByJd(null, 599L, "OFFER", null, null));
+    }
+
+    @Test
     void getBoardGroupsIntoFiveColumns() {
         when(applicationMapper.selectList(any())).thenReturn(List.of(
                 entity(1L, 1L, 1L, "PREPARING"),
