@@ -13,11 +13,28 @@
 
     <p v-if="error" class="pipeline-error">{{ error }}</p>
     <p v-else-if="loading && !board" class="pipeline-loading">加载中…</p>
-    <p v-else-if="board && board.total === 0" class="pipeline-empty">
-      还没有在办的投递机会。去「机会」选一个岗位点「定制简历」，就会出现在这里。
+
+    <!-- 暂存区：收藏但还没动的 JD（不占看板，一键转为机会） -->
+    <section v-if="board && savedJobs.length" class="holding">
+      <div class="holding-head">📌 暂存区 · {{ savedJobs.length }}<span class="holding-hint">收藏但还没动，一键转为机会</span></div>
+      <div class="holding-list">
+        <div v-for="job in savedJobs" :key="job.id" class="holding-card">
+          <div class="holding-main">
+            <div class="holding-co">{{ job.company || '未知公司' }}</div>
+            <div class="holding-role">{{ job.roleTitle || '岗位' }}</div>
+          </div>
+          <button class="holding-btn promote" :disabled="savedBusyId === job.jdDocId" @click="promoteSaved(job)">转为机会</button>
+          <button class="holding-btn" :disabled="savedBusyId === job.jdDocId" @click="removeSaved(job)">移除</button>
+        </div>
+      </div>
+    </section>
+
+    <p v-if="board && board.total === 0 && !savedJobs.length" class="pipeline-empty">
+      还没有在办的投递机会。去「机会」选一个岗位点「定制简历」，或收藏几个 JD 进暂存区。
     </p>
 
-    <div v-else-if="board" class="board" data-testid="pipeline-board">
+    <!-- 桌面：五列看板 -->
+    <div v-else-if="board && isDesktop" class="board" data-testid="pipeline-board">
       <section
         v-for="col in board.columns"
         :key="col.stage"
@@ -29,14 +46,24 @@
           <span class="col-count">{{ col.count }}</span>
         </div>
         <div class="col-body">
-          <article v-for="app in col.applications" :key="app.id" class="app-card">
-            <div class="app-co">{{ app.company || '未知公司' }}</div>
-            <div class="app-role">{{ app.roleTitle || '—' }}</div>
-            <div class="app-meta">
-              <span v-if="app.resumeVersionId" class="app-tag">简历已挂</span>
-              <span class="app-time">{{ formatTime(app.lastActiveAt) }}</span>
+          <article
+            v-for="app in col.applications"
+            :key="app.id"
+            class="app-card"
+            :class="{ opening: openingId === app.id }"
+            @click="openLine(app)"
+          >
+            <div class="app-top">
+              <span class="app-avatar">{{ avatarChar(app) }}</span>
+              <div class="app-headtext">
+                <div class="app-co">{{ cardName(app) }}</div>
+                <div class="app-activity">{{ activityText(app) }}</div>
+              </div>
             </div>
-            <div class="app-actions">
+            <div v-if="app.resumeVersionId" class="app-meta">
+              <span class="app-tag">简历已挂</span>
+            </div>
+            <div class="app-actions" @click.stop>
               <select
                 class="stage-select"
                 :value="app.stage"
@@ -54,27 +81,183 @@
         </div>
       </section>
     </div>
+
+    <!-- 移动端：阶段分段器 + 单列卡片列表 -->
+    <div v-else-if="board" class="mobile-pipe" data-testid="pipeline-board">
+      <div class="stage-seg">
+        <button
+          v-for="col in board.columns"
+          :key="col.stage"
+          type="button"
+          class="seg-chip"
+          :class="{ on: activeStage === col.stage }"
+          @click="activeStage = col.stage"
+        >
+          {{ col.label }}<span class="seg-count">{{ col.count }}</span>
+        </button>
+      </div>
+      <div class="mobile-list">
+        <template v-if="mobileColumn && mobileColumn.applications.length">
+          <article
+            v-for="app in mobileColumn.applications"
+            :key="app.id"
+            class="app-card"
+            :class="{ opening: openingId === app.id }"
+            @click="openLine(app)"
+          >
+            <div class="app-top">
+              <span class="app-avatar">{{ avatarChar(app) }}</span>
+              <div class="app-headtext">
+                <div class="app-co">{{ cardName(app) }}</div>
+                <div class="app-activity">{{ activityText(app) }}</div>
+              </div>
+            </div>
+            <div v-if="app.resumeVersionId" class="app-meta">
+              <span class="app-tag">简历已挂</span>
+            </div>
+            <div class="app-actions" @click.stop>
+              <select
+                class="stage-select"
+                :value="app.stage"
+                :disabled="busyId === app.id"
+                @change="onStageChange(app, $event)"
+              >
+                <option v-for="s in board.columns" :key="s.stage" :value="s.stage">{{ s.label }}</option>
+              </select>
+              <button class="archive-btn" type="button" :disabled="busyId === app.id" @click="onArchive(app)">
+                归档
+              </button>
+            </div>
+          </article>
+        </template>
+        <p v-else class="col-empty">该阶段暂无卡片</p>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { getPipelineBoard, updateApplicationStage, archiveApplication } from '../api/pipeline'
+import { createWorkspace, navigateToWorkspace } from '../api/workspace'
+import { listSavedJobs, promoteJob, unsaveJob } from '../api/savedJobs'
 
+const router = useRouter()
 const board = ref(null)
+const savedJobs = ref([])
 const loading = ref(false)
 const error = ref('')
 const busyId = ref(null)
+const openingId = ref(null)
+const savedBusyId = ref(null)
+
+// 分平台：桌面五列看板 / 移动阶段分段器 + 单列列表
+const isDesktop = ref(false)
+function updateIsDesktop() {
+  isDesktop.value = typeof window !== 'undefined' && window.innerWidth >= 640
+}
+const activeStage = ref('')
+const mobileColumn = computed(() => {
+  const cols = board.value?.columns || []
+  return cols.find((c) => c.stage === activeStage.value) || cols[0] || null
+})
+
+// 同「公司·职位」在看板上出现多次时补序号区分项（②③…）
+const dedupSuffix = computed(() => {
+  const map = {}
+  const groups = {}
+  for (const col of board.value?.columns || []) {
+    for (const app of col.applications || []) {
+      const key = `${app.company || ''}|${app.roleTitle || ''}`
+      ;(groups[key] = groups[key] || []).push(app.id)
+    }
+  }
+  for (const ids of Object.values(groups)) {
+    if (ids.length > 1) {
+      ids.forEach((id, i) => { map[id] = `②③④⑤⑥⑦⑧⑨`[i - 1] || (i > 0 ? `·${i + 1}` : '') })
+    }
+  }
+  return map
+})
+function cardName(app) {
+  const base = `${app.company || '未知公司'} · ${app.roleTitle || '岗位'}`
+  const suffix = dedupSuffix.value[app.id]
+  return suffix ? `${base} · ${suffix}` : base
+}
+function avatarChar(app) {
+  const c = (app.company || '公').trim()
+  return c.charAt(0).toUpperCase()
+}
+function activityText(app) {
+  const label = app.stageLabel || ''
+  const t = formatTime(app.lastActiveAt)
+  return t ? `${label} · 最近 ${t}` : label
+}
+
+async function openLine(app) {
+  if (!app?.jdDocId || openingId.value) return
+  openingId.value = app.id
+  try {
+    const resp = await createWorkspace({
+      workspaceType: 'JD_PREP',
+      title: `${app.company || ''} ${app.roleTitle || ''}`.trim() || 'JD 准备空间',
+      contextMetadata: {
+        jdId: `doc-${app.jdDocId}`,
+        company: app.company,
+        title: app.roleTitle,
+      },
+    })
+    await navigateToWorkspace(router, resp)
+  } catch (e) {
+    error.value = e?.message || '进入会话失败'
+  } finally {
+    openingId.value = null
+  }
+}
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    board.value = await getPipelineBoard()
+    const [boardData, saved] = await Promise.all([getPipelineBoard(), listSavedJobs()])
+    board.value = boardData
+    savedJobs.value = saved
+    // 移动分段器默认选第一个有卡的阶段，否则第一列
+    const cols = board.value?.columns || []
+    if (!activeStage.value || !cols.some((c) => c.stage === activeStage.value)) {
+      activeStage.value = (cols.find((c) => c.count > 0) || cols[0])?.stage || ''
+    }
   } catch (e) {
     error.value = e?.message || '加载看板失败'
   } finally {
     loading.value = false
+  }
+}
+
+async function promoteSaved(job) {
+  if (!job?.jdDocId || savedBusyId.value) return
+  savedBusyId.value = job.jdDocId
+  try {
+    await promoteJob(job.jdDocId)
+    await load()
+  } catch (e) {
+    error.value = e?.message || '转为机会失败'
+  } finally {
+    savedBusyId.value = null
+  }
+}
+
+async function removeSaved(job) {
+  if (!job?.jdDocId || savedBusyId.value) return
+  savedBusyId.value = job.jdDocId
+  try {
+    await unsaveJob(job.jdDocId)
+    savedJobs.value = savedJobs.value.filter((j) => j.jdDocId !== job.jdDocId)
+  } catch (e) {
+    error.value = e?.message || '移除失败'
+  } finally {
+    savedBusyId.value = null
   }
 }
 
@@ -117,7 +300,12 @@ function formatTime(raw) {
   return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
 }
 
-onMounted(load)
+onMounted(() => {
+  updateIsDesktop()
+  window.addEventListener('resize', updateIsDesktop, { passive: true })
+  load()
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 </script>
 
 <style scoped>
@@ -199,6 +387,43 @@ onMounted(load)
   padding: 10px 12px;
   margin-bottom: 9px;
   box-shadow: 0 1px 2px rgba(20, 24, 40, 0.05);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.app-card:hover {
+  border-color: #c7d2fe;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.1);
+}
+.app-card.opening {
+  opacity: 0.6;
+}
+.app-top {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.app-avatar {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.app-headtext {
+  min-width: 0;
+}
+.app-activity {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .col-hot .app-card {
   border-color: #f5c6c8;
@@ -269,20 +494,116 @@ onMounted(load)
   }
 }
 
-/* 手机：5 列 kanban 改为横向滑动，每列固定可读宽度，避免挤成两列错乱 */
-@media (max-width: 640px) {
-  .board {
-    display: flex;
-    grid-template-columns: none;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 6px;
-  }
-  .board-col {
-    flex: 0 0 78%;
-    max-width: 78%;
-    scroll-snap-align: start;
-  }
+/* 手机：阶段分段器 + 单列卡片列表（<640px 用 mobile-pipe，不再渲染 board） */
+.stage-seg {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+}
+.seg-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #64748b;
+  font-size: 13px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.seg-chip.on {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+  font-weight: 600;
+}
+.seg-count {
+  font-size: 11px;
+  background: #e8eaf0;
+  color: #64748b;
+  border-radius: 8px;
+  padding: 0 6px;
+}
+.seg-chip.on .seg-count {
+  background: #c7d2fe;
+  color: #3730a3;
+}
+.mobile-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 暂存区 */
+.holding {
+  background: #fffdf5;
+  border: 1px dashed #fde68a;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.holding-head {
+  font-size: 13px;
+  font-weight: 700;
+  color: #92400e;
+  margin-bottom: 10px;
+}
+.holding-hint {
+  font-weight: 400;
+  color: #b45309;
+  margin-left: 8px;
+  font-size: 12px;
+}
+.holding-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.holding-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.holding-main {
+  min-width: 0;
+}
+.holding-co {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+.holding-role {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.holding-btn {
+  flex-shrink: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  font-family: inherit;
+}
+.holding-btn.promote {
+  color: #4338ca;
+  border-color: #c7d2fe;
+  background: #eef2ff;
+  font-weight: 600;
+}
+.holding-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>
