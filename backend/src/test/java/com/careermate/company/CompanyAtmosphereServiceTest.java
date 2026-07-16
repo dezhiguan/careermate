@@ -111,6 +111,21 @@ class CompanyAtmosphereServiceTest {
     }
 
     @Test
+    void allEmptyAtmosphereMarksUnavailable() {
+        // 知识库无氛围情报：LLM 返回全空字段+无标签，即便 dataAvailable=true 也应兜底为 false（真机发现的 bug）
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleResult());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"companyName":"字节跳动","workIntensity":"","teamReputation":"","interviewStyle":"",
+                 "overtimeSignal":"","cultureTags":[],"aiSummary":"暂无足够情报","dataAvailable":true}
+                """).build());
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphere("字节跳动");
+
+        assertFalse(result.isDataAvailable());
+        assertTrue(result.getCultureTags().isEmpty());
+    }
+
+    @Test
     void invalidJsonReturnsFallback() {
         when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleResult());
         when(llmClient.chat(any(ChatRequest.class)))

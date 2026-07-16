@@ -95,8 +95,13 @@ public class CompanyAtmosphereService {
             if (parsed.getCompanyName() == null || parsed.getCompanyName().isBlank()) {
                 parsed.setCompanyName(safeCompany);
             }
-            parsed.setDataAvailable(true);
             normalizeTags(parsed);
+            // 不依赖 LLM 自觉：氛围维度全空说明知识库无该公司情报 → 明说无据，避免渲染一张全空卡
+            if (isAtmosphereEmpty(parsed)) {
+                log.info("getCompanyAtmosphere: no usable atmosphere signals for company={}, marking unavailable", safeCompany);
+                return fallback(safeCompany);
+            }
+            parsed.setDataAvailable(true);
             attachSources(parsed, ragResult);
             return parsed;
         } catch (Exception e) {
@@ -115,6 +120,20 @@ public class CompanyAtmosphereService {
     private void attachSources(CompanyAtmosphereVO vo, RagRetrieveResult ragResult) {
         vo.setCitations(knowledgeRetrievalService.toMarketCitations(ragResult));
         vo.setSourceSummaries(knowledgeRetrievalService.toSourceSummaries(ragResult));
+    }
+
+    /** 氛围信号是否全空：四个维度均空白且无文化标签 → 视为无据。 */
+    private static boolean isAtmosphereEmpty(CompanyAtmosphereVO vo) {
+        boolean textAllBlank = isBlank(vo.getWorkIntensity())
+                && isBlank(vo.getTeamReputation())
+                && isBlank(vo.getInterviewStyle())
+                && isBlank(vo.getOvertimeSignal());
+        boolean noTags = vo.getCultureTags() == null || vo.getCultureTags().isEmpty();
+        return textAllBlank && noTags;
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     /** 归一化文化标签：剔除空标签，统一情绪极性为 POSITIVE/NEGATIVE/NEUTRAL。 */
