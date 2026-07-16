@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CareerMate 会话与资产模型设计 v1.0</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#161b22; --panel2:#1b2129; --line:#2a323c;
+    --ink:#e6edf3; --ink2:#9aa7b4; --ink3:#6b7785;
+    --brand:#4f8cff; --brand2:#7aa7ff; --good:#3fb950; --warn:#d29922; --bad:#f0603a;
+    --chip:#233042; --radius:12px;
+    --mono:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.7;font-size:15px}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 28px 120px}
+  h1{font-size:30px;margin:0 0 4px;letter-spacing:.3px}
+  h2{font-size:22px;margin:52px 0 14px;padding-top:20px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  h2 .num{color:var(--brand);font-family:var(--mono);font-size:16px;font-weight:700}
+  h3{font-size:17px;margin:28px 0 10px;color:var(--brand2)}
+  h4{font-size:15px;margin:18px 0 8px;color:var(--ink)}
+  p{margin:10px 0}
+  a{color:var(--brand2)}
+  code{font-family:var(--mono);background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12.5px;color:#c9d6e5}
+  .muted{color:var(--ink2)}
+  .small{font-size:13px}
+  .lead{color:var(--ink2);font-size:15.5px}
+  .kbd{font-family:var(--mono);background:var(--chip);border:1px solid var(--line);border-radius:5px;padding:1px 7px;font-size:12px}
+
+  /* header meta */
+  .doc-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:20px 0 8px}
+  .doc-meta div{background:var(--panel);padding:12px 16px}
+  .doc-meta .k{font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px}
+  .doc-meta .v{font-size:14px;margin-top:2px}
+  .status-pill{display:inline-block;background:rgba(210,153,34,.15);color:var(--warn);border:1px solid rgba(210,153,34,.4);border-radius:20px;padding:2px 12px;font-size:12px;font-weight:600}
+
+  /* callouts */
+  .box{border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin:16px 0;background:var(--panel)}
+  .box.brand{border-color:rgba(79,140,255,.4);background:rgba(79,140,255,.07)}
+  .box.good{border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.07)}
+  .box.warn{border-color:rgba(210,153,34,.4);background:rgba(210,153,34,.07)}
+  .box.bad{border-color:rgba(240,96,58,.4);background:rgba(240,96,58,.07)}
+  .box .tag{font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;display:block;margin-bottom:6px}
+  .box.brand .tag{color:var(--brand2)} .box.good .tag{color:var(--good)}
+  .box.warn .tag{color:var(--warn)} .box.bad .tag{color:var(--bad)}
+
+  /* tables */
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--ink);font-weight:600}
+  td.c,th.c{text-align:center}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .yes{color:var(--good);font-weight:700}
+  .no{color:var(--bad);font-weight:700}
+  .maybe{color:var(--warn);font-weight:700}
+
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+
+  /* ADR card */
+  .adr{border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:8px;padding:14px 18px;margin:14px 0;background:var(--panel)}
+  .adr .id{font-family:var(--mono);color:var(--brand);font-size:13px;font-weight:700}
+  .adr .decision{font-weight:600;margin:4px 0 6px;font-size:15.5px}
+
+  /* ===== MOCKUPS ===== */
+  .mock{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:18px 0;background:#0c0f13;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+  .mock-bar{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#12161c;border-bottom:1px solid var(--line)}
+  .mock-bar .dot{width:11px;height:11px;border-radius:50%}
+  .mock-bar .d1{background:#ff5f57}.mock-bar .d2{background:#febc2e}.mock-bar .d3{background:#28c840}
+  .mock-bar .title{margin-left:8px;font-size:12px;color:var(--ink3);font-family:var(--mono)}
+  .mock-cap{font-size:12.5px;color:var(--ink3);padding:8px 14px;border-top:1px dashed var(--line);background:#0a0d11}
+  .app{display:grid;min-height:360px}
+
+  /* app chrome pieces */
+  .side{background:#10151b;border-right:1px solid var(--line);padding:12px 0;font-size:13px}
+  .side .brandrow{display:flex;align-items:center;gap:8px;padding:4px 16px 12px;font-weight:700}
+  .side .logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--brand),#9b6bff);display:inline-block}
+  .side .grp{font-size:11px;color:var(--ink3);letter-spacing:.6px;text-transform:uppercase;padding:12px 16px 4px}
+  .side .item{display:flex;align-items:center;gap:9px;padding:8px 16px;color:var(--ink2);cursor:default}
+  .side .item.active{background:rgba(79,140,255,.12);color:var(--ink);border-left:2px solid var(--brand);padding-left:14px}
+  .side .item .badge{margin-left:auto;font-size:10px;padding:1px 7px;border-radius:10px;background:var(--chip);color:var(--ink2)}
+  .b-hot{background:rgba(240,96,58,.2)!important;color:#ff8a6b!important}
+  .b-int{background:rgba(63,185,80,.2)!important;color:#79d98a!important}
+  .b-off{background:rgba(210,153,34,.2)!important;color:#e5be5a!important}
+
+  .main{display:flex;flex-direction:column}
+  .topfocus{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);background:#0e1218;flex-wrap:wrap}
+  .fchip{font-size:12px;background:var(--chip);border:1px solid var(--line);border-radius:16px;padding:3px 11px;color:var(--ink2);display:inline-flex;gap:6px;align-items:center}
+  .fchip.on{background:rgba(79,140,255,.18);border-color:rgba(79,140,255,.5);color:var(--brand2)}
+  .fchip .k{color:var(--ink3);font-size:11px}
+
+  .chatarea{flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;background:#0c0f13}
+  .msg{max-width:78%;padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.6}
+  .msg.u{align-self:flex-end;background:var(--brand);color:#fff;border-bottom-right-radius:3px}
+  .msg.a{align-self:flex-start;background:var(--panel2);border:1px solid var(--line);border-bottom-left-radius:3px}
+  .msg.a .src{margin-top:7px;font-size:11px;color:var(--ink3);border-top:1px dashed var(--line);padding-top:6px}
+  .msg .card{margin-top:8px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#11161d}
+  .msg .card .t{font-size:11px;color:var(--brand2);font-weight:600}
+
+  .composer{border-top:1px solid var(--line);padding:10px 16px;background:#0e1218}
+  .composer .row{display:flex;gap:8px;align-items:center}
+  .composer .inp{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--ink3);font-size:13px}
+  .composer .send{background:var(--brand);color:#fff;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600}
+  .focusbar{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .focusbar .f{font-size:11.5px;border:1px solid var(--line);border-radius:14px;padding:3px 10px;color:var(--ink2);background:#11161d}
+  .focusbar .f.on{border-color:var(--brand);color:var(--brand2);background:rgba(79,140,255,.12)}
+
+  /* kanban */
+  .kanban{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line)}
+  .kcol{background:#0d1116;padding:10px 8px;min-height:320px}
+  .kcol .h{font-size:12px;font-weight:700;color:var(--ink);display:flex;justify-content:space-between;padding:0 4px 8px}
+  .kcol .h .n{color:var(--ink3);font-weight:500}
+  .kcard{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 10px;margin-bottom:8px}
+  .kcard .co{font-weight:600;font-size:12.5px}
+  .kcard .ro{font-size:11px;color:var(--ink2);margin-top:1px}
+  .kcard .mt{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+  .kcard .m{font-size:10px;color:var(--ink3);background:var(--chip);border-radius:8px;padding:1px 6px}
+  .kcard .warncol{color:#e5be5a}
+
+  /* asset library */
+  .assetgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .apanel{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+  .apanel .ah{padding:10px 14px;border-bottom:1px solid var(--line);font-weight:700;font-size:13.5px;display:flex;justify-content:space-between;align-items:center;background:#11161d}
+  .apanel .ah .pill{font-size:10px;font-weight:600;padding:2px 9px;border-radius:12px}
+  .pill-user{background:rgba(63,185,80,.18);color:#79d98a}
+  .arow{padding:9px 14px;border-bottom:1px solid var(--line);font-size:12.5px;display:flex;justify-content:space-between;align-items:center}
+  .arow:last-child{border-bottom:0}
+  .arow .nm{color:var(--ink)}
+  .arow .tg{font-size:10px;color:var(--ink3);background:var(--chip);border-radius:8px;padding:1px 7px;margin-left:6px}
+  .arow .reuse{font-size:10px;color:var(--brand2);border:1px solid rgba(79,140,255,.4);border-radius:8px;padding:1px 8px}
+
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;margin:10px 0}
+  .flow .n{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 11px}
+  .flow .ar{color:var(--ink3)}
+
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin:8px 0}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+  hr.sep{border:0;border-top:1px solid var(--line);margin:40px 0}
+  .foot{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);color:var(--ink3);font-size:12px}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:820px){.twocol,.assetgrid{grid-template-columns:1fr}.doc-meta{grid-template-columns:1fr 1fr}.kanban{grid-template-columns:1fr 1fr;overflow-x:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="small muted">CareerMate · 产品与架构设计稿</div>
+  <h1>会话与资产模型设计</h1>
+  <p class="lead">从「按场景切工作空间」重构为「以求职机会为一等公民 · 自动分组 · 资产平铺可复用」</p>
+
+  <div class="doc-meta">
+    <div><div class="k">版本</div><div class="v">v1.1</div></div>
+    <div><div class="k">拟制日期</div><div class="v">2026-07-14</div></div>
+    <div><div class="k">拟制角色</div><div class="v">AI 应用架构师 / 产品</div></div>
+    <div><div class="k">状态</div><div class="v"><span class="status-pill">待审核</span></div></div>
+  </div>
+
+  <h3 style="margin-top:24px">修订记录</h3>
+  <table>
+    <tr><th style="width:70px">版本</th><th style="width:110px">日期</th><th>说明</th><th style="width:120px">拟制</th></tr>
+    <tr><td>v1.0</td><td>2026-07-14</td><td>初稿。确立 A+B 会话与资产模型、资产归属红线、页面改版方案、迁移路径与分阶段计划。</td><td>架构 / 产品</td></tr>
+    <tr><td>v1.1</td><td>2026-07-14</td><td>新增「07 Pipeline 状态维护机制」（三层：对话推断 / 一键确认 / 手动兜底），明确 BOSS 集成近期不做的边界；修正 mockup② 中「海投未建档」与懒建档红线的矛盾，改为独立「暂存区」，看板只跟踪有交互的机会。</td><td>架构 / 产品</td></tr>
+  </table>
+
+  <div class="box brand">
+    <span class="tag">一句话结论</span>
+    CareerMate 的一等公民应从「能力场景（简历/JD/面试/薪资 tab）」改为「<b>一个求职机会</b>」。用户体感是「跟小职一直聊」（<b>A：机会内连续、检索式上下文、不切场景</b>），系统在背后按机会<b>自动分组</b>并叠加投递看板与可复用资产（<b>B：自动软分组 + 资产平铺 user 级</b>）。目标不是复刻豆包，而是做<b>豆包做不到</b>的：跨机会复用八股题库、投递进度看板、把简历/面试记录当成一等资产管理。
+  </div>
+
+  <!-- ========================= 1 ========================= -->
+  <h2><span class="num">01</span> 背景与问题</h2>
+  <p>现状（分支 <code>careermate-rebuild-plan-v3</code>）：前端为「机会 / 小职 / 面试准备 / 市场 / 我的」5+1 tab，进入小职时按<b>场景类型</b>（<code>JD_PREP / INTERVIEW / MARKET / RESUME / GENERAL</code>）各自开一条独立会话（<code>agent_sessions</code>），上下文按 <code>≤20 条消息</code> 截断。</p>
+
+  <div class="twocol">
+    <div class="box bad"><span class="tag">痛点</span>
+      <ul style="margin:0">
+        <li><b>对话不连续</b>：切 tab = 换会话 = 小职失忆</li>
+        <li><b>跨场景割裂</b>：同一个岗位的「改简历→面试→谈薪」被拆到 3~5 条失忆会话</li>
+        <li><b>强制选场景类型</b>：一次准备本就横跨所有场景，却逼用户上来选一个 type —— 最反直觉的一处</li>
+        <li><b>串台隐患</b>：<code>≤20 条</code>截断，多机会并行时上下文互相污染</li>
+      </ul>
+    </div>
+    <div class="box"><span class="tag">诊断</span>
+      <p style="margin:0 0 8px">边界画在了错误的轴上：把「<b>知识库/场景的边界</b>」当成了「<b>会话的边界</b>」。</p>
+      <p style="margin:0">而求职是一条<b>跨库的连续任务线</b>——用户心智是「我在准备<b>某个岗位</b>」，不是「我在用薪资功能」。会话数量应等于<b>用户真实在准备的机会数</b>，而非「场景数 × 机会数」。</p>
+    </div>
+  </div>
+
+  <!-- ========================= 2 ========================= -->
+  <h2><span class="num">02</span> 设计目标与非目标</h2>
+  <table>
+    <tr><th style="width:50%">目标（In Scope）</th><th>非目标（Out of Scope）</th></tr>
+    <tr>
+      <td>
+        <ul style="margin:0">
+          <li>机会内对话连续、跨场景不失忆</li>
+          <li>多机会并行不串台</li>
+          <li>零归档负担：系统自动按机会分组</li>
+          <li>资产 user 级平铺、跨机会可复用</li>
+          <li>投递进度看板（替代用户手工 Excel）</li>
+          <li>抗海投：浏览零建档、懒创建</li>
+        </ul>
+      </td>
+      <td>
+        <ul style="margin:0">
+          <li>不重建重量级「工作空间向导」（选 type / 填表单）</li>
+          <li>不做时间旅行 / from-checkpoint fork（沿用 v3.1 降级口径）</li>
+          <li>不在本轮改动 RAGForge 五库结构（<code>scene→kbId</code> 复用现状）</li>
+          <li>不改鉴权 / 组织 / 计费主链路</li>
+        </ul>
+      </td>
+    </tr>
+  </table>
+
+  <!-- ========================= 3 ========================= -->
+  <h2><span class="num">03</span> 核心决策：A+B 模型</h2>
+
+  <div class="adr">
+    <div class="id">ADR-C1 · 一等公民</div>
+    <div class="decision">组织单位 = 「求职机会（Opportunity / Target）」，不是能力场景。</div>
+    <p class="muted small" style="margin:0">机会 = 一次针对具体岗位/公司的准备。JD 只是它<b>可选的附件与冻结快照</b>——兼容内推、海投等无干净 JD 的入口。参照成熟 CRM / 招聘 pipeline 工具，一等对象永远是「一个 opportunity」，而非「一个功能模块」。</p>
+  </div>
+
+  <div class="adr">
+    <div class="id">ADR-C2 · 会话组织（B：自动软分组）</div>
+    <div class="decision">一机会一条连续会话，由系统<b>自动</b>成组，用户从不「手动建工作空间」。</div>
+    <p class="muted small" style="margin:0">当用户真正开始「为某机会干活」（定制简历 / 准备面试）时，系统懒创建一条轻量会话线并归到该机会名下。用户永远只是在「跟小职聊天」；回看时「我的准备」自动列出各机会。<b>废弃「选场景 type」动作。</b></p>
+  </div>
+
+  <div class="adr">
+    <div class="id">ADR-C3 · 上下文装配（A：检索式，不截断）</div>
+    <div class="decision">机会内上下文由「当前机会全量 + 相关历史检索」装配，<b>废弃 ≤20 条硬截断</b>。</div>
+    <p class="muted small" style="margin:0">串台的病根是截断而非「单线程」本身。将 <code>MessageChatMemoryAdvisor</code> 升级为「机会作用域 + 检索式」记忆装配：机会内连续不切场景（用户贴 JD→生成简历→分析→面试 一气呵成），跨机会天然隔离。</p>
+  </div>
+
+  <h3>为什么不是「一条全局线」、也不是「像豆包一样手动新建对话」</h3>
+  <p class="small muted">豆包 / DeepSeek 在一条会话里连续处理<b>单个</b>岗位之所以不串台，靠两点：① 全量喂上下文（不做 20 条截断）；② 多岗位时<b>用户下意识「新建对话」</b>手动分组。即它本质也是「一岗一会话」，只是让用户手动折叠。垂类产品若只做全局线则<b>比豆包更差</b>，只做手动工作空间则<b>与豆包打平</b>——都没有存在理由。</p>
+
+  <table>
+    <tr>
+      <th>维度</th>
+      <th class="c">一条全局线</th>
+      <th class="c">豆包 / DeepSeek</th>
+      <th class="c">CareerMate 目标（A+B）</th>
+    </tr>
+    <tr><td>机会内连续（贴JD→简历→面试）</td><td class="c maybe">✔ 但易被截断污染</td><td class="c yes">✔</td><td class="c yes">✔</td></tr>
+    <tr><td>多机会不串台</td><td class="c no">✘ 全糊一起</td><td class="c maybe">△ 靠用户手动新建对话</td><td class="c yes">✔ 自动分组</td></tr>
+    <tr><td>归档负担</td><td class="c yes">零</td><td class="c no">✘ 手动新建/命名</td><td class="c yes">零（系统自动）</td></tr>
+    <tr><td>跨机会复用八股题库</td><td class="c no">✘</td><td class="c no">✘ 困在某条线</td><td class="c yes">✔ 资产 user 级</td></tr>
+    <tr><td>投递进度看板</td><td class="c no">✘</td><td class="c no">✘ 仅倒序对话列表</td><td class="c yes">✔ pipeline</td></tr>
+    <tr><td>结构化资产（简历版本/面试记录）</td><td class="c no">✘</td><td class="c no">✘ 埋在聊天文本</td><td class="c yes">✔ 一等对象</td></tr>
+  </table>
+  <div class="box good"><span class="tag">差异化立论</span>一个垂类求职助手<b>不比通用助手强，就没有存在的理由</b>。CareerMate 的护城河正是豆包做不到的三件事：把散落八股攒成<b>可复用题库</b>、把多机会铺成<b>投递看板</b>、把简历版本/面试记录当成<b>可管理的资产</b>而非聊天记录。</div>
+
+  <!-- ========================= 4 ========================= -->
+  <h2><span class="num">04</span> 资产归属模型（已核实现状）</h2>
+  <p class="small muted">下表基于 <code>src/main/resources/db/migration/</code> 源文件核实。核心原则：<b>会话是「过程」，可归档可清；资产是「产出」，永久属于 user，与机会/会话生死无关。</b></p>
+
+  <table>
+    <tr><th>数据</th><th>归属键</th><th class="c">删会话</th><th class="c">性质</th><th>证据</th></tr>
+    <tr><td>简历 + 简历版本</td><td><code>user_id</code></td><td class="c yes">保留</td><td class="c">资产·长存</td><td class="small">V13，无 session 外键 / 无 CASCADE</td></tr>
+    <tr><td>职业档案</td><td><code>user_id</code> UNIQUE</td><td class="c yes">保留</td><td class="c">资产·长存</td><td class="small">V7</td></tr>
+    <tr><td>长期记忆（A4 pgvector）</td><td><code>user_id</code></td><td class="c yes">保留</td><td class="c">资产·长存</td><td class="small">V32，软删，无 session 字段</td></tr>
+    <tr><td>职业任务</td><td><code>user_id</code></td><td class="c yes">保留</td><td class="c">资产·长存</td><td class="small">V8，软删</td></tr>
+    <tr><td>面试模拟记录</td><td><code>user_id</code></td><td class="c yes">保留</td><td class="c">资产·长存</td><td class="small">V6，独立于 agent_sessions</td></tr>
+    <tr><td>对话消息历史</td><td><code>session_id</code></td><td class="c no">CASCADE 删</td><td class="c maybe">过程</td><td class="small">V2，ON DELETE CASCADE</td></tr>
+    <tr><td>工具调用 / 任务状态</td><td><code>session_id</code></td><td class="c no">CASCADE 删</td><td class="c">过程</td><td class="small">V2</td></tr>
+    <tr><td>workspace_metadata (JSONB)</td><td><code>session_id</code></td><td class="c no">随会话删</td><td class="c maybe">上下文快照</td><td class="small">V17，挂 agent_sessions</td></tr>
+  </table>
+
+  <div class="box good"><span class="tag">好消息</span>当前代码中<b>不存在</b>删除 <code>agent_sessions</code> 的逻辑（全量 grep 无 <code>DELETE FROM agent_sessions</code>、无归档）。今天没有任何资产在丢失——「资产消失」是尚未定型的<b>假想风险</b>，正好在本设计里定对。</div>
+
+  <h3>三条资产红线（本设计强制约束）</h3>
+  <div class="box warn"><span class="tag">红线</span>
+    <ol style="margin:0">
+      <li><b>会话只归档不硬删</b>：引入 <code>status=ARCHIVED</code> 软删，连对话历史都可回看，彻底消除「资产消失」焦虑。</li>
+      <li><b>凡用户会当资产的东西，一律建独立 user-owned 表</b>，<u>严禁</u>塞进 <code>workspace_metadata</code> JSONB（该字段仅存可重建的上下文快照）。</li>
+      <li><b>浏览零副作用</b>：点开 JD / 海投打招呼<u>不建任何会话</u>，仅「开始为此机会干活」才懒创建。</li>
+    </ol>
+  </div>
+
+  <h3>中国国情化：面试资产天生两层</h3>
+  <div class="twocol">
+    <div class="box"><span class="tag">通用八股题库（user 级 · 跨机会复用）</span>Java 并发、MySQL 索引、算法题、行为面 STAR 库……<b>不属于任何单个机会</b>，是用户最大的一坨可复用资产。这是「资产平铺 user_id」在中国场景下最强的理由。</div>
+    <div class="box"><span class="tag">机会专项（机会标签）</span>「字节爱考什么」「这家的面经」……通过 <code>target_id</code> / <code>jd_id</code> 标签归位到具体机会。</div>
+  </div>
+  <p class="small muted">平铺 user_id + 可选机会标签 = 两者同时满足：八股全局复用、专项按机会归位。旧的「场景硬隔离工作空间」会把八股困死在某条会话里，换个公司又要重来——在中国海投场景下是明确的错误。</p>
+
+  <!-- ========================= 5 ========================= -->
+  <h2><span class="num">05</span> 目标信息架构与页面改版</h2>
+  <h3>导航重构</h3>
+  <div class="flow">
+    <span class="muted small">现状：</span>
+    <span class="n">机会</span><span class="ar">·</span><span class="n">小职</span><span class="ar">·</span><span class="n">面试准备</span><span class="ar">·</span><span class="n">市场</span><span class="ar">·</span><span class="n">我的</span>
+  </div>
+  <div class="flow">
+    <span class="muted small">目标：</span>
+    <span class="n">机会流<span class="muted small">（发现·海投）</span></span><span class="ar">→</span>
+    <span class="n">我的准备<span class="muted small">（pipeline 看板）</span></span><span class="ar">→</span>
+    <span class="n">小职<span class="muted small">（机会内连续会话）</span></span><span class="ar">→</span>
+    <span class="n">资产库<span class="muted small">（简历版本·八股题库）</span></span><span class="ar">→</span>
+    <span class="n">我的</span>
+  </div>
+  <p class="small muted">原「面试准备 / 市场」不再是独立 tab，降级为<b>机会内的焦点（focus）</b>与<b>资产库的分区</b>。「面试准备」= 通用八股题库（资产库）+ 机会内面试焦点；「市场」= 机会内薪资焦点 + 行情检索。</p>
+
+  <!-- Mockup 1 -->
+  <h3>改版① 小职主界面 —— 自动分组侧栏 + 机会内焦点切换</h3>
+  <div class="mock">
+    <div class="mock-bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app / chat</span></div>
+    <div class="app" style="grid-template-columns:210px 1fr">
+      <!-- sidebar -->
+      <div class="side">
+        <div class="brandrow"><span class="logo"></span> 小职 CareerMate</div>
+        <div class="item"><span>＋ 新对话</span></div>
+        <div class="grp">我的准备（自动分组）</div>
+        <div class="item active">🔥 字节 · 后端Java<span class="badge b-hot">面试中</span></div>
+        <div class="item">📄 阿里 · P6<span class="badge">改简历</span></div>
+        <div class="item">💬 小红书 · Java<span class="badge b-int">约面</span></div>
+        <div class="item">💰 美团 · 后端<span class="badge b-off">谈薪</span></div>
+        <div class="grp">通用对话</div>
+        <div class="item">🧭 帮我看看适合投什么</div>
+      </div>
+      <!-- main -->
+      <div class="main">
+        <div class="topfocus">
+          <span class="muted small">当前机会：</span>
+          <span class="fchip on"><span class="k">JD</span> 字节·后端Java·P2-1</span>
+          <span class="fchip"><span class="k">简历</span> v3（已定制）</span>
+          <span class="fchip"><span class="k">阶段</span> 二面后·待谈薪</span>
+        </div>
+        <div class="chatarea">
+          <div class="msg u">这轮面试大概会问什么？</div>
+          <div class="msg a">结合这条 JD 和你的 v3 简历，二面偏系统设计。高频方向：①分库分表 ②高并发下的缓存一致性 ③你简历里写的那个订单系统的削峰。
+            <div class="card"><div class="t">📚 已从你的通用八股题库引用 3 题</div><div class="small muted" style="margin-top:2px">缓存一致性 · 分库分表 · 消息队列削峰（可复用到其他机会）</div></div>
+            <div class="src">来源：面试题库#596 · 目标公司库#595 · 你的简历 v3</div>
+          </div>
+          <div class="msg u">那给到 35K 合理吗？</div>
+          <div class="msg a">（小职仍在「字节」这条线，未串台）按你所在城市 + 这个岗位职级，35K 在 P25–P50…
+            <div class="src">来源：薪资行情库#597（焦点已自动切至薪资，会话未中断）</div>
+          </div>
+        </div>
+        <div class="composer">
+          <div class="row"><div class="inp">继续问字节这个岗位…</div><div class="send">发送</div></div>
+          <div class="focusbar">
+            <span class="muted small" style="align-self:center">焦点：</span>
+            <span class="f">JD分析</span><span class="f on">面试</span><span class="f on">薪资</span><span class="f">改简历</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mock-cap">要点：左栏「我的准备」由系统自动按机会分组并打阶段标签；顶部 chip 显示当前机会锚点；底部「焦点」是<b>会话内的检索信号</b>（可多选），切焦点<b>不新建会话、不中断对话</b>——取代原来的场景 tab。</div>
+  </div>
+
+  <!-- Mockup 2 -->
+  <h3>改版② 我的准备 —— 投递进度看板（替代手工 Excel）</h3>
+  <div class="mock">
+    <div class="mock-bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app / pipeline</span></div>
+    <div class="kanban">
+      <div class="kcol"><div class="h"><span>准备/投递</span><span class="n">2</span></div>
+        <div class="kcard"><div class="co">腾讯 · IEG</div><div class="ro">后端开发</div><div class="mt"><span class="m">已定制简历</span></div></div>
+        <div class="kcard"><div class="co">快手 · 商业化</div><div class="ro">Java</div><div class="mt"><span class="m">今天问过小职</span></div></div>
+        <div class="small muted" style="text-align:center;padding:8px 4px;border-top:1px dashed var(--line);margin-top:6px">📌 暂存区：收藏但未动的 JD × 6<br><span style="font-size:10px">（不占看板 · 一键转为机会）</span></div>
+      </div>
+      <div class="kcol"><div class="h"><span>约面</span><span class="n">2</span></div>
+        <div class="kcard"><div class="co">小红书</div><div class="ro">Java · 一面</div><div class="mt"><span class="m">周四 14:00</span><span class="m">简历v2</span></div></div>
+      </div>
+      <div class="kcol"><div class="h"><span>面试中</span><span class="n">1</span></div>
+        <div class="kcard" style="border-color:rgba(240,96,58,.5)"><div class="co">字节 · 后端Java</div><div class="ro">P2-1 · 二面已完成</div><div class="mt"><span class="m">简历v3</span><span class="m">面经×3</span></div></div>
+      </div>
+      <div class="kcol"><div class="h"><span>Offer/谈薪</span><span class="n">1</span></div>
+        <div class="kcard" style="border-color:rgba(210,153,34,.5)"><div class="co">美团 · 后端</div><div class="ro">口头 offer</div><div class="mt"><span class="m warncol">待谈薪</span><span class="m">32K?</span></div></div>
+      </div>
+      <div class="kcol"><div class="h"><span>已结束</span><span class="n">3</span></div>
+        <div class="kcard" style="opacity:.55"><div class="co">拼多多</div><div class="ro">已婉拒</div></div>
+        <div class="kcard" style="opacity:.55"><div class="co">滴滴</div><div class="ro">流程终止</div></div>
+      </div>
+    </div>
+    <div class="mock-cap">要点：阶段贴中国求职流程（准备/投递 → 约面 → 面试中 → Offer/谈薪 → 已结束）。<b>看板只跟踪「与小职有过交互」的机会</b>；纯海投打招呼 CareerMate 看不到、也不进看板，仅「收藏未动的 JD」进独立暂存区（一键转机会）。卡片阶段由「对话推断 + 一键确认」自动维护（见 07 节），非手工填表。点卡片即进入该机会的小职会话线。</div>
+  </div>
+
+  <!-- Mockup 3 -->
+  <h3>改版③ 资产库 —— 平铺 user 级 · 跨机会可复用</h3>
+  <div class="mock">
+    <div class="mock-bar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app / assets</span></div>
+    <div style="padding:16px;background:#0c0f13">
+      <div class="assetgrid">
+        <div class="apanel">
+          <div class="ah">简历版本 <span class="pill pill-user">USER · 长存</span></div>
+          <div class="arow"><span><span class="nm">通用·后端主简历</span><span class="tg">base</span></span><span class="reuse">复用</span></div>
+          <div class="arow"><span><span class="nm">v3 · 字节定制</span><span class="tg">→字节</span></span><span class="reuse">复用</span></div>
+          <div class="arow"><span><span class="nm">v2 · 小红书定制</span><span class="tg">→小红书</span></span><span class="reuse">复用</span></div>
+          <div class="arow"><span class="muted small">删机会 / JD 下架，版本均保留（无级联）</span></div>
+        </div>
+        <div class="apanel">
+          <div class="ah">通用八股题库 <span class="pill pill-user">USER · 跨机会</span></div>
+          <div class="arow"><span class="nm">缓存一致性（含手写答案）</span><span class="reuse">已用于 3 机会</span></div>
+          <div class="arow"><span class="nm">分库分表</span><span class="reuse">已用于 2 机会</span></div>
+          <div class="arow"><span class="nm">JVM GC 调优</span><span class="reuse">已用于 1 机会</span></div>
+          <div class="arow"><span class="nm">STAR·订单削峰故事</span><span class="reuse">行为面通用</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="mock-cap">要点：所有资产标注 <b>USER 归属</b>，与机会/会话生死无关。八股题库<b>跨机会累积复用</b>——这是通用助手（豆包）做不到的核心差异；简历版本带机会标签但归属仍是 user。</div>
+  </div>
+
+  <!-- ========================= 06 pipeline maintenance ========================= -->
+  <h2><span class="num">06</span> Pipeline 状态维护机制</h2>
+  <div class="box brand"><span class="tag">设计立场</span>看板的阶段是「<b>用户与小职对话的副产品</b>」，不是另一张需要手工维护的进度表。用户为每个机会本就在跟小职聊，系统即可从「聊什么」反推阶段——<b>用着用着看板就维护好了</b>。凡是「另一个要手动更新的进度表」最终都会像 Excel 一样被弃用，本机制的第一原则就是<b>规避这一点</b>。</div>
+
+  <h3>三层维护机制</h3>
+  <h4>第一层 · 对话推断（主力 · 零动作）</h4>
+  <p class="small muted">从用户对小职的意图自动推进阶段，覆盖 CareerMate 真正参与的环节：</p>
+  <table>
+    <tr><th>用户对小职的动作 / 意图</th><th style="width:150px">自动推进到</th><th style="width:110px" class="c">动作成本</th></tr>
+    <tr><td>让小职定制简历 / 生成投递版本</td><td>准备 / 投递</td><td class="c yes">零</td></tr>
+    <tr><td>「帮我准备 X 的面试」/ 跑模拟面试 / 查这家面经</td><td>面试中</td><td class="c yes">零</td></tr>
+    <tr><td>「给 35K 合理吗」/「怎么谈」/ 谈薪意图</td><td>Offer / 谈薪</td><td class="c yes">零</td></tr>
+    <tr><td>某机会 N 天无任何交互</td><td class="maybe">仅提示，不自动改</td><td class="c">—</td></tr>
+  </table>
+
+  <h4>第二层 · 一键确认（补平台外空白 · 单击）</h4>
+  <p class="small muted">平台外发生的事（HR 在 BOSS 约面、笔试通过）CareerMate 观测不到 → 小职<b>主动提示 + 用户单击</b>确认，例如：「字节二面过了吗？」→ 点【过了】即进 Offer 列。<b>是单击，不是填表。</b></p>
+
+  <h4>第三层 · 手动兜底（少数例外）</h4>
+  <p class="small muted">拖卡 / 改阶段，给系统推断不到的场景留口子。永远可用，但应是例外而非常态。</p>
+
+  <div class="box warn"><span class="tag">边界修正（对齐懒建档红线）</span>
+    <ul style="margin:0">
+      <li><b>看板只跟踪「与小职有过交互」的机会</b>。纯海投打招呼在 BOSS 平台内发生，CareerMate 看不到，<u>不进看板</u>——否则是既跟踪不到、跟踪了也是死数据。</li>
+      <li>用户「收藏但还没动」的 JD 进<b>独立暂存区</b>（不占 pipeline，一键转为机会），与「正在准备的机会」分开，避免看板被灌水。</li>
+      <li>（已据此修正 mockup② 中原「海投 12 / 未建档 10」的口径。）</li>
+    </ul>
+  </div>
+
+  <div class="box bad"><span class="tag">明确不做（近期）</span>
+    <b>深度集成 BOSS / 邮箱自动同步阶段</b>：源头在外部平台、BOSS 抓取受风控脆弱（历史 code 36/37）、成本高且收益不稳，列为<b>长期可选</b>，不进 C 阶段。近期仅靠「对话推断 + 一键确认」两层覆盖绝大多数真实维护动作。
+  </div>
+
+  <!-- ========================= 07 migration ========================= -->
+  <h2><span class="num">07</span> 数据模型迁移（从 5-type 会话 → 机会锚会话）</h2>
+  <table>
+    <tr><th>项</th><th>现状</th><th>目标</th></tr>
+    <tr><td>组织锚点</td><td>无独立机会实体；靠 <code>agent_sessions.jd_id</code></td><td>新增 <code>opportunities</code>（target）表：<code>id / user_id / company / role / jd_id? / stage / created_at</code>；机会为一等对象</td></tr>
+    <tr><td><code>workspace_type</code></td><td>会话<b>隔离键</b>（5 种 type 各自建会话）</td><td>降为<b>元数据标签</b>；不再作为隔离维度</td></tr>
+    <tr><td>会话 ↔ 机会</td><td>一场景一会话</td><td><code>agent_sessions.opportunity_id</code> 外键；<b>一机会一条连续会话</b></td></tr>
+    <tr><td>场景 / scene</td><td>固化在 session 级（type）</td><td>下沉到 <b>message 级 focus</b>；驱动现有 <code>scene→kbId</code> 路由，逐条消息决定查库</td></tr>
+    <tr><td>上下文装配</td><td><code>≤20 条</code>硬截断</td><td>机会作用域 + 检索式记忆装配（升级 Advisor）</td></tr>
+    <tr><td>会话删除</td><td>无删除逻辑（但外键带 CASCADE）</td><td>软删 <code>status=ARCHIVED</code>；<b>禁止硬删</b>；归档不动任何 user 资产</td></tr>
+    <tr><td>资产入口</td><td>散落在各 tab</td><td>统一「资产库」；红线：资产不进 <code>workspace_metadata</code></td></tr>
+  </table>
+
+  <div class="box"><span class="tag">迁移安全性</span>历史数据可平滑迁移：为存量会话按其 <code>jd_id</code> / 用户回填生成机会实体并聚合到同一条机会线；无 <code>jd_id</code> 的历史会话归入「通用对话」。<b>资产表零改动</b>（已是 user-owned），迁移只动会话/新增机会实体，风险可控。参照记忆中「从 V29 迁移」的既定口径推进。</div>
+
+  <!-- ========================= 08 ========================= -->
+  <h2><span class="num">08</span> 分阶段落地计划</h2>
+  <table>
+    <tr><th style="width:70px">阶段</th><th>目标</th><th style="width:150px">目标日期</th><th style="width:110px">前端</th></tr>
+    <tr><td><b>C0</b></td><td>模型定稿评审 + 数据模型设计（机会实体 / 会话软删 / message-focus 字段）</td><td>2026-07-15 ~ 07-16</td><td>—</td></tr>
+    <tr><td><b>C1</b></td><td>后端：机会实体 + 会话挂机会 + 软删（归档）+ 资产红线守卫；存量迁移脚本</td><td>2026-07-17 ~ 07-21</td><td>—</td></tr>
+    <tr><td><b>C2</b></td><td>上下文装配升级（检索式记忆 Advisor，替代 20 条截断）+ scene 下沉 message-focus</td><td>2026-07-22 ~ 07-25</td><td>焦点条</td></tr>
+    <tr><td><b>C3</b></td><td>前端改版①自动分组会话 + ②投递看板 + ③资产库（八股题库/简历版本）</td><td>2026-07-26 ~ 08-02</td><td>三处改版</td></tr>
+    <tr><td><b>C4</b></td><td>灰度 + 存量迁移验证 + 生产实测（Playwright 验收）</td><td>2026-08-03 ~ 08-05</td><td>验收</td></tr>
+  </table>
+  <p class="small muted">时序建议：C0–C2 底座变更宜<b>先于/并行于 A3 反思闭环</b>落地——趁编排层尚未在旧的「5-type 会话」边界上叠更多逻辑，此时改抽象成本最低（详见记忆「趁 A2/A3 未摞逻辑时改最便宜」）。C3 前端可与后端并行推进。</p>
+
+  <!-- ========================= 09 ========================= -->
+  <h2><span class="num">09</span> 风险与降级</h2>
+  <table>
+    <tr><th style="width:220px">风险</th><th>缓解 / 降级</th></tr>
+    <tr><td>检索式上下文装配复杂度上升、可能漏召回关键上文</td><td>降级：机会内<b>全量</b>喂（机会消息量通常可控）；仅超长机会启用检索式；保留「本机会全部消息」兜底注入</td></tr>
+    <tr><td>自动分组误判（把 A 机会消息归到 B）</td><td>提供「移动到其他机会 / 合并机会」轻量操作；新机会以显式「开始准备」为强信号，弱信号仅提示不自动切</td></tr>
+    <tr><td>存量会话迁移错聚</td><td>迁移脚本 dry-run + 抽样核对；无法归并者保留原样落「通用对话」，不丢数据</td></tr>
+    <tr><td>看板阶段与真实流程不符（如校招含笔试）</td><td>阶段可配置；预置社招/校招两套模板</td></tr>
+  </table>
+
+  <!-- ========================= 10 ========================= -->
+  <h2><span class="num">10</span> 待确认决策点（请审核拍板）</h2>
+  <ol>
+    <li><b>机会自动分组的触发强度</b>：以「显式点击开始准备」为唯一强触发（保守，推荐），还是允许「检测到贴入新 JD」即弱提示新建机会？</li>
+    <li><b>上下文装配</b>：C2 直接上检索式，还是先用「机会内全量」过渡、超长再切检索式（推荐，先简后繁）？</li>
+    <li><b>看板阶段模板</b>：首版只做社招 5 阶段，校招（含网申/笔试）延后；是否认可？</li>
+    <li><b>面试模拟记录</b>是否也纳入「资产库」统一呈现（现独立于 agent_sessions，已 user-owned）？</li>
+    <li><b>C0–C2 与 A3 的时序</b>：是否同意本底座变更优先/并行于 A3 反思闭环落地？</li>
+  </ol>
+
+  <div class="foot">
+    CareerMate · 会话与资产模型设计 v1.0 · 拟制 2026-07-14 · 状态：待审核<br>
+    关联文档：<code>careermate-agent-rebuild-v3-product-first.html</code>（V3.1 产品优先定版） · 本稿聚焦会话/资产模型，不改 RAGForge 五库与鉴权主链路。
+  </div>
+
+</div>
+</body>
+</html>

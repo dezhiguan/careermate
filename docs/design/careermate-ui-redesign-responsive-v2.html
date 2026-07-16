@@ -1,0 +1,1877 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CareerMate 全 Tab UI 改版 · Web / 移动端 v2.0</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#161b22; --panel2:#1b2129; --line:#2a323c;
+    --ink:#e6edf3; --ink2:#9aa7b4; --ink3:#6b7785;
+    --brand:#4f8cff; --brand2:#7aa7ff; --violet:#8b6bff;
+    --good:#3fb950; --warn:#d29922; --bad:#f0603a;
+    --chip:#233042; --radius:12px;
+    --mono:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.7;font-size:15px}
+  .wrap{max-width:1160px;margin:0 auto;padding:48px 28px 120px}
+  h1{font-size:30px;margin:0 0 4px}
+  h2{font-size:22px;margin:56px 0 14px;padding-top:20px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  h2 .num{color:var(--brand);font-family:var(--mono);font-size:15px;font-weight:700;background:rgba(79,140,255,.12);border:1px solid rgba(79,140,255,.3);border-radius:7px;padding:2px 9px}
+  h3{font-size:16px;margin:22px 0 10px;color:var(--brand2);display:flex;align-items:center;gap:8px}
+  .plat{font-size:10px;font-weight:700;border-radius:6px;padding:2px 8px;letter-spacing:.5px}
+  .plat.web{background:rgba(79,140,255,.15);color:var(--brand2);border:1px solid rgba(79,140,255,.35)}
+  .plat.mob{background:rgba(139,107,255,.15);color:#b39bff;border:1px solid rgba(139,107,255,.35)}
+  p{margin:10px 0}
+  code{font-family:var(--mono);background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12.5px;color:#c9d6e5}
+  .muted{color:var(--ink2)} .small{font-size:13px} .lead{color:var(--ink2);font-size:15.5px}
+
+  .doc-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:20px 0 8px}
+  .doc-meta div{background:var(--panel);padding:12px 16px}
+  .doc-meta .k{font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px}
+  .doc-meta .v{font-size:14px;margin-top:2px}
+  .status-pill{display:inline-block;background:rgba(210,153,34,.15);color:var(--warn);border:1px solid rgba(210,153,34,.4);border-radius:20px;padding:2px 12px;font-size:12px;font-weight:600}
+
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);font-weight:600}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  ul,ol{margin:9px 0;padding-left:22px} li{margin:5px 0}
+
+  .box{border:1px solid var(--line);border-radius:var(--radius);padding:15px 18px;margin:14px 0;background:var(--panel)}
+  .box.brand{border-color:rgba(79,140,255,.4);background:rgba(79,140,255,.07)}
+  .box .tag{font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;display:block;margin-bottom:6px;color:var(--brand2)}
+
+  /* ===== shared bits ===== */
+  .filt{font-size:11.5px;background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:3px 11px;color:var(--ink2);white-space:nowrap}
+  .filt.on{border-color:var(--brand);color:var(--brand2);background:rgba(79,140,255,.12)}
+  .btn{border-radius:9px;padding:7px 14px;font-size:12.5px;font-weight:600}
+  .btn.p{background:var(--brand);color:#fff;flex:1;text-align:center}
+  .btn.g{background:transparent;border:1px solid var(--line);color:var(--ink2)}
+
+  /* opportunity card (shared) */
+  .opp{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px}
+  .opp .top{display:flex;gap:10px;align-items:flex-start}
+  .opp .ava{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#3a4a6b,#2b3450);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex:0 0 auto}
+  .opp .co{font-weight:700;font-size:14px}
+  .opp .ro{font-size:12px;color:var(--ink2);margin-top:1px}
+  .opp .sal{font-size:12px;color:#e5be5a;margin-top:3px;font-weight:600}
+  .opp .score{margin-left:auto;text-align:center;flex:0 0 auto}
+  .opp .ring{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;border:3px solid}
+  .opp .lbl{font-size:9.5px;color:var(--ink3);margin-top:2px}
+  .ring.hi{border-color:var(--good);color:#79d98a} .ring.mid{border-color:var(--warn);color:#e5be5a}
+  .opp .hit{font-size:11px;margin-top:9px;color:var(--ink2)}
+  .opp .hit .g{color:var(--good)} .opp .hit .m{color:var(--bad)}
+  .opp .act{display:flex;gap:8px;margin-top:11px;align-items:center}
+  .opp .meta{font-size:10.5px;color:var(--ink3);margin-top:7px}
+
+  /* ============ WEB frame ============ */
+  .webmock{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:14px 0;background:#0c0f13;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+  .mbar{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#12161c;border-bottom:1px solid var(--line)}
+  .mbar .dot{width:11px;height:11px;border-radius:50%}
+  .d1{background:#ff5f57}.d2{background:#febc2e}.d3{background:#28c840}
+  .mbar .title{margin-left:8px;font-size:12px;color:var(--ink3);font-family:var(--mono)}
+  .cap{font-size:12px;color:var(--ink3);padding:9px 14px;border-top:1px dashed var(--line);background:#0a0d11}
+  .webapp{display:grid;grid-template-columns:158px 1fr;min-height:390px}
+  .wside{background:#0a0d12;border-right:1px solid var(--line);padding:12px 8px;display:flex;flex-direction:column}
+  .wside .logo{display:flex;align-items:center;gap:8px;font-weight:800;padding:4px 8px 14px;font-size:14px}
+  .wside .logo .b{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--brand),var(--violet));display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px}
+  .wside .wi{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;color:var(--ink3);font-size:13px}
+  .wside .wi .ic{font-size:15px;width:18px;text-align:center}
+  .wside .wi.on{background:rgba(79,140,255,.14);color:var(--brand2)}
+  .wside .grp{font-size:9.5px;color:var(--ink3);padding:12px 11px 4px;text-transform:uppercase;letter-spacing:.6px}
+  .wside .grow{flex:1}
+  .wcontent{display:flex;flex-direction:column;min-width:0}
+  .whead{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--line);background:#0e1218}
+  .whead .ttl{font-size:16px;font-weight:700}
+  .wsearch{flex:1;max-width:380px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 12px;color:var(--ink3);font-size:12px}
+  .wbody{padding:15px 18px;background:#0c0f13;flex:1}
+  .filters{display:flex;gap:8px;margin-bottom:13px;flex-wrap:wrap}
+  .oppgrid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+  /* ============ MOBILE frame ============ */
+  .phones{display:flex;gap:22px;flex-wrap:wrap;justify-content:center;margin:14px 0}
+  .phone{width:296px;border:9px solid #191e26;border-radius:38px;overflow:hidden;background:#0c0f13;box-shadow:0 12px 34px rgba(0,0,0,.45);flex:0 0 auto}
+  .pstatus{height:26px;background:#0e1218;display:flex;align-items:center;justify-content:center;position:relative}
+  .pstatus::after{content:"";width:74px;height:16px;background:#191e26;border-radius:0 0 12px 12px;position:absolute;top:0}
+  .phead{display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--line);background:#0e1218}
+  .phead .pt{font-size:15px;font-weight:700} .phead .r{margin-left:auto;color:var(--ink3);font-size:14px}
+  .pbody{height:452px;overflow:hidden;background:#0c0f13;padding:12px 12px 4px}
+  .pfilters{display:flex;gap:7px;overflow:hidden;margin-bottom:11px}
+  .tabbar{display:flex;border-top:1px solid var(--line);background:#0e1218}
+  .tabbar .t{flex:1;text-align:center;padding:7px 0 9px;font-size:9.5px;color:var(--ink3)}
+  .tabbar .t .ic{font-size:17px;display:block;margin-bottom:1px}
+  .tabbar .t.on{color:var(--brand2)}
+  .pcap{text-align:center;font-size:11.5px;color:var(--ink3);margin-top:8px;max-width:296px}
+
+  /* kanban (web) */
+  .kanban{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border-radius:10px;overflow:hidden}
+  .kcol{background:#0d1116;padding:9px 7px;min-height:290px}
+  .kcol .kh{font-size:11.5px;font-weight:700;display:flex;justify-content:space-between;padding:0 3px 7px}
+  .kcol .kh .n{color:var(--ink3);font-weight:500}
+  .kcard{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 9px;margin-bottom:7px}
+  .kcard .co{font-weight:600;font-size:12px} .kcard .ro{font-size:10.5px;color:var(--ink2);margin-top:1px}
+  .kcard .mt{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
+  .kcard .m{font-size:9.5px;color:var(--ink3);background:var(--chip);border-radius:7px;padding:1px 6px}
+  .warncol{color:#e5be5a}
+  /* mobile stage segmented */
+  .seg{display:flex;gap:6px;overflow:hidden;margin-bottom:11px}
+  .seg .s{font-size:11px;padding:5px 10px;border-radius:14px;background:var(--panel2);border:1px solid var(--line);color:var(--ink2);white-space:nowrap}
+  .seg .s.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .mcardlist .kcard{margin-bottom:9px}
+
+  /* chat web */
+  .chatweb{display:grid;grid-template-columns:180px 1fr;height:390px}
+  .clist{background:#10151b;border-right:1px solid var(--line);padding:10px 0;font-size:12px;overflow:hidden}
+  .clist .grp{font-size:9.5px;color:var(--ink3);letter-spacing:.6px;text-transform:uppercase;padding:9px 13px 4px}
+  .clist .it{display:flex;align-items:center;gap:7px;padding:7px 13px;color:var(--ink2)}
+  .clist .it.on{background:rgba(79,140,255,.12);color:var(--ink);border-left:2px solid var(--brand);padding-left:11px}
+  .clist .it .bd{flex:0 0 auto;font-size:8.5px;padding:1px 6px;border-radius:9px;background:var(--chip);color:var(--ink2)}
+  .avm{width:21px;height:21px;border-radius:6px;background:linear-gradient(135deg,#3a4a6b,#2b3450);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#dfe7f2;flex:0 0 auto}
+  .clist .tx{display:flex;flex-direction:column;min-width:0;line-height:1.2;flex:1;overflow:hidden}
+  .clist .tx .nm{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .clist .tx .sub{font-size:9px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bhot{background:rgba(240,96,58,.2)!important;color:#ff8a6b!important}
+  .bint{background:rgba(63,185,80,.2)!important;color:#79d98a!important}
+  .cmain{display:flex;flex-direction:column;min-width:0}
+  .cfocus{display:flex;gap:6px;padding:8px 13px;border-bottom:1px solid var(--line);background:#0e1218;flex-wrap:wrap;align-items:center}
+  .fchip{font-size:11px;background:var(--chip);border:1px solid var(--line);border-radius:14px;padding:2px 9px;color:var(--ink2)}
+  .fchip.on{background:rgba(79,140,255,.18);border-color:rgba(79,140,255,.5);color:var(--brand2)}
+  .fchip .k{color:var(--ink3);font-size:9.5px}
+  .msgs{flex:1;padding:13px;display:flex;flex-direction:column;gap:9px;background:#0c0f13;overflow:hidden}
+  .msg{max-width:82%;padding:8px 11px;border-radius:12px;font-size:12px;line-height:1.5}
+  .msg.u{align-self:flex-end;background:var(--brand);color:#fff;border-bottom-right-radius:3px}
+  .msg.a{align-self:flex-start;background:var(--panel2);border:1px solid var(--line);border-bottom-left-radius:3px}
+  .msg.a .src{margin-top:5px;font-size:10px;color:var(--ink3);border-top:1px dashed var(--line);padding-top:4px}
+  .composer{border-top:1px solid var(--line);padding:9px 13px;background:#0e1218;display:flex;gap:7px}
+  .composer .inp{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 11px;color:var(--ink3);font-size:12px}
+  .composer .send{background:var(--brand);color:#fff;border-radius:9px;padding:7px 13px;font-size:12px;font-weight:600}
+  .fbar{display:flex;gap:6px;padding:0 13px 9px;background:#0e1218;flex-wrap:wrap}
+  .fbar .f{font-size:10.5px;border:1px solid var(--line);border-radius:14px;padding:2px 9px;color:var(--ink2);background:#11161d}
+  .fbar .f.on{border-color:var(--brand);color:var(--brand2);background:rgba(79,140,255,.12)}
+
+  /* assets */
+  .apanel{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden;margin-bottom:11px}
+  .apanel .ah{padding:8px 13px;border-bottom:1px solid var(--line);font-weight:700;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;background:#11161d}
+  .apanel .ah .pill{font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:12px;background:rgba(63,185,80,.18);color:#79d98a}
+  .arow{padding:8px 13px;border-bottom:1px solid var(--line);font-size:11.5px;display:flex;justify-content:space-between;align-items:center}
+  .arow:last-child{border-bottom:0}
+  .arow .tg{font-size:9.5px;color:var(--ink3);background:var(--chip);border-radius:8px;padding:1px 7px;margin-left:5px}
+  .arow .reuse{font-size:9.5px;color:var(--brand2);border:1px solid rgba(79,140,255,.4);border-radius:8px;padding:1px 8px;white-space:nowrap}
+  .agrid2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .subtabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:13px;flex-wrap:wrap}
+  .subtab{font-size:13px;padding:8px 13px;color:var(--ink3);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+  .subtab .cnt{font-size:10px;color:var(--ink3);margin-left:3px}
+  .subtab.on{color:var(--brand2);border-bottom-color:var(--brand);font-weight:600}
+  .alist{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+  .salbox{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:13px 16px}
+  .salbox .sh{font-size:12.5px;font-weight:700;margin-bottom:6px;display:flex;justify-content:space-between}
+  .saldist{position:relative;height:8px;border-radius:5px;background:linear-gradient(90deg,#2b3450,#3a4a6b,var(--brand));margin:32px 10px 32px}
+  .saldist .mk{position:absolute;top:-25px;transform:translateX(-50%);text-align:center;font-size:9.5px;color:var(--ink3);white-space:nowrap}
+  .saldist .mk b{display:block;color:var(--ink);font-size:13px}
+  .saldist .mk.hl b{color:var(--brand2)}
+  .saldist .mk::after{content:"";position:absolute;left:50%;bottom:-14px;width:2px;height:10px;background:var(--ink3);transform:translateX(-50%)}
+  .skillrow{display:flex;align-items:center;gap:8px;font-size:12px;margin:8px 0}
+  .skillrow .sn{width:52px;color:var(--ink2);flex:0 0 auto}
+  .skillrow .sbwrap{flex:1;height:7px;background:var(--panel2);border-radius:4px;overflow:hidden}
+  .skillrow .sb{height:100%;background:linear-gradient(90deg,var(--brand),var(--violet))}
+  .skillrow .sp{width:32px;text-align:right;color:var(--ink3);font-size:11px;flex:0 0 auto}
+  .negobox{border:1px solid rgba(63,185,80,.4);background:rgba(63,185,80,.07);border-radius:10px;padding:11px 14px;margin-top:12px;font-size:12.5px}
+  .negobox b{color:#79d98a}
+  /* resume craft workstation */
+  .craftbar{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);background:#0e1218;flex-wrap:wrap}
+  .gapline{display:flex;gap:12px;font-size:12px;margin:12px 0}
+  .gapline .g{color:var(--good)} .gapline .r{color:var(--bad)} .gapline .a{color:var(--warn)}
+  .craft{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .cpanel{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+  .cpanel .ch{padding:9px 13px;border-bottom:1px solid var(--line);font-weight:700;font-size:12.5px;background:#11161d;display:flex;justify-content:space-between;align-items:center}
+  .cpanel .cb{padding:11px 13px}
+  .reqrow{font-size:12px;margin:8px 0;display:flex;gap:8px;align-items:flex-start}
+  .reqrow .ico{flex:0 0 auto;font-weight:700}
+  .rg{color:var(--good)} .rr{color:var(--bad)} .ra{color:var(--warn)}
+  .kwbox{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 2px}
+  .kw{font-size:10.5px;border-radius:12px;padding:2px 9px;border:1px solid var(--line);color:var(--ink2)}
+  .kw.g{color:#79d98a;border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.08)}
+  .kw.r{color:#ff8a6b;border-color:rgba(240,96,58,.4);background:rgba(240,96,58,.08)}
+  .dl2{font-size:11px;color:var(--ink3);margin:11px 0 3px;text-transform:uppercase;letter-spacing:.4px}
+  .sug{border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-bottom:8px;background:#11161d}
+  .sug .st{font-size:10.5px;color:var(--brand2);margin-bottom:4px;font-weight:600}
+  .sug .bf{font-size:11px;color:var(--ink3);text-decoration:line-through;margin-bottom:2px}
+  .sug .af{font-size:12px;color:var(--ink);line-height:1.5}
+  .sug .acts{display:flex;gap:7px;margin-top:8px}
+  .sug .adopt{font-size:11px;background:var(--brand);color:#fff;border-radius:7px;padding:3px 13px;font-weight:600}
+  .sug .ignore{font-size:11px;border:1px solid var(--line);color:var(--ink3);border-radius:7px;padding:3px 13px}
+  /* chat + canvas split */
+  .craftsplit{display:grid;grid-template-columns:1fr 1.05fr;height:410px}
+  .canvas{display:flex;flex-direction:column;background:#0e1218;min-width:0}
+  .cvhead{padding:9px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px;background:#11161d}
+  .cvbody{flex:1;padding:12px;overflow:hidden;font-size:11.5px;line-height:1.55}
+  .rline{margin:5px 0;color:var(--ink2)}
+  .rline.chg{background:rgba(63,185,80,.1);border-left:2px solid var(--good);padding:3px 8px;color:var(--ink);border-radius:0 5px 5px 0}
+  .rline.del2{color:var(--ink3);text-decoration:line-through;font-size:10.5px}
+  .inlsug{border:1px dashed rgba(79,140,255,.5);border-radius:8px;padding:7px 10px;margin:7px 0;background:rgba(79,140,255,.06);font-size:11px;color:var(--ink2)}
+  .inlsug .acts{display:flex;gap:6px;margin-top:6px}
+  .inlsug .adopt{font-size:10.5px;background:var(--brand);color:#fff;border-radius:7px;padding:2px 11px}
+  .inlsug .ignore{font-size:10.5px;border:1px solid var(--line);color:var(--ink3);border-radius:7px;padding:2px 11px}
+  /* inline summoned widgets in conversation */
+  .msg.wide{max-width:92%}
+  .iwidget{border:1px solid var(--line);border-radius:10px;background:#0e131a;margin:8px 0;overflow:hidden}
+  .iwidget .iwh{font-size:9.5px;color:var(--ink3);padding:6px 10px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.5px;display:flex;justify-content:space-between}
+  .ijd{display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.05)}
+  .ijd:last-child{border-bottom:0}
+  .ijd .co{font-weight:600;font-size:12px} .ijd .ro{font-size:10px;color:var(--ink2)}
+  .ijd .go{margin-left:auto;font-size:10px;color:var(--brand2);border:1px solid rgba(79,140,255,.4);border-radius:7px;padding:2px 9px;flex:0 0 auto}
+  .ipipe{display:flex;gap:6px;padding:9px 10px;flex-wrap:wrap}
+  .ipipe .st{font-size:10px;background:var(--chip);border-radius:8px;padding:3px 8px;color:var(--ink2)}
+  .railcap{font-size:9px;color:var(--ink3);text-align:center;padding:6px 4px;line-height:1.3}
+  /* JD capability hub */
+  .hub{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}
+  .hubc{border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:13px 15px}
+  .hubc .ht{font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px}
+  .hubc .hd{font-size:12px;color:var(--ink2);margin-top:5px;line-height:1.55}
+  .hubc .say{font-size:11.5px;color:var(--brand2);margin-top:8px;background:rgba(79,140,255,.08);border:1px dashed rgba(79,140,255,.35);border-radius:8px;padding:5px 9px}
+  .hubc .kb{font-size:10px;color:var(--ink3);margin-top:7px}
+  .hubc.core{border-color:rgba(63,185,80,.45);background:rgba(63,185,80,.06)}
+  .hubc.core .ht{color:#79d98a}
+  @media(max-width:860px){.hub{grid-template-columns:1fr}}
+  .qitem{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.05);font-size:11.5px}
+  .qitem:last-child{border-bottom:0}
+  .qitem .qt{font-size:9.5px;color:var(--ink3);margin-left:6px}
+  .vibe{display:flex;gap:6px;flex-wrap:wrap;padding:9px 10px}
+  .vibe .v{font-size:10.5px;border-radius:12px;padding:2px 9px;border:1px solid var(--line);color:var(--ink2)}
+  .vibe .v.pos{color:#79d98a;border-color:rgba(63,185,80,.4)}
+  .vibe .v.neg{color:#e5be5a;border-color:rgba(210,153,34,.4)}
+
+  /* mine */
+  .mcard{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:13px 15px;margin-bottom:11px}
+  .mcard .mh{font-weight:700;font-size:13.5px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}
+  .mcard .mh .edit{font-size:11px;color:var(--brand2)}
+  .profrow{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+  .profrow .k{color:var(--ink3)} .profrow:last-child{border-bottom:0}
+  .prog{height:7px;border-radius:5px;background:var(--panel2);overflow:hidden;margin:8px 0 4px}
+  .prog .bar{height:100%;background:linear-gradient(90deg,var(--brand),var(--violet));width:72%}
+  .memcard{font-size:11.5px;background:#11161d;border:1px solid var(--line);border-radius:9px;padding:7px 10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+  .memcard .kind{font-size:9px;color:var(--violet);border:1px solid rgba(139,107,255,.4);border-radius:8px;padding:1px 6px;margin-right:7px}
+  .memcard .x{color:var(--ink3)}
+  .toggle{width:32px;height:18px;border-radius:12px;background:var(--brand);position:relative;flex:0 0 auto}
+  .toggle::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:2px;right:2px}
+  .setrow{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+  .setrow:last-child{border-bottom:0}
+  .entry{display:flex;align-items:center;gap:10px;font-size:12.5px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:#11161d;margin-bottom:9px}
+  .entry .ic{font-size:16px} .entry .r{margin-left:auto;color:var(--ink3)}
+
+  .mine2{display:grid;grid-template-columns:1.1fr 1fr;gap:12px}
+  .navprev{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0}
+  .navprev .np{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--panel);flex:1;min-width:240px}
+  .navprev .np h4{margin:0 0 8px;font-size:13px;display:flex;align-items:center;gap:8px}
+  .pillrow{display:flex;gap:6px;flex-wrap:wrap}
+  .npi{font-size:11.5px;border:1px solid var(--line);border-radius:8px;padding:3px 9px;color:var(--ink2);background:#11161d}
+  .npi.hi{border-color:rgba(79,140,255,.4);color:var(--brand2)}
+  .npi.fold{opacity:.5;border-style:dashed}
+
+  /* sort / filter row */
+  .sortctl{font-size:11.5px;background:transparent;border:1px solid rgba(79,140,255,.4);border-radius:16px;padding:3px 11px;color:var(--brand2);font-weight:600;white-space:nowrap}
+  .fdiv{width:1px;height:16px;background:var(--line);margin:0 3px;align-self:center;flex:0 0 auto}
+  .filt .x{margin-left:5px;color:var(--ink3);font-size:10px}
+  .clearf{font-size:11px;color:var(--ink3);margin-left:auto;align-self:center;white-space:nowrap}
+  .rescount{font-size:12px;color:var(--ink2);margin:0 0 12px}
+  .rescount b{color:var(--brand2)}
+
+  /* search dropdown */
+  .panelrow{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;margin:12px 0}
+  .searchpanel{border:1px solid var(--line);border-radius:12px;background:#0c0f13;overflow:hidden;width:400px;max-width:100%;box-shadow:0 8px 26px rgba(0,0,0,.4)}
+  .spbar{padding:11px 13px;border-bottom:1px solid var(--line);background:#0e1218}
+  .spinput{background:var(--panel2);border:1px solid var(--brand);border-radius:10px;padding:8px 12px;color:var(--ink);font-size:13px}
+  .spinput.ph{color:var(--ink3);border-color:var(--line)}
+  .spdrop{padding:8px 6px}
+  .spsec{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;padding:9px 10px 4px;display:flex;justify-content:space-between}
+  .spitem{display:flex;align-items:center;gap:9px;padding:7px 10px;font-size:12.5px;color:var(--ink);border-radius:8px}
+  .spitem .ty{font-size:9.5px;color:var(--ink3);border:1px solid var(--line);border-radius:7px;padding:1px 6px;flex:0 0 auto}
+  .spitem .cnt{margin-left:auto;font-size:10.5px;color:var(--ink3)}
+  .spitem .rm{margin-left:auto;color:var(--ink3);font-size:11px}
+  .hotrow{display:flex;gap:6px;flex-wrap:wrap;padding:4px 10px 8px}
+  .hot{font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:3px 10px;color:var(--ink2)}
+
+  /* sort menu */
+  .sortmenu{border:1px solid var(--line);border-radius:10px;background:#0c0f13;overflow:hidden;width:210px;box-shadow:0 8px 26px rgba(0,0,0,.4)}
+  .smtop{font-size:11px;color:var(--ink3);padding:9px 13px;border-bottom:1px solid var(--line);background:#0e1218}
+  .smi{padding:9px 13px;font-size:12.5px;color:var(--ink2);display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.05)}
+  .smi:last-child{border-bottom:0}
+  .smi.on{color:var(--brand2);font-weight:600}
+
+  /* filter panel */
+  .fpanel{border:1px solid var(--line);border-radius:12px;background:#0c0f13;overflow:hidden;width:420px;max-width:100%;box-shadow:0 8px 26px rgba(0,0,0,.4)}
+  .fph{padding:11px 14px;border-bottom:1px solid var(--line);font-weight:700;font-size:13px;display:flex;justify-content:space-between;background:#0e1218}
+  .fpbody{padding:12px 14px}
+  .fdim{margin-bottom:13px}
+  .fdim .dl{font-size:12px;color:var(--ink2);margin-bottom:6px}
+  .fopts{display:flex;gap:6px;flex-wrap:wrap}
+  .fopt{font-size:11px;border:1px solid var(--line);border-radius:14px;padding:3px 11px;color:var(--ink2);background:var(--panel)}
+  .fopt.on{border-color:var(--brand);color:var(--brand2);background:rgba(79,140,255,.12)}
+  .fpfoot{display:flex;gap:10px;padding:11px 14px;border-top:1px solid var(--line);background:#0e1218}
+  .fpfoot .reset{flex:0 0 auto;padding:8px 16px;border:1px solid var(--line);border-radius:9px;color:var(--ink2);font-size:12.5px}
+  .fpfoot .apply{flex:1;text-align:center;background:var(--brand);color:#fff;border-radius:9px;padding:8px;font-size:12.5px;font-weight:600}
+
+  /* pagination */
+  .pager{display:flex;gap:6px;justify-content:center;align-items:center;margin-top:15px}
+  .pager .pg{min-width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;font-size:12px;color:var(--ink2);background:var(--panel)}
+  .pager .pg.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700}
+  .pager .pg.nav{color:var(--ink3)}
+  .scrollmore{text-align:center;font-size:11px;color:var(--ink3);padding:12px 0 4px;display:flex;align-items:center;justify-content:center;gap:8px}
+  .spin{width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .foot{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);color:var(--ink3);font-size:12px}
+
+  /* ===== v3.4 视觉设计定稿（浅色体系 · .vd 作用域隔离） ===== */
+  .vd{--bg:#F5F6F8;--surface:#FFFFFF;--line:#E8EAF0;--line2:#F1F3F7;--ink:#1A1D26;--ink2:#5C6472;--ink3:#9AA2AF;--brand:#4E5BEF;--brand-soft:#EEF0FE;--brand-line:#D8DCFB;--ai-grad:linear-gradient(135deg,#4E5BEF,#8B5CF6);--good:#0DA76A;--good-soft:#E6F6EF;--warn:#DB9A2D;--warn-soft:#FBF3E2;--bad:#E5484D;--bad-soft:#FDEBEC;color:var(--ink)}
+  .vd.frame{border:1px solid #3a4150;border-radius:18px;overflow:hidden;margin:14px 0;background:var(--surface);box-shadow:0 12px 40px rgba(0,0,0,.45)}
+  .vd .vbar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:#FBFBFD;border-bottom:1px solid var(--line)}
+  .vd .url{margin-left:10px;font-size:12px;color:var(--ink3);font-family:var(--mono);background:var(--line2);border-radius:8px;padding:3px 14px}
+  .vd .cap{background:#FBFBFD;color:var(--ink2);border-top:1px solid var(--line);font-size:12.5px;padding:11px 16px}
+  .vd .cap b{color:var(--ink)}
+  .vd .app{display:grid;grid-template-columns:200px 1fr;min-height:430px;background:var(--bg)}
+  .vd .sideV{background:var(--surface);border-right:1px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;gap:2px}
+  .vd .logoV{display:flex;align-items:center;gap:9px;font-weight:800;font-size:15px;padding:2px 10px 16px}
+  .vd .logoV .mark{width:30px;height:30px;border-radius:9px;background:var(--ai-grad);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:800}
+  .vd .navV{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;color:var(--ink2);font-size:13.5px}
+  .vd .navV .ic{width:20px;text-align:center;font-size:15px}
+  .vd .navV.on{background:var(--brand-soft);color:var(--brand);font-weight:700}
+  .vd .growV{flex:1}
+  .vd .snote{font-size:10px;color:var(--ink3);text-align:center;padding:8px 6px;line-height:1.5}
+  .vd .mainV{display:flex;flex-direction:column;min-width:0}
+  .vd .mheadV{display:flex;align-items:center;gap:12px;padding:14px 20px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .vd .mheadV .t{font-size:16px;font-weight:700}
+  .vd .mbodyV{flex:1;padding:18px 20px;overflow:hidden}
+  .vd .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:3px 12px;color:var(--ink2);white-space:nowrap}
+  .vd .chip.on{background:var(--brand-soft);border-color:var(--brand-line);color:var(--brand);font-weight:600}
+  .vd .tagx{font-size:10.5px;border-radius:8px;padding:1px 8px;font-weight:600}
+  .vd .tagx.good{background:var(--good-soft);color:var(--good)}
+  .vd .tagx.warn{background:var(--warn-soft);color:var(--warn)}
+  .vd .tagx.bad{background:var(--bad-soft);color:var(--bad)}
+  .vd .tagx.brand{background:var(--brand-soft);color:var(--brand)}
+  .vd .tagx.gray{background:var(--line2);color:var(--ink3)}
+  .vd .aiav{width:26px;height:26px;border-radius:9px;background:var(--ai-grad);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:800;flex:0 0 auto}
+  .vd .coav{width:34px;height:34px;border-radius:10px;background:#EEF1F6;color:#3E4654;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex:0 0 auto;border:1px solid var(--line)}
+  .vd .btn{display:inline-flex;align-items:center;gap:6px;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;white-space:nowrap;flex:0 0 auto;text-align:center}
+  .vd .btn.p{background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(78,91,239,.28);flex:0 0 auto}
+  .vd .btn.ai{background:var(--ai-grad);color:#fff;box-shadow:0 2px 10px rgba(110,80,240,.3)}
+  .vd .btn.g{background:var(--surface);border:1px solid var(--line);color:var(--ink2)}
+  .vd .btn.sm{padding:5px 12px;font-size:12px;border-radius:8px}
+  .vd .chatgrid{display:grid;grid-template-columns:1fr 1fr;min-height:500px}
+  .vd .chatcol{display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+  .vd .anchor{display:flex;align-items:center;gap:8px;padding:11px 16px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .vd .msgs{flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--bg);overflow:hidden}
+  .vd .m{max-width:84%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.6}
+  .vd .m.wide{max-width:96%}
+  .vd .m.u{align-self:flex-end;background:var(--brand);color:#fff;border-bottom-right-radius:4px;box-shadow:0 2px 8px rgba(78,91,239,.22)}
+  .vd .m.a{align-self:flex-start;background:var(--surface);border:1px solid var(--line);border-bottom-left-radius:4px;box-shadow:0 1px 2px rgba(20,24,40,.05),0 3px 10px rgba(20,24,40,.05)}
+  .vd .m.a .src{margin-top:8px;font-size:10.5px;color:var(--ink3);border-top:1px dashed var(--line);padding-top:6px}
+  .vd .arow2{display:flex;gap:8px;align-items:flex-start;align-self:flex-start;max-width:96%}
+  .vd .composer{display:block;padding:12px 16px;background:var(--surface);border-top:1px solid var(--line)}
+  .vd .composer .cbox{display:flex;gap:8px;align-items:center;background:var(--bg);border:1.5px solid var(--line);border-radius:14px;padding:9px 8px 9px 14px}
+  .vd .composer .in{flex:1;color:var(--ink3);font-size:13px}
+  .vd .composer .send{width:32px;height:32px;border-radius:10px;background:var(--ai-grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex:0 0 auto}
+  .vd .quick{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+  .vd .icard{border:1px solid var(--line);border-radius:12px;background:#FCFCFE;margin:9px 0 2px;overflow:hidden}
+  .vd .icard .ihh{font-size:10px;color:var(--ink3);padding:7px 12px;border-bottom:1px solid var(--line2);letter-spacing:.4px;display:flex;justify-content:space-between}
+  .vd .qa{padding:8px 12px;border-bottom:1px solid var(--line2);font-size:12px}
+  .vd .qa:last-child{border-bottom:0}
+  .vd .qa .qt{font-size:10px;color:var(--ink3);margin-left:6px}
+  .vd .canvascol{background:#EEF0F5;border-left:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+  .vd .cvhead{display:flex;align-items:center;gap:8px;padding:11px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+  .vd .cvbody{flex:1;padding:18px;overflow:hidden}
+  .vd .paper{background:#fff;border-radius:12px;box-shadow:0 1px 2px rgba(20,24,40,.05),0 8px 28px rgba(20,24,40,.09);padding:22px 24px;font-size:12px;line-height:1.75;min-height:320px}
+  .vd .paper .nm{font-size:16px;font-weight:800}
+  .vd .paper .meta2{font-size:11px;color:var(--ink2);margin:2px 0 12px}
+  .vd .paper .sec{font-size:10.5px;color:var(--brand);font-weight:700;letter-spacing:1px;margin:14px 0 6px;border-bottom:1px solid var(--line2);padding-bottom:3px}
+  .vd .pl{margin:5px 0;color:var(--ink2)}
+  .vd .pl.chg{background:var(--good-soft);border-left:3px solid var(--good);padding:4px 10px;border-radius:0 8px 8px 0;color:var(--ink)}
+  .vd .pl.chg .who{font-size:9.5px;color:var(--good);font-weight:700;margin-left:6px}
+  .vd .pl.pend{color:var(--ink2);font-size:11px;background:var(--warn-soft);border-left:3px solid var(--warn);padding:4px 10px;border-radius:0 8px 8px 0}
+  .vd .ring{border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:800;border-style:solid}
+  .vd .ring.hi{border-color:var(--good);color:var(--good)}
+  .vd .ring.mid{border-color:var(--warn);color:var(--warn)}
+  .vd .voppgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .vd .opp{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:0 1px 2px rgba(20,24,40,.05),0 3px 10px rgba(20,24,40,.05)}
+  .vd .opp .co{font-weight:700;font-size:15px;color:var(--ink)}
+  .vd .opp .ro{font-size:12.5px;color:var(--ink2);margin-top:1px}
+  .vd .salr{font-size:13px;color:var(--warn);font-weight:700;margin-top:4px}
+  .vd .opp .hit{font-size:11.5px;margin-top:12px;color:var(--ink2);background:var(--line2);border-radius:9px;padding:7px 11px}
+  .vd .opp .hit .g{color:var(--good);font-weight:600} .vd .opp .hit .r{color:var(--bad);font-weight:600}
+  .vd .opp .act{display:flex;gap:9px;margin-top:13px;align-items:center}
+  .vd .opp .act .btn.ai{flex:1;justify-content:center}
+  .vd .opp .lbl{font-size:10px;color:var(--ink3);margin-top:3px}
+  .vd .board{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;background:transparent}
+  .vd .kcolV{background:transparent;padding:0;min-height:auto}
+  .vd .kcolV .khV{font-size:12.5px;font-weight:700;display:flex;justify-content:space-between;padding:2px 6px 10px;color:var(--ink2)}
+  .vd .kcolV .khV .n{color:var(--ink3);font-weight:600;background:var(--line2);border-radius:10px;padding:0 8px;font-size:11px}
+  .vd .kcardV{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:10px;box-shadow:0 1px 2px rgba(20,24,40,.05),0 3px 10px rgba(20,24,40,.05)}
+  .vd .kcardV.hot{border-color:#F5C6C8}
+  .vd .kcardV.gold{border-color:#F0DCB2}
+  .vd .kcardV .co{font-weight:700;font-size:12.5px} .vd .kcardV .ro{font-size:11px;color:var(--ink2);margin-top:1px}
+  .vd .kcardV .mt{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
+  .vd .stash{border:1.5px dashed var(--line);border-radius:12px;padding:10px;text-align:center;font-size:11px;color:var(--ink3)}
+  .vd .vsubtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px}
+  .vd .stab{font-size:13.5px;padding:9px 16px;color:var(--ink2);border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
+  .vd .stab .cnt{font-size:11px;color:var(--ink3);margin-left:4px}
+  .vd .stab.on{color:var(--brand);border-bottom-color:var(--brand);font-weight:700}
+  .vd .valist{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(20,24,40,.05),0 3px 10px rgba(20,24,40,.05)}
+  .vd .varow{padding:11px 16px;border-bottom:1px solid var(--line2);font-size:13px;display:flex;justify-content:space-between;align-items:center}
+  .vd .varow:last-child{border-bottom:0}
+  .vd .varow .lft{display:flex;align-items:center;gap:8px}
+  .vd .vpager{display:flex;gap:6px;justify-content:center;margin-top:16px}
+  .vd .vpg{min-width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:9px;font-size:12.5px;color:var(--ink2);background:var(--surface)}
+  .vd .vpg.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700}
+  .vd .minegrid{display:grid;grid-template-columns:1.1fr 1fr;gap:16px}
+  .vd .vcard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:0 1px 2px rgba(20,24,40,.05),0 3px 10px rgba(20,24,40,.05)}
+  .vd .vcard .ch{font-weight:700;font-size:14.5px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .vd .vcard .ch .edit{font-size:12px;color:var(--brand);font-weight:600}
+  .vd .prow{display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:1px solid var(--line2)}
+  .vd .prow:last-child{border-bottom:0}
+  .vd .prow .k{color:var(--ink3)}
+  .vd .vprog{height:8px;border-radius:6px;background:var(--line2);overflow:hidden;margin:10px 0 6px}
+  .vd .vprog .bar{height:100%;background:var(--ai-grad);width:72%;border-radius:6px}
+  .vd .mem{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:9px 13px;margin-bottom:8px}
+  .vd .mem .kind{font-size:9.5px;color:#8B5CF6;background:#F3EEFE;border-radius:8px;padding:1px 8px;margin-right:8px;font-weight:700}
+  .vd .mem .x{color:var(--ink3)}
+  .vd .setrow{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:10px 0;border-bottom:1px solid var(--line2)}
+  .vd .setrow:last-child{border-bottom:0}
+  .vd .phone{border-color:#23262E;background:var(--bg);box-shadow:0 18px 44px rgba(20,24,40,.5)}
+  .vd .pstatus{background:var(--surface)}
+  .vd .pstatus::after{background:#23262E}
+  .vd .phead{background:var(--surface);border-bottom:1px solid var(--line)}
+  .vd .phead .pt{color:var(--ink)}
+  .vd .pbody{background:var(--bg);height:470px;padding:0;display:flex;flex-direction:column}
+  .vd .tabbar{background:var(--surface);border-top:1px solid var(--line);padding:4px 0 8px}
+  .vd .tabbar .t{color:var(--ink3)}
+  .vd .tabbar .t.on{color:var(--brand);font-weight:700}
+  .vd.ds{background:var(--surface);border:1px solid #3a4150;border-radius:16px;padding:22px 24px;margin:14px 0}
+  .vd .swatches{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0 4px}
+  .vd .sw{width:116px}
+  .vd .sw .c{height:54px;border-radius:10px;border:1px solid rgba(0,0,0,.06)}
+  .vd .sw .n{font-size:11.5px;font-weight:600;margin-top:6px}
+  .vd .sw .h{font-size:10.5px;color:var(--ink3);font-family:var(--mono)}
+  .vd .dsrow{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:14px}
+  .vd .dsl{font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px;width:100%;margin-top:12px}
+  @media(max-width:900px){.vd .voppgrid,.vd .minegrid,.vd .chatgrid{grid-template-columns:1fr}.vd .board{grid-template-columns:1fr 1fr}.vd .app{grid-template-columns:150px 1fr}}
+  @media(max-width:820px){.oppgrid2,.agrid2,.mine2{grid-template-columns:1fr}.kanban{grid-template-columns:1fr 1fr;overflow-x:auto}.webapp{grid-template-columns:120px 1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="small muted">CareerMate · UI 改版 · 响应式（Web / 移动端）</div>
+  <h1>全 Tab UI 改版 · 分平台</h1>
+  <p class="lead">Web 侧边栏承载 5 tab，移动端底部收敛为 4 tab；逐屏给出两端 mockup。以「简单易用」为唯一准绳。</p>
+
+  <div class="doc-meta">
+    <div><div class="k">版本</div><div class="v">v3.4</div></div>
+    <div><div class="k">拟制日期</div><div class="v">2026-07-15</div></div>
+    <div><div class="k">拟制角色</div><div class="v">AI 产品 / 架构</div></div>
+    <div><div class="k">状态</div><div class="v"><span class="status-pill">待审核</span></div></div>
+  </div>
+
+  <h3 style="margin-top:22px;color:var(--ink)">修订记录</h3>
+  <table>
+    <tr><th style="width:70px">版本</th><th style="width:110px">日期</th><th>说明</th></tr>
+    <tr><td>v1.0</td><td>2026-07-14</td><td>全 Tab 改版（未分平台）。</td></tr>
+    <tr><td>v2.0</td><td>2026-07-15</td><td>按 Web / 移动端分平台重构：Web 侧边栏 5 tab；移动端底部 4 tab（资产折进「我的」+ 场景内可达）；逐屏给出两端 mockup 与差异说明。取代 v1.0。</td></tr>
+    <tr><td>v2.1</td><td>2026-07-15</td><td>补充列表分页差异：Web 点击页码翻页（分页导航）、移动端无限滚动（触底加载）；机会页两端 mockup 各自体现，差异对照表新增「列表分页」行，标注后端需同时支持页码/游标两种取数。</td></tr>
+    <tr><td>v2.2</td><td>2026-07-15</td><td>机会页搜索与筛选细化：排序与筛选视觉分家（排序单选·只重排 ｜ 筛选多选·叠加）；快捷 chip 改为城市/薪资/发布时间；新增搜索下拉（历史+分组联想+画像快捷）、排序下拉、＋筛选全量面板三态 mockup（Web+移动端）；移动端搜索全屏页、排序/筛选走底部抽屉。</td></tr>
+    <tr><td>v2.3</td><td>2026-07-15</td><td>卡片标识与去重规则：侧栏会话卡=看板卡=同一机会实体，统一命名 <code>公司·职位·区分项</code>（区分项优先级 职级&gt;产品线&gt;城市&gt;序号）可改名；badge 统一为 5 个看板阶段词、活动作副标题；侧栏 emoji 换公司头像；jd_id 强去重、公司+职位弱提醒；mockup 放两张「字节」卡演示同公司多岗位区分，侧栏/看板/移动端标签全量对齐。</td></tr>
+    <tr><td>v2.4</td><td>2026-07-15</td><td>资产页重构：四宫格平铺→<b>头部标签切换 + 各自分页</b>。简历版本/面试记录分页；通用八股题库分页+技能分类+搜索（最大列表）；薪资/行情为检索面板不分页。Web 点击页码、移动端「我的资产」子页标签横滑+无限滚动。新增八股题库 Web mockup。</td></tr>
+    <tr><td>v2.5</td><td>2026-07-15</td><td>补齐资产页另两个标签 Web mockup：面试记录（真实/模拟混排、类型过滤、按时间排序、弱项/得分标记、分页）；薪资/行情（检索面板，岗位+城市查询→薪资分布 P25/P50/P75 + 技能热度 TOP5 + 谈薪参考，可带入小职薪资焦点，不分页）。</td></tr>
+    <tr><td>v2.6</td><td>2026-07-15</td><td>移除「隐身模式」：CareerMate 为单边个人 AI 求职助手、无雇主侧，"对雇主隐身"前提不成立，属误借 BOSS/脉脉概念。设置卡改为账号与隐私/通知偏好/数据导出注销；删除相关决策点。</td></tr>
+    <tr><td>v2.7</td><td>2026-07-15</td><td>重心校正，去 BOSS 化：明确核心 = 「JD→定制简历」，JD 来自知识库查询（非市场/非粘贴），无雇主侧/投递/HR 沟通。新增简历定制核心屏（02）；机会卡主操作改「定制简历」；机会 feed 定位为"喂给核心"。其余章节顺延重编号。</td></tr>
+    <tr><td>v2.8</td><td>2026-07-15</td><td>核心屏改为 <b>Agent + Canvas</b>：纠正 v2.7 把定制做成脱离对话的结构化表单（弱化 agent）。改为「小职对话 + 简历 Canvas」——小职读 JD 做 gap、实时编辑右侧 Canvas，改动可对话说/可 Canvas 点；deep-path（简历 specialist + Critic 复核、缺失项不编造）+ RAG（KB599）。移动端为对话/画布来回切（非并排）。对标 Claude Artifacts/Canvas，保持 agent 为灵魂。</td></tr>
+    <tr><td>v2.9</td><td>2026-07-15</td><td>搜索/筛选<b>大幅简化，去 BOSS 化</b>：搜索框只留历史+联想（删热门榜/画像快捷）；排序砍到「匹配度·最新」两项（删 4 项下拉）；<b>整套六维筛选面板全部删除</b>（薪资/公司规模/融资阶段/工作性质/发布时间/匹配过滤），最多保留一个「城市」快捷。理由：feed 已按画像个性化，是候选清单非岗位广场。机会页两端筛选行同步精简。</td></tr>
+    <tr><td><b>v3.0</b></td><td>2026-07-15</td><td>确立<b>北极星（交互范式）</b>：核心 = 围绕一条 JD 连续打造/修改/完善简历；小职三保证——<b>不失忆</b>（整条 JD 会话全量喂+作用域隔离，非截断；超长滚动摘要；不为对话自建向量库，长期偏好才走 pgvector 语义记忆）/<b>不搞混不搞错</b>（不同 JD 各一条线、作用域隔离）/<b>不胡说</b>（只依据 KB599+真实简历、Critic 复核、不编造）。对话优先·一条主线·模块召唤进对话·能说不手输。新增"一条主线" Web mockup + "每个模块如何对话化"表。核心屏补充：<b>生成后简历可持续增删改查</b>（对话/Canvas），每次改动留存版本挂该 JD。</td></tr>
+    <tr><td>v3.1</td><td>2026-07-16</td><td>「检索式记忆」措辞校正为精确表述，避免误导去自建对话向量库：记忆机制 = 当前 JD 会话<b>全量喂 + session 作用域隔离</b>（超长滚动摘要）解决不失忆/不搞混；仅<b>用户长期偏好</b>走 pgvector 语义记忆、JD/素材走 RAG。北极星补「记忆机制」说明。</td></tr>
+    <tr><td>v3.2</td><td>2026-07-16</td><td>厘清<b>跨主线隔离边界</b>：隔离的是「对话上下文」（不同 JD 各一条线、对话不互串）；<b>资产（简历版本/面试记录/八股）+ 宏观进度 + 长期偏好仍 user 级共享、可显式跨线复用</b>（如"把抖音那份简历改成电商版"）。即"隔离对话、共享产出"，非全隔绝。</td></tr>
+    <tr><td><b>v3.3</b></td><td>2026-07-16</td><td>北极星定稿收敛：<b>一切围绕一条 JD 展开的六项能力</b>（生成/修改/导出简历、面试题、薪酬、公司氛围），全部为同一主线里的对话意图而非页面。新增：六项能力环卡、主线全流程 mockup（Web 左对话右 Canvas + 移动端）、<b>Agent 能力体现九项表</b>（工具调用/多步编排/快慢分层/specialist+Critic/Reflexion/RAG/长期记忆/主动性/状态管理 ↔ 架构组件）+ Chatbot vs Agent 分水岭、<b>记忆与隔离规则表</b>（实现约束）。决策点补公司氛围数据源/导出格式/快捷条。</td></tr>
+    <tr><td><b>v3.4</b></td><td>2026-07-16</td><td>新增「09 视觉设计定稿」并入本稿（不再单独成档）：浅色体系（页底#F5F6F8/白卡/柔投影），<b>「靛蓝→紫」渐变为小职唯一 AI 身份色</b>，绿=匹配/琥珀=薪酬待办/红=缺失四色克制；五页均含 <b>WEB + 移动端</b> 两版高保真（主线含纸感简历 Canvas）。修复：<b>「我的」从侧栏底部收进导航组</b>（五项连排），不再被挤出视口——新旧全部 mockup 已同步。</td></tr>
+  </table>
+
+  <!-- ===== ★ 北极星：交互范式 ===== -->
+  <h2 style="border-top:0"><span class="num" style="background:rgba(63,185,80,.15);border-color:rgba(63,185,80,.4);color:#79d98a">★</span> 交互范式 —— 围绕 JD 连续打造简历（对话优先 · 一条主线）</h2>
+  <div class="box brand"><span class="tag">★ 北极星（一句话，覆盖全部）</span>
+    <b>一切围绕一条 JD 展开：生成简历 → 修改简历 → 导出简历 → 这岗的面试题 → 这岗的薪酬 → 这家公司的氛围——全部在与小职（Agent）的同一条对话主线里完成；小职始终锚在「这条 JD + 这份简历」上，记得聊过什么、不串台、不胡说。</b>
+    <div style="margin-top:10px"><b>小职的三个保证</b>（直接回应"针对不同 JD 不搞混、不搞错、不胡说"）：</div>
+    <ul style="margin:6px 0 0">
+      <li><b>不失忆</b>：记得这条 JD 下聊过什么、你定过什么——<b>整条 JD 会话全量喂入上下文 + 按 JD 作用域隔离</b>（非 20 条截断；会话超长时再滚动摘要）。回来能"延续上次"。</li>
+      <li><b>不搞混 / 不搞错</b>：不同 JD 各一条线，<b>隔离的是「对话上下文」</b>（按 JD 作用域，绝不把 A 岗的对话灌进 B 岗）；但<b>资产（简历版本/面试记录/八股）+ 宏观进度 + 长期偏好仍 user 级共享、可显式跨线复用</b>——如"把抖音那份简历改成电商版"。即：<b>隔离对话、共享产出</b>。</li>
+      <li><b>不胡说八道</b>：回答/改简历只依据 <b>KB599 的 JD + 你真实简历/长期记忆</b>，<b>Critic 复核</b>，缺的技能<b>明说、不编造</b>。</li>
+    </ul>
+    <div class="small muted" style="margin-top:9px"><b>记忆机制（避免过度设计）</b>：当前 JD 会话<b>全量喂入</b>（超长再滚动摘要）+ 严格按 session 作用域隔离——这解决"不失忆/不搞混"，<b>不为对话连续自建向量库</b>。只有<b>用户长期偏好</b>（如"只想远程""期望35k"）走 pgvector <b>语义记忆</b>；JD/简历/题库素材走 RAG 检索。</div>
+    <div style="margin-top:10px"><b>三条交互支撑</b>：① 一条主线、JD 锚定，机会/进度/资产都在同一线内发生不切走；② <b>能说就不手输</b>，筛选/找资产/看进度/改画像一句话交给小职，不摆表单；③ 模块以内联卡片 / 侧边 Canvas <b>被召唤进对话</b>，可看可轻点，但由对话驱动。</div>
+    <span class="small muted">分寸：对话优先 ≠ 纯文字。列表/画布/图表照样富渲染在对话里，只是召唤与操作都走对话。简历 Canvas（02）是范本。</span>
+  </div>
+
+  <h3 style="color:var(--ink)">围绕一条 JD 的六项能力（全部对话触发）</h3>
+  <div class="hub">
+    <div class="hubc core"><div class="ht">📄 生成简历（核心）</div><div class="hd">读 JD + 你的主简历，gap 分析后生成该 JD 专属定制版，落入简历 Canvas。</div><div class="say">"针对这个 JD 生成一份简历"</div><div class="kb">依据：JD 库 + 你的简历/画像 · deep-path（specialist + Critic）</div></div>
+    <div class="hubc core"><div class="ht">✏️ 修改简历（增删改查）</div><div class="hd">生成后是活文档：加一段、删一条、改数字、查某段、看上一版，说一句即改，每次留版本。</div><div class="say">"把削峰经历再突出点""删掉前端那段""看上一版"</div><div class="kb">版本挂该 JD · 可回溯对比</div></div>
+    <div class="hubc core"><div class="ht">📤 导出简历</div><div class="hd">当前定制版一键导出；导出前小职做最后完整性检查。</div><div class="say">"导出这版"</div><div class="kb">导出前 Critic 终检（占位符/日期/联系方式）</div></div>
+    <div class="hubc"><div class="ht">🎤 这岗的面试题</div><div class="hd">按这条 JD 的技能要求 + 该公司面经出题；可继续模拟面试、复盘弱项。</div><div class="say">"这个岗会问什么""来一轮模拟面试"</div><div class="kb">依据：面试题库 + 目标公司库 · Reflexion 复盘</div></div>
+    <div class="hubc"><div class="ht">💰 这岗的薪酬范围</div><div class="hd">该岗位/城市/年限的 P25/P50/P75 + 结合你的画像给谈判锚点。</div><div class="say">"这个岗给到多少合理"</div><div class="kb">依据：薪资行情库 · 结合你的期望薪资</div></div>
+    <div class="hubc"><div class="ht">🏢 这家公司的氛围</div><div class="hd">该公司工作强度、团队口碑、面试风格等情报摘要，标注来源与时效。</div><div class="say">"这家公司加班严重吗"</div><div class="kb">依据：目标公司库 · 有据可查，无据明说</div></div>
+  </div>
+  <p class="small muted">六项能力不是六个页面——是<b>同一条 JD 主线里的六类对话意图</b>。小职按意图自动路由到对应知识库与工具，结果以内联卡片 / Canvas 呈现。tab（机会/准备/资产/我的）只是这条主线的辅助镜头：找下一条 JD、看全局进度、管历史产出、维护画像。</p>
+
+  <h3><span class="plat web">WEB</span> 主线全流程：六项能力在同一条对话里连续发生（左对话 · 右简历 Canvas）</h3>
+  <div class="webmock">
+    <div class="mbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app —— 字节·后端·抖音 · 主线</span></div>
+    <div class="webapp">
+      <div class="wside">
+        <div class="logo"><span class="b">C</span> CareerMate</div>
+        <div class="wi on"><span class="ic">💬</span>小职</div>
+        <div class="wi"><span class="ic">◎</span>机会</div>
+        <div class="wi"><span class="ic">▦</span>准备</div>
+        <div class="wi"><span class="ic">📁</span>资产</div>
+        <div class="wi"><span class="ic">👤</span>我的</div>
+        <div class="grow"></div>
+        <div class="railcap">tab＝辅助镜头<br>主线永远在小职</div>
+      </div>
+      <div class="wcontent" style="padding:0">
+        <div class="craftsplit">
+          <div class="cmain">
+            <div class="cfocus"><span style="font-size:13px">🧵</span><span class="avm">字</span><span class="fchip on">字节·后端·抖音</span><span class="fchip"><span class="k">简历</span>v4 · 契合79</span><span class="fchip"><span class="k">记忆</span>连续</span></div>
+            <div class="msgs">
+              <div class="msg u">针对这个 JD 生成一份简历</div>
+              <div class="msg a wide">已读 JD + 你的主简历，生成定制版 v4（右侧）：突出削峰经历、补关键词、精简无关段。缺「Golang」——你会吗？<b>我没编造</b>。<div class="src">生成简历 · deep-path · specialist+Critic · 依据 JD 库+主简历</div></div>
+              <div class="msg u">把带人经历加上，然后导出</div>
+              <div class="msg a wide">已补「带过 3 人」到加分项，契合 76→79。导出前终检通过（无占位符/联系方式完整），<b>PDF 已生成</b> ⬇ 字节-后端-抖音-v4.pdf<div class="src">修改+导出 · 版本已留存并挂本 JD</div></div>
+              <div class="msg u">这个岗面试会问什么？</div>
+              <div class="msg a wide">按 JD 技能 + 字节面经，二面高频：
+                <div class="iwidget"><div class="iwh"><span>本岗面试题 · 内联</span><span>说"来一轮模拟"开练</span></div>
+                  <div class="qitem">1. 高并发下缓存一致性怎么保证？<span class="qt">·命中你简历</span></div>
+                  <div class="qitem">2. 分库分表后的分布式事务？<span class="qt">·你的弱项</span></div>
+                  <div class="qitem">3. 讲讲订单削峰的设计取舍<span class="qt">·基于v4简历</span></div>
+                </div><div class="src">面试题 · 依据面试题库+公司库 · 结合你刚定稿的 v4</div></div>
+              <div class="msg u">给到多少合理？这家加班严重吗</div>
+              <div class="msg a wide">薪酬（本岗·广州·3-5年）：
+                <div class="iwidget"><div class="iwh"><span>本岗薪酬 · 内联</span><span>样本1,284</span></div>
+                  <div class="saldist"><span class="mk" style="left:20%">P25<b>22K</b></span><span class="mk hl" style="left:50%">P50<b>30K</b></span><span class="mk" style="left:80%">P75<b>42K</b></span></div>
+                </div>
+                结合你期望 35K：处于 P50–P75，合理，可锚 35K。氛围（该团队）：
+                <div class="iwidget"><div class="vibe"><span class="v neg">大小周传闻·近期已取消</span><span class="v pos">技术氛围强</span><span class="v pos">晋升透明</span><span class="v neg">节奏快</span></div></div>
+                <div class="src">薪酬·薪资行情库 ｜ 氛围·目标公司库（近90天，来源可查）· 记得你偏好"不接受长期996"</div></div>
+            </div>
+            <div class="composer"><div class="inp">继续问这条 JD 的任何事…</div><div class="send">↑</div></div>
+            <div class="fbar"><span class="f">改简历</span><span class="f">模拟面试</span><span class="f">谈薪建议</span><span class="f">换一条 JD</span></div>
+          </div>
+          <div class="canvas" style="border-left:1px solid var(--line)">
+            <div class="cvhead"><span style="font-weight:700;font-size:12px">简历 Canvas · 字节定制 v4</span><span class="ring mid" style="width:27px;height:27px;font-size:11px;border-width:2px;margin-left:4px;display:inline-flex;align-items:center;justify-content:center">79</span><span class="filt" style="margin-left:auto">版本 ▾</span><span class="btn p" style="flex:0 0 auto;padding:5px 12px">已导出 ✓</span></div>
+            <div class="cvbody">
+              <div class="rline">张三 · 后端开发 · 3 年 · Java</div>
+              <div class="rline chg">主导高并发订单<b>削峰</b>设计，QPS 2k→200k　<span style="color:#79d98a;font-size:9px">✎小职</span></div>
+              <div class="rline chg">技能：Java·Redis·<b>分布式事务·消息队列</b>　<span style="color:#79d98a;font-size:9px">✎小职</span></div>
+              <div class="rline chg">加分：<b>带过 3 人</b>小组交付　<span style="color:#79d98a;font-size:9px">✎小职·本轮新增</span></div>
+              <div class="rline">前端项目：Vue 管理后台（你要求保留）</div>
+              <div class="rline del2">缺 Golang — 未编造，待你确认</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">一条主线走完全部六项：生成 → 修改 → 导出 → 面试题 → 薪酬 → 氛围。小职始终锚在「这条 JD + 这份简历」——面试题基于刚定稿的 v4、薪酬结合你的期望、氛围回应你的 996 底线（长期记忆）。底部快捷条只是把高频话术放在手边，仍是"说"。</div>
+  </div>
+
+  <div class="phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span style="font-size:15px">☰</span><span class="avm">字</span><span class="pt" style="font-size:12px">字节·抖音 主线</span><span class="r" style="color:var(--brand2);font-size:10px">简历v4·79 ▸</span></div>
+        <div class="pbody" style="padding:0;display:flex;flex-direction:column">
+          <div class="msgs" style="flex:1">
+            <div class="msg u">针对这个 JD 生成简历</div>
+            <div class="msg a">已生成 v4（右上「简历」看）。缺 Golang，没编造，你会吗？<div class="src">deep-path·Critic</div></div>
+            <div class="msg u">面试会问什么？给多少合理？</div>
+            <div class="msg a wide">高频3题（基于v4）：缓存一致性/分布式事务/削峰取舍。薪酬 P50=30K、P75=42K，你期望35K合理。<div class="src">面试题库+薪资库·同一主线</div></div>
+          </div>
+          <div class="fbar" style="padding:6px 11px 4px"><span class="f">改简历</span><span class="f">模拟面</span><span class="f">导出</span><span class="f">氛围</span></div>
+          <div class="composer" style="border-top:1px solid var(--line)"><div class="inp">继续问这条 JD…</div><div class="send">↑</div></div>
+        </div>
+        <div class="tabbar">
+          <div class="t on"><span class="ic">💬</span>小职</div>
+          <div class="t"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t"><span class="ic">👤</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">移动端：主线全屏对话；「☰」切 JD 线（各线隔离）；右上抽出简历 Canvas；快捷条高频话术。</div>
+    </div>
+  </div>
+
+  <h3><span class="plat web">WEB</span> 记忆连续 · 跨线不串 · 视图召唤（补充演示）</h3>
+  <div class="webmock">
+    <div class="mbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app —— 小职主线</span></div>
+    <div class="webapp">
+      <div class="wside">
+        <div class="logo"><span class="b">C</span> CareerMate</div>
+        <div class="wi on"><span class="ic">💬</span>小职</div>
+        <div class="wi"><span class="ic">◎</span>机会</div>
+        <div class="wi"><span class="ic">▦</span>准备</div>
+        <div class="wi"><span class="ic">📁</span>资产</div>
+        <div class="wi"><span class="ic">👤</span>我的</div>
+        <div class="grow"></div>
+        <div class="railcap">点侧栏＝给小职发一句 / 切镜头，<b>不离开主线</b></div>
+      </div>
+      <div class="wcontent" style="padding:0">
+        <div class="cmain">
+          <div class="cfocus"><span style="font-size:13px">🧵</span><span class="muted small">主线锚定：</span><span class="avm">字</span><span class="fchip on">字节·后端·抖音</span><span class="fchip"><span class="k">简历</span>v4 · 契合76</span><span class="fchip"><span class="k">记忆</span>连续</span></div>
+          <div class="msgs">
+            <div class="msg a wide">延续上次「字节·抖音」这条线 —— 你已定：<b>突出削峰、补关键词、保留前端</b>。今天继续完善简历，还是先看别的机会？<div class="src">整条会话记忆 · 记得上文，未串台</div></div>
+            <div class="msg u">还有更匹配的字节岗吗</div>
+            <div class="msg a wide">有 2 个（同一主线内对比）：
+              <div class="iwidget">
+                <div class="iwh"><span>机会 · 召唤进对话</span><span>说"第N个"或点</span></div>
+                <div class="ijd"><span class="avm">字</span><span><div class="co">字节·后端·抖音（当前）</div><div class="ro">30-60K · 广州</div></span><span class="go">当前主线</span></div>
+                <div class="ijd"><span class="avm">字</span><span><div class="co">字节·后端·电商</div><div class="ro">25-50K · 广州</div></span><span class="go">另开一条线</span></div>
+              </div>
+              电商那条我会<b>单独开一条线</b>，两条的<b>对话不互串</b>（防搞混）；但抖音那份简历等<b>资产可跨线复用</b>——你说"改成电商版"我就取来改。</div>
+            <div class="msg u">先专注这个，把带人经历也加上</div>
+            <div class="msg a wide">好，已在简历 Canvas 补「带过 3 人」到加分项（呼应 JD 团队协作）。<b>契合 76 → 79</b>。<div class="src">deep-path · 改的是这条 JD 的简历 v4 · Critic 已复核</div></div>
+            <div class="msg u">我最近投得怎么样了</div>
+            <div class="msg a wide">你的进度：
+              <div class="iwidget"><div class="iwh"><span>准备 · 内联快照</span><span>说"打开看板"展开</span></div>
+                <div class="ipipe"><span class="st">准备3</span><span class="st">约面1</span><span class="st" style="color:#ff8a6b">面试中·字节1</span><span class="st" style="color:#e5be5a">谈薪·美团1</span></div>
+              </div>
+              美团在等你谈薪。要我<b>基于这份简历</b>准备谈薪话术吗？<div class="src">看完进度，仍回到 JD+简历主线</div></div>
+          </div>
+          <div class="composer"><div class="inp">跟小职说就行（找岗位/改简历/看进度/查资产都不用离开这条线）…</div><div class="send">↑</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">全站主界面 = 小职一条主线，锚定「JD + 简历」：<b>记得上文</b>（延续上次的决定）、不同 JD <b>各开一条线不搞混</b>、改简历只依据真实材料 <b>Critic 复核不胡说</b>；机会/进度以内联卡片<b>召唤进同一对话</b>，看完仍<b>回到 JD+简历</b>。移动端：对话全屏 + 视图抽出。</div>
+  </div>
+
+  <h3 style="color:var(--ink)">每个模块如何「对话化」</h3>
+  <table>
+    <tr><th>模块</th><th>传统手动（已弃）</th><th>对话化 · 主路径</th></tr>
+    <tr><td>机会发现</td><td>搜索框 + 六维筛选面板</td><td>"有广州的字节后端吗" → 内联 JD 卡</td></tr>
+    <tr><td><b>简历定制 ★</b></td><td>表单编辑</td><td>"针对这个 JD 改简历"、"削峰再突出点" → Canvas</td></tr>
+    <tr><td>筛选排序</td><td>面板/下拉</td><td>"只看广州、薪资高的" 一句话</td></tr>
+    <tr><td>看进度</td><td>进"准备"看板 tab</td><td>"我最近投得怎么样" → 内联快照</td></tr>
+    <tr><td>找资产</td><td>进"资产"tab 翻分页</td><td>"我给字节那份简历" → 内联调出</td></tr>
+    <tr><td>改画像</td><td>填表单</td><td>对话中问/更新，"我期望涨到 35k"</td></tr>
+  </table>
+
+  <h3 style="color:var(--ink)">Agent 能力体现（为什么这必须是智能体，不是编辑器）</h3>
+  <p class="small muted">若去掉 Agent，本产品退化为"简历编辑器 + 岗位列表"。Agent 能力藏在"说一句就搞定"的背后，与架构组件一一对应：</p>
+  <table>
+    <tr><th style="width:180px">Agent 能力</th><th>产品中的时刻</th><th style="width:175px">架构组件</th></tr>
+    <tr><td><b>① 工具调用</b></td><td>"有字节后端岗吗"→检索 JD 库出卡片；"改简历"→调编辑工具改 Canvas；"投得怎样"→查进度</td><td>function-calling 工具集</td></tr>
+    <tr><td><b>② 多步自主编排</b></td><td>"针对这个 JD 生成简历"=读JD→对齐简历→找gap→逐条改写→自查→落版本，一句话触发</td><td>deep-path 编排</td></tr>
+    <tr><td><b>③ 快慢分层</b></td><td>"薪酬多少"秒答（fast）；"深度定制/模拟面复盘"走重管线（deep）</td><td>fast/deep 路由（ADR-2）</td></tr>
+    <tr><td><b>④ 专家+自我批判</b></td><td>简历 specialist 改写，Critic 复核防编造——"缺 Golang 未编造"；导出前终检</td><td>specialist + Critic</td></tr>
+    <tr><td><b>⑤ 反思自改进</b></td><td>模拟面试后自评你的弱项（如系统设计），下次针对性出题</td><td>Reflexion（A3）</td></tr>
+    <tr><td><b>⑥ 知识落地（RAG）</b></td><td>gap/面试题/薪酬/氛围全部依据知识库真实数据，来源可查、无据明说</td><td>scene→kbId 检索路由</td></tr>
+    <tr><td><b>⑦ 长期记忆·个性化</b></td><td>记得"只想远程""期望35k""不接受996"，跨所有 JD 线自动生效</td><td>pgvector 长期记忆（A4）</td></tr>
+    <tr><td><b>⑧ 主动性</b></td><td>"缺 Golang 你会吗？""美团在等你谈薪，要准备话术吗？""削峰段电商岗也适用，要用吗？"</td><td>意图/状态驱动的主动建议</td></tr>
+    <tr><td><b>⑨ 状态管理</b></td><td>每条 JD 线记忆连续；隔离对话/共享产出的边界；版本可回溯</td><td>会话作用域 + 资产模型</td></tr>
+  </table>
+  <div class="box good"><span class="tag" style="color:var(--good)">分水岭</span><b>Chatbot</b>：你问它答，无状态、不行动、不自省。<b>Agent</b>：有目标（把这条 JD 打准）、会规划多步、调工具去做、专家协作+自我批判防胡说、基于真实数据、记住你、主动推进下一步。Agent 能力最密集处正是核心链「简历定制」。</div>
+
+  <h3 style="color:var(--ink)">记忆与隔离规则（实现约束）</h3>
+  <table>
+    <tr><th style="width:160px">层</th><th>机制</th><th style="width:200px">约束</th></tr>
+    <tr><td>当前 JD 会话</td><td><b>整条全量喂入</b>上下文（非 N 条截断）</td><td>禁止为对话连续自建向量库</td></tr>
+    <tr><td>超长会话兜底</td><td>滚动摘要（老消息压缩 + 近期原文）</td><td>仅超长触发</td></tr>
+    <tr><td>跨 JD 隔离</td><td>对话上下文 <code>WHERE session_id=当前JD线</code> 硬隔离</td><td>A 岗对话绝不进 B 岗上下文</td></tr>
+    <tr><td>跨线共享</td><td>资产/进度/长期偏好按 <code>user_id</code> 共享；跨线复用=copy 资产内容，不 copy 对话</td><td>隔离对话、共享产出</td></tr>
+    <tr><td>长期偏好</td><td>蒸馏为 fact 存 pgvector，语义检索注入</td><td>仅此层用语义记忆</td></tr>
+    <tr><td>知识素材</td><td>JD/面试题/薪酬/公司库走 RAG 检索</td><td>回答带依据，无据明说</td></tr>
+  </table>
+
+  <!-- ===== 平台策略 ===== -->
+  <h2><span class="num">00</span> 平台导航策略</h2>
+  <div class="box brand"><span class="tag">核心原则</span>
+    信息架构一致（同一套机会/资产模型），<b>导航密度分平台</b>：Web 侧边栏空间充裕，5 个一等 tab 全展开；移动端底部 tab 遵循 ≤4 的克制原则，把使用频次相对低、且能在场景内到达的「资产」折进「我的」。<b>不为移动端牺牲功能，只调整触达路径。</b>
+  </div>
+
+  <div class="navprev">
+    <div class="np"><h4><span class="plat web">WEB</span> 侧边栏 · 5 tab</h4>
+      <div class="pillrow">
+        <span class="npi hi">◎ 机会</span><span class="npi hi">▦ 准备</span><span class="npi hi">💬 小职</span><span class="npi hi">📁 资产</span><span class="npi">👤 我的</span>
+      </div>
+      <p class="small muted" style="margin:9px 0 0">带文字标签，可再挂二级项（如资产下的题库/简历）。空间不紧张。</p>
+    </div>
+    <div class="np"><h4><span class="plat mob">移动端</span> 底部 · 4 tab</h4>
+      <div class="pillrow">
+        <span class="npi hi">◎ 机会</span><span class="npi hi">▦ 准备</span><span class="npi hi">💬 小职</span><span class="npi hi">👤 我的</span><span class="npi fold">📁 资产 → 收进「我的」</span>
+      </div>
+      <p class="small muted" style="margin:9px 0 0">底部只留最高频 4 个；资产在「我的」内 + 小职/准备场景内可达（引用简历、复用八股）。</p>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>tab</th><th class="c">Web 侧边栏</th><th class="c">移动端底部</th><th>移动端触达方式</th></tr>
+    <tr><td>机会</td><td>✅</td><td>✅</td><td>底部一级</td></tr>
+    <tr><td>准备</td><td>✅</td><td>✅</td><td>底部一级</td></tr>
+    <tr><td>小职</td><td>✅</td><td>✅</td><td>底部一级</td></tr>
+    <tr><td>资产</td><td>✅ 独立 tab</td><td>—</td><td>「我的」内入口 + 对话/准备中引用简历、复用八股</td></tr>
+    <tr><td>我的</td><td>✅</td><td>✅</td><td>底部一级（含资产入口）</td></tr>
+  </table>
+
+  <!-- ================= 机会 ================= -->
+  <h2><span class="num">01</span> 机会 —— 发现岗位</h2>
+  <p class="small muted">JD 来自<b>知识库查询</b>（RAGForge JD 库），非市场/非用户粘贴。通用优化（两端一致）：匹配分归一 0–100 + 高/中/低档位配色 + 按分排序；命中/缺失归因；<b>主操作直指核心「定制简历」</b>（→ 定制工作台，见 02）+ 收藏（进暂存不建会话）。定位：feed 只为喂给"定制简历"核心，<b>无投递/无 HR 沟通</b>，不做 BOSS 式市场。</p>
+
+  <h3><span class="plat web">WEB</span> 双列卡片 · 侧边栏常驻</h3>
+  <div class="webmock">
+    <div class="mbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app / 机会</span></div>
+    <div class="webapp">
+      <div class="wside">
+        <div class="logo"><span class="b">C</span> CareerMate</div>
+        <div class="wi on"><span class="ic">◎</span>机会</div>
+        <div class="wi"><span class="ic">▦</span>准备</div>
+        <div class="wi"><span class="ic">💬</span>小职</div>
+        <div class="wi"><span class="ic">📁</span>资产</div>
+        <div class="wi"><span class="ic">👤</span>我的</div>
+        <div class="grow"></div>
+      </div>
+      <div class="wcontent">
+        <div class="whead"><span class="ttl">机会</span><span class="wsearch">🔍 搜 JD / 公司 / 技能</span></div>
+        <div class="wbody">
+          <div class="filters"><span class="muted small" style="align-self:center">排序</span><span class="filt on">匹配度</span><span class="filt">最新</span><span class="fdiv"></span><span class="filt on">城市·广州 <span class="x">✕</span></span></div>
+          <div class="rescount">共 <b>128</b> 个机会 · 已按你的画像匹配度排序</div>
+          <div class="oppgrid2">
+            <div class="opp">
+              <div class="top"><div class="ava">字</div><div><div class="co">字节跳动</div><div class="ro">AI Agent 开发工程师</div><div class="sal">30-60K · 15薪 · 广州</div></div><div class="score"><div class="ring hi">86</div><div class="lbl">高匹配</div></div></div>
+              <div class="hit"><span class="g">✓ 命中6</span>：Java·Redis·分布式…　<span class="m">缺2</span>：Golang·Django</div>
+              <div class="act"><span class="btn p">定制简历</span><span class="btn g">☆ 收藏</span></div>
+              <div class="meta">3-5年 · 本科 · 万人以上　·　点「定制简历」直达定制工作台</div>
+            </div>
+            <div class="opp">
+              <div class="top"><div class="ava">美</div><div><div class="co">美团</div><div class="ro">后端开发工程师</div><div class="sal">25-40K · 广州</div></div><div class="score"><div class="ring mid">61</div><div class="lbl">中匹配</div></div></div>
+              <div class="hit"><span class="g">✓ 命中4</span>：Java·MySQL…　<span class="m">缺3</span>：Go·K8s·gRPC</div>
+              <div class="act"><span class="btn p">定制简历</span><span class="btn g">☆ 收藏</span></div>
+              <div class="meta">3-5年 · 本科 · 万人以上</div>
+            </div>
+          </div>
+          <div class="pager"><span class="pg nav">‹ 上一页</span><span class="pg on">1</span><span class="pg">2</span><span class="pg">3</span><span class="pg">…</span><span class="pg">9</span><span class="pg nav">下一页 ›</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Web：侧边栏 5 tab 常驻；双列卡片信息密度更高；<b>底部点击页码翻页（分页导航），每页固定条数</b>。</div>
+  </div>
+
+  <h3><span class="plat mob">移动端</span> 单列卡片 · 底部 4 tab</h3>
+  <div class="phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span class="pt">机会</span><span class="r">🔍</span></div>
+        <div class="pbody">
+          <div class="pfilters"><span class="filt on">匹配度</span><span class="filt">最新</span><span class="fdiv"></span><span class="filt on">城市·广州</span></div>
+          <div class="opp" style="margin-bottom:11px">
+            <div class="top"><div class="ava">字</div><div><div class="co">字节跳动</div><div class="ro">AI Agent 开发</div><div class="sal">30-60K · 广州</div></div><div class="score"><div class="ring hi">86</div><div class="lbl">高</div></div></div>
+            <div class="hit"><span class="g">✓ 命中6</span> · <span class="m">缺2</span></div>
+            <div class="act"><span class="btn p">定制简历</span><span class="btn g">☆</span></div>
+          </div>
+          <div class="opp">
+            <div class="top"><div class="ava">美</div><div><div class="co">美团</div><div class="ro">后端开发</div><div class="sal">25-40K · 广州</div></div><div class="score"><div class="ring mid">61</div><div class="lbl">中</div></div></div>
+            <div class="hit"><span class="g">✓ 命中4</span> · <span class="m">缺3</span></div>
+            <div class="act"><span class="btn p">定制简历</span><span class="btn g">☆</span></div>
+          </div>
+          <div class="scrollmore"><span class="spin"></span> 滚动自动加载更多…</div>
+        </div>
+        <div class="tabbar">
+          <div class="t on"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t"><span class="ic">💬</span>小职</div>
+          <div class="t"><span class="ic">👤</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">移动端：单列大卡、主操作满宽；收藏收成图标；底部仅 4 tab；<b>无限滚动，触底自动加载下一批</b>（无页码）。</div>
+    </div>
+  </div>
+
+  <h3 style="color:var(--ink)">搜索与筛选 · 极简（刻意不做 BOSS 式筛选）</h3>
+  <div class="box brand"><span class="tag">刻意做简单</span>
+    机会 feed 已按你的<b>求职画像个性化排序</b>，是"按契合度排好的候选清单"，不是让你层层筛的岗位广场。所以：
+    <ul style="margin:8px 0 0">
+      <li><b>一个搜索框</b>：搜公司/岗位，聚焦看历史、输入给联想。<b>删掉</b>热门榜、画像快捷等填充。</li>
+      <li><b>排序只两项</b>：<span class="kbd">匹配度</span>（默认）· <span class="kbd">最新</span>。</li>
+      <li><b>筛选最多一个「城市」</b>：<b>删掉</b>薪资/公司规模/融资阶段/工作性质/发布时间/匹配过滤等整套六维面板——画像里已表达这些偏好。</li>
+    </ul>
+  </div>
+
+  <h4 style="margin-top:18px"><span class="plat web">WEB</span> 搜索下拉（只有历史 + 联想）</h4>
+  <div class="panelrow">
+    <div>
+      <div class="searchpanel">
+        <div class="spbar"><div class="spinput ph">🔍 搜公司 / 岗位</div></div>
+        <div class="spdrop">
+          <div class="spsec">搜索历史 <span style="color:var(--brand2)">清空</span></div>
+          <div class="spitem">🕘 字节 后端<span class="rm">✕</span></div>
+          <div class="spitem">🕘 Golang 远程<span class="rm">✕</span></div>
+        </div>
+      </div>
+      <div class="pcap" style="border:0;background:none;padding:6px 2px">聚焦未输入：<b>只有搜索历史</b>（砍掉热门榜、画像快捷）。</div>
+    </div>
+    <div>
+      <div class="searchpanel">
+        <div class="spbar"><div class="spinput">🔍 字节｜</div></div>
+        <div class="spdrop">
+          <div class="spsec">公司</div>
+          <div class="spitem"><span class="ty">公司</span>字节跳动<span class="cnt">12 个在招</span></div>
+          <div class="spitem"><span class="ty">公司</span>字节跳动 · 抖音<span class="cnt">5 个在招</span></div>
+          <div class="spitem" style="color:var(--brand2);padding-left:10px">↳ 只看这家公司 →</div>
+          <div class="spsec">岗位</div>
+          <div class="spitem"><span class="ty">岗位</span>后端开发</div>
+        </div>
+      </div>
+      <div class="pcap" style="border:0;background:none;padding:6px 2px">输入中：公司/岗位联想 + 「只看这家公司」，够用即止。</div>
+    </div>
+  </div>
+
+  <h4 style="margin-top:18px"><span class="plat web">WEB</span> 排序（两项切换）· 无筛选面板</h4>
+  <div class="panelrow">
+    <div>
+      <div class="sortmenu" style="width:240px">
+        <div class="smtop">排序（只重排，不减少结果）</div>
+        <div class="smi on">匹配度（默认）✓</div>
+        <div class="smi">最新</div>
+      </div>
+      <div class="pcap" style="border:0;background:none;padding:6px 2px">排序就俩，不做 4 项下拉。</div>
+    </div>
+    <div>
+      <div class="box" style="margin:0;border-style:dashed;border-color:rgba(240,96,58,.4)"><span class="tag" style="color:var(--bad)">已删除</span>
+        整套「＋筛选」六维面板（薪资 / 公司规模 / 融资阶段 / 工作性质 / 发布时间 / 匹配过滤）<b>全部删除</b>。画像已表达偏好，无需层层筛；机会页最多保留一个「城市」快捷 chip。
+      </div>
+    </div>
+  </div>
+
+  <h4 style="margin-top:18px"><span class="plat mob">移动端</span> 全屏搜索（历史 + 联想）</h4>
+  <div class="phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span style="font-size:15px">‹</span><div class="spinput" style="flex:1;padding:6px 11px;font-size:13px">🔍 字节｜</div></div>
+        <div class="pbody">
+          <div class="spsec">公司</div>
+          <div class="spitem"><span class="ty">公司</span>字节跳动<span class="cnt">12</span></div>
+          <div class="spitem" style="color:var(--brand2)">↳ 只看这家公司 →</div>
+          <div class="spsec">岗位</div>
+          <div class="spitem"><span class="ty">岗位</span>后端开发</div>
+          <div class="spsec">搜索历史</div>
+          <div class="spitem">🕘 Golang 远程<span class="rm">✕</span></div>
+        </div>
+        <div class="tabbar">
+          <div class="t on"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t"><span class="ic">💬</span>小职</div>
+          <div class="t"><span class="ic">👤</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">移动端：点搜索进全屏，只有联想+历史；排序两项走小抽屉；<b>无六维筛选面板</b>。</div>
+    </div>
+  </div>
+
+  <!-- ================= 简历定制工作台（核心） ================= -->
+  <h2><span class="num">02</span> 简历定制 —— ★ 产品核心（Agent + Canvas）</h2>
+  <div class="box brand"><span class="tag">护城河 · Agent 驱动 · 全站最精致的一屏</span>
+    核心诉求 = <b>「一条 JD → 一份定制简历」</b>，且<b>由小职（Agent）对话驱动</b>——不是脱离对话的表单。JD 来自<b>知识库查询</b>（KB599）。此屏 = <b>小职对话 + 简历 Canvas</b>：小职读 JD 做 gap 分析、实时改写右侧简历 Canvas，<b>每个改动既能对小职说、也能在 Canvas 上点</b>。深度定制走 <b>deep-path（简历 specialist + Critic 复核，缺失项不编造）</b> + RAG（KB599 + 你的简历/长期记忆）。
+    <br><b>生成不是终点——简历是可持续「增删改查」的活文档</b>：生成后继续对小职说「加一段开源项目 / 删掉这条 / 数字改成 200k / 给我看上一版」，小职即时在 Canvas 改；<b>每次改动留存版本</b>（资产·简历版本，挂该 JD），可随时回溯对比、导出。始终锚在<b>这条 JD + 这份简历</b>上。
+    <br><b>与 BOSS 的根本区别</b>：无雇主侧/投递/HR 沟通——JD 只是原料。重心是「把这一枪打准」，且这一枪由 Agent 打。
+  </div>
+
+  <h3><span class="plat web">WEB</span> 小职对话 ⟷ 简历 Canvas（Agent 驱动 · 对话即操作）</h3>
+  <div class="webmock">
+    <div class="mbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app / 小职 · 定制简历</span></div>
+    <div class="webapp">
+      <div class="wside">
+        <div class="logo"><span class="b">C</span> CareerMate</div>
+        <div class="wi"><span class="ic">◎</span>机会</div>
+        <div class="wi"><span class="ic">▦</span>准备</div>
+        <div class="wi on"><span class="ic">💬</span>小职</div>
+        <div class="wi"><span class="ic">📁</span>资产</div>
+        <div class="wi"><span class="ic">👤</span>我的</div>
+        <div class="grow"></div>
+      </div>
+      <div class="wcontent" style="padding:0">
+        <div class="craftsplit">
+          <div class="cmain" style="border-right:1px solid var(--line)">
+            <div class="cfocus"><span class="avm">字</span><span class="fchip on">字节·抖音</span><span class="fchip"><span class="k">焦点</span>改简历</span><span class="fchip"><span class="k">模式</span>深度</span></div>
+            <div class="msgs">
+              <div class="msg u">帮我针对字节·抖音这条 JD 定制简历</div>
+              <div class="msg a">已读 JD（KB599）+ 你的主简历。契合 <b>76</b>：命中6 / 缺2 / 未突出3。我在右侧 Canvas 改了 3 处：①突出削峰经历 ②补关键词 ③弱化前端。<br>「Golang」你简历没有，我<b>没替你编造</b>——你会吗？会我就加。<div class="src">deep-path · 简历 specialist + Critic 已复核 · 依据 KB599 + 你的简历</div></div>
+              <div class="msg u">前端那段留着</div>
+              <div class="msg a">好，已恢复前端段（右侧 Canvas 同步更新）。要不要把「带过 3 人」补进加分项？JD 有「团队协作」加分。</div>
+            </div>
+            <div class="composer"><div class="inp">继续跟小职说，或直接在右侧点改动…</div><div class="send">↑</div></div>
+            <div class="fbar"><span class="f on">改简历</span><span class="f">JD分析</span><span class="f">面试</span><span class="f">薪资</span></div>
+          </div>
+          <div class="canvas">
+            <div class="cvhead"><span style="font-weight:700;font-size:12px">简历 Canvas · 字节定制 v4</span><span class="ring mid" style="width:27px;height:27px;font-size:11px;border-width:2px;margin-left:4px">76</span><span class="filt" style="margin-left:auto">版本对比</span><span class="btn p" style="flex:0 0 auto;padding:5px 12px">导出</span></div>
+            <div class="cvbody">
+              <div class="gapline" style="margin:0 0 9px;font-size:10.5px"><span class="g">✓命中6</span><span class="r">✗缺2</span><span class="a">◐未突出3</span><span class="muted small" style="margin-left:auto">小职实时编辑中</span></div>
+              <div class="rline">张三 · 后端开发 · 3 年 · Java</div>
+              <div class="rline chg">主导高并发订单<b>削峰</b>设计，QPS 2k→200k　<span style="color:#79d98a;font-size:9px">✎ 小职·突出匹配</span></div>
+              <div class="rline chg">技能：Java·Redis·<b>分布式事务·消息队列·分库分表</b>　<span style="color:#79d98a;font-size:9px">✎ 小职·补关键词</span></div>
+              <div class="inlsug">💡 小职建议：弱化「前端项目」段以腾篇幅<div class="acts"><span class="adopt">采纳</span><span class="ignore" style="border-color:var(--brand);color:var(--brand2)">已保留 ✓</span></div></div>
+              <div class="rline">前端项目：Vue 管理后台（已按你的意见保留）</div>
+              <div class="rline del2">缺 Golang / gRPC — 小职未编造，待你确认</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Web：左=小职（Agent）连续对话，右=简历 Canvas（小职实时编辑的定制版，改动高亮标「✎小职」、gap 叠加）。<b>一切由对话驱动</b>——改动可对小职说、也可在 Canvas 点采纳；deep-path 走 specialist+Critic，缺失项不编造。定制版产出后归档「资产·简历版本」并挂机会标签。</div>
+  </div>
+
+  <h3><span class="plat mob">移动端</span> 聊天为主 · Canvas 抽出（对话/画布切换）</h3>
+  <div class="phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span style="font-size:15px">‹</span><span class="avm">字</span><span class="pt" style="font-size:12px">字节·抖音 改简历</span><span class="r" style="font-size:10px;color:var(--brand2)">简历v4·76 ▸</span></div>
+        <div class="pbody" style="padding:0;display:flex;flex-direction:column">
+          <div class="cfocus" style="padding:7px 12px"><span class="fchip on">改简历</span><span class="fchip"><span class="k">模式</span>深度</span></div>
+          <div class="msgs" style="flex:1">
+            <div class="msg u">针对字节这条 JD 定制简历</div>
+            <div class="msg a">契合76·命中6缺2。已改3处（点右上「简历」看）。Golang 你没有，没编造，会吗？<div class="src">deep-path·Critic复核</div></div>
+            <div class="msg u">前端留着</div>
+            <div class="msg a">好，已恢复。要补「带过3人」进加分项吗？</div>
+          </div>
+          <div class="fbar" style="padding:6px 11px 4px"><span class="f on">改简历</span><span class="f">JD分析</span><span class="f">面试</span></div>
+          <div class="composer" style="border-top:1px solid var(--line)"><div class="inp">跟小职说，或点「简历」在画布改…</div><div class="send">↑</div></div>
+        </div>
+        <div class="tabbar">
+          <div class="t"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t on"><span class="ic">💬</span>小职</div>
+          <div class="t"><span class="ic">👤</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">对话态：小职主导，改动同步到简历 Canvas。</div>
+    </div>
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span style="font-size:15px">‹ 对话</span><span class="pt" style="font-size:13px">简历 Canvas v4</span><span class="r" style="font-size:10px;color:var(--brand2)">导出</span></div>
+        <div class="pbody">
+          <div class="gapline" style="margin:0 0 9px;font-size:11px"><span class="g">✓命中6</span><span class="r">✗缺2</span><span class="a">◐未突出3</span></div>
+          <div class="rline">张三 · 后端 · 3年 · Java</div>
+          <div class="rline chg">高并发订单<b>削峰</b>，QPS 2k→200k　<span style="color:#79d98a;font-size:9px">✎小职</span></div>
+          <div class="rline chg">技能补：<b>分布式事务·消息队列</b>　<span style="color:#79d98a;font-size:9px">✎小职</span></div>
+          <div class="inlsug">💡 弱化前端段？<div class="acts"><span class="adopt">采纳</span><span class="ignore" style="border-color:var(--brand);color:var(--brand2)">已保留✓</span></div></div>
+          <div class="rline del2">缺 Golang — 未编造，待确认</div>
+        </div>
+        <div class="tabbar">
+          <div class="t"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t on"><span class="ic">💬</span>小职</div>
+          <div class="t"><span class="ic">👤</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">画布态：从对话右上「简历」抽出全屏 Canvas；改动可点采纳、也可切回对话让小职改。手机上对话/画布来回切，而非并排。</div>
+    </div>
+  </div>
+
+  <!-- ================= 准备 ================= -->
+  <h2><span class="num">03</span> 准备 —— 投递看板 / 工作台</h2>
+  <p class="small muted">阶段由「对话推断 + 一键确认」自动维护（见模型稿 06 节）。<b>Web 用五列看板，移动端改为「阶段分段选择 + 卡片列表」</b>——手机放不下 5 列并排。</p>
+
+  <div class="box brand"><span class="tag">卡片标识与去重规则</span>
+    侧栏会话卡 = 看板卡 = <b>同一个「机会」实体</b>，一套命名贯穿两处。
+    <ul style="margin:8px 0 0">
+      <li><b>展示名</b> = <code>公司 · 职位 [· 区分项]</code>，可改名。当同公司同职位会撞名时，自动取一个区分项，优先级：<b>职级(P6) &gt; 团队/产品线(抖音) &gt; 城市 &gt; 序号②</b>。例：<code>字节·后端·抖音</code> 与 <code>字节·后端·电商</code>。</li>
+      <li><b>头像</b>用公司首字（替代原随机 emoji）；<b>badge 统一用 5 个看板阶段词</b>（准备投递/约面/面试中/Offer谈薪/已结束），当前活动（改简历、二面已完成…）作副标题小字。</li>
+      <li><b>去重守卫</b>：点「定制简历」时——同一条 JD（<code>jd_id</code> 相同）已有在办机会 → <b>直接进已有，不新建</b>；同公司+职位但不同 JD → 提示「已有『字节·后端』的准备，是同一个吗？」给【继续】/【新建】。</li>
+      <li><b>同公司多岗位 = 多张卡（允许）</b>，靠区分项区分；一个机会<b>当前只处在一个阶段 → 只出现在一列</b>，列与列之间不会重复。</li>
+    </ul>
+  </div>
+
+  <h3><span class="plat web">WEB</span> 五列看板</h3>
+  <div class="webmock">
+    <div class="mbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app / 准备</span></div>
+    <div class="webapp">
+      <div class="wside">
+        <div class="logo"><span class="b">C</span> CareerMate</div>
+        <div class="wi"><span class="ic">◎</span>机会</div>
+        <div class="wi on"><span class="ic">▦</span>准备</div>
+        <div class="wi"><span class="ic">💬</span>小职</div>
+        <div class="wi"><span class="ic">📁</span>资产</div>
+        <div class="wi"><span class="ic">👤</span>我的</div>
+        <div class="grow"></div>
+      </div>
+      <div class="wcontent">
+        <div class="whead"><span class="ttl">准备</span><span class="muted small">6 个在办 · 阶段自动推断</span></div>
+        <div class="wbody">
+          <div class="kanban">
+            <div class="kcol"><div class="kh"><span>准备/投递</span><span class="n">3</span></div>
+              <div class="kcard"><div class="co">字节·后端·电商</div><div class="ro">改简历中</div><div class="mt"><span class="m">简历v1</span></div></div>
+              <div class="kcard"><div class="co">腾讯·后端·IEG</div><div class="ro">已定制简历</div><div class="mt"><span class="m">简历v2</span></div></div>
+              <div class="kcard"><div class="co">快手·后端·商业化</div><div class="ro">今天问过</div></div>
+              <div class="small muted" style="text-align:center;padding:7px 3px;border-top:1px dashed var(--line);margin-top:5px">📌 暂存 JD×6</div>
+            </div>
+            <div class="kcol"><div class="kh"><span>约面</span><span class="n">1</span></div><div class="kcard"><div class="co">小红书·Java·社区</div><div class="ro">周四 14:00 一面</div><div class="mt"><span class="m">简历v2</span></div></div></div>
+            <div class="kcol"><div class="kh"><span>面试中</span><span class="n">1</span></div><div class="kcard" style="border-color:rgba(240,96,58,.5)"><div class="co">字节·后端·抖音</div><div class="ro">二面已完成</div><div class="mt"><span class="m">简历v3</span><span class="m">面经×3</span></div></div></div>
+            <div class="kcol"><div class="kh"><span>Offer/谈薪</span><span class="n">1</span></div><div class="kcard" style="border-color:rgba(210,153,34,.5)"><div class="co">美团·后端</div><div class="ro">口头 offer · 待谈薪</div><div class="mt"><span class="m warncol">待谈薪</span></div></div></div>
+            <div class="kcol"><div class="kh"><span>已结束</span><span class="n">1</span></div><div class="kcard" style="opacity:.55"><div class="co">拼多多·后端</div><div class="ro">已婉拒</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Web：五列 Kanban 一屏纵览，支持拖拽改阶段（兜底）。</div>
+  </div>
+
+  <h3><span class="plat mob">移动端</span> 阶段分段 + 卡片列表</h3>
+  <div class="phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span class="pt">准备</span><span class="r">4 在办</span></div>
+        <div class="pbody">
+          <div class="seg"><span class="s">准备3</span><span class="s">约面1</span><span class="s on">面试中1</span><span class="s">谈薪1</span><span class="s">结束1</span></div>
+          <div class="mcardlist">
+            <div class="kcard" style="border-color:rgba(240,96,58,.5)"><div class="co">字节·后端·抖音</div><div class="ro">二面已完成 · 待三面</div><div class="mt"><span class="m">简历v3</span><span class="m">面经×3</span><span class="m warncol">可练模拟面</span></div></div>
+            <div class="small muted" style="text-align:center;padding:14px 0">当前阶段仅 1 个机会</div>
+            <div class="entry"><span class="ic">💬</span><span>进入 字节·抖音 · 小职准备线</span><span class="r">▸</span></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="t"><span class="ic">◎</span>机会</div>
+          <div class="t on"><span class="ic">▦</span>准备</div>
+          <div class="t"><span class="ic">💬</span>小职</div>
+          <div class="t"><span class="ic">👤</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">移动端：顶部阶段分段器（横滑）替代五列并排；选中阶段看卡片列表；点卡进小职线。</div>
+    </div>
+  </div>
+
+  <!-- ================= 小职 ================= -->
+  <h2><span class="num">04</span> 小职 —— 机会内连续对话</h2>
+  <p class="small muted">按机会自动分组、机会内连续、焦点切换不新建会话。<b>Web 左侧常驻会话列表；移动端会话列表收进抽屉，聊天全屏</b>。</p>
+
+  <h3><span class="plat web">WEB</span> 会话列表 + 主聊天</h3>
+  <div class="webmock">
+    <div class="mbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app / 小职</span></div>
+    <div class="webapp">
+      <div class="wside">
+        <div class="logo"><span class="b">C</span> CareerMate</div>
+        <div class="wi"><span class="ic">◎</span>机会</div>
+        <div class="wi"><span class="ic">▦</span>准备</div>
+        <div class="wi on"><span class="ic">💬</span>小职</div>
+        <div class="wi"><span class="ic">📁</span>资产</div>
+        <div class="wi"><span class="ic">👤</span>我的</div>
+        <div class="grow"></div>
+      </div>
+      <div class="wcontent" style="padding:0">
+        <div class="chatweb">
+          <div class="clist">
+            <div class="it" style="color:var(--ink)">＋ 新对话</div>
+            <div class="grp">我的准备</div>
+            <div class="it on"><span class="avm">字</span><span class="tx"><span class="nm">字节·后端·抖音</span><span class="sub">二面已完成</span></span><span class="bd bhot">面试中</span></div>
+            <div class="it"><span class="avm">字</span><span class="tx"><span class="nm">字节·后端·电商</span><span class="sub">改简历中</span></span><span class="bd">准备投递</span></div>
+            <div class="it"><span class="avm">美</span><span class="tx"><span class="nm">美团·后端</span><span class="sub">待谈薪</span></span><span class="bd">谈薪</span></div>
+            <div class="it"><span class="avm">小</span><span class="tx"><span class="nm">小红书·Java·社区</span><span class="sub">周四一面</span></span><span class="bd bint">约面</span></div>
+            <div class="grp">通用对话</div>
+            <div class="it"><span class="avm" style="background:#22303f">🧭</span><span class="tx"><span class="nm">适合投什么</span></span></div>
+          </div>
+          <div class="cmain">
+            <div class="cfocus"><span class="muted small">机会：</span><span class="fchip on"><span class="k">JD</span> 字节·后端·抖音</span><span class="fchip"><span class="k">简历</span> v3</span><span class="fchip"><span class="k">阶段</span> 面试中·二面后</span></div>
+            <div class="msgs">
+              <div class="msg u">这轮面试会问什么？</div>
+              <div class="msg a">结合这条 JD 和你 v3 简历，二面偏系统设计：分库分表、缓存一致性、订单削峰。<div class="src">面试库#596·公司库#595·简历v3｜引用你的八股3题</div></div>
+              <div class="msg u">给 35K 合理吗？</div>
+              <div class="msg a">（仍在字节线，未串台）按你城市+职级，35K 处于 P25–P50…<div class="src">薪资库#597·焦点自动切薪资，会话未中断</div></div>
+            </div>
+            <div class="composer"><div class="inp">继续问字节这个岗位…</div><div class="send">发送</div></div>
+            <div class="fbar"><span class="muted small" style="align-self:center">焦点：</span><span class="f">JD分析</span><span class="f on">面试</span><span class="f on">薪资</span><span class="f">改简历</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Web：会话列表常驻左侧，聊天与焦点并存，信息一览无余。</div>
+  </div>
+
+  <h3><span class="plat mob">移动端</span> 全屏聊天 + 抽屉会话列表</h3>
+  <div class="phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span style="font-size:16px">☰</span><span class="avm">字</span><span class="pt" style="font-size:12.5px">字节·后端·抖音 ▾</span><span class="r">⋯</span></div>
+        <div class="pbody" style="padding:0;display:flex;flex-direction:column">
+          <div class="cfocus" style="padding:8px 12px"><span class="fchip on"><span class="k">JD</span>字节·抖音</span><span class="fchip"><span class="k">简历</span>v3</span><span class="fchip">面试中</span></div>
+          <div class="msgs" style="flex:1">
+            <div class="msg u">这轮面试会问什么？</div>
+            <div class="msg a">二面偏系统设计：分库分表、缓存一致性、订单削峰。<div class="src">引用你的八股3题</div></div>
+            <div class="msg u">给35K合理吗？</div>
+            <div class="msg a">（未串台）按城市+职级处于 P25–P50…<div class="src">薪资库·焦点自动切</div></div>
+          </div>
+          <div class="fbar" style="padding:7px 11px 5px"><span class="f">JD</span><span class="f on">面试</span><span class="f on">薪资</span><span class="f">改简历</span></div>
+          <div class="composer" style="border-top:1px solid var(--line)"><div class="inp">继续问…</div><div class="send">↑</div></div>
+        </div>
+        <div class="tabbar">
+          <div class="t"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t on"><span class="ic">💬</span>小职</div>
+          <div class="t"><span class="ic">👤</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">移动端：聊天全屏沉浸；顶栏「☰」拉出会话列表抽屉、「▾」切当前机会；焦点横滑条常驻输入框上方。</div>
+    </div>
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span class="pt">我的准备</span><span class="r">✕</span></div>
+        <div class="pbody">
+          <div class="entry" style="margin-bottom:11px"><span class="ic">＋</span><span>新对话</span></div>
+          <div class="small muted" style="padding:2px 2px 8px;text-transform:uppercase;letter-spacing:.5px">我的准备</div>
+          <div class="entry"><span class="avm">字</span><span style="flex:1">字节·后端·抖音</span><span class="r" style="font-size:9px;color:#ff8a6b">面试中</span></div>
+          <div class="entry"><span class="avm">字</span><span style="flex:1">字节·后端·电商</span><span class="r" style="font-size:9px">准备投递</span></div>
+          <div class="entry"><span class="avm">小</span><span style="flex:1">小红书·Java·社区</span><span class="r" style="font-size:9px;color:#79d98a">约面</span></div>
+          <div class="small muted" style="padding:10px 2px 8px;text-transform:uppercase;letter-spacing:.5px">通用对话</div>
+          <div class="entry"><span class="avm" style="background:#22303f">🧭</span><span style="flex:1">适合投什么</span><span class="r">▸</span></div>
+        </div>
+        <div class="tabbar">
+          <div class="t"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t on"><span class="ic">💬</span>小职</div>
+          <div class="t"><span class="ic">👤</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">抽屉展开态：按机会自动分组的会话列表（带阶段标签），点击切换机会线。</div>
+    </div>
+  </div>
+
+  <!-- ================= 资产 ================= -->
+  <h2><span class="num">05</span> 资产 —— 平铺可复用</h2>
+  <p class="small muted"><b>Web 独立 tab；移动端不占底部</b>——从「我的」进入，且在小职/准备场景内可随时引用简历、复用八股。简历版本/八股题库/面试记录全 user 级、跨机会复用。</p>
+
+  <div class="box brand"><span class="tag">改为「头部标签切换 + 各自分页」</span>
+    资产量会越来越大，四宫格平铺放不下。改为<b>头部二级标签</b>切换类别，每类是<b>独立长列表</b>，分页策略分类不同：
+    <table style="margin:9px 0 0">
+      <tr><th>类别</th><th class="c" style="width:140px">分页</th><th>说明</th></tr>
+      <tr><td>简历版本</td><td class="c"><span class="yes" style="color:var(--good)">✅ 分页</span></td><td>多份定制版，按更新时间排</td></tr>
+      <tr><td>通用八股题库</td><td class="c"><span style="color:var(--good)">✅ 分页 + 分类 + 搜索</span></td><td><b>最大的一坨</b>，需按技能分类（Java并发/MySQL/算法/行为面）过滤 + 关键词搜</td></tr>
+      <tr><td>面试记录</td><td class="c"><span style="color:var(--good)">✅ 分页</span></td><td>按时间倒序</td></tr>
+      <tr><td>薪资/行情参考</td><td class="c"><span style="color:var(--bad)">❌ 不分页</span></td><td>它是<b>检索面板</b>不是个人列表，按需查询即可</td></tr>
+    </table>
+    分页交互沿用全局规则：<b>Web 点击页码，移动端滚动加载</b>。
+  </div>
+
+  <h3><span class="plat web">WEB</span> 头部标签 · 简历版本（分页）</h3>
+  <div class="webmock">
+    <div class="mbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app / 资产</span></div>
+    <div class="webapp">
+      <div class="wside">
+        <div class="logo"><span class="b">C</span> CareerMate</div>
+        <div class="wi"><span class="ic">◎</span>机会</div>
+        <div class="wi"><span class="ic">▦</span>准备</div>
+        <div class="wi"><span class="ic">💬</span>小职</div>
+        <div class="wi on"><span class="ic">📁</span>资产</div>
+        <div class="wi"><span class="ic">👤</span>我的</div>
+        <div class="grow"></div>
+      </div>
+      <div class="wcontent">
+        <div class="whead"><span class="ttl">资产</span><span class="muted small">全部归你 · 与机会/会话生死无关</span></div>
+        <div class="wbody">
+          <div class="subtabs">
+            <span class="subtab on">简历版本 <span class="cnt">12</span></span>
+            <span class="subtab">通用八股题库 <span class="cnt">86</span></span>
+            <span class="subtab">面试记录 <span class="cnt">9</span></span>
+            <span class="subtab">薪资/行情</span>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:11px;align-items:center">
+            <span class="wsearch" style="max-width:220px">🔍 搜简历版本</span>
+            <span class="filt">排序：最近更新 ▾</span>
+            <span class="pill" style="margin-left:auto;background:rgba(63,185,80,.18);color:#79d98a">USER · 长存</span>
+          </div>
+          <div class="alist">
+            <div class="arow"><span>通用·后端主简历 <span class="tg">base</span></span><span><span class="muted small">3天前</span> <span class="reuse">复用</span></span></div>
+            <div class="arow"><span>v3·字节·抖音定制 <span class="tg">→字节</span></span><span><span class="muted small">2天前</span> <span class="reuse">复用</span></span></div>
+            <div class="arow"><span>v2·小红书定制 <span class="tg">→小红书</span></span><span><span class="muted small">5天前</span> <span class="reuse">复用</span></span></div>
+            <div class="arow"><span>v1·字节·电商定制 <span class="tg">→字节</span></span><span><span class="muted small">6天前</span> <span class="reuse">复用</span></span></div>
+            <div class="arow"><span>通用·大厂强化版 <span class="tg">base</span></span><span><span class="muted small">上周</span> <span class="reuse">复用</span></span></div>
+            <div class="arow"><span>v1·美团定制 <span class="tg">→美团</span></span><span><span class="muted small">上周</span> <span class="reuse">复用</span></span></div>
+          </div>
+          <div class="pager"><span class="pg nav">‹ 上一页</span><span class="pg on">1</span><span class="pg">2</span><span class="pg nav">下一页 ›</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Web：资产改为<b>头部标签切换</b>；简历版本列表 + 搜索/排序 + 底部<b>点击页码翻页</b>。</div>
+  </div>
+
+  <h3><span class="plat web">WEB</span> 头部标签 · 通用八股题库（分类 + 搜索 + 分页）</h3>
+  <div class="webmock">
+    <div class="mbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app / 资产 · 八股题库</span></div>
+    <div class="webapp">
+      <div class="wside">
+        <div class="logo"><span class="b">C</span> CareerMate</div>
+        <div class="wi"><span class="ic">◎</span>机会</div>
+        <div class="wi"><span class="ic">▦</span>准备</div>
+        <div class="wi"><span class="ic">💬</span>小职</div>
+        <div class="wi on"><span class="ic">📁</span>资产</div>
+        <div class="wi"><span class="ic">👤</span>我的</div>
+        <div class="grow"></div>
+      </div>
+      <div class="wcontent">
+        <div class="whead"><span class="ttl">资产</span><span class="muted small">全部归你 · 与机会/会话生死无关</span></div>
+        <div class="wbody">
+          <div class="subtabs">
+            <span class="subtab">简历版本 <span class="cnt">12</span></span>
+            <span class="subtab on">通用八股题库 <span class="cnt">86</span></span>
+            <span class="subtab">面试记录 <span class="cnt">9</span></span>
+            <span class="subtab">薪资/行情</span>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
+            <span class="wsearch" style="max-width:190px">🔍 搜题目 / 答案</span>
+            <span class="filt on">全部</span><span class="filt">Java并发</span><span class="filt">MySQL</span><span class="filt">算法</span><span class="filt">JVM</span><span class="filt">行为面</span>
+          </div>
+          <div class="alist">
+            <div class="arow"><span>缓存一致性（含手写答案）<span class="tg">MySQL/Redis</span></span><span class="reuse">用于3机会</span></div>
+            <div class="arow"><span>分库分表 <span class="tg">MySQL</span></span><span class="reuse">用于2机会</span></div>
+            <div class="arow"><span>synchronized 与 AQS <span class="tg">Java并发</span></span><span class="reuse">用于2机会</span></div>
+            <div class="arow"><span>JVM GC 调优 <span class="tg">JVM</span></span><span class="reuse">用于1机会</span></div>
+            <div class="arow"><span>STAR·订单削峰故事 <span class="tg">行为面</span></span><span class="reuse">行为面通用</span></div>
+            <div class="arow"><span>手撕 LRU <span class="tg">算法</span></span><span class="reuse">用于1机会</span></div>
+          </div>
+          <div class="pager"><span class="pg nav">‹</span><span class="pg on">1</span><span class="pg">2</span><span class="pg">3</span><span class="pg">…</span><span class="pg">15</span><span class="pg nav">›</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Web：八股题库是最大的一坨——顶部<b>技能分类 chip + 搜索</b>，底部<b>页码翻页</b>（86 题分 15 页）。</div>
+  </div>
+
+  <h3><span class="plat web">WEB</span> 头部标签 · 面试记录（真实/模拟 · 分页）</h3>
+  <div class="webmock">
+    <div class="mbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app / 资产 · 面试记录</span></div>
+    <div class="webapp">
+      <div class="wside">
+        <div class="logo"><span class="b">C</span> CareerMate</div>
+        <div class="wi"><span class="ic">◎</span>机会</div>
+        <div class="wi"><span class="ic">▦</span>准备</div>
+        <div class="wi"><span class="ic">💬</span>小职</div>
+        <div class="wi on"><span class="ic">📁</span>资产</div>
+        <div class="wi"><span class="ic">👤</span>我的</div>
+        <div class="grow"></div>
+      </div>
+      <div class="wcontent">
+        <div class="whead"><span class="ttl">资产</span><span class="muted small">全部归你 · 与机会/会话生死无关</span></div>
+        <div class="wbody">
+          <div class="subtabs">
+            <span class="subtab">简历版本 <span class="cnt">12</span></span>
+            <span class="subtab">通用八股题库 <span class="cnt">86</span></span>
+            <span class="subtab on">面试记录 <span class="cnt">9</span></span>
+            <span class="subtab">薪资/行情</span>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:11px;align-items:center;flex-wrap:wrap">
+            <span class="wsearch" style="max-width:180px">🔍 搜面试记录</span>
+            <span class="filt on">全部</span><span class="filt">真实复盘</span><span class="filt">模拟面试</span>
+            <span class="filt" style="margin-left:auto">排序：最近 ▾</span>
+          </div>
+          <div class="alist">
+            <div class="arow"><span>字节·抖音 · 二面复盘 <span class="tg" style="color:#ff8a6b;border-color:rgba(240,96,58,.4)">真实</span></span><span><span class="muted small">2天前</span> <span class="reuse" style="color:#e5be5a;border-color:rgba(210,153,34,.4)">弱项·系统设计</span></span></div>
+            <div class="arow"><span>小红书 · 模拟一面 <span class="tg">模拟</span></span><span><span class="muted small">3天前</span> <span class="reuse">得分 82</span></span></div>
+            <div class="arow"><span>美团 · 电话初面复盘 <span class="tg" style="color:#ff8a6b;border-color:rgba(240,96,58,.4)">真实</span></span><span><span class="muted small">5天前</span> <span class="reuse">已过</span></span></div>
+            <div class="arow"><span>快手 · 模拟·系统设计 <span class="tg">模拟</span></span><span><span class="muted small">上周</span> <span class="reuse">得分 75</span></span></div>
+            <div class="arow"><span>字节·抖音 · 一面复盘 <span class="tg" style="color:#ff8a6b;border-color:rgba(240,96,58,.4)">真实</span></span><span><span class="muted small">上周</span> <span class="reuse">已过</span></span></div>
+            <div class="arow"><span>通用 · 行为面模拟 <span class="tg">模拟</span></span><span><span class="muted small">上周</span> <span class="reuse">得分 88</span></span></div>
+          </div>
+          <div class="pager"><span class="pg nav">‹ 上一页</span><span class="pg on">1</span><span class="pg">2</span><span class="pg nav">下一页 ›</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Web：真实面试复盘 / 模拟面试混排，可按类型过滤、按时间排序；记录带弱项标记或得分，点开可回看 + 生成针对性练习。移动端同款、无限滚动。</div>
+  </div>
+
+  <h3><span class="plat web">WEB</span> 头部标签 · 薪资/行情（检索面板 · 不分页）</h3>
+  <div class="webmock">
+    <div class="mbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app / 资产 · 薪资行情</span></div>
+    <div class="webapp">
+      <div class="wside">
+        <div class="logo"><span class="b">C</span> CareerMate</div>
+        <div class="wi"><span class="ic">◎</span>机会</div>
+        <div class="wi"><span class="ic">▦</span>准备</div>
+        <div class="wi"><span class="ic">💬</span>小职</div>
+        <div class="wi on"><span class="ic">📁</span>资产</div>
+        <div class="wi"><span class="ic">👤</span>我的</div>
+        <div class="grow"></div>
+      </div>
+      <div class="wcontent">
+        <div class="whead"><span class="ttl">资产</span><span class="muted small">全部归你 · 与机会/会话生死无关</span></div>
+        <div class="wbody">
+          <div class="subtabs">
+            <span class="subtab">简历版本 <span class="cnt">12</span></span>
+            <span class="subtab">通用八股题库 <span class="cnt">86</span></span>
+            <span class="subtab">面试记录 <span class="cnt">9</span></span>
+            <span class="subtab on">薪资/行情</span>
+          </div>
+          <div class="small muted" style="margin-bottom:10px">检索面板 · 非个人列表，按岗位+城市查行情（原「市场」内容并入，不分页）</div>
+          <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+            <span class="filt on">岗位：后端 Java</span><span class="filt">城市：广州</span><span class="filt">经验：3-5年</span><span class="btn p" style="flex:0 0 auto;padding:6px 16px">查询</span>
+          </div>
+          <div class="agrid2">
+            <div class="salbox">
+              <div class="sh"><span>薪资分布（月薪）</span><span class="muted small">样本 1,284 · 今日更新</span></div>
+              <div class="saldist">
+                <span class="mk" style="left:20%">P25<b>22K</b></span>
+                <span class="mk hl" style="left:50%">P50<b>30K</b></span>
+                <span class="mk" style="left:80%">P75<b>42K</b></span>
+              </div>
+              <div class="muted small">15 薪较普遍 · 头部大厂到 P90 ≈ 55K</div>
+            </div>
+            <div class="salbox">
+              <div class="sh"><span>技能热度 TOP5</span><span class="muted small">JD 出现率</span></div>
+              <div class="skillrow"><span class="sn">Java</span><span class="sbwrap"><span class="sb" style="width:96%"></span></span><span class="sp">96%</span></div>
+              <div class="skillrow"><span class="sn">Spring</span><span class="sbwrap"><span class="sb" style="width:88%"></span></span><span class="sp">88%</span></div>
+              <div class="skillrow"><span class="sn">MySQL</span><span class="sbwrap"><span class="sb" style="width:81%"></span></span><span class="sp">81%</span></div>
+              <div class="skillrow"><span class="sn">Redis</span><span class="sbwrap"><span class="sb" style="width:73%"></span></span><span class="sp">73%</span></div>
+              <div class="skillrow"><span class="sn">K8s</span><span class="sbwrap"><span class="sb" style="width:52%"></span></span><span class="sp">52%</span></div>
+            </div>
+          </div>
+          <div class="negobox">💡 <b>谈薪参考</b>：你的画像匹配 <b>P50–P75</b>（30–42K），结合你手上美团口头 offer，建议锚定 <b>35K</b>；缺失技能 K8s 在该岗出现率 52%，补齐可上探 P75。<span class="muted small">— 一键把此参考带入小职薪资焦点</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Web：薪资/行情是<b>查询工具</b>不是列表——输岗位+城市即出薪资分布(P25/P50/P75)+技能热度+谈薪参考，<b>无分页</b>；结果可一键带入小职薪资焦点。移动端为全屏查询页。</div>
+  </div>
+
+  <h3><span class="plat mob">移动端</span> 「我的」内子页 · 标签切换 + 滚动加载</h3>
+  <div class="phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span style="font-size:15px">‹</span><span class="pt" style="font-size:14px">我的资产</span></div>
+        <div class="pbody">
+          <div class="seg"><span class="s on">简历12</span><span class="s">八股86</span><span class="s">面试记录9</span><span class="s">薪资行情</span></div>
+          <div class="alist">
+            <div class="arow"><span>通用·后端主简历 <span class="tg">base</span></span><span class="reuse">复用</span></div>
+            <div class="arow"><span>v3·字节·抖音定制 <span class="tg">→字节</span></span><span class="reuse">复用</span></div>
+            <div class="arow"><span>v2·小红书定制 <span class="tg">→小红书</span></span><span class="reuse">复用</span></div>
+            <div class="arow"><span>v1·字节·电商定制 <span class="tg">→字节</span></span><span class="reuse">复用</span></div>
+            <div class="arow"><span>v1·美团定制 <span class="tg">→美团</span></span><span class="reuse">复用</span></div>
+          </div>
+          <div class="scrollmore"><span class="spin"></span> 滚动自动加载更多…</div>
+        </div>
+        <div class="tabbar">
+          <div class="t"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t"><span class="ic">💬</span>小职</div>
+          <div class="t on"><span class="ic">👤</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">移动端：资产不占底部 tab；「我的资产」子页顶部<b>标签横滑切换</b>，列表<b>无限滚动</b>；八股标签内再带技能分类横滑；聊天中也可「＠引用简历/八股」。</div>
+    </div>
+  </div>
+
+  <!-- ================= 我的 ================= -->
+  <h2><span class="num">06</span> 我的 —— 画像 + 小职认识你 + 资产入口</h2>
+  <p class="small muted">以求职画像打头（驱动匹配）+「小职认识你」可纠错；<b>移动端「我的」额外承载资产/设置入口</b>（因资产不占底部 tab）。</p>
+
+  <h3><span class="plat web">WEB</span> 双列</h3>
+  <div class="webmock">
+    <div class="mbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="title">careermate.app / 我的</span></div>
+    <div class="webapp">
+      <div class="wside">
+        <div class="logo"><span class="b">C</span> CareerMate</div>
+        <div class="wi"><span class="ic">◎</span>机会</div>
+        <div class="wi"><span class="ic">▦</span>准备</div>
+        <div class="wi"><span class="ic">💬</span>小职</div>
+        <div class="wi"><span class="ic">📁</span>资产</div>
+        <div class="wi on"><span class="ic">👤</span>我的</div>
+        <div class="grow"></div>
+      </div>
+      <div class="wcontent">
+        <div class="whead"><span class="ttl">我的</span><span class="muted small">画像越全，机会越准</span></div>
+        <div class="wbody">
+          <div class="mine2">
+            <div class="mcard">
+              <div class="mh">求职画像 <span class="edit">编辑</span></div>
+              <div class="small muted">完整度 72% · 补全「期望城市」可提升匹配</div>
+              <div class="prog"><div class="bar"></div></div>
+              <div class="profrow"><span class="k">目标岗位</span><span>后端 / Java</span></div>
+              <div class="profrow"><span class="k">经验</span><span>3-5 年</span></div>
+              <div class="profrow"><span class="k">期望薪资</span><span>30-40K</span></div>
+              <div class="profrow"><span class="k">期望城市</span><span class="warncol">待补全 ▸</span></div>
+              <div class="profrow"><span class="k">默认简历</span><span>通用·后端主简历 ▸</span></div>
+            </div>
+            <div class="mcard">
+              <div class="mh">🧠 小职认识你这些 <span class="edit">全部</span></div>
+              <div class="small muted" style="margin-bottom:8px">来自对话的长期记忆 · 可随时纠正</div>
+              <div class="memcard"><span><span class="kind">偏好</span>只考虑远程/混合</span><span class="x">✕</span></div>
+              <div class="memcard"><span><span class="kind">底线</span>不接受长期996</span><span class="x">✕</span></div>
+              <div class="memcard"><span><span class="kind">强项</span>高并发/订单系统</span><span class="x">✕</span></div>
+            </div>
+            <div class="mcard" style="grid-column:1 / -1">
+              <div class="mh">设置</div>
+              <div class="setrow"><span>账号与隐私</span><span class="muted">▸</span></div>
+              <div class="setrow"><span>通知偏好</span><span class="muted">▸</span></div>
+              <div class="setrow"><span>数据导出 / 注销</span><span class="muted">▸</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Web：画像 + 记忆双列并排；资产已是独立 tab，此处不重复入口。</div>
+  </div>
+
+  <h3><span class="plat mob">移动端</span> 单列 · 含资产/设置入口</h3>
+  <div class="phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span class="pt">我的</span><span class="r">⚙</span></div>
+        <div class="pbody">
+          <div class="mcard">
+            <div class="mh">求职画像 <span class="edit">编辑</span></div>
+            <div class="small muted">完整度 72%</div>
+            <div class="prog"><div class="bar"></div></div>
+            <div class="profrow"><span class="k">目标岗位</span><span>后端/Java</span></div>
+            <div class="profrow"><span class="k">期望城市</span><span class="warncol">待补全 ▸</span></div>
+          </div>
+          <div class="entry"><span class="ic">📁</span><span>我的资产<br><span class="muted small" style="font-size:10px">简历版本·八股题库·面试记录</span></span><span class="r">▸</span></div>
+          <div class="mcard">
+            <div class="mh">🧠 小职认识你</div>
+            <div class="memcard"><span><span class="kind">偏好</span>只考虑远程</span><span class="x">✕</span></div>
+            <div class="memcard"><span><span class="kind">底线</span>不接受996</span><span class="x">✕</span></div>
+          </div>
+          <div class="setrow" style="padding:11px 2px"><span>⚙️ 设置（账号 / 通知 / 数据）</span><span class="muted">▸</span></div>
+        </div>
+        <div class="tabbar">
+          <div class="t"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t"><span class="ic">💬</span>小职</div>
+          <div class="t on"><span class="ic">👤</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">移动端：画像打头；<b>「我的资产」入口</b>（承接底部省掉的资产 tab）；记忆可纠错；设置聚合入口。</div>
+    </div>
+  </div>
+
+  <!-- ===== 差异对照 & 待确认 ===== -->
+  <h2><span class="num">07</span> 两端差异对照</h2>
+  <table>
+    <tr><th>屏</th><th class="c" style="width:33%">Web</th><th class="c" style="width:33%">移动端</th></tr>
+    <tr><td>导航</td><td>侧边栏 5 tab（可挂二级）</td><td>底部 4 tab；资产折进「我的」</td></tr>
+    <tr><td>机会</td><td>双列卡片（主操作「定制简历」）</td><td>单列大卡、主操作满宽、收藏成图标</td></tr>
+    <tr><td><b>简历定制（Agent+Canvas）★</b></td><td>左小职对话 ⟷ 右简历 Canvas 并排；改动可说可点</td><td>聊天为主，Canvas 抽出全屏；对话/画布来回切</td></tr>
+    <tr><td>准备</td><td>五列 Kanban（可拖拽）</td><td>阶段分段器（横滑）+ 卡片列表</td></tr>
+    <tr><td>小职</td><td>会话列表常驻左栏 + 主聊天</td><td>聊天全屏；会话列表进抽屉；焦点横滑条</td></tr>
+    <tr><td>资产</td><td>独立 tab · <b>头部标签切换</b> · 各列表点击分页（八股带分类+搜索）</td><td>「我的」子页 · 标签横滑 · <b>列表无限滚动</b> + 场景内＠引用</td></tr>
+    <tr><td>我的</td><td>画像+记忆双列，无资产入口（已独立）</td><td>单列，含资产入口 + 设置</td></tr>
+    <tr><td><b>列表分页</b></td><td><b>点击页码翻页</b>（分页导航，每页固定条数，可跳页）</td><td><b>无限滚动</b>（触底自动加载下一批，无页码）</td></tr>
+  </table>
+  <p class="small muted">分页差异适用于所有长列表（机会为主，资产/面经列表同理）：Web 桌面场景鼠标点选页码、可精确跳页、总数可见；移动端遵循触屏滚动直觉，触底自动加载，避免小屏点页码的精细操作。后端接口需同时支持「页码/页大小」与「游标/加载更多」两种取数方式。</p>
+
+  <h2><span class="num">08</span> 待确认决策点</h2>
+  <ol>
+    <li><b>移动端底部 4 tab 的取舍</b>：机会/准备/小职/我的——是否认可？或想把「准备」与「小职」合并、腾位给别的？（推荐维持 4）</li>
+    <li><b>匹配分口径</b>：0–100 精确分需真实可解释评分模型；否则先用「高/中/低+命中数」档位，暂不显示精确分？（两端一致）</li>
+    <li><b>准备-移动端</b>：阶段分段器 vs 左右横滑整列 Kanban，你更倾向哪种手机手势？</li>
+    <li><b>资产触达</b>：移动端除「我的」入口外，是否要在小职输入框加显式「＠引用简历/八股」按钮？</li>
+    <li><b>公司氛围数据源</b>：目标公司库当前情报的覆盖与时效是否足以支撑"氛围"能力？不足时先只做"有据可查的部分"，无据明说。</li>
+    <li><b>导出格式</b>：首期 PDF 单一格式，Word/图片延后？</li>
+    <li><b>快捷条话术</b>（改简历/模拟面试/谈薪建议/换一条JD）是否即为首期四个？</li>
+  </ol>
+
+  <!-- ============ 09 视觉设计定稿 ============ -->
+  <h2><span class="num">09</span> 视觉设计定稿（浅色体系 · 每页含 Web / 移动端）</h2>
+  <p class="small muted">高保真视觉层：浅色清爽体系（求职有压力，界面要轻、可信、无压力）。<b>「靛蓝→紫」渐变为小职（Agent）全站唯一身份色</b>——凡渐变出现处即 Agent 在工作；绿=匹配/已改好、琥珀=薪酬/待确认、红=缺失，语义固定，全站仅此四彩。<b>「我的」入口收进侧栏导航组（五项连排）</b>，不再吊在底部被挤出视口。</p>
+
+  <div class="vd ds">
+    <div class="dsl">色板 · 四色克制</div>
+    <div class="swatches">
+      <div class="sw"><div class="c" style="background:linear-gradient(135deg,#4E5BEF,#8B5CF6)"></div><div class="n">AI 身份渐变</div><div class="h">#4E5BEF→#8B5CF6</div></div>
+      <div class="sw"><div class="c" style="background:#4E5BEF"></div><div class="n">品牌主色</div><div class="h">#4E5BEF</div></div>
+      <div class="sw"><div class="c" style="background:#0DA76A"></div><div class="n">匹配 / 成功</div><div class="h">#0DA76A</div></div>
+      <div class="sw"><div class="c" style="background:#DB9A2D"></div><div class="n">薪酬 / 提醒</div><div class="h">#DB9A2D</div></div>
+      <div class="sw"><div class="c" style="background:#E5484D"></div><div class="n">缺失 / 危险</div><div class="h">#E5484D</div></div>
+      <div class="sw"><div class="c" style="background:#F5F6F8;border:1px solid #E8EAF0"></div><div class="n">页面底</div><div class="h">#F5F6F8</div></div>
+      <div class="sw"><div class="c" style="background:#fff;border:1px solid #E8EAF0"></div><div class="n">卡面</div><div class="h">#FFFFFF</div></div>
+      <div class="sw"><div class="c" style="background:#1A1D26"></div><div class="n">正文墨</div><div class="h">#1A1D26</div></div>
+    </div>
+    <div class="dsl">核心组件</div>
+    <div class="dsrow">
+      <span class="btn ai">✦ 针对这个 JD 生成简历</span>
+      <span class="btn p">导出 PDF</span>
+      <span class="btn g">收藏</span>
+      <span class="chip on">字节·后端·抖音</span>
+      <span class="chip">城市·广州</span>
+      <span class="tagx good">高匹配 86</span>
+      <span class="tagx warn">待谈薪</span>
+      <span class="tagx bad">缺 Golang</span>
+      <span class="tagx brand">面试中</span>
+      <span class="aiav">职</span>
+    </div>
+    <div class="dsl">规则</div>
+    <div class="small" style="color:#5C6472">渐变只给 Agent（小职头像/Agent 主按钮/画像进度条）· 语义色不混用 · 圆角 16/12/8 三档 · 间距 8 的倍数 · 正文 13–15px、标题 700，不用细字重。</div>
+  </div>
+
+  <h3><span class="plat web">WEB</span> 小职主线（核心屏：左对话 · 右简历 Canvas）</h3>
+  <div class="vd frame">
+    <div class="vbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="url">careermate.app · 字节·后端·抖音 主线</span></div>
+    <div class="app">
+      <div class="sideV">
+        <div class="logoV"><span class="mark">C</span> CareerMate</div>
+        <div class="navV on"><span class="ic">✦</span>小职</div>
+        <div class="navV"><span class="ic">◎</span>机会</div>
+        <div class="navV"><span class="ic">▦</span>准备</div>
+        <div class="navV"><span class="ic">▤</span>资产</div>
+        <div class="navV"><span class="ic">◉</span>我的</div>
+        <div class="growV"></div>
+        <div class="snote">tab＝辅助镜头<br>主线永远在小职</div>
+      </div>
+      <div class="mainV" style="padding:0">
+        <div class="chatgrid">
+          <div class="chatcol">
+            <div class="anchor"><span style="font-size:13px">🧵</span><span class="coav" style="width:24px;height:24px;font-size:11px;border-radius:8px">字</span><span class="chip on">字节·后端·抖音</span><span class="chip">简历 v4 · 契合 79</span><span class="tagx gray">记忆连续</span></div>
+            <div class="msgs">
+              <div class="m u">针对这个 JD 生成一份简历</div>
+              <div class="arow2"><span class="aiav">职</span><div class="m a wide">已读 JD 和你的主简历，定制版 v4 在右侧：突出削峰经历、补关键词、精简无关段。缺「Golang」——你会吗？<b>我没有编造</b>。<div class="src">deep-path · specialist+Critic 复核 · 依据 JD 库 + 主简历</div></div></div>
+              <div class="m u">把带人经历加上，然后导出</div>
+              <div class="arow2"><span class="aiav">职</span><div class="m a wide">已补「带过 3 人」，契合 <b style="color:#0DA76A">76 → 79</b>。导出前终检通过，<b>PDF 已生成</b> ⬇ 字节-后端-抖音-v4.pdf<div class="src">版本已留存 · 挂本 JD</div></div></div>
+              <div class="m u">这个岗面试会问什么？</div>
+              <div class="arow2"><span class="aiav">职</span><div class="m a wide">按 JD 技能 + 字节面经，二面高频：
+                <div class="icard"><div class="ihh"><span>本岗面试题</span><span style="color:#4E5BEF">说"来一轮模拟"开练</span></div>
+                  <div class="qa">1. 高并发下缓存一致性怎么保证？<span class="qt">· 命中你简历</span></div>
+                  <div class="qa">2. 分库分表后的分布式事务？<span class="qt" style="color:#E5484D">· 你的弱项</span></div>
+                  <div class="qa">3. 订单削峰的设计取舍<span class="qt">· 基于 v4</span></div>
+                </div><div class="src">依据 面试题库 + 公司库 · 结合刚定稿的 v4</div></div></div>
+            </div>
+            <div class="composer">
+              <div class="cbox"><span class="in">继续问这条 JD 的任何事…</span><span class="send">↑</span></div>
+              <div class="quick"><span class="chip">改简历</span><span class="chip">模拟面试</span><span class="chip">谈薪建议</span><span class="chip">公司氛围</span><span class="chip">换一条 JD</span></div>
+            </div>
+          </div>
+          <div class="canvascol">
+            <div class="cvhead"><span style="font-weight:700;font-size:13px">简历 · 字节定制 v4</span><span class="ring hi" style="width:30px;height:30px;font-size:12px;border-width:2.5px">79</span><span class="chip" style="margin-left:auto">版本 ▾</span><span class="btn p sm">已导出 ✓</span></div>
+            <div class="cvbody">
+              <div class="paper">
+                <div class="nm">张三</div>
+                <div class="meta2">后端开发 · 3 年 · Java ｜ 138****8888 · zhangsan@mail.com</div>
+                <div class="sec">核心经历</div>
+                <div class="pl chg">主导高并发订单<b>削峰</b>设计，QPS 2k→200k<span class="who">✎ 小职·突出匹配</span></div>
+                <div class="pl">负责商品中心服务化改造，SLA 99.99%</div>
+                <div class="sec">技能</div>
+                <div class="pl chg">Java · Redis · <b>分布式事务 · 消息队列</b><span class="who">✎ 小职·补关键词</span></div>
+                <div class="sec">加分项</div>
+                <div class="pl chg"><b>带过 3 人</b>小组，按期交付大促项目<span class="who">✎ 小职·本轮新增</span></div>
+                <div class="pl">前端项目：Vue 管理后台（你要求保留）</div>
+                <div class="pl pend">缺 Golang —— 小职未编造，待你确认是否会</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>设计要点</b>：JD 锚条常驻顶部；小职头像与发送键用 AI 渐变；Canvas 做成"纸"（白卡+投影），小职改动=绿色左边线、待确认=琥珀条——扫一眼就知道哪些是 AI 改的、哪些等你拍板。「我的」已收进导航组，五项连排不再被挤出视口。</div>
+  </div>
+
+  <h3><span class="plat mob">移动端</span> 小职主线（全屏对话 · Canvas 右上抽出）</h3>
+  <div class="vd phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span style="font-size:15px;color:#5C6472">☰</span><span class="coav" style="width:22px;height:22px;font-size:10px;border-radius:7px">字</span><span class="pt" style="font-size:12px">字节·抖音 主线</span><span class="r" style="color:#4E5BEF;font-weight:700;font-size:10px">简历v4·79 ▸</span></div>
+        <div class="pbody">
+          <div class="msgs" style="flex:1;padding:13px">
+            <div class="m u" style="font-size:12px">针对这个 JD 生成简历</div>
+            <div class="arow2"><span class="aiav" style="width:22px;height:22px;font-size:10px;border-radius:7px">职</span><div class="m a" style="font-size:12px">已生成 v4（右上「简历」看）。缺 Golang，<b>没编造</b>，你会吗？<div class="src">deep-path · Critic</div></div></div>
+            <div class="m u" style="font-size:12px">面试会问什么？给多少合理？</div>
+            <div class="arow2"><span class="aiav" style="width:22px;height:22px;font-size:10px;border-radius:7px">职</span><div class="m a wide" style="font-size:12px">高频3题（基于v4）：缓存一致性 / 分布式事务 / 削峰取舍。薪酬 P50=30K · P75=42K，你期望 35K 合理。<div class="src">面试题库+薪资库 · 同一主线</div></div></div>
+          </div>
+          <div class="composer" style="padding:10px 13px">
+            <div class="cbox"><span class="in" style="font-size:12px">继续问这条 JD…</span><span class="send" style="width:28px;height:28px">↑</span></div>
+            <div class="quick"><span class="chip" style="font-size:11px">改简历</span><span class="chip" style="font-size:11px">模拟面</span><span class="chip" style="font-size:11px">导出</span><span class="chip" style="font-size:11px">氛围</span></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="t on"><span class="ic">✦</span>小职</div>
+          <div class="t"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t"><span class="ic">◉</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">「☰」切 JD 线（各线隔离）；右上抽出简历 Canvas；快捷条高频话术。</div>
+    </div>
+  </div>
+
+  <h3><span class="plat web">WEB</span> 机会（极简发现 · 喂给主线）</h3>
+  <div class="vd frame">
+    <div class="vbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="url">careermate.app · 机会</span></div>
+    <div class="app">
+      <div class="sideV">
+        <div class="logoV"><span class="mark">C</span> CareerMate</div>
+        <div class="navV"><span class="ic">✦</span>小职</div>
+        <div class="navV on"><span class="ic">◎</span>机会</div>
+        <div class="navV"><span class="ic">▦</span>准备</div>
+        <div class="navV"><span class="ic">▤</span>资产</div>
+        <div class="navV"><span class="ic">◉</span>我的</div>
+        <div class="growV"></div>
+      </div>
+      <div class="mainV">
+        <div class="mheadV"><span class="t">机会</span>
+          <span class="chip" style="flex:1;max-width:340px;justify-content:flex-start;border-radius:12px;padding:7px 14px">🔍 <span style="color:#9AA2AF">搜公司 / 岗位</span></span>
+          <span class="chip on">匹配度</span><span class="chip">最新</span><span class="chip">城市·广州 ✕</span>
+        </div>
+        <div class="mbodyV">
+          <div class="small" style="color:#5C6472;margin-bottom:12px">共 <b style="color:#4E5BEF">128</b> 个机会 · 已按你的画像匹配排序</div>
+          <div class="voppgrid">
+            <div class="opp">
+              <div class="top" style="display:flex;gap:12px;align-items:flex-start"><span class="coav">字</span><div><div class="co">字节跳动</div><div class="ro">AI Agent 开发工程师 · 抖音</div><div class="salr">30-60K · 15薪 · 广州</div></div>
+                <div class="score" style="margin-left:auto;text-align:center"><span class="ring hi" style="width:48px;height:48px;font-size:17px;border-width:3px">86</span><div class="lbl">高匹配</div></div></div>
+              <div class="hit"><span class="g">✓ 命中 6</span>　Java · Redis · 分布式…　<span class="r">✗ 缺 2</span>　Golang · gRPC</div>
+              <div class="act"><span class="btn ai">✦ 定制简历</span><span class="btn g">☆ 收藏</span></div>
+            </div>
+            <div class="opp">
+              <div class="top" style="display:flex;gap:12px;align-items:flex-start"><span class="coav">美</span><div><div class="co">美团</div><div class="ro">后端开发工程师</div><div class="salr">25-40K · 广州</div></div>
+                <div class="score" style="margin-left:auto;text-align:center"><span class="ring mid" style="width:48px;height:48px;font-size:17px;border-width:3px">61</span><div class="lbl">中匹配</div></div></div>
+              <div class="hit"><span class="g">✓ 命中 4</span>　Java · MySQL…　<span class="r">✗ 缺 3</span>　Go · K8s · gRPC</div>
+              <div class="act"><span class="btn ai">✦ 定制简历</span><span class="btn g">☆ 收藏</span></div>
+            </div>
+          </div>
+          <div class="vpager"><span class="vpg">‹</span><span class="vpg on">1</span><span class="vpg">2</span><span class="vpg">3</span><span class="vpg">…</span><span class="vpg">9</span><span class="vpg">›</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>设计要点</b>：卡片仅 5 类信息（公司/岗位/薪资/匹配环/命中缺失）；「✦ 定制简历」渐变=交给 Agent；Web 页码翻页。</div>
+  </div>
+
+  <h3><span class="plat mob">移动端</span> 机会（单列大卡 · 无限滚动）</h3>
+  <div class="vd phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span class="pt">机会</span><span class="r">🔍</span></div>
+        <div class="pbody" style="padding:13px;gap:11px">
+          <div style="display:flex;gap:7px"><span class="chip on" style="font-size:11px">匹配度</span><span class="chip" style="font-size:11px">最新</span><span class="chip" style="font-size:11px">广州</span></div>
+          <div class="opp" style="padding:13px 15px">
+            <div style="display:flex;gap:10px;align-items:flex-start"><span class="coav">字</span><div><div class="co" style="font-size:14px">字节跳动</div><div class="ro">AI Agent 开发 · 抖音</div><div class="salr" style="font-size:12px">30-60K · 广州</div></div>
+              <span class="ring hi" style="width:42px;height:42px;font-size:15px;border-width:3px;margin-left:auto">86</span></div>
+            <div class="act"><span class="btn ai" style="flex:1;justify-content:center;font-size:12px">✦ 定制简历</span><span class="btn g" style="padding:8px 12px">☆</span></div>
+          </div>
+          <div class="opp" style="padding:13px 15px">
+            <div style="display:flex;gap:10px;align-items:flex-start"><span class="coav">美</span><div><div class="co" style="font-size:14px">美团</div><div class="ro">后端开发</div><div class="salr" style="font-size:12px">25-40K · 广州</div></div>
+              <span class="ring mid" style="width:42px;height:42px;font-size:15px;border-width:3px;margin-left:auto">61</span></div>
+            <div class="act"><span class="btn ai" style="flex:1;justify-content:center;font-size:12px">✦ 定制简历</span><span class="btn g" style="padding:8px 12px">☆</span></div>
+          </div>
+          <div class="small" style="text-align:center;color:#9AA2AF">滚动自动加载更多…</div>
+        </div>
+        <div class="tabbar">
+          <div class="t"><span class="ic">✦</span>小职</div>
+          <div class="t on"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t"><span class="ic">◉</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">单列大卡、匹配环、渐变主操作；无筛选面板，触底自动加载。</div>
+    </div>
+  </div>
+
+  <h3><span class="plat web">WEB</span> 准备（投递看板 · 阶段自动推断）</h3>
+  <div class="vd frame">
+    <div class="vbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="url">careermate.app · 准备</span></div>
+    <div class="app">
+      <div class="sideV">
+        <div class="logoV"><span class="mark">C</span> CareerMate</div>
+        <div class="navV"><span class="ic">✦</span>小职</div>
+        <div class="navV"><span class="ic">◎</span>机会</div>
+        <div class="navV on"><span class="ic">▦</span>准备</div>
+        <div class="navV"><span class="ic">▤</span>资产</div>
+        <div class="navV"><span class="ic">◉</span>我的</div>
+        <div class="growV"></div>
+      </div>
+      <div class="mainV">
+        <div class="mheadV"><span class="t">准备</span><span class="small" style="color:#5C6472">6 个在办 · 阶段由对话自动推断</span><span class="chip" style="margin-left:auto">问小职："我最近投得怎么样"</span></div>
+        <div class="mbodyV">
+          <div class="board">
+            <div class="kcolV"><div class="khV"><span>准备/投递</span><span class="n">3</span></div>
+              <div class="kcardV"><div class="co">字节·后端·电商</div><div class="ro">改简历中</div><div class="mt"><span class="tagx gray">简历v1</span></div></div>
+              <div class="kcardV"><div class="co">腾讯·后端·IEG</div><div class="ro">已定制简历</div><div class="mt"><span class="tagx gray">简历v2</span></div></div>
+              <div class="stash">📌 暂存 JD × 6</div>
+            </div>
+            <div class="kcolV"><div class="khV"><span>约面</span><span class="n">1</span></div>
+              <div class="kcardV"><div class="co">小红书·Java·社区</div><div class="ro">周四 14:00 一面</div><div class="mt"><span class="tagx gray">简历v2</span></div></div>
+            </div>
+            <div class="kcolV"><div class="khV"><span>面试中</span><span class="n">1</span></div>
+              <div class="kcardV hot"><div class="co">字节·后端·抖音</div><div class="ro">二面已完成</div><div class="mt"><span class="tagx brand">简历v4</span><span class="tagx gray">面经×3</span></div></div>
+            </div>
+            <div class="kcolV"><div class="khV"><span>Offer/谈薪</span><span class="n">1</span></div>
+              <div class="kcardV gold"><div class="co">美团·后端</div><div class="ro">口头 offer</div><div class="mt"><span class="tagx warn">待谈薪</span></div></div>
+            </div>
+            <div class="kcolV"><div class="khV"><span>已结束</span><span class="n">1</span></div>
+              <div class="kcardV" style="opacity:.55"><div class="co">拼多多·后端</div><div class="ro">已婉拒</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>设计要点</b>：整板中性灰白，只有「面试中/待谈薪」两张热卡微带描边色——看板颜色密度必须低；点任何卡=回到该 JD 的小职主线。</div>
+  </div>
+
+  <h3><span class="plat mob">移动端</span> 准备（阶段分段 + 卡片列表）</h3>
+  <div class="vd phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span class="pt">准备</span><span class="r">6 在办</span></div>
+        <div class="pbody" style="padding:13px;gap:11px">
+          <div style="display:flex;gap:6px;overflow:hidden"><span class="chip" style="font-size:11px">准备3</span><span class="chip" style="font-size:11px">约面1</span><span class="chip on" style="font-size:11px">面试中1</span><span class="chip" style="font-size:11px">谈薪1</span><span class="chip" style="font-size:11px">结束1</span></div>
+          <div class="kcardV hot"><div class="co">字节·后端·抖音</div><div class="ro">二面已完成 · 待三面</div><div class="mt"><span class="tagx brand">简历v4</span><span class="tagx gray">面经×3</span><span class="tagx warn">可练模拟面</span></div></div>
+          <div class="vcard" style="padding:12px 15px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:12.5px;font-weight:600">✦ 进入 字节·抖音 小职主线</span><span style="color:#9AA2AF">▸</span></div>
+        </div>
+        <div class="tabbar">
+          <div class="t"><span class="ic">✦</span>小职</div>
+          <div class="t"><span class="ic">◎</span>机会</div>
+          <div class="t on"><span class="ic">▦</span>准备</div>
+          <div class="t"><span class="ic">◉</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">顶部阶段分段横滑，选中看卡片；点卡回到该 JD 主线。</div>
+    </div>
+  </div>
+
+  <h3><span class="plat web">WEB</span> 资产（标签切换 · 全部归你）</h3>
+  <div class="vd frame">
+    <div class="vbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="url">careermate.app · 资产</span></div>
+    <div class="app">
+      <div class="sideV">
+        <div class="logoV"><span class="mark">C</span> CareerMate</div>
+        <div class="navV"><span class="ic">✦</span>小职</div>
+        <div class="navV"><span class="ic">◎</span>机会</div>
+        <div class="navV"><span class="ic">▦</span>准备</div>
+        <div class="navV on"><span class="ic">▤</span>资产</div>
+        <div class="navV"><span class="ic">◉</span>我的</div>
+        <div class="growV"></div>
+      </div>
+      <div class="mainV">
+        <div class="mheadV"><span class="t">资产</span><span class="tagx good">全部归你 · 与会话生死无关</span><span class="chip" style="margin-left:auto">问小职："我给字节那份简历"</span></div>
+        <div class="mbodyV">
+          <div class="vsubtabs"><span class="stab on">简历版本<span class="cnt">12</span></span><span class="stab">八股题库<span class="cnt">86</span></span><span class="stab">面试记录<span class="cnt">9</span></span><span class="stab">薪资行情</span></div>
+          <div class="valist">
+            <div class="varow"><span class="lft">📄 通用·后端主简历 <span class="tagx gray">base</span></span><span><span class="small" style="color:#9AA2AF">3天前</span>　<span class="tagx brand">复用</span></span></div>
+            <div class="varow"><span class="lft">📄 v4 · 字节·抖音定制 <span class="tagx gray">→字节</span> <span class="tagx good">已导出</span></span><span><span class="small" style="color:#9AA2AF">今天</span>　<span class="tagx brand">复用</span></span></div>
+            <div class="varow"><span class="lft">📄 v2 · 小红书定制 <span class="tagx gray">→小红书</span></span><span><span class="small" style="color:#9AA2AF">5天前</span>　<span class="tagx brand">复用</span></span></div>
+            <div class="varow"><span class="lft">📄 v1 · 字节·电商定制 <span class="tagx gray">→字节</span></span><span><span class="small" style="color:#9AA2AF">6天前</span>　<span class="tagx brand">复用</span></span></div>
+          </div>
+          <div class="vpager"><span class="vpg">‹</span><span class="vpg on">1</span><span class="vpg">2</span><span class="vpg">›</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>设计要点</b>：绿色徽标先给安全感（资产页情绪=安心）；下划线式标签比按钮组轻；八股标签内再带技能分类；头部保留对话提示——翻列表之外永远可以直接问。</div>
+  </div>
+
+  <h3><span class="plat mob">移动端</span> 资产（「我的」子页 · 标签横滑 + 无限滚动）</h3>
+  <div class="vd phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span style="font-size:15px;color:#5C6472">‹</span><span class="pt" style="font-size:13px">我的资产</span></div>
+        <div class="pbody" style="padding:13px;gap:11px">
+          <div style="display:flex;gap:6px;overflow:hidden"><span class="chip on" style="font-size:11px">简历12</span><span class="chip" style="font-size:11px">八股86</span><span class="chip" style="font-size:11px">面试9</span><span class="chip" style="font-size:11px">行情</span></div>
+          <div class="valist">
+            <div class="varow" style="font-size:12px"><span class="lft">📄 通用·主简历 <span class="tagx gray">base</span></span><span class="tagx brand">复用</span></div>
+            <div class="varow" style="font-size:12px"><span class="lft">📄 v4·字节定制 <span class="tagx gray">→字节</span></span><span class="tagx brand">复用</span></div>
+            <div class="varow" style="font-size:12px"><span class="lft">📄 v2·小红书定制 <span class="tagx gray">→小红书</span></span><span class="tagx brand">复用</span></div>
+          </div>
+          <div class="small" style="text-align:center;color:#9AA2AF">滚动自动加载更多…</div>
+        </div>
+        <div class="tabbar">
+          <div class="t"><span class="ic">✦</span>小职</div>
+          <div class="t"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t on"><span class="ic">◉</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">资产不占底部 tab；从「我的」进入，标签横滑 + 无限滚动。</div>
+    </div>
+  </div>
+
+  <h3><span class="plat web">WEB</span> 我的（画像 + 小职认识你）</h3>
+  <div class="vd frame">
+    <div class="vbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="url">careermate.app · 我的</span></div>
+    <div class="app">
+      <div class="sideV">
+        <div class="logoV"><span class="mark">C</span> CareerMate</div>
+        <div class="navV"><span class="ic">✦</span>小职</div>
+        <div class="navV"><span class="ic">◎</span>机会</div>
+        <div class="navV"><span class="ic">▦</span>准备</div>
+        <div class="navV"><span class="ic">▤</span>资产</div>
+        <div class="navV on"><span class="ic">◉</span>我的</div>
+        <div class="growV"></div>
+      </div>
+      <div class="mainV">
+        <div class="mheadV"><span class="t">我的</span><span class="small" style="color:#5C6472">画像越全，机会越准</span></div>
+        <div class="mbodyV">
+          <div class="minegrid">
+            <div class="vcard">
+              <div class="ch">求职画像 <span class="edit">编辑</span></div>
+              <div class="small" style="color:#5C6472">完整度 72% · 补全「期望城市」可提升匹配</div>
+              <div class="vprog"><div class="bar"></div></div>
+              <div class="prow"><span class="k">目标岗位</span><span>后端 / Java 开发</span></div>
+              <div class="prow"><span class="k">经验</span><span>3-5 年</span></div>
+              <div class="prow"><span class="k">期望薪资</span><span>30-40K</span></div>
+              <div class="prow"><span class="k">期望城市</span><span class="tagx warn">待补全 ▸</span></div>
+              <div class="prow"><span class="k">默认简历</span><span>通用·后端主简历 ▸</span></div>
+            </div>
+            <div class="vcard">
+              <div class="ch">🧠 小职认识你这些 <span class="edit">全部</span></div>
+              <div class="small" style="color:#5C6472;margin-bottom:10px">来自对话的长期记忆 · 可随时纠正</div>
+              <div class="mem"><span><span class="kind">偏好</span>只考虑远程 / 混合办公</span><span class="x">✕</span></div>
+              <div class="mem"><span><span class="kind">底线</span>不接受长期 996</span><span class="x">✕</span></div>
+              <div class="mem"><span><span class="kind">强项</span>高并发 / 订单系统</span><span class="x">✕</span></div>
+              <div class="mem"><span><span class="kind">意向</span>倾向 AI / Agent 方向</span><span class="x">✕</span></div>
+            </div>
+            <div class="vcard" style="grid-column:1 / -1">
+              <div class="ch">设置</div>
+              <div class="setrow"><span>账号与隐私</span><span style="color:#9AA2AF">▸</span></div>
+              <div class="setrow"><span>通知偏好</span><span style="color:#9AA2AF">▸</span></div>
+              <div class="setrow"><span>数据导出 / 注销</span><span style="color:#9AA2AF">▸</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>设计要点</b>：画像进度条用 AI 渐变（画像直接喂给小职）；记忆卡淡紫徽标+可逐条删——把长期记忆做成看得见、能纠错的实体；设置灰度收底。</div>
+  </div>
+
+  <h3><span class="plat mob">移动端</span> 我的（画像 + 资产入口 + 记忆）</h3>
+  <div class="vd phones">
+    <div>
+      <div class="phone">
+        <div class="pstatus"></div>
+        <div class="phead"><span class="pt">我的</span><span class="r">⚙</span></div>
+        <div class="pbody" style="padding:13px;gap:11px">
+          <div class="vcard" style="padding:14px 16px">
+            <div class="ch" style="font-size:13.5px">求职画像 <span class="edit">编辑</span></div>
+            <div class="small" style="color:#5C6472">完整度 72%</div>
+            <div class="vprog"><div class="bar"></div></div>
+            <div class="prow" style="font-size:12px"><span class="k">目标岗位</span><span>后端 / Java</span></div>
+            <div class="prow" style="font-size:12px"><span class="k">期望城市</span><span class="tagx warn">待补全 ▸</span></div>
+          </div>
+          <div class="vcard" style="padding:13px 16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:600">▤ 我的资产<br><span class="small" style="font-weight:400;font-size:11px;color:#5C6472">简历 12 · 八股 86 · 面试记录 9</span></span><span style="color:#9AA2AF">▸</span></div>
+          <div class="vcard" style="padding:14px 16px">
+            <div class="ch" style="font-size:13.5px">🧠 小职认识你</div>
+            <div class="mem" style="font-size:11.5px"><span><span class="kind">偏好</span>只考虑远程</span><span class="x">✕</span></div>
+            <div class="mem" style="font-size:11.5px"><span><span class="kind">底线</span>不接受 996</span><span class="x">✕</span></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="t"><span class="ic">✦</span>小职</div>
+          <div class="t"><span class="ic">◎</span>机会</div>
+          <div class="t"><span class="ic">▦</span>准备</div>
+          <div class="t on"><span class="ic">◉</span>我的</div>
+        </div>
+      </div>
+      <div class="pcap">画像打头；「我的资产」入口承接底部省去的资产 tab；记忆可纠错。</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    CareerMate · 全 Tab UI 改版 + 视觉定稿 · Web/移动端 v3.4 · 2026-07-16 · 待审核<br>
+    配套：《会话与资产模型设计 v1.1》。本稿为交互/信息架构分平台改版，不含视觉规范与最终配色。
+  </div>
+
+</div>
+</body>
+</html>
