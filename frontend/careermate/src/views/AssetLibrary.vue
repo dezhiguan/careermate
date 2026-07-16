@@ -54,7 +54,7 @@
           </div>
         </article>
       </div>
-      <div v-if="resumePages > 1" class="pager">
+      <div v-if="isDesktop && resumePages > 1" class="pager">
         <button class="pg" :disabled="resumePage === 1" @click="resumePage--">‹</button>
         <span class="pg on">{{ resumePage }}</span>
         <span class="pg-total">/ {{ resumePages }}</span>
@@ -79,7 +79,7 @@
           </div>
         </article>
       </div>
-      <div v-if="interviewPages > 1" class="pager">
+      <div v-if="isDesktop && interviewPages > 1" class="pager">
         <button class="pg" :disabled="interviewPage === 1" @click="interviewPage--">‹</button>
         <span class="pg on">{{ interviewPage }}</span>
         <span class="pg-total">/ {{ interviewPages }}</span>
@@ -133,7 +133,7 @@
         </li>
       </ul>
 
-      <div v-if="studyPages > 1" class="pager">
+      <div v-if="isDesktop && studyPages > 1" class="pager">
         <button class="pg" :disabled="studyPage === 1" @click="goStudyPage(studyPage - 1)">‹</button>
         <span class="pg on">{{ studyPage }}</span>
         <span class="pg-total">/ {{ studyPages }}</span>
@@ -164,6 +164,14 @@
           <div class="sal-cell hl"><span class="sal-k">P50</span><span class="sal-v">{{ salData.p50 || '—' }}</span></div>
           <div class="sal-cell"><span class="sal-k">P75</span><span class="sal-v">{{ salData.p75 || '—' }}</span></div>
           <span v-if="salData.trend" class="sal-trend">{{ salData.trend }}</span>
+        </div>
+        <div v-if="salSkills.length" class="sal-heat">
+          <div class="sal-heat-title">岗位技能热度 Top{{ salSkills.length }}</div>
+          <div v-for="s in salSkills" :key="s.rank" class="heat-row">
+            <span class="heat-name">{{ s.name }}</span>
+            <span class="heat-bar-wrap"><span class="heat-bar" :style="{ width: skillHeatWidth(s.rank) }" /></span>
+            <span v-if="s.growth" class="heat-growth">{{ s.growth }}</span>
+          </div>
         </div>
         <p v-if="salData.aiSummary" class="sal-tip">💡 {{ salData.aiSummary }}</p>
         <button class="ph-btn" @click="bringSalaryToChat">带入小职薪资焦点 →</button>
@@ -225,18 +233,23 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listVersions, getVersion, downloadVersionPdf, downloadVersionDocx, deleteVersion } from '../api/resumeVersion'
 import { listInterviewSessions, getKbQuestions } from '../api/interview'
 import { listStudyNotes, saveStudyNote, deleteStudyNote } from '../api/study'
-import { getSalaryInsight } from '../api/market'
+import { getSalaryInsight, getSkillTrends } from '../api/market'
 import { renderMarkdown } from '../utils/markdown'
 
 const router = useRouter()
 const activeTab = ref('resume')
 const error = ref('')
 const busy = ref(false)
+// 分页分平台：桌面点击页码 / 移动端整列滚动看全部
+const isDesktop = ref(false)
+function updateIsDesktop() {
+  isDesktop.value = typeof window !== 'undefined' && window.innerWidth >= 900
+}
 
 const resumeVersions = ref([])
 const loadingResume = ref(false)
@@ -271,6 +284,7 @@ const SAL_CITIES = ['广州', '北京', '上海', '深圳', '杭州', '成都']
 const salRole = ref('Java后端')
 const salCity = ref('广州')
 const salData = ref(null)
+const salSkills = ref([])
 const salLoading = ref(false)
 
 const noteEditorOpen = ref(false)
@@ -296,12 +310,14 @@ const sortedResume = computed(() => {
 })
 const resumePages = computed(() => Math.max(1, Math.ceil(sortedResume.value.length / PAGE_SIZE)))
 const pagedResume = computed(() => {
+  if (!isDesktop.value) return sortedResume.value
   const start = (resumePage.value - 1) * PAGE_SIZE
   return sortedResume.value.slice(start, start + PAGE_SIZE)
 })
 
 const interviewPages = computed(() => Math.max(1, Math.ceil(interviewSessions.value.length / PAGE_SIZE)))
 const pagedInterview = computed(() => {
+  if (!isDesktop.value) return interviewSessions.value
   const start = (interviewPage.value - 1) * PAGE_SIZE
   return interviewSessions.value.slice(start, start + PAGE_SIZE)
 })
@@ -355,8 +371,8 @@ async function loadStudy() {
     const data = await listStudyNotes({
       skill: studySkill.value || undefined,
       keyword: studyKeyword.value.trim() || undefined,
-      page: studyPage.value,
-      size: STUDY_SIZE,
+      page: isDesktop.value ? studyPage.value : 1,
+      size: isDesktop.value ? STUDY_SIZE : 50,
     })
     studyNotes.value = Array.isArray(data?.items) ? data.items : []
     studyTotal.value = Number(data?.total || 0)
@@ -487,13 +503,24 @@ async function querySalary() {
   salLoading.value = true
   error.value = ''
   try {
-    salData.value = await getSalaryInsight({ role: salRole.value, city: salCity.value })
-  } catch (e) {
-    error.value = e?.message || '薪资查询失败'
-    salData.value = null
+    const [salary, trends] = await Promise.allSettled([
+      getSalaryInsight({ role: salRole.value, city: salCity.value }),
+      getSkillTrends({ role: salRole.value, city: salCity.value }),
+    ])
+    salData.value = salary.status === 'fulfilled' ? salary.value : null
+    const skills = trends.status === 'fulfilled' ? (trends.value?.skills || []) : []
+    salSkills.value = Array.isArray(skills) ? skills.slice(0, 6) : []
+    if (salary.status === 'rejected') error.value = salary.reason?.message || '薪资查询失败'
   } finally {
     salLoading.value = false
   }
+}
+
+// 技能热度条宽度：按排名，Top1 最宽
+function skillHeatWidth(rank) {
+  const total = salSkills.value.length || 1
+  const r = Number(rank) || total
+  return `${Math.round(((total - r + 1) / total) * 100)}%`
 }
 
 function bringSalaryToChat() {
@@ -518,7 +545,12 @@ function formatDate(raw) {
   return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
 }
 
-onMounted(loadResume)
+onMounted(() => {
+  updateIsDesktop()
+  window.addEventListener('resize', updateIsDesktop, { passive: true })
+  loadResume()
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 </script>
 
 <style scoped>
@@ -569,6 +601,13 @@ onMounted(loadResume)
 .sal-cell.hl .sal-v { color: #4338ca; }
 .sal-trend { flex: 0 0 auto; font-size: 12px; color: #15803d; background: #dcfce7; border-radius: 8px; padding: 4px 10px; }
 .sal-tip { margin: 12px 0; font-size: 13px; line-height: 1.6; color: #475569; }
+.sal-heat { margin-top: 14px; }
+.sal-heat-title { font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 8px; }
+.heat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.heat-name { flex: 0 0 84px; font-size: 12px; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.heat-bar-wrap { flex: 1; height: 8px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
+.heat-bar { display: block; height: 100%; background: linear-gradient(90deg, #8b5cf6, #4f46e5); border-radius: 999px; }
+.heat-growth { flex: 0 0 auto; font-size: 11px; color: #15803d; }
 .ph-title { font-weight: 700; font-size: 15px; color: #0f172a; }
 .ph-text { color: #64748b; font-size: 13px; line-height: 1.7; margin: 10px 0 14px; }
 .ph-btn { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; border: 0; border-radius: 10px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
