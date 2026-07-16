@@ -25,3 +25,11 @@ export function updateApplicationStage(id, stage) {
 export function archiveApplication(id) {
   return request(`/pipeline/applications/${id}`, { method: 'DELETE' })
 }
+
+/** 按 JD 一键确认流转阶段（Layer-2 确认卡的「确认」按钮）。 */
+export function confirmStage(payload) {
+  return request('/pipeline/confirm-stage', {
+    method: 'POST',
+    body: JSON.stringify(payload || {}),
+  })
+}

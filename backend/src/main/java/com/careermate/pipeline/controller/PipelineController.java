@@ -2,6 +2,7 @@ package com.careermate.pipeline.controller;
 
 import com.careermate.common.api.ApiResponse;
 import com.careermate.pipeline.dto.ApplicationVO;
+import com.careermate.pipeline.dto.ConfirmStageRequest;
 import com.careermate.pipeline.dto.CreateApplicationRequest;
 import com.careermate.pipeline.dto.PipelineBoardVO;
 import com.careermate.pipeline.dto.UpdateStageRequest;
@@ -52,6 +53,15 @@ public class PipelineController {
     public ApiResponse<ApplicationVO> updateStage(@PathVariable Long id, @RequestBody UpdateStageRequest request) {
         String stage = request == null ? null : request.getStage();
         return ApiResponse.success(pipelineService.updateStage(CurrentUserContext.getUserId(), id, stage));
+    }
+
+    /** 按 JD 一键确认流转阶段（Layer-2 确认卡的「确认」；无卡时自动建卡）。 */
+    @PostMapping("/confirm-stage")
+    public ApiResponse<ApplicationVO> confirmStage(@RequestBody ConfirmStageRequest request) {
+        ConfirmStageRequest req = request == null ? new ConfirmStageRequest() : request;
+        return ApiResponse.success(pipelineService.updateStageByJd(
+                CurrentUserContext.getUserId(),
+                req.getJdDocId(), req.getStage(), req.getCompany(), req.getRoleTitle()));
     }
 
     /** 归档（软删）。 */

@@ -71,6 +71,18 @@
       </template>
       <p v-else class="cc-empty">暂无市场薪资数据，无法给出谈判建议。</p>
     </div>
+    <div v-else-if="card.type === 'STAGE_CONFIRM'" class="chat-card-body" data-testid="stage-confirm-card">
+      <p class="chat-card-title">📌 投递进度确认</p>
+      <p class="chat-card-text">{{ card.question }}</p>
+      <div v-if="stageState === ''" class="chat-card-actions">
+        <button type="button" class="chat-card-btn primary" :disabled="disabled" @click="confirmStage">
+          确认，已推进
+        </button>
+        <button type="button" class="chat-card-btn" :disabled="disabled" @click="dismissStage">暂不</button>
+      </div>
+      <p v-else-if="stageState === 'confirmed'" class="cc-confirmed">✓ 已推进到「{{ card.stageLabel }}」</p>
+      <p v-else class="cc-dismissed">已忽略</p>
+    </div>
     <div v-if="actions.length" class="chat-card-actions">
       <button
         v-for="(act, idx) in actions"
@@ -88,7 +100,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { renderMarkdown } from '../utils/markdown'
 
 const props = defineProps({
@@ -98,7 +110,24 @@ const props = defineProps({
   wordDownloading: { type: Boolean, default: false },
 })
 
-defineEmits(['action'])
+const emit = defineEmits(['action'])
+
+// STAGE_CONFIRM 卡本地态：'' | 'confirmed' | 'dismissed'（乐观更新，父组件走 API）
+const stageState = ref('')
+function confirmStage() {
+  stageState.value = 'confirmed'
+  emit('action', {
+    action: 'CONFIRM_STAGE',
+    jdDocId: props.card?.jdDocId,
+    stage: props.card?.targetStage,
+    stageLabel: props.card?.stageLabel,
+    company: props.card?.company,
+  })
+}
+function dismissStage() {
+  stageState.value = 'dismissed'
+  emit('action', { action: 'DISMISS_STAGE' })
+}
 
 const cardType = computed(() => (props.card?.type || 'unknown').toLowerCase())
 const actions = computed(() => (Array.isArray(props.card?.actions) ? props.card.actions : []))
@@ -237,6 +266,17 @@ function actionLabel(act) {
 /* 围绕 JD 的能力卡片 */
 .cc-empty {
   margin: 4px 0 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+.cc-confirmed {
+  margin: 8px 0 0;
+  color: #0da76a;
+  font-size: 13px;
+  font-weight: 600;
+}
+.cc-dismissed {
+  margin: 8px 0 0;
   color: #94a3b8;
   font-size: 13px;
 }

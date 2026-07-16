@@ -348,6 +348,7 @@ import {
   sendAgentMessageStream,
 } from '../api/agent'
 import { getWorkspace, getMessages, postAction, openResumeGenerateStreamByEndpoint, listRecentLines, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
+import { confirmStage } from '../api/pipeline'
 import { getOpportunityDetail } from '../api/opportunity'
 import { downloadVersionDocx, downloadVersionPdf, getVersion, listVersions } from '../api/resumeVersion'
 import { getCareerProfile } from '../api/profile'
@@ -875,6 +876,22 @@ async function handleCardAction(actionItem) {
   }
   if (action === 'CANCEL_PENDING_ACTION') {
     await cancelPendingResumeAction(payload)
+    return
+  }
+  if (action === 'CONFIRM_STAGE') {
+    // Layer-2 一键确认：卡片已乐观置为已推进，这里落库；失败仅提示
+    try {
+      await confirmStage({
+        jdDocId: actionItem?.jdDocId,
+        stage: actionItem?.stage,
+        company: actionItem?.company,
+      })
+    } catch (e) {
+      globalError.value = e?.message || '流转阶段失败'
+    }
+    return
+  }
+  if (action === 'DISMISS_STAGE') {
     return
   }
   if (action === 'VIEW_JD') {
