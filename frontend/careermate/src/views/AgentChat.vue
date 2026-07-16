@@ -218,17 +218,34 @@
       </div>
     </div>
 
-    <div v-if="resumeViewerOpen" class="modal-overlay" @click.self="resumeViewerOpen = false">
-      <div class="modal-panel">
-        <div class="modal-header">
-          <span>{{ resumeViewerTitle }}</span>
-          <button type="button" class="modal-close" @click="resumeViewerOpen = false">×</button>
+    <div v-if="resumeViewerOpen" class="canvas-dock" data-testid="resume-canvas" @click.self="resumeViewerOpen = false">
+      <div class="canvas-panel">
+        <div class="canvas-head">
+          <span class="canvas-title">📄 简历</span>
+          <select
+            v-if="workspaceVersions.length > 1"
+            class="canvas-ver"
+            :value="activeVersionId"
+            @change="switchCanvasVersion($event)"
+          >
+            <option v-for="v in workspaceVersions" :key="v.versionId" :value="v.versionId">
+              {{ v.versionName }}
+            </option>
+          </select>
+          <span v-else class="canvas-vername">{{ resumeViewerTitle }}</span>
+          <span class="canvas-spacer" />
+          <button type="button" class="canvas-act" :disabled="pdfDownloading" @click="canvasExportPdf">PDF</button>
+          <button type="button" class="canvas-act" :disabled="wordDownloading" @click="canvasExportWord">Word</button>
+          <button type="button" class="canvas-act" @click="copyResumeMarkdown(activeVersionId)">复制</button>
+          <button type="button" class="canvas-close" @click="resumeViewerOpen = false">×</button>
         </div>
-        <div v-if="resumeViewerSummary" class="viewer-summary-banner">
-          <span class="viewer-summary-kicker">改写说明</span>
+        <div v-if="resumeViewerSummary" class="canvas-changes">
+          <span class="canvas-changes-kicker">✎ 小职改动</span>
           <span>{{ resumeViewerSummary }}</span>
         </div>
-        <div class="modal-body markdown-preview" v-html="renderMd(resumeViewerContent)"></div>
+        <div class="canvas-body">
+          <div class="canvas-paper markdown-preview" v-html="renderMd(resumeViewerContent)"></div>
+        </div>
       </div>
     </div>
 
@@ -358,6 +375,7 @@ const resumeViewerOpen = ref(false)
 const resumeViewerTitle = ref('')
 const resumeViewerContent = ref('')
 const resumeViewerSummary = ref('')
+const activeVersionId = ref('')
 const versionsDrawerOpen = ref(false)
 const workspaceVersions = ref([])
 const pdfDownloading = ref(false)
@@ -871,6 +889,7 @@ async function openResumeVersion(versionId) {
   if (!versionId) return
   try {
     const detail = await getVersion(versionId)
+    activeVersionId.value = versionId
     resumeViewerTitle.value = detail?.versionName || '简历预览'
     resumeViewerContent.value = detail?.contentMarkdown || ''
     resumeViewerSummary.value = detail?.changeSummary || ''
@@ -878,6 +897,37 @@ async function openResumeVersion(versionId) {
     versionsDrawerOpen.value = false
   } catch (e) {
     globalError.value = e?.message || '加载简历版本失败'
+  }
+}
+
+function switchCanvasVersion(evt) {
+  const id = evt?.target?.value
+  if (id && id !== activeVersionId.value) {
+    openResumeVersion(id)
+  }
+}
+
+async function canvasExportPdf() {
+  if (!activeVersionId.value) return
+  pdfDownloading.value = true
+  try {
+    await downloadVersionPdf(activeVersionId.value, resumeViewerTitle.value)
+  } catch (e) {
+    globalError.value = e?.message || 'PDF 下载失败'
+  } finally {
+    pdfDownloading.value = false
+  }
+}
+
+async function canvasExportWord() {
+  if (!activeVersionId.value) return
+  wordDownloading.value = true
+  try {
+    await downloadVersionDocx(activeVersionId.value, resumeViewerTitle.value)
+  } catch (e) {
+    globalError.value = e?.message || 'Word 下载失败'
+  } finally {
+    wordDownloading.value = false
   }
 }
 
@@ -905,6 +955,10 @@ function appendCardMessage(card) {
     toolCalls: [],
   })
   scrollBottom()
+  // 简历生成后自动打开右侧简历 Canvas
+  if (card.type === 'RESUME_GENERATED' && card.versionId) {
+    openResumeVersion(card.versionId)
+  }
 }
 
 function resolveActionPayload(payload) {
@@ -1431,6 +1485,114 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: 16px;
+}
+
+/* 简历 Canvas：右侧停靠的纸感画布 */
+.canvas-dock {
+  position: fixed;
+  inset: 0;
+  z-index: 420;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  justify-content: flex-end;
+}
+.canvas-panel {
+  width: min(560px, 92vw);
+  height: 100%;
+  background: #eef0f5;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 30px rgba(15, 23, 42, 0.2);
+  animation: canvasIn 0.18s ease;
+}
+@keyframes canvasIn {
+  from { transform: translateX(24px); opacity: 0.6; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.canvas-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+.canvas-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #0f172a;
+}
+.canvas-ver,
+.canvas-vername {
+  font-size: 12px;
+  color: #475569;
+  max-width: 180px;
+}
+.canvas-ver {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: #fff;
+}
+.canvas-spacer {
+  flex: 1;
+}
+.canvas-act {
+  font-size: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 5px 11px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+}
+.canvas-act:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.canvas-close {
+  font-size: 20px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.canvas-changes {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 8px 16px;
+  background: #e6f6ef;
+  border-bottom: 1px solid #cdeadd;
+  font-size: 12px;
+  color: #0f5132;
+}
+.canvas-changes-kicker {
+  font-weight: 700;
+  color: #0da76a;
+  flex: 0 0 auto;
+}
+.canvas-body {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+.canvas-paper {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(20, 24, 40, 0.05), 0 8px 28px rgba(20, 24, 40, 0.09);
+  padding: 28px 32px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #1a1d26;
+  min-height: 100%;
+}
+@media (max-width: 640px) {
+  .canvas-panel {
+    width: 100vw;
+  }
 }
 
 .modal-panel {
