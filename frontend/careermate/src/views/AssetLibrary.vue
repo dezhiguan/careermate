@@ -2,7 +2,7 @@
   <div class="asset-page">
     <header class="asset-head">
       <h1 class="asset-title">资产</h1>
-      <span class="asset-badge">全部归你 · 与会话生死无关</span>
+      <span class="asset-badge">全部归你 · 与机会 / 会话生死无关</span>
     </header>
 
     <div class="asset-tabs">
@@ -22,6 +22,14 @@
 
     <!-- 简历版本 -->
     <section v-if="activeTab === 'resume'" class="asset-body">
+      <div v-if="resumeVersions.length > 0" class="asset-subbar">
+        <label class="asset-sort">排序
+          <select v-model="resumeSort" class="asset-sort-sel">
+            <option value="recent">最近更新</option>
+            <option value="name">名称</option>
+          </select>
+        </label>
+      </div>
       <p v-if="loadingResume" class="asset-loading">加载中…</p>
       <p v-else-if="resumeVersions.length === 0" class="asset-empty">
         还没有定制简历。去「机会」选个岗位点「定制简历」，产出会归档到这里。
@@ -32,11 +40,13 @@
             <div class="row-name">📄 {{ v.versionName || '简历版本' }}</div>
             <div class="row-meta">
               <span v-if="v.targetJdLabel" class="row-tag">→ {{ shortJd(v.targetJdLabel) }}</span>
+              <span v-else class="row-tag base">base</span>
               <span v-if="v.origin === 'MANUAL_EDIT'" class="row-tag gray">手改</span>
               <span class="row-time">{{ formatDate(v.createdAt) }}</span>
             </div>
           </div>
           <div class="row-actions">
+            <button class="row-btn reuse" @click="reuseVersion(v)">复用</button>
             <button class="row-btn" @click="preview(v.versionId)">查看</button>
             <button class="row-btn" :disabled="busy" @click="exportPdf(v)">PDF</button>
             <button class="row-btn" :disabled="busy" @click="exportWord(v)">Word</button>
@@ -57,16 +67,23 @@
       <p v-if="loadingInterview" class="asset-loading">加载中…</p>
       <p v-else-if="interviewSessions.length === 0" class="asset-empty">还没有面试记录。让小职来一轮模拟面试，记录会存到这里。</p>
       <div v-else class="asset-list">
-        <article v-for="s in interviewSessions" :key="s.id" class="asset-row">
+        <article v-for="s in pagedInterview" :key="s.id" class="asset-row">
           <div class="row-main">
             <div class="row-name">🎤 {{ s.title || s.company || '模拟面试' }}</div>
             <div class="row-meta">
+              <span class="row-tag mock">模拟</span>
               <span v-if="s.status" class="row-tag gray">{{ statusLabel(s.status) }}</span>
-              <span v-if="s.score != null" class="row-tag">得分 {{ s.score }}</span>
+              <span v-if="interviewScore(s) != null" class="row-tag score">得分 {{ interviewScore(s) }}</span>
               <span class="row-time">{{ formatDate(s.createdAt || s.updatedAt) }}</span>
             </div>
           </div>
         </article>
+      </div>
+      <div v-if="interviewPages > 1" class="pager">
+        <button class="pg" :disabled="interviewPage === 1" @click="interviewPage--">‹</button>
+        <span class="pg on">{{ interviewPage }}</span>
+        <span class="pg-total">/ {{ interviewPages }}</span>
+        <button class="pg" :disabled="interviewPage === interviewPages" @click="interviewPage++">›</button>
       </div>
     </section>
 
@@ -202,11 +219,13 @@ const busy = ref(false)
 const resumeVersions = ref([])
 const loadingResume = ref(false)
 const resumePage = ref(1)
+const resumeSort = ref('recent')
 const PAGE_SIZE = 6
 
 const interviewSessions = ref([])
 const loadingInterview = ref(false)
 const interviewLoaded = ref(false)
+const interviewPage = ref(1)
 
 const previewOpen = ref(false)
 const previewTitle = ref('')
@@ -238,11 +257,33 @@ const tabs = computed(() => [
   { key: 'salary', label: '薪资行情', count: null },
 ])
 
-const resumePages = computed(() => Math.max(1, Math.ceil(resumeVersions.value.length / PAGE_SIZE)))
+const sortedResume = computed(() => {
+  const list = resumeVersions.value.slice()
+  if (resumeSort.value === 'name') {
+    return list.sort((a, b) => String(a.versionName || '').localeCompare(String(b.versionName || ''), 'zh'))
+  }
+  return list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+})
+const resumePages = computed(() => Math.max(1, Math.ceil(sortedResume.value.length / PAGE_SIZE)))
 const pagedResume = computed(() => {
   const start = (resumePage.value - 1) * PAGE_SIZE
-  return resumeVersions.value.slice(start, start + PAGE_SIZE)
+  return sortedResume.value.slice(start, start + PAGE_SIZE)
 })
+
+const interviewPages = computed(() => Math.max(1, Math.ceil(interviewSessions.value.length / PAGE_SIZE)))
+const pagedInterview = computed(() => {
+  const start = (interviewPage.value - 1) * PAGE_SIZE
+  return interviewSessions.value.slice(start, start + PAGE_SIZE)
+})
+function interviewScore(s) {
+  const v = s?.score ?? s?.averageScore
+  return v == null ? null : v
+}
+
+function reuseVersion(v) {
+  if (!v?.versionId) return
+  router.push({ path: '/chat', query: { reuse: v.versionId, reuseName: v.versionName || '这份简历' } })
+}
 
 async function loadResume() {
   loadingResume.value = true
@@ -451,6 +492,13 @@ onMounted(loadResume)
 .row-meta { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
 .row-tag { font-size: 10.5px; color: #4f46e5; background: #eef0fe; border-radius: 7px; padding: 1px 8px; }
 .row-tag.gray { color: #64748b; background: #f1f5f9; }
+.row-tag.base { color: #475569; background: #f1f5f9; }
+.row-tag.mock { color: #64748b; background: #f1f5f9; }
+.row-tag.score { color: #15803d; background: #dcfce7; }
+.asset-subbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.asset-sort { font-size: 12px; color: #64748b; display: inline-flex; align-items: center; gap: 6px; }
+.asset-sort-sel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; font-size: 12px; color: #334155; background: #fff; font-family: inherit; cursor: pointer; }
+.row-btn.reuse { color: #4338ca; border-color: #c7d2fe; background: #eef2ff; }
 .row-time { font-size: 11px; color: #94a3b8; }
 .row-actions { display: flex; gap: 6px; flex: 0 0 auto; }
 .row-btn { font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 5px 11px; background: #fff; color: #334155; cursor: pointer; }

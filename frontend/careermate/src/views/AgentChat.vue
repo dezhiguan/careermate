@@ -1710,6 +1710,11 @@ onMounted(async () => {
   updateViewport()
   window.addEventListener('resize', updateViewport)
   await Promise.allSettled([bootstrapChat(), loadCareerProfileBanner()])
+  // 资产库「复用」某简历版本：预填对话意图，让小职以该版本为基础改
+  if (route.query.reuse) {
+    const name = String(route.query.reuseName || '这份简历')
+    inputText.value = `请以「${name}」为基础，帮我针对当前 JD 调整这份简历`
+  }
   scrollBottom()
 })
 

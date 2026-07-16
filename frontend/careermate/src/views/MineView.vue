@@ -191,7 +191,7 @@
       </div>
       <div class="ltm-groups">
         <div v-for="group in ltmGrouped" :key="group.type" class="ltm-group">
-          <span class="ltm-type-chip">{{ ltmTypeLabel(group.type) }}</span>
+          <span class="ltm-type-chip" :class="`ltm-type-${group.type.toLowerCase()}`">{{ ltmTypeLabel(group.type) }}</span>
           <ul class="ltm-fact-list">
             <li v-for="fact in group.facts" :key="fact.id" class="ltm-fact">
               <span class="ltm-fact-text">{{ fact.factText }}</span>
@@ -882,7 +882,8 @@ onMounted(async () => {
 
 .completeness-fill {
   height: 100%;
-  background: #fff;
+  /* AI 渐变：画像直接喂给小职，用 Agent 身份色 */
+  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
   border-radius: 3px;
   transition: width 0.3s;
 }
@@ -1100,6 +1101,12 @@ onMounted(async () => {
   font-weight: 600;
   margin-top: 3px;
 }
+/* 记忆徽章按类型语义上色：偏好紫 / 底线红 / 强项绿 / 意向蓝 / 经历灰 */
+.ltm-type-preference { background: #f3e8ff; color: #7c3aed; border-color: #e9d5ff; }
+.ltm-type-constraint { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+.ltm-type-skill { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+.ltm-type-goal { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
+.ltm-type-experience { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
 .ltm-fact-list {
   list-style: none;
   margin: 0;
