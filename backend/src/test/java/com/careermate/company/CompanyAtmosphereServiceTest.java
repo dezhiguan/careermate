@@ -170,6 +170,90 @@ class CompanyAtmosphereServiceTest {
         assertEquals("字节", result.getCompanyName());
     }
 
+    @Test
+    void byJdResolvesCompanyThenReturnsAtmosphere() {
+        // JD 正文含「公司:字节跳动」→ 解析出公司名 → 复用 getCompanyAtmosphere 主链路
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(jdResult("公司：字节跳动\n岗位：Java 高级工程师"));
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleResult());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"companyName":"字节跳动","workIntensity":"节奏快","teamReputation":"技术强",
+                 "interviewStyle":"重系统设计","overtimeSignal":"大小周已取消",
+                 "cultureTags":[{"label":"技术氛围强","sentiment":"POSITIVE"}],
+                 "aiSummary":"技术强","dataAvailable":true}
+                """).build());
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphereByJd(1234L);
+
+        assertTrue(result.isDataAvailable());
+        assertEquals("字节跳动", result.getCompanyName());
+    }
+
+    @Test
+    void byJdWithMarkdownBoldCompanyField() {
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(jdResult("**公司**: 小红书 | 地点：上海"));
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleResult());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"companyName":"小红书","workIntensity":"稳定",
+                 "cultureTags":[{"label":"扁平","sentiment":"POSITIVE"}],"dataAvailable":true}
+                """).build());
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphereByJd(5L);
+
+        assertTrue(result.isDataAvailable());
+        assertEquals("小红书", result.getCompanyName());
+    }
+
+    @Test
+    void byJdNullIdReturnsFallback() {
+        CompanyAtmosphereVO result = service.getCompanyAtmosphereByJd(null);
+        assertFalse(result.isDataAvailable());
+        assertEquals("未知公司", result.getCompanyName());
+    }
+
+    @Test
+    void byJdUnresolvableCompanyReturnsFallback() {
+        // JD 正文没有「公司:」字段 → 无法解析 → 兜底，不误查
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(jdResult("岗位职责：负责后端开发，熟悉分布式"));
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphereByJd(9L);
+
+        assertFalse(result.isDataAvailable());
+        assertEquals("未知公司", result.getCompanyName());
+    }
+
+    @Test
+    void byJdRetrievalFailureReturnsFallback() {
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(
+                RagRetrieveResult.fallback("公司", RagRetrieveScene.OPPORTUNITY, "ERR", 1));
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphereByJd(7L);
+
+        assertFalse(result.isDataAvailable());
+    }
+
+    @Test
+    void byJdExceptionReturnsFallback() {
+        when(knowledgeRetrievalService.retrieve(any())).thenThrow(new RuntimeException("rag down"));
+
+        CompanyAtmosphereVO result = service.getCompanyAtmosphereByJd(3L);
+
+        assertFalse(result.isDataAvailable());
+    }
+
+    private static RagRetrieveResult jdResult(String content) {
+        return RagRetrieveResult.builder()
+                .success(true)
+                .query("公司 岗位")
+                .scene(RagRetrieveScene.OPPORTUNITY)
+                .chunks(List.of(RagRetrievedChunk.builder()
+                        .content(content)
+                        .sourceTitle("【JD】高级 Java 工程师")
+                        .score(0.9)
+                        .build()))
+                .latencyMs(3L)
+                .build();
+    }
+
     private static RagRetrieveResult sampleResult() {
         return RagRetrieveResult.builder()
                 .success(true)

@@ -39,7 +39,7 @@ class CompanyAtmosphereToolTest {
         assertEquals("get_company_atmosphere", tool.name());
         assertTrue(tool.description().contains("氛围"));
         assertEquals(AgentToolDomain.KNOWLEDGE, tool.definition().getDomain());
-        assertEquals(1, tool.definition().getParameters().size());
+        assertEquals(2, tool.definition().getParameters().size());
         assertTrue(tool.supports(AgentToolContext.builder().userId(1L).build()));
     }
 
@@ -80,7 +80,7 @@ class CompanyAtmosphereToolTest {
     }
 
     @Test
-    void executeFailsWhenCompanyMissing() {
+    void executeFailsWhenBothMissing() {
         AgentToolResult blank = tool.execute(AgentToolContext.builder()
                 .args(Map.of("company", "  "))
                 .build());
@@ -88,5 +88,37 @@ class CompanyAtmosphereToolTest {
 
         AgentToolResult none = tool.execute(AgentToolContext.builder().build());
         assertFalse(none.isSuccess());
+    }
+
+    @Test
+    void executeResolvesByJdDocId() {
+        CompanyAtmosphereVO vo = new CompanyAtmosphereVO();
+        vo.setCompanyName("字节跳动");
+        vo.setDataAvailable(true);
+        vo.setCultureTags(List.of());
+        when(service.getCompanyAtmosphereByJd(eq(1234L))).thenReturn(vo);
+
+        AgentToolResult result = tool.execute(AgentToolContext.builder()
+                .args(Map.of("jdDocId", "1234"))
+                .build());
+
+        assertTrue(result.isSuccess());
+        assertEquals("字节跳动", result.getData().get("companyName"));
+    }
+
+    @Test
+    void companyTakesPrecedenceOverJdDocId() {
+        CompanyAtmosphereVO vo = new CompanyAtmosphereVO();
+        vo.setCompanyName("腾讯");
+        vo.setDataAvailable(true);
+        vo.setCultureTags(List.of());
+        when(service.getCompanyAtmosphere(eq("腾讯"))).thenReturn(vo);
+
+        AgentToolResult result = tool.execute(AgentToolContext.builder()
+                .args(Map.of("company", "腾讯", "jdDocId", "999"))
+                .build());
+
+        assertTrue(result.isSuccess());
+        assertEquals("腾讯", result.getData().get("companyName"));
     }
 }
