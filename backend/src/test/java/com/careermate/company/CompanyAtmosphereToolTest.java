@@ -107,6 +107,23 @@ class CompanyAtmosphereToolTest {
     }
 
     @Test
+    void executeResolvesByDocPrefixedJdId() {
+        // 小职上下文里的 jdId 是「doc-89840」，工具需容错剥前缀取数字
+        CompanyAtmosphereVO vo = new CompanyAtmosphereVO();
+        vo.setCompanyName("字节跳动");
+        vo.setDataAvailable(true);
+        vo.setCultureTags(List.of());
+        when(service.getCompanyAtmosphereByJd(eq(89840L))).thenReturn(vo);
+
+        AgentToolResult result = tool.execute(AgentToolContext.builder()
+                .args(Map.of("jdDocId", "doc-89840"))
+                .build());
+
+        assertTrue(result.isSuccess());
+        assertEquals("字节跳动", result.getData().get("companyName"));
+    }
+
+    @Test
     void companyTakesPrecedenceOverJdDocId() {
         CompanyAtmosphereVO vo = new CompanyAtmosphereVO();
         vo.setCompanyName("腾讯");

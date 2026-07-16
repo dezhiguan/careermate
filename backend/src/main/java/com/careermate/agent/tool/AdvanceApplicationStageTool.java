@@ -105,6 +105,7 @@ public class AdvanceApplicationStageTool implements AgentTool {
         return value.isEmpty() ? null : value;
     }
 
+    /** 容错解析 JD 文档 id：支持「doc-89840」「89840」或数字，取其中的数字部分。 */
     private static Long parseLong(Map<String, Object> args, String key) {
         Object raw = args == null ? null : args.get(key);
         if (raw == null) {
@@ -113,12 +114,12 @@ public class AdvanceApplicationStageTool implements AgentTool {
         if (raw instanceof Number number) {
             return number.longValue();
         }
-        String s = String.valueOf(raw).trim();
-        if (s.isEmpty()) {
+        String digits = String.valueOf(raw).trim().replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) {
             return null;
         }
         try {
-            return Long.parseLong(s);
+            return Long.parseLong(digits);
         } catch (NumberFormatException e) {
             return null;
         }

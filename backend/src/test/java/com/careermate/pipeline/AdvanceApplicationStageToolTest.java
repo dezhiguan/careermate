@@ -66,6 +66,27 @@ class AdvanceApplicationStageToolTest {
     }
 
     @Test
+    void executeAcceptsDocPrefixedJdId() {
+        // 小职上下文里的 jdId 是「doc-89840」，工具需容错剥前缀取数字
+        ApplicationVO vo = new ApplicationVO();
+        vo.setId(10L);
+        vo.setJdDocId(89840L);
+        vo.setCompany("字节跳动");
+        vo.setStage("OFFER");
+        vo.setStageLabel("Offer/谈薪");
+        when(pipelineService.updateStageByJd(eq(1L), eq(89840L), eq("OFFER"), any(), any()))
+                .thenReturn(vo);
+
+        AgentToolResult r = tool.execute(AgentToolContext.builder()
+                .userId(1L)
+                .args(Map.of("jdDocId", "doc-89840", "stage", "OFFER"))
+                .build());
+
+        assertTrue(r.isSuccess());
+        assertEquals("OFFER", r.getData().get("stage"));
+    }
+
+    @Test
     void executeUnauthenticatedFails() {
         AgentToolResult r = tool.execute(AgentToolContext.builder()
                 .args(Map.of("jdDocId", "1", "stage", "OFFER"))
