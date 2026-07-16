@@ -258,7 +258,42 @@
               {{ f.label }}
             </button>
           </div>
+          <div v-if="refMenuOpen" class="ref-menu">
+            <div class="ref-sect">
+              <div class="ref-title">简历版本</div>
+              <button
+                v-for="v in workspaceVersions"
+                :key="v.versionId"
+                type="button"
+                class="ref-row"
+                @click="insertResumeRef(v)"
+              >
+                📄 {{ v.versionName }}
+              </button>
+              <div v-if="!workspaceVersions.length" class="ref-empty">暂无简历版本</div>
+            </div>
+            <div class="ref-sect">
+              <div class="ref-title">八股题库</div>
+              <button
+                v-for="n in refStudyNotes"
+                :key="n.id"
+                type="button"
+                class="ref-row"
+                @click="insertStudyRef(n)"
+              >
+                🎯 {{ n.question }}
+              </button>
+              <div v-if="!refStudyNotes.length" class="ref-empty">暂无（去资产库收录）</div>
+            </div>
+          </div>
           <div class="input-row">
+            <button
+              type="button"
+              class="ref-btn"
+              :class="{ on: refMenuOpen }"
+              title="引用我的简历 / 八股"
+              @click="toggleRefMenu"
+            >＠</button>
             <input
               v-model="inputText"
               :placeholder="resumeGenerating ? '小职正在为你重写简历...' : '说说你想做什么...'"
@@ -430,6 +465,7 @@ import {
 } from '../api/agent'
 import { getWorkspace, getMessages, postAction, openResumeGenerateStreamByEndpoint, listRecentLines, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
 import { confirmStage } from '../api/pipeline'
+import { listStudyNotes } from '../api/study'
 import { getOpportunityDetail } from '../api/opportunity'
 import { downloadVersionDocx, downloadVersionPdf, getVersion, listVersions } from '../api/resumeVersion'
 import { getCareerProfile } from '../api/profile'
@@ -513,6 +549,30 @@ const FOCUS_OPTIONS = [
   { key: 'company', label: '公司氛围' },
 ]
 const activeFocuses = ref([])
+// @引用资产：简历版本(已有 workspaceVersions) + 八股题
+const refMenuOpen = ref(false)
+const refStudyNotes = ref([])
+async function toggleRefMenu() {
+  refMenuOpen.value = !refMenuOpen.value
+  if (refMenuOpen.value && !refStudyNotes.value.length) {
+    try {
+      const data = await listStudyNotes({ page: 1, size: 8 })
+      refStudyNotes.value = Array.isArray(data?.items) ? data.items : []
+    } catch (e) {
+      refStudyNotes.value = []
+    }
+  }
+}
+function insertRef(text) {
+  inputText.value = (inputText.value ? inputText.value + ' ' : '') + text
+  refMenuOpen.value = false
+}
+function insertResumeRef(v) {
+  insertRef(`（参考我的「${v.versionName || '简历'}」）`)
+}
+function insertStudyRef(n) {
+  insertRef(`（参考八股「${n.question}」）`)
+}
 function toggleFocus(key) {
   const i = activeFocuses.value.indexOf(key)
   if (i >= 0) activeFocuses.value.splice(i, 1)
@@ -3224,6 +3284,53 @@ onBeforeUnmount(() => {
 }
 
 .chat-input { flex: 1; border: none; background: transparent; padding: 6px; outline: none; font-size: 12px; font-family: inherit; }
+
+.ref-btn {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 6px;
+  font-family: inherit;
+}
+.ref-btn.on { color: #4f46e5; }
+.ref-menu {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 100%;
+  margin-bottom: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 8px;
+  z-index: 20;
+}
+.ref-sect { padding: 4px; }
+.ref-title { font-size: 11px; font-weight: 700; color: #94a3b8; padding: 4px 6px; }
+.ref-row {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px 8px;
+  font-size: 12.5px;
+  color: #334155;
+  cursor: pointer;
+  font-family: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ref-row:hover { background: #eef2ff; }
+.ref-empty { font-size: 12px; color: #cbd5e1; padding: 6px 8px; }
 
 .deep-toggle {
   flex-shrink: 0;
