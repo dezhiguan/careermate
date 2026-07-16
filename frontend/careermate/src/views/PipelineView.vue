@@ -60,8 +60,10 @@
                 <div class="app-activity">{{ activityText(app) }}</div>
               </div>
             </div>
-            <div v-if="app.resumeVersionId" class="app-meta">
-              <span class="app-tag">简历已挂</span>
+            <div v-if="app.resumeVersionCount > 0 || app.needsSalaryNegotiation || app.resumeVersionId" class="app-meta">
+              <span v-if="app.resumeVersionCount > 0" class="app-tag">简历 v{{ app.resumeVersionCount }}</span>
+              <span v-else-if="app.resumeVersionId" class="app-tag">简历已挂</span>
+              <span v-if="app.needsSalaryNegotiation" class="app-tag warn">待谈薪</span>
             </div>
             <div class="app-actions" @click.stop>
               <select
@@ -112,8 +114,10 @@
                 <div class="app-activity">{{ activityText(app) }}</div>
               </div>
             </div>
-            <div v-if="app.resumeVersionId" class="app-meta">
-              <span class="app-tag">简历已挂</span>
+            <div v-if="app.resumeVersionCount > 0 || app.needsSalaryNegotiation || app.resumeVersionId" class="app-meta">
+              <span v-if="app.resumeVersionCount > 0" class="app-tag">简历 v{{ app.resumeVersionCount }}</span>
+              <span v-else-if="app.resumeVersionId" class="app-tag">简历已挂</span>
+              <span v-if="app.needsSalaryNegotiation" class="app-tag warn">待谈薪</span>
             </div>
             <div class="app-actions" @click.stop>
               <select
@@ -453,6 +457,10 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
   background: #eef0fe;
   border-radius: 6px;
   padding: 1px 7px;
+}
+.app-tag.warn {
+  color: #b45309;
+  background: #fffbeb;
 }
 .app-time {
   font-size: 10px;
