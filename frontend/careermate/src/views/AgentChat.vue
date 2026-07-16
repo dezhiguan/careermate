@@ -276,9 +276,28 @@
           <button type="button" class="canvas-act" @click="copyResumeMarkdown(activeVersionId)">复制</button>
           <button type="button" class="canvas-close" @click="resumeViewerOpen = false">×</button>
         </div>
-        <div v-if="resumeViewerSummary" class="canvas-changes">
+        <div v-if="resumeViewerSummary || resumeViewerScore != null" class="canvas-changes">
           <span class="canvas-changes-kicker">✎ 小职改动</span>
-          <span>{{ resumeViewerSummary }}</span>
+          <span v-if="resumeViewerScore != null" class="canvas-gap">契合 {{ resumeViewerScore }} 分</span>
+          <span v-if="resumeViewerNotes.length" class="canvas-gap">改了 {{ resumeViewerNotes.length }} 处</span>
+          <span v-if="resumeViewerSummary">{{ resumeViewerSummary }}</span>
+        </div>
+        <div v-if="resumeViewerNotes.length && !diffMode" class="canvas-notes">
+          <div
+            v-for="(note, idx) in resumeViewerNotes"
+            :key="idx"
+            class="canvas-note"
+            :class="{ kept: note.state === 'kept', reverting: note.state === 'reverting' }"
+          >
+            <span class="canvas-note-mark">✎ 小职</span>
+            <span class="canvas-note-text">{{ note.text }}</span>
+            <span v-if="note.state === 'kept'" class="canvas-note-done">已保留</span>
+            <span v-else-if="note.state === 'reverting'" class="canvas-note-done">已请求撤销</span>
+            <template v-else>
+              <button type="button" class="canvas-note-btn keep" @click="keepNote(note)">保留</button>
+              <button type="button" class="canvas-note-btn revert" @click="revertNote(note)">撤销这处</button>
+            </template>
+          </div>
         </div>
         <div class="canvas-body">
           <div v-if="diffMode" class="canvas-paper canvas-diff">
@@ -474,6 +493,9 @@ const diffLines = ref([])
 // 导出前 Critic 终检：当前版本落库的事实核对结果（疑似无出处的强事实）
 const resumeViewerFactCheck = ref(null)
 const pendingExportFormat = ref('')
+// Canvas 逐行改动：小职这次的改动项(✎小职·[说明])，可保留/撤销这处
+const resumeViewerNotes = ref([])
+const resumeViewerScore = ref(null)
 // 最近会话线：落地页（无 wsId）时列出用户在推进的 JD 对话线，一键返回续聊
 const recentLines = ref([])
 const pdfDownloading = ref(false)
@@ -1008,6 +1030,8 @@ async function openResumeVersion(versionId) {
     resumeViewerContent.value = detail?.contentMarkdown || ''
     resumeViewerSummary.value = detail?.changeSummary || ''
     resumeViewerFactCheck.value = parseFactCheck(detail?.factCheck)
+    resumeViewerNotes.value = normalizeNotes(detail?.optimizationNotes)
+    resumeViewerScore.value = detail?.aiScore != null ? Math.round(Number(detail.aiScore)) : null
     resumeViewerOpen.value = true
     versionsDrawerOpen.value = false
     // 切版本时退出对比态，避免旧 diff 残留误导
@@ -1022,6 +1046,30 @@ function switchCanvasVersion(evt) {
   if (id && id !== activeVersionId.value) {
     openResumeVersion(id)
   }
+}
+
+// 归一化改动项：后端 optimizationNotes 可能是字符串或 {text/note/change/detail}
+function normalizeNotes(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((n) => {
+      const text = typeof n === 'string'
+        ? n
+        : (n?.text || n?.note || n?.content || n?.change || n?.detail || '')
+      return { text: String(text || '').trim(), state: '' }
+    })
+    .filter((x) => x.text)
+}
+
+// 保留这处改动（确认接受）
+function keepNote(note) {
+  note.state = 'kept'
+}
+
+// 撤销这处改动：预填对话让小职改回（走正常对话流，不新增后端）
+function revertNote(note) {
+  note.state = 'reverting'
+  inputText.value = `请撤销这处改动：${note.text}`
 }
 
 // 当前版本的"上一版"：按 createdAt 找严格更早、且时间最近的那一版（不依赖数组顺序）
@@ -1944,6 +1992,69 @@ onBeforeUnmount(() => {
   font-weight: 700;
   color: #0da76a;
   flex: 0 0 auto;
+}
+.canvas-gap {
+  flex: 0 0 auto;
+  color: #0f5132;
+  font-weight: 600;
+}
+.canvas-notes {
+  padding: 8px 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.canvas-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px dashed #c7d2fe;
+  border-radius: 8px;
+  background: #f5f7ff;
+  font-size: 12px;
+}
+.canvas-note.kept {
+  border-style: solid;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+.canvas-note.reverting {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+.canvas-note-mark {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: #4f46e5;
+}
+.canvas-note-text {
+  flex: 1;
+  min-width: 0;
+  color: #334155;
+}
+.canvas-note-done {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-size: 11px;
+}
+.canvas-note-btn {
+  flex: 0 0 auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 11px;
+  background: #fff;
+  cursor: pointer;
+  font-family: inherit;
+}
+.canvas-note-btn.keep {
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+.canvas-note-btn.revert {
+  color: #b45309;
+  border-color: #fde68a;
 }
 .canvas-body {
   flex: 1;
