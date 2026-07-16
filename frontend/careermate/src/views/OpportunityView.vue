@@ -129,6 +129,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { listOpportunities } from '../api/opportunity'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
+import { createApplication } from '../api/pipeline'
 import { homeStore } from '../stores/homeStore'
 
 const router = useRouter()
@@ -302,6 +303,13 @@ async function handleWorkspaceAction(item, entryAction) {
         matchScore: item.matchScore,
       },
     })
+    // 开始为该 JD 干活 → 自动进投递看板（jd 去重，失败不影响主流程）
+    if (entryAction === 'GENERATE_RESUME' || entryAction === 'PREPARE_INTERVIEW') {
+      const jdDocId = item.docId || Number(String(item.jdId || '').replace(/\D/g, '')) || null
+      if (jdDocId) {
+        createApplication({ jdDocId, company: item.company, roleTitle: item.title }).catch(() => {})
+      }
+    }
     await navigateToWorkspace(router, resp)
   } catch (e) {
     error.value = e?.message || '准备失败，请稍后重试'
