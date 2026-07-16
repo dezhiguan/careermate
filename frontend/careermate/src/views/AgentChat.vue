@@ -1763,6 +1763,13 @@ onMounted(async () => {
     const name = String(route.query.reuseName || '这份简历')
     inputText.value = `请以「${name}」为基础，帮我针对当前 JD 调整这份简历`
   }
+  // 资产库薪资面板「带入小职薪资焦点」：激活薪资焦点 + 预填谈薪问句
+  if (route.query.focus === 'salary') {
+    if (!activeFocuses.value.includes('salary')) activeFocuses.value.push('salary')
+    const role = String(route.query.role || '这个岗位')
+    const city = String(route.query.city || '')
+    inputText.value = `${role}${city ? '（' + city + '）' : ''}给到多少合理？结合我的画像帮我看看谈薪`
+  }
   scrollBottom()
 })
 

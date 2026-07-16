@@ -141,13 +141,34 @@
       </div>
     </section>
 
-    <!-- 薪资行情（检索面板，跳市场） -->
+    <!-- 薪资行情（内联检索面板） -->
     <section v-else class="asset-body">
-      <div class="asset-placeholder">
-        <div class="ph-title">薪资 / 行情参考</div>
-        <p class="ph-text">薪资行情是<b>检索面板</b>，不是个人列表——按岗位+城市实时查询即可。</p>
-        <button class="ph-btn" @click="goMarket">去市场查行情 →</button>
+      <div class="sal-query">
+        <label class="sal-field">岗位
+          <select v-model="salRole" class="sal-sel">
+            <option v-for="r in SAL_ROLES" :key="r" :value="r">{{ r }}</option>
+          </select>
+        </label>
+        <label class="sal-field">城市
+          <select v-model="salCity" class="sal-sel">
+            <option v-for="c in SAL_CITIES" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </label>
+        <button class="qbank-add" :disabled="salLoading" @click="querySalary">查询</button>
       </div>
+
+      <p v-if="salLoading" class="asset-loading">查询中…</p>
+      <div v-else-if="salData" class="sal-result">
+        <div class="sal-dist">
+          <div class="sal-cell"><span class="sal-k">P25</span><span class="sal-v">{{ salData.p25 || '—' }}</span></div>
+          <div class="sal-cell hl"><span class="sal-k">P50</span><span class="sal-v">{{ salData.p50 || '—' }}</span></div>
+          <div class="sal-cell"><span class="sal-k">P75</span><span class="sal-v">{{ salData.p75 || '—' }}</span></div>
+          <span v-if="salData.trend" class="sal-trend">{{ salData.trend }}</span>
+        </div>
+        <p v-if="salData.aiSummary" class="sal-tip">💡 {{ salData.aiSummary }}</p>
+        <button class="ph-btn" @click="bringSalaryToChat">带入小职薪资焦点 →</button>
+      </div>
+      <p v-else class="asset-empty">选岗位 + 城市，点「查询」看 P25/P50/P75 与谈薪参考。</p>
     </section>
 
     <!-- 收录/编辑题目 -->
@@ -209,6 +230,7 @@ import { useRouter } from 'vue-router'
 import { listVersions, getVersion, downloadVersionPdf, downloadVersionDocx, deleteVersion } from '../api/resumeVersion'
 import { listInterviewSessions, getKbQuestions } from '../api/interview'
 import { listStudyNotes, saveStudyNote, deleteStudyNote } from '../api/study'
+import { getSalaryInsight } from '../api/market'
 import { renderMarkdown } from '../utils/markdown'
 
 const router = useRouter()
@@ -242,6 +264,14 @@ const studyKeyword = ref('')
 const loadingStudy = ref(false)
 const studyLoaded = ref(false)
 const studyPages = computed(() => Math.max(1, Math.ceil(studyTotal.value / STUDY_SIZE)))
+
+// 薪资行情内联面板
+const SAL_ROLES = ['Java后端', '前端', 'Python', 'Go', '算法', '测试', '产品经理']
+const SAL_CITIES = ['广州', '北京', '上海', '深圳', '杭州', '成都']
+const salRole = ref('Java后端')
+const salCity = ref('广州')
+const salData = ref(null)
+const salLoading = ref(false)
 
 const noteEditorOpen = ref(false)
 const savingNote = ref(false)
@@ -453,6 +483,23 @@ async function removeVersion(versionId) {
   } finally { busy.value = false }
 }
 
+async function querySalary() {
+  salLoading.value = true
+  error.value = ''
+  try {
+    salData.value = await getSalaryInsight({ role: salRole.value, city: salCity.value })
+  } catch (e) {
+    error.value = e?.message || '薪资查询失败'
+    salData.value = null
+  } finally {
+    salLoading.value = false
+  }
+}
+
+function bringSalaryToChat() {
+  router.push({ path: '/chat', query: { focus: 'salary', role: salRole.value, city: salCity.value } })
+}
+
 function goMarket() {
   router.push('/market')
 }
@@ -510,6 +557,18 @@ onMounted(loadResume)
 .pg:disabled { opacity: .4; cursor: not-allowed; }
 .pg-total { font-size: 12px; color: #94a3b8; }
 .asset-placeholder { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px 24px; text-align: center; box-shadow: 0 1px 2px rgba(20,24,40,.05); }
+.sal-query { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+.sal-field { font-size: 12px; color: #64748b; display: inline-flex; align-items: center; gap: 6px; }
+.sal-sel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; font-size: 13px; color: #334155; background: #fff; font-family: inherit; cursor: pointer; }
+.sal-result { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px rgba(20,24,40,.05); }
+.sal-dist { display: flex; align-items: center; gap: 10px; }
+.sal-cell { flex: 1; text-align: center; background: #f8fafc; border: 1px solid #eef2f7; border-radius: 10px; padding: 10px 6px; }
+.sal-cell.hl { background: #eef2ff; border-color: #c7d2fe; }
+.sal-k { display: block; font-size: 11px; color: #94a3b8; }
+.sal-v { display: block; font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 2px; }
+.sal-cell.hl .sal-v { color: #4338ca; }
+.sal-trend { flex: 0 0 auto; font-size: 12px; color: #15803d; background: #dcfce7; border-radius: 8px; padding: 4px 10px; }
+.sal-tip { margin: 12px 0; font-size: 13px; line-height: 1.6; color: #475569; }
 .ph-title { font-weight: 700; font-size: 15px; color: #0f172a; }
 .ph-text { color: #64748b; font-size: 13px; line-height: 1.7; margin: 10px 0 14px; }
 .ph-btn { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; border: 0; border-radius: 10px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
