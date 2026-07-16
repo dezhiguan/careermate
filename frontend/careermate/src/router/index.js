@@ -44,6 +44,12 @@ const routes = [
     meta: { title: '准备' },
   },
   {
+    path: '/assets',
+    name: 'assets',
+    component: () => import('../views/AssetLibrary.vue'),
+    meta: { title: '资产' },
+  },
+  {
     path: '/chat',
     name: 'chat',
     component: () => import('../views/AgentChat.vue'),
