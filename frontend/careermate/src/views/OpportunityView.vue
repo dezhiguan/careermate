@@ -65,16 +65,14 @@
               <template v-if="item.city"> · {{ item.city }}</template>
             </div>
           </div>
-          <div v-if="item.matchScore != null" class="match-badge">
-            <div class="match-label">AI 匹配分</div>
-            <div class="match-score">{{ item.matchScore }}</div>
-          </div>
+          <span v-if="item.matchScore != null" class="tier-chip tier-badge" :class="tierClass(item.matchTier)">
+            {{ tierLabel(item.matchTier) }}
+          </span>
         </div>
 
-        <div v-if="item.matchScore != null" class="tier-row">
-          <span class="tier-chip" :class="tierClass(item.matchTier)">{{ tierLabel(item.matchTier) }}</span>
-          <span v-for="reason in (item.matchReasons || []).slice(0, 1)" :key="reason" class="reason-text">
-            {{ reason }}
+        <div v-if="(item.matchReasons || []).length" class="tier-row">
+          <span v-for="reason in (item.matchReasons || []).slice(0, 2)" :key="reason" class="reason-text">
+            ✓ {{ reason }}
           </span>
         </div>
 
@@ -91,7 +89,16 @@
         <div class="card-actions">
           <button
             type="button"
-            class="btn-action"
+            class="btn-action btn-primary"
+            :disabled="!!preparingId || !hasResume"
+            :title="!hasResume ? '定制简历需要先上传简历，去「我的简历」上传后即可使用' : ''"
+            @click.stop="handleWorkspaceAction(item, 'GENERATE_RESUME')"
+          >
+            ✦ 定制简历
+          </button>
+          <button
+            type="button"
+            class="btn-action btn-mini"
             :disabled="!!preparingId"
             @click.stop="handleWorkspaceAction(item, 'ANALYZE_JD')"
           >
@@ -99,16 +106,7 @@
           </button>
           <button
             type="button"
-            class="btn-action"
-            :disabled="!!preparingId || !hasResume"
-            :title="!hasResume ? '定制简历需要先上传简历，去「我的简历」上传后即可使用' : ''"
-            @click.stop="handleWorkspaceAction(item, 'GENERATE_RESUME')"
-          >
-            定制简历
-          </button>
-          <button
-            type="button"
-            class="btn-action"
+            class="btn-action btn-mini"
             :disabled="!!preparingId"
             @click.stop="handleWorkspaceAction(item, 'PREPARE_INTERVIEW')"
           >
@@ -616,6 +614,13 @@ onBeforeUnmount(() => {
   border-radius: 999px;
 }
 
+.tier-badge {
+  margin-left: auto;
+  align-self: flex-start;
+  font-size: 12px;
+  padding: 3px 11px;
+}
+
 .tier-high {
   background: #eef2ff;
   color: #4338ca;
@@ -685,16 +690,29 @@ onBeforeUnmount(() => {
 }
 
 .btn-action {
-  flex: 1 1 calc(33% - 6px);
   min-width: 72px;
-  background: #4f46e5;
-  color: #fff;
   border: 0;
   border-radius: 8px;
   padding: 8px 6px;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.btn-primary {
+  flex: 1 1 100%;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  padding: 9px 6px;
+  font-size: 12.5px;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+}
+
+.btn-mini {
+  flex: 1 1 calc(50% - 3px);
+  background: #fff;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
 
 .btn-action:disabled {
