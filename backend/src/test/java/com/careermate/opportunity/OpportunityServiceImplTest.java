@@ -182,8 +182,14 @@ class OpportunityServiceImplTest {
 
         assertTrue(result.hasResume());
         assertEquals("MATCH", result.sortStrategy());
-        assertNotNull(result.items().get(0).matchScore());
-        assertTrue(result.items().get(0).matchScore() >= result.items().get(1).matchScore());
+        var top = result.items().get(0);
+        assertNotNull(top.matchScore());
+        assertTrue(top.matchScore() >= result.items().get(1).matchScore());
+        // 缺失技能：非空、不含用户已会的(Java/Redis)、均来自 JD 技能集
+        assertNotNull(top.missingSkills());
+        assertFalse(top.missingSkills().stream()
+                .anyMatch(s -> s.equalsIgnoreCase("Java") || s.equalsIgnoreCase("Redis")));
+        assertTrue(top.skills().containsAll(top.missingSkills()));
     }
 
     @Test

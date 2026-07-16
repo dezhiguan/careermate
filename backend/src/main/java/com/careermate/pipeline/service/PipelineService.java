@@ -29,9 +29,12 @@ import java.util.Map;
 public class PipelineService {
 
     private final JobApplicationMapper applicationMapper;
+    private final com.careermate.mapper.ResumeVersionMapper resumeVersionMapper;
 
-    public PipelineService(JobApplicationMapper applicationMapper) {
+    public PipelineService(JobApplicationMapper applicationMapper,
+                           com.careermate.mapper.ResumeVersionMapper resumeVersionMapper) {
         this.applicationMapper = applicationMapper;
+        this.resumeVersionMapper = resumeVersionMapper;
     }
 
     /**
@@ -130,6 +133,27 @@ public class PipelineService {
         return toVO(existing);
     }
 
+    /** 该用户每个 JD 已产出的简历版本数（targetJdId → count）。 */
+    private Map<Long, Integer> resumeVersionCounts(Long userId) {
+        if (userId == null) {
+            return Map.of();
+        }
+        List<com.careermate.model.entity.ResumeVersionEntity> versions = resumeVersionMapper.selectList(
+                new LambdaQueryWrapper<com.careermate.model.entity.ResumeVersionEntity>()
+                        .eq(com.careermate.model.entity.ResumeVersionEntity::getUserId, userId)
+                        .isNotNull(com.careermate.model.entity.ResumeVersionEntity::getTargetJdId));
+        Map<Long, Integer> counts = new java.util.HashMap<>();
+        if (versions == null) {
+            return counts;
+        }
+        for (com.careermate.model.entity.ResumeVersionEntity v : versions) {
+            if (v.getTargetJdId() != null) {
+                counts.merge(v.getTargetJdId(), 1, Integer::sum);
+            }
+        }
+        return counts;
+    }
+
     /** 看板：按阶段分列（5 列固定，含空列），列内按最近活跃倒序。 */
     public PipelineBoardVO getBoard(Long userId) {
         PipelineBoardVO board = new PipelineBoardVO();
@@ -139,13 +163,20 @@ public class PipelineService {
                         .isNull(JobApplicationEntity::getDeletedAt)
                         .orderByDesc(JobApplicationEntity::getLastActiveAt));
 
+        // 该用户各 JD 已产出的简历版本数（一次查询，jdDocId→count），用于卡片「简历 vN」
+        Map<Long, Integer> versionCounts = resumeVersionCounts(userId);
+
         Map<ApplicationStage, List<ApplicationVO>> grouped = new LinkedHashMap<>();
         for (ApplicationStage s : ApplicationStage.values()) {
             grouped.put(s, new ArrayList<>());
         }
         for (JobApplicationEntity row : rows) {
             ApplicationStage s = ApplicationStage.fromCode(row.getStage());
-            grouped.get(s == null ? ApplicationStage.PREPARING : s).add(toVO(row));
+            ApplicationVO vo = toVO(row);
+            if (row.getJdDocId() != null) {
+                vo.setResumeVersionCount(versionCounts.getOrDefault(row.getJdDocId(), 0));
+            }
+            grouped.get(s == null ? ApplicationStage.PREPARING : s).add(vo);
         }
 
         List<PipelineBoardVO.Column> columns = new ArrayList<>();
@@ -203,6 +234,7 @@ public class PipelineService {
         ApplicationStage stage = ApplicationStage.fromCode(e.getStage());
         vo.setStageLabel(stage == null ? e.getStage() : stage.label());
         vo.setResumeVersionId(e.getResumeVersionId());
+        vo.setNeedsSalaryNegotiation(ApplicationStage.OFFER.name().equals(e.getStage()));
         vo.setNotes(e.getNotes());
         vo.setCreatedAt(e.getCreatedAt());
         vo.setUpdatedAt(e.getUpdatedAt());

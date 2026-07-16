@@ -70,6 +70,7 @@ public class ChunksToOpportunityConverter {
                 null,
                 null,
                 List.of(),
+                List.of(),
                 parsed.skills(),
                 ragScore,
                 null,

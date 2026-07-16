@@ -318,6 +318,11 @@
           <span v-if="resumeViewerNotes.length" class="canvas-gap">改了 {{ resumeViewerNotes.length }} 处</span>
           <span v-if="resumeViewerSummary">{{ resumeViewerSummary }}</span>
         </div>
+        <div v-if="hasGap && !diffMode" class="canvas-gap-line">
+          <span v-if="resumeGap.hit.length" class="gapl hit" :title="resumeGap.hit.join(' · ')">✓ 命中 {{ resumeGap.hit.length }}</span>
+          <span v-if="resumeGap.understated.length" class="gapl mid" :title="resumeGap.understated.join(' · ')">◐ 未突出 {{ resumeGap.understated.length }}：{{ resumeGap.understated.slice(0, 3).join(' · ') }}</span>
+          <span v-if="resumeGap.missing.length" class="gapl miss" :title="resumeGap.missing.join(' · ')">✗ 缺 {{ resumeGap.missing.length }}：{{ resumeGap.missing.slice(0, 3).join(' · ') }}</span>
+        </div>
         <div v-if="resumeViewerNotes.length && !diffMode" class="canvas-notes">
           <div
             v-for="(note, idx) in resumeViewerNotes"
@@ -532,6 +537,46 @@ const pendingExportFormat = ref('')
 // Canvas 逐行改动：小职这次的改动项(✎小职·[说明])，可保留/撤销这处
 const resumeViewerNotes = ref([])
 const resumeViewerScore = ref(null)
+// Canvas gap 行：JD 技能按在简历里出现次数分桶（命中≥2 / 未突出=1 / 缺=0）
+const jdSkills = ref([])
+const jdSkillsLoadedFor = ref('')
+const resumeGap = computed(() => {
+  const skills = jdSkills.value || []
+  const content = String(resumeViewerContent.value || '').toLowerCase()
+  const hit = []
+  const understated = []
+  const missing = []
+  for (const raw of skills) {
+    const k = String(raw || '').trim()
+    if (!k) continue
+    const kl = k.toLowerCase()
+    let count = 0
+    let idx = content.indexOf(kl)
+    while (idx !== -1) {
+      count++
+      idx = content.indexOf(kl, idx + kl.length)
+    }
+    if (count === 0) missing.push(k)
+    else if (count === 1) understated.push(k)
+    else hit.push(k)
+  }
+  return { hit, understated, missing }
+})
+const hasGap = computed(() => {
+  const g = resumeGap.value
+  return g.hit.length || g.understated.length || g.missing.length
+})
+async function loadJdSkills() {
+  const jd = workspaceInfo.value?.jdId
+  if (!jd || jdSkillsLoadedFor.value === jd) return
+  jdSkillsLoadedFor.value = jd
+  try {
+    const detail = await getOpportunityDetail(jd)
+    jdSkills.value = Array.isArray(detail?.skills) ? detail.skills : []
+  } catch (e) {
+    jdSkills.value = []
+  }
+}
 // 最近会话线：落地页（无 wsId）时列出用户在推进的 JD 对话线，一键返回续聊
 const recentLines = ref([])
 // 小职左栏常驻会话列表（桌面）：我的准备(JD线) + 通用对话(CHAT)
@@ -1081,6 +1126,7 @@ async function openResumeVersion(versionId) {
     resumeViewerFactCheck.value = parseFactCheck(detail?.factCheck)
     resumeViewerNotes.value = normalizeNotes(detail?.optimizationNotes)
     resumeViewerScore.value = detail?.aiScore != null ? Math.round(Number(detail.aiScore)) : null
+    loadJdSkills()
     resumeViewerOpen.value = true
     versionsDrawerOpen.value = false
     // 切版本时退出对比态，避免旧 diff 残留误导
@@ -2082,6 +2128,34 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   color: #0f5132;
   font-weight: 600;
+}
+.canvas-gap-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+}
+.gapl {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-weight: 600;
+}
+.gapl.hit {
+  color: #15803d;
+  background: #dcfce7;
+}
+.gapl.mid {
+  color: #b45309;
+  background: #fffbeb;
+}
+.gapl.miss {
+  color: #b91c1c;
+  background: #fee2e2;
 }
 .canvas-notes {
   padding: 8px 16px 0;

@@ -30,12 +30,14 @@ class PipelineServiceTest {
 
     @Mock
     private JobApplicationMapper applicationMapper;
+    @Mock
+    private com.careermate.mapper.ResumeVersionMapper resumeVersionMapper;
 
     private PipelineService service;
 
     @BeforeEach
     void setUp() {
-        service = new PipelineService(applicationMapper);
+        service = new PipelineService(applicationMapper, resumeVersionMapper);
     }
 
     @Test
@@ -173,6 +175,30 @@ class PipelineServiceTest {
         assertEquals("准备/投递", board.getColumns().get(0).getLabel());
         assertEquals(0, board.getColumns().get(1).getCount()); // INTERVIEW_SCHEDULED empty
         assertEquals(1, board.getColumns().get(2).getCount()); // INTERVIEWING
+    }
+
+    @Test
+    void getBoardEnrichesVersionCountAndNegotiationFlag() {
+        when(applicationMapper.selectList(any())).thenReturn(List.of(
+                entity(1L, 1L, 700L, "PREPARING"),
+                entity(2L, 1L, 800L, "OFFER")
+        ));
+        com.careermate.model.entity.ResumeVersionEntity v1 = new com.careermate.model.entity.ResumeVersionEntity();
+        v1.setUserId(1L);
+        v1.setTargetJdId(700L);
+        com.careermate.model.entity.ResumeVersionEntity v2 = new com.careermate.model.entity.ResumeVersionEntity();
+        v2.setUserId(1L);
+        v2.setTargetJdId(700L);
+        when(resumeVersionMapper.selectList(any())).thenReturn(List.of(v1, v2));
+
+        PipelineBoardVO board = service.getBoard(1L);
+        ApplicationVO preparing = board.getColumns().get(0).getApplications().get(0); // jd 700
+        ApplicationVO offer = board.getColumns().get(3).getApplications().get(0); // OFFER col, jd 800
+
+        assertEquals(2, preparing.getResumeVersionCount());
+        assertEquals(0, offer.getResumeVersionCount());
+        org.junit.jupiter.api.Assertions.assertTrue(offer.isNeedsSalaryNegotiation());
+        org.junit.jupiter.api.Assertions.assertFalse(preparing.isNeedsSalaryNegotiation());
     }
 
     @Test
