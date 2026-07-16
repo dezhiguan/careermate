@@ -107,6 +107,8 @@
         </div>
 
         <div v-if="workspaceInfo" class="context-chips-bar">
+          <span class="ctx-anchor">🧵</span>
+          <span class="ctx-avatar">{{ anchorAvatar }}</span>
           <span
             v-for="(chip, idx) in contextChipList"
             :key="`${chip}-${idx}`"
@@ -115,6 +117,8 @@
           >
             {{ chip }}
           </span>
+          <span v-if="resumeViewerScore != null" class="ctx-chip ctx-chip--score">契合 {{ resumeViewerScore }}</span>
+          <span class="ctx-chip ctx-chip--mem" :class="{ 'is-new': memoryStatus === '新对话' }">{{ memoryStatus }}</span>
         </div>
 
         <button
@@ -621,6 +625,16 @@ const contextChipList = computed(() => {
   if (jdChipLabel.value) fallback.push(jdChipLabel.value)
   if (resumeChipLabel.value) fallback.push(resumeChipLabel.value)
   return fallback
+})
+
+// 锚条：公司头像 + 记忆态
+const anchorAvatar = computed(() => {
+  const src = workspaceInfo.value?.snapshot?.company || workspaceInfo.value?.title || '职'
+  return String(src).trim().charAt(0).toUpperCase() || '职'
+})
+const memoryStatus = computed(() => {
+  const real = messages.value.filter((m) => m.role === 'user' || (m.role === 'agent' && (m.text || m.card))).length
+  return real > 1 ? '连续' : '新对话'
 })
 
 const jdChipLabel = computed(() => {
@@ -2426,6 +2440,34 @@ onBeforeUnmount(() => {
 .ctx-chip--resume {
   background: #f0fdf4;
   color: #15803d;
+}
+.ctx-anchor {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.ctx-avatar {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.ctx-chip--score {
+  background: #fffbeb;
+  color: #b45309;
+}
+.ctx-chip--mem {
+  background: #ecfdf5;
+  color: #0f766e;
+}
+.ctx-chip--mem.is-new {
+  background: #eef2ff;
+  color: #4338ca;
 }
 
 .chat-drawer-overlay {
