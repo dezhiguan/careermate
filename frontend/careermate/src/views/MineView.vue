@@ -286,7 +286,7 @@
       </div>
     </section>
 
-    <div style="display:flex;gap:10px;padding:0 16px 24px;">
+    <div class="mine-footer-actions" style="display:flex;gap:10px;padding:0 16px 24px;">
       <button type="button" class="logout-btn" style="flex:1" @click="handleLogout">退出登录</button>
       <button type="button" class="logout-btn" style="flex:1;background:#f8fafc;color:#4f46e5;border:1px solid #4f46e5;" @click="$router.push('/mine/account-settings')">账号与安全</button>
     </div>
@@ -1327,6 +1327,25 @@ onMounted(async () => {
     padding: 28px 24px;
     max-width: 760px;
     margin: 0 auto;
+  }
+}
+
+/* 桌面双列：画像/技能/记忆等分两列铺开，身份卡与入口/统计跨整行 */
+@media (min-width: 960px) {
+  .mine-page {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    align-items: start;
+    max-width: 1000px;
+    padding: 28px 24px;
+    margin: 0 auto;
+  }
+  .identity-card,
+  .entry-btn,
+  .activity-row,
+  .mine-footer-actions {
+    grid-column: 1 / -1;
   }
 }
 </style>
