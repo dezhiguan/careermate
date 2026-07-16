@@ -79,6 +79,14 @@
             </div>
           </div>
           <div class="header-actions">
+            <button
+              v-if="isMobile && workspaceVersions.length && !resumeViewerOpen"
+              type="button"
+              class="canvas-chip-btn"
+              @click="openCanvasChip"
+            >
+              📄 简历 ▸
+            </button>
             <div
               v-if="currentPathMode"
               class="path-mode-chip"
@@ -1141,6 +1149,21 @@ function switchCanvasVersion(evt) {
   if (id && id !== activeVersionId.value) {
     openResumeVersion(id)
   }
+}
+
+// 移动端「📄简历 ▸」抽出 Canvas：开当前版本，否则最新版本
+function latestVersionId() {
+  const list = workspaceVersions.value || []
+  if (!list.length) return ''
+  let best = list[0]
+  for (const v of list) {
+    if (new Date(v.createdAt || 0) > new Date(best.createdAt || 0)) best = v
+  }
+  return best.versionId
+}
+function openCanvasChip() {
+  const target = activeVersionId.value || latestVersionId()
+  if (target) openResumeVersion(target)
 }
 
 // 归一化改动项：后端 optimizationNotes 可能是字符串或 {text/note/change/detail}
@@ -2681,6 +2704,21 @@ onBeforeUnmount(() => {
   gap: 6px;
   align-items: center;
   flex-shrink: 0;
+}
+
+.canvas-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .path-mode-chip {
