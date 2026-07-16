@@ -54,7 +54,7 @@
           </div>
         </article>
       </div>
-      <div v-if="resumePages > 1" class="pager">
+      <div v-if="isDesktop && resumePages > 1" class="pager">
         <button class="pg" :disabled="resumePage === 1" @click="resumePage--">‹</button>
         <span class="pg on">{{ resumePage }}</span>
         <span class="pg-total">/ {{ resumePages }}</span>
@@ -79,7 +79,7 @@
           </div>
         </article>
       </div>
-      <div v-if="interviewPages > 1" class="pager">
+      <div v-if="isDesktop && interviewPages > 1" class="pager">
         <button class="pg" :disabled="interviewPage === 1" @click="interviewPage--">‹</button>
         <span class="pg on">{{ interviewPage }}</span>
         <span class="pg-total">/ {{ interviewPages }}</span>
@@ -133,7 +133,7 @@
         </li>
       </ul>
 
-      <div v-if="studyPages > 1" class="pager">
+      <div v-if="isDesktop && studyPages > 1" class="pager">
         <button class="pg" :disabled="studyPage === 1" @click="goStudyPage(studyPage - 1)">‹</button>
         <span class="pg on">{{ studyPage }}</span>
         <span class="pg-total">/ {{ studyPages }}</span>
@@ -225,7 +225,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listVersions, getVersion, downloadVersionPdf, downloadVersionDocx, deleteVersion } from '../api/resumeVersion'
 import { listInterviewSessions, getKbQuestions } from '../api/interview'
@@ -237,6 +237,11 @@ const router = useRouter()
 const activeTab = ref('resume')
 const error = ref('')
 const busy = ref(false)
+// 分页分平台：桌面点击页码 / 移动端整列滚动看全部
+const isDesktop = ref(false)
+function updateIsDesktop() {
+  isDesktop.value = typeof window !== 'undefined' && window.innerWidth >= 900
+}
 
 const resumeVersions = ref([])
 const loadingResume = ref(false)
@@ -296,12 +301,14 @@ const sortedResume = computed(() => {
 })
 const resumePages = computed(() => Math.max(1, Math.ceil(sortedResume.value.length / PAGE_SIZE)))
 const pagedResume = computed(() => {
+  if (!isDesktop.value) return sortedResume.value
   const start = (resumePage.value - 1) * PAGE_SIZE
   return sortedResume.value.slice(start, start + PAGE_SIZE)
 })
 
 const interviewPages = computed(() => Math.max(1, Math.ceil(interviewSessions.value.length / PAGE_SIZE)))
 const pagedInterview = computed(() => {
+  if (!isDesktop.value) return interviewSessions.value
   const start = (interviewPage.value - 1) * PAGE_SIZE
   return interviewSessions.value.slice(start, start + PAGE_SIZE)
 })
@@ -355,8 +362,8 @@ async function loadStudy() {
     const data = await listStudyNotes({
       skill: studySkill.value || undefined,
       keyword: studyKeyword.value.trim() || undefined,
-      page: studyPage.value,
-      size: STUDY_SIZE,
+      page: isDesktop.value ? studyPage.value : 1,
+      size: isDesktop.value ? STUDY_SIZE : 50,
     })
     studyNotes.value = Array.isArray(data?.items) ? data.items : []
     studyTotal.value = Number(data?.total || 0)
@@ -518,7 +525,12 @@ function formatDate(raw) {
   return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
 }
 
-onMounted(loadResume)
+onMounted(() => {
+  updateIsDesktop()
+  window.addEventListener('resize', updateIsDesktop, { passive: true })
+  loadResume()
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 </script>
 
 <style scoped>
