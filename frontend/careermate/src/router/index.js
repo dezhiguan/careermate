@@ -38,6 +38,12 @@ const routes = [
     meta: { title: '面试准备' },
   },
   {
+    path: '/pipeline',
+    name: 'pipeline',
+    component: () => import('../views/PipelineView.vue'),
+    meta: { title: '准备' },
+  },
+  {
     path: '/chat',
     name: 'chat',
     component: () => import('../views/AgentChat.vue'),

@@ -20,6 +20,20 @@
         <button
           type="button"
           class="sidebar-item"
+          :class="{ active: isActive('/pipeline') }"
+          @click="go('/pipeline')"
+        >
+          <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="4" width="5" height="16" rx="1" />
+            <rect x="10" y="4" width="5" height="10" rx="1" />
+            <rect x="17" y="4" width="4" height="13" rx="1" />
+          </svg>
+          <span>准备</span>
+        </button>
+
+        <button
+          type="button"
+          class="sidebar-item"
           :class="{ active: isChatActive }"
           @click="go('/chat')"
         >
