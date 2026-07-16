@@ -28,7 +28,11 @@ class AgentToolRegistryTest {
             "mark_career_task_done",
             "search_knowledge_base",
             "rag_retriever",
-            "generate_resume_from_jd"
+            "generate_resume_from_jd",
+            // 围绕 JD 的六项能力新增工具（M1/M2/M3）
+            "get_company_atmosphere",
+            "generate_jd_aware_questions",
+            "get_salary_guidance"
     );
 
     @Autowired
@@ -37,7 +41,7 @@ class AgentToolRegistryTest {
     @Test
     void listDefinitionsContainsAllTools() {
         List<AgentToolDefinition> definitions = registry.listDefinitions();
-        assertEquals(11, definitions.size());
+        assertEquals(14, definitions.size());
         Set<String> names = definitions.stream()
                 .map(AgentToolDefinition::getName)
                 .collect(java.util.stream.Collectors.toSet());
@@ -45,7 +49,7 @@ class AgentToolRegistryTest {
     }
 
     @Test
-    void knownToolNamesContainsAllElevenTools() {
+    void knownToolNamesContainsAllRegisteredTools() {
         assertEquals(EXPECTED_TOOLS, registry.knownToolNames());
     }
 
