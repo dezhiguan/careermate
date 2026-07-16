@@ -242,6 +242,15 @@
       <span class="entry-arrow">→</span>
     </button>
 
+    <button type="button" class="entry-btn" data-testid="entry-assets" @click="router.push('/assets')">
+      <span class="entry-icon">📁</span>
+      <div class="entry-info">
+        <div class="entry-title">我的资产</div>
+        <div class="entry-sub">简历版本 · 八股题库 · 面试记录，全部归你</div>
+      </div>
+      <span class="entry-arrow">→</span>
+    </button>
+
     <button type="button" class="entry-btn" data-testid="entry-pipeline" @click="router.push('/pipeline')">
       <span class="entry-icon">📌</span>
       <div class="entry-info">
