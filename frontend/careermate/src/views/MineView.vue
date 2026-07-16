@@ -242,6 +242,15 @@
       <span class="entry-arrow">→</span>
     </button>
 
+    <button type="button" class="entry-btn" data-testid="entry-pipeline" @click="router.push('/pipeline')">
+      <span class="entry-icon">📌</span>
+      <div class="entry-info">
+        <div class="entry-title">准备看板</div>
+        <div class="entry-sub">你在推进的机会，按阶段看一眼</div>
+      </div>
+      <span class="entry-arrow">→</span>
+    </button>
+
     <button type="button" class="entry-btn" data-testid="entry-runs" @click="router.push('/mine/runs')">
       <span class="entry-icon">🔁</span>
       <div class="entry-info">

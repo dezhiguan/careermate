@@ -268,4 +268,21 @@ onMounted(load)
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* 手机：5 列 kanban 改为横向滑动，每列固定可读宽度，避免挤成两列错乱 */
+@media (max-width: 640px) {
+  .board {
+    display: flex;
+    grid-template-columns: none;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+  }
+  .board-col {
+    flex: 0 0 78%;
+    max-width: 78%;
+    scroll-snap-align: start;
+  }
+}
 </style>
