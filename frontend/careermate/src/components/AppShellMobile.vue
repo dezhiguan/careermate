@@ -24,17 +24,18 @@
       <button
         type="button"
         class="nav-item"
-        :class="{ active: isActive('/interview') }"
-        aria-label="面试准备：出题 · 判题 · 解题 · 复盘"
-        :aria-current="isActive('/interview') ? 'page' : undefined"
-        @click="go('/interview')"
+        :class="{ active: isActive('/pipeline') }"
+        aria-label="准备：投递看板，按阶段推进机会"
+        :aria-current="isActive('/pipeline') ? 'page' : undefined"
+        @click="go('/pipeline')"
       >
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <polyline points="9 11 12 14 22 4" />
-          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+          <rect x="3" y="4" width="5" height="16" rx="1" />
+          <rect x="10" y="4" width="5" height="10" rx="1" />
+          <rect x="17" y="4" width="4" height="13" rx="1" />
         </svg>
-        <span class="nav-label">面试准备</span>
-        <span class="nav-tagline">出题 · 判题 · 解题 · 复盘</span>
+        <span class="nav-label">准备</span>
+        <span class="nav-tagline">投递看板，按阶段推进</span>
       </button>
 
       <button
@@ -50,23 +51,6 @@
         </svg>
         <span class="nav-label">小职</span>
         <span class="nav-tagline">求职军师 · 一句话办求职事</span>
-      </button>
-
-      <button
-        type="button"
-        class="nav-item"
-        :class="{ active: isActive('/market') }"
-        aria-label="市场：行业情报官，帮你判断水深"
-        :aria-current="isActive('/market') ? 'page' : undefined"
-        @click="go('/market')"
-      >
-        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <line x1="12" y1="20" x2="12" y2="10" />
-          <line x1="18" y1="20" x2="18" y2="4" />
-          <line x1="6" y1="20" x2="6" y2="16" />
-        </svg>
-        <span class="nav-label">市场</span>
-        <span class="nav-tagline">行业情报官，帮你判断水深</span>
       </button>
 
       <button
