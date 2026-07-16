@@ -38,6 +38,15 @@ class AgentPromptAssemblerTest {
     }
 
     @Test
+    void basePromptCarriesJdCentricProactivityGuidance() {
+        // 小职应在完成动作后主动提议围绕这条 JD 的下一步（面试题/看板/公司氛围…）
+        String prompt = promptTemplateService.render("agent-base").content();
+        assertTrue(prompt.contains("围绕一条 JD 展开"));
+        assertTrue(prompt.contains("下一步"));
+        assertTrue(prompt.contains("主动 ≠ 啰嗦"));
+    }
+
+    @Test
     void buildSystemPromptAppendsResumeAndJobMatch() {
         PromptRenderResult rendered = promptTemplateService.render("agent-base");
         ResumeContext resume = ResumeContext.builder()
