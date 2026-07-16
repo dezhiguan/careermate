@@ -8,6 +8,10 @@
             {{ hasResume ? '基于你的简历 AI 匹配排序' : '传简历即可看到每个 JD 的匹配分' }}
           </p>
         </div>
+        <button v-if="!isDesktop" type="button" class="mobile-search-trigger" aria-label="搜索" @click="openSearch">
+          <span class="mst-icon">🔍</span>
+          <span class="mst-text">{{ activeKeyword || '搜 JD / 公司' }}</span>
+        </button>
       </div>
       <div class="filter-bar" aria-label="机会筛选">
         <label class="filter-field">
@@ -161,11 +165,47 @@
     </nav>
 
     <p v-if="error" class="error-text">{{ error }}</p>
+
+    <!-- 移动端全屏搜索 -->
+    <div v-if="searchOverlayOpen" class="search-overlay">
+      <div class="search-bar">
+        <span class="sb-icon">🔍</span>
+        <input
+          ref="searchInputEl"
+          v-model="searchInput"
+          class="search-ov-input"
+          type="search"
+          placeholder="搜 JD / 公司 / 技能"
+          @keydown.enter="doSearch(searchInput)"
+        >
+        <button type="button" class="search-ov-cancel" @click="closeSearch">取消</button>
+      </div>
+      <div class="search-body">
+        <div v-if="companySuggest.length" class="search-sect">
+          <div class="search-sect-title">公司</div>
+          <button v-for="c in companySuggest" :key="c" type="button" class="search-row" @click="doSearch(c)">
+            🏢 只看「{{ c }}」
+          </button>
+        </div>
+        <div v-if="searchHistory.length" class="search-sect">
+          <div class="search-sect-title">
+            搜索历史
+            <button type="button" class="search-clear" @click="clearHistory">清空</button>
+          </div>
+          <button v-for="h in searchHistory" :key="h" type="button" class="search-row" @click="doSearch(h)">
+            🕘 {{ h }}
+          </button>
+        </div>
+        <p v-if="!companySuggest.length && !searchHistory.length" class="search-empty">
+          输入关键词搜索岗位或公司
+        </p>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { listOpportunities } from '../api/opportunity'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
@@ -188,6 +228,65 @@ const preparingId = ref('')
 const degraded = ref(false)
 const degradedRetryCount = ref(0)
 let degradedRefreshTimer = null
+
+// 移动端全屏搜索
+const SEARCH_HISTORY_KEY = 'cm_search_history'
+const searchOverlayOpen = ref(false)
+const searchInput = ref('')
+const searchInputEl = ref(null)
+const searchHistory = ref([])
+const companySuggest = computed(() => {
+  const kw = searchInput.value.trim().toLowerCase()
+  if (!kw) return []
+  const seen = new Set()
+  const out = []
+  for (const it of items.value) {
+    const co = it.company
+    if (co && co.toLowerCase().includes(kw) && !seen.has(co)) {
+      seen.add(co)
+      out.push(co)
+      if (out.length >= 6) break
+    }
+  }
+  return out
+})
+function loadSearchHistory() {
+  try {
+    const raw = localStorage.getItem(SEARCH_HISTORY_KEY)
+    searchHistory.value = raw ? JSON.parse(raw) : []
+  } catch (e) {
+    searchHistory.value = []
+  }
+}
+function openSearch() {
+  searchInput.value = activeKeyword.value
+  searchOverlayOpen.value = true
+  nextTick(() => searchInputEl.value?.focus())
+}
+function closeSearch() {
+  searchOverlayOpen.value = false
+}
+function doSearch(kw) {
+  const q = String(kw || '').trim()
+  if (!q) return
+  const next = [q, ...searchHistory.value.filter((h) => h !== q)].slice(0, 8)
+  searchHistory.value = next
+  try {
+    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next))
+  } catch (e) {
+    // localStorage 不可用忽略
+  }
+  searchOverlayOpen.value = false
+  router.replace({ path: '/opportunity', query: { keyword: q, t: String(Date.now()) } })
+}
+function clearHistory() {
+  searchHistory.value = []
+  try {
+    localStorage.removeItem(SEARCH_HISTORY_KEY)
+  } catch (e) {
+    // ignore
+  }
+}
 
 // 暂存区收藏：记录已收藏的 jdDocId（数字）
 const savedSet = ref(new Set())
@@ -502,6 +601,7 @@ function tierClass(tier) {
 onMounted(() => {
   updateIsDesktop()
   loadSaved()
+  loadSearchHistory()
   window.addEventListener('resize', updateIsDesktop, { passive: true })
   window.addEventListener('scroll', handleScroll, { passive: true })
   if (!activeKeyword.value && homeStore.state.initialized && homeStore.state.topOpportunities.length > 0) {
@@ -688,6 +788,111 @@ onBeforeUnmount(() => {
 .pager-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mobile-search-trigger {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 52%;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.mst-icon { font-size: 13px; }
+.mst-text {
+  font-size: 12px;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.sb-icon { font-size: 15px; }
+.search-ov-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  font-family: inherit;
+  background: transparent;
+}
+.search-ov-cancel {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #4f46e5;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.search-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.search-sect { padding: 8px 14px; }
+.search-sect-title {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.search-clear {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.search-row {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 11px 4px;
+  font-size: 14px;
+  color: #334155;
+  cursor: pointer;
+  font-family: inherit;
+  border-bottom: 1px solid #f1f5f9;
+}
+.search-empty {
+  text-align: center;
+  color: #cbd5e1;
+  font-size: 13px;
+  margin-top: 40px;
 }
 
 .save-star {

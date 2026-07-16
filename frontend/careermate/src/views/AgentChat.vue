@@ -26,6 +26,38 @@
     </div>
 
     <div class="chat-layout">
+      <aside v-if="!isMobile" class="chat-sessions">
+        <button type="button" class="cs-new" @click="startNewChat">＋ 新对话</button>
+        <div class="cs-section">
+          <div class="cs-title">我的准备</div>
+          <button
+            v-for="ln in recentLines"
+            :key="ln.sessionId"
+            type="button"
+            class="cs-item"
+            :class="{ active: activeSessionId === ln.sessionId }"
+            @click="openSessionLine(ln.sessionId)"
+          >
+            <span class="cs-avatar">{{ (ln.title || '职').charAt(0) }}</span>
+            <span class="cs-name">{{ ln.title }}</span>
+          </button>
+          <div v-if="!recentLines.length" class="cs-empty">还没有 JD 会话线</div>
+        </div>
+        <div class="cs-section">
+          <div class="cs-title">通用对话</div>
+          <button
+            v-for="s in leftChatSessions"
+            :key="s.sessionId"
+            type="button"
+            class="cs-item"
+            :class="{ active: activeSessionId === s.sessionId }"
+            @click="openSessionLine(s.sessionId)"
+          >
+            <span class="cs-name">💬 {{ s.title || '对话' }}</span>
+          </button>
+          <div v-if="!leftChatSessions.length" class="cs-empty">暂无</div>
+        </div>
+      </aside>
       <div class="chat-main">
         <div class="chat-header">
           <div class="header-left">
@@ -75,6 +107,8 @@
         </div>
 
         <div v-if="workspaceInfo" class="context-chips-bar">
+          <span class="ctx-anchor">🧵</span>
+          <span class="ctx-avatar">{{ anchorAvatar }}</span>
           <span
             v-for="(chip, idx) in contextChipList"
             :key="`${chip}-${idx}`"
@@ -83,6 +117,8 @@
           >
             {{ chip }}
           </span>
+          <span v-if="resumeViewerScore != null" class="ctx-chip ctx-chip--score">契合 {{ resumeViewerScore }}</span>
+          <span class="ctx-chip ctx-chip--mem" :class="{ 'is-new': memoryStatus === '新对话' }">{{ memoryStatus }}</span>
         </div>
 
         <button
@@ -498,6 +534,9 @@ const resumeViewerNotes = ref([])
 const resumeViewerScore = ref(null)
 // 最近会话线：落地页（无 wsId）时列出用户在推进的 JD 对话线，一键返回续聊
 const recentLines = ref([])
+// 小职左栏常驻会话列表（桌面）：我的准备(JD线) + 通用对话(CHAT)
+const leftChatSessions = ref([])
+const activeSessionId = computed(() => workspaceId.value || sessionId.value || '')
 const pdfDownloading = ref(false)
 const wordDownloading = ref(false)
 const currentTraceId = ref('')
@@ -586,6 +625,16 @@ const contextChipList = computed(() => {
   if (jdChipLabel.value) fallback.push(jdChipLabel.value)
   if (resumeChipLabel.value) fallback.push(resumeChipLabel.value)
   return fallback
+})
+
+// 锚条：公司头像 + 记忆态
+const anchorAvatar = computed(() => {
+  const src = workspaceInfo.value?.snapshot?.company || workspaceInfo.value?.title || '职'
+  return String(src).trim().charAt(0).toUpperCase() || '职'
+})
+const memoryStatus = computed(() => {
+  const real = messages.value.filter((m) => m.role === 'user' || (m.role === 'agent' && (m.text || m.card))).length
+  return real > 1 ? '连续' : '新对话'
 })
 
 const jdChipLabel = computed(() => {
@@ -1551,6 +1600,34 @@ function resumeLine(sid) {
   }
 }
 
+// 左栏：加载 JD 会话线 + 通用对话（桌面常驻）
+async function loadSessionPanes() {
+  loadRecentLines()
+  try {
+    const sessions = await listAgentSessions({ taskType: 'CHAT', limit: 20 })
+    leftChatSessions.value = Array.isArray(sessions) ? sessions : (sessions?.items || [])
+  } catch (e) {
+    leftChatSessions.value = []
+  }
+}
+
+// 点左栏某条会话线 → 切换到该 JD/对话（复用 /chat/:wsId 路由）
+function openSessionLine(sid) {
+  if (!sid || sid === activeSessionId.value) return
+  router.push({ name: 'chat-workspace', params: { wsId: sid } })
+}
+
+// ＋新对话：回到空白根聊天
+function startNewChat() {
+  if (workspaceId.value) {
+    router.push('/chat')
+  } else {
+    sessionId.value = ''
+    messages.value = []
+    streamState.value = 'idle'
+  }
+}
+
 async function sendExamplePrompt(prompt) {
   inputText.value = prompt
   await sendMessage()
@@ -1757,6 +1834,7 @@ watch(() => route.params.wsId, async (rawWsId) => {
 onMounted(async () => {
   updateViewport()
   window.addEventListener('resize', updateViewport)
+  if (!isMobile.value) loadSessionPanes()
   await Promise.allSettled([bootstrapChat(), loadCareerProfileBanner()])
   // 资产库「复用」某简历版本：预填对话意图，让小职以该版本为基础改
   if (route.query.reuse) {
@@ -2219,9 +2297,92 @@ onBeforeUnmount(() => {
 
 .chat-layout {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100%;
   min-height: 0;
+}
+
+/* 桌面常驻左栏：会话线列表 */
+.chat-sessions {
+  flex: 0 0 208px;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  border-right: 1px solid #e2e8f0;
+  background: #fafbfc;
+  padding: 12px 10px;
+}
+.cs-new {
+  width: 100%;
+  border: 1px dashed #c7d2fe;
+  border-radius: 8px;
+  background: #fff;
+  color: #4338ca;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  margin-bottom: 12px;
+}
+.cs-section {
+  margin-bottom: 14px;
+}
+.cs-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  padding: 0 4px 6px;
+}
+.cs-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 7px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  margin-bottom: 2px;
+}
+.cs-item:hover {
+  background: #eef2ff;
+}
+.cs-item.active {
+  background: #e0e7ff;
+}
+.cs-avatar {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.cs-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: #334155;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cs-item.active .cs-name {
+  color: #3730a3;
+  font-weight: 600;
+}
+.cs-empty {
+  font-size: 12px;
+  color: #cbd5e1;
+  padding: 4px 8px;
 }
 
 .context-chips-bar {
@@ -2279,6 +2440,34 @@ onBeforeUnmount(() => {
 .ctx-chip--resume {
   background: #f0fdf4;
   color: #15803d;
+}
+.ctx-anchor {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.ctx-avatar {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.ctx-chip--score {
+  background: #fffbeb;
+  color: #b45309;
+}
+.ctx-chip--mem {
+  background: #ecfdf5;
+  color: #0f766e;
+}
+.ctx-chip--mem.is-new {
+  background: #eef2ff;
+  color: #4338ca;
 }
 
 .chat-drawer-overlay {
@@ -2539,6 +2728,8 @@ onBeforeUnmount(() => {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  flex: 1;
+  min-width: 0;
 }
 
 .messages-area {
