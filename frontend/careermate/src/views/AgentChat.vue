@@ -121,7 +121,7 @@
         </div>
 
         <div class="messages-area" ref="msgContainer">
-          <section v-if="recentLines.length && showZeroStateExample" class="recent-lines">
+          <section v-if="recentLines.length && !workspaceId" class="recent-lines">
             <div class="recent-lines-title">继续你的会话线</div>
             <button
               v-for="ln in recentLines"
@@ -1434,6 +1434,8 @@ async function bootstrapChat() {
     await loadWorkspaceContext(workspaceId.value)
     return
   }
+  // 根聊天页始终拉「最近会话线」：即便自动恢复了上一段 CHAT 会话，也能一键切回某条 JD 线
+  loadRecentLines()
   const restored = await restoreLatestChatSession()
   if (restored) {
     return
@@ -1441,7 +1443,6 @@ async function bootstrapChat() {
   sessionId.value = ''
   messages.value = []
   streamState.value = 'idle'
-  loadRecentLines()
 }
 
 async function loadRecentLines() {
