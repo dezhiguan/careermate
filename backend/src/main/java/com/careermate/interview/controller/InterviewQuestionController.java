@@ -23,13 +23,16 @@ public class InterviewQuestionController {
     }
 
     /**
-     * 为一条 JD 生成针对性面试题（结合当前登录用户的默认简历）。
+     * 为一条 JD 生成针对性面试题（结合当前登录用户的默认简历，可选结合该公司面经）。
      *
      * @param jdDocId 目标 JD 的 RAGForge docId
+     * @param company 公司名（可选）
      */
     @GetMapping("/jd-aware-questions")
-    public ApiResponse<JdAwareQuestionsVO> jdAwareQuestions(@RequestParam Long jdDocId) {
-        return ApiResponse.success(
-                interviewQuestionService.generateJdAwareQuestions(jdDocId, CurrentUserContext.getUserId()));
+    public ApiResponse<JdAwareQuestionsVO> jdAwareQuestions(
+            @RequestParam Long jdDocId,
+            @RequestParam(required = false) String company) {
+        return ApiResponse.success(interviewQuestionService.generateJdAwareQuestions(
+                jdDocId, CurrentUserContext.getUserId(), company));
     }
 }

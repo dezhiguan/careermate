@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -147,6 +148,42 @@ class InterviewQuestionServiceTest {
 
         JdAwareQuestionsVO result = service.generateJdAwareQuestions(599L, 1L);
         assertFalse(result.isDataAvailable());
+    }
+
+    @Test
+    void companyNamePullsCompanyPrepContext() {
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleJd("字节-后端-JD"));
+        when(resumeContextProvider.getResumeContext(any()))
+                .thenReturn(ResumeContext.builder().available(true).contextText("简历").build());
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(RagRetrieveResult.builder()
+                .success(true).query("字节").scene(RagRetrieveScene.COMPANY)
+                .chunks(List.of(RagRetrievedChunk.builder().content("字节面经：爱考系统设计与削峰").build()))
+                .latencyMs(3L).build());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"jdTitle":"字节-后端","questions":[{"questionNo":1,"questionText":"削峰设计","tag":"JD_FOCUSED"}],"aiSummary":"x"}
+                """).build());
+
+        JdAwareQuestionsVO result = service.generateJdAwareQuestions(599L, 1L, "字节跳动");
+
+        assertTrue(result.isDataAvailable());
+        assertEquals(1, result.getQuestions().size());
+        // 有公司名 → 触发公司库+面经检索
+        verify(knowledgeRetrievalService).retrieveMerged(any());
+    }
+
+    @Test
+    void companyContextExceptionIsSwallowed() {
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleJd("字节-JD"));
+        when(resumeContextProvider.getResumeContext(any()))
+                .thenReturn(ResumeContext.builder().available(true).contextText("简历").build());
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenThrow(new RuntimeException("company kb down"));
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"jdTitle":"字节","questions":[{"questionNo":1,"questionText":"Q","tag":"JD_FOCUSED"}],"aiSummary":"x"}
+                """).build());
+
+        // 公司面经检索异常被吞，仍正常出题
+        JdAwareQuestionsVO result = service.generateJdAwareQuestions(599L, 1L, "字节跳动");
+        assertTrue(result.isDataAvailable());
     }
 
     @Test

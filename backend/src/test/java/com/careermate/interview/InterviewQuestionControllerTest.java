@@ -27,10 +27,10 @@ class InterviewQuestionControllerTest {
         JdAwareQuestionsVO vo = new JdAwareQuestionsVO();
         vo.setJdDocId(599L);
         vo.setDataAvailable(true);
-        when(service.generateJdAwareQuestions(eq(599L), any())).thenReturn(vo);
+        when(service.generateJdAwareQuestions(eq(599L), any(), any())).thenReturn(vo);
 
         InterviewQuestionController controller = new InterviewQuestionController(service);
-        ApiResponse<JdAwareQuestionsVO> response = controller.jdAwareQuestions(599L);
+        ApiResponse<JdAwareQuestionsVO> response = controller.jdAwareQuestions(599L, null);
 
         assertNotNull(response.getData());
         assertEquals(599L, response.getData().getJdDocId());

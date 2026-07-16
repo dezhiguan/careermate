@@ -63,13 +63,21 @@ public class InterviewQuestionService {
     }
 
     /**
-     * 为一条 JD 生成针对性面试题。
-     *
-     * @param jdDocId 目标 JD 的 RAGForge docId
-     * @param userId  用户 ID（用于取简历个性化；可为 null）
-     * @return 面试题列表；JD 未找到时 dataAvailable=false
+     * 为一条 JD 生成针对性面试题（不指定公司）。
      */
     public JdAwareQuestionsVO generateJdAwareQuestions(Long jdDocId, Long userId) {
+        return generateJdAwareQuestions(jdDocId, userId, null);
+    }
+
+    /**
+     * 为一条 JD 生成针对性面试题，可结合该公司面经。
+     *
+     * @param jdDocId     目标 JD 的 RAGForge docId
+     * @param userId      用户 ID（用于取简历个性化；可为 null）
+     * @param companyName 公司名（可选；有则结合公司库+面经贴近真实考法出题）
+     * @return 面试题列表；JD 未找到时 dataAvailable=false
+     */
+    public JdAwareQuestionsVO generateJdAwareQuestions(Long jdDocId, Long userId, String companyName) {
         try {
             if (jdDocId == null) {
                 log.warn("generateJdAwareQuestions: jdDocId is null");
@@ -98,7 +106,10 @@ public class InterviewQuestionService {
                     .build());
             String interviewContext = toContextText(interviewResult);
 
-            String prompt = InterviewQuestionPrompts.jdAwarePrompt(jdTitle, jdContext, resumeText, interviewContext);
+            String companyContext = resolveCompanyContext(companyName);
+
+            String prompt = InterviewQuestionPrompts.jdAwarePrompt(
+                    jdTitle, jdContext, resumeText, interviewContext, companyContext);
             JdAwareQuestionsVO parsed = parseLlmJson(prompt, JdAwareQuestionsVO.class);
             if (parsed == null) {
                 return fallback(jdDocId);
@@ -113,6 +124,32 @@ public class InterviewQuestionService {
         } catch (Exception e) {
             log.warn("generateJdAwareQuestions failed: jdDocId={}, err={}", jdDocId, e.getMessage());
             return fallback(jdDocId);
+        }
+    }
+
+    /** 有公司名则检索「公司库 + 面经」作为该公司面经上下文；无则返回空串。复用 getCompanyPrep 的检索模式。 */
+    private String resolveCompanyContext(String companyName) {
+        if (companyName == null || companyName.isBlank()) {
+            return "";
+        }
+        try {
+            String safe = companyName.trim();
+            RagRetrieveResult result = knowledgeRetrievalService.retrieveMerged(List.of(
+                    RagRetrieveRequest.builder()
+                            .query(safe + " 面试 技术 考点")
+                            .scene(RagRetrieveScene.COMPANY)
+                            .topK(15)
+                            .build(),
+                    RagRetrieveRequest.builder()
+                            .query(safe + " 面经")
+                            .scene(RagRetrieveScene.INTERVIEW)
+                            .topK(10)
+                            .build()
+            ));
+            return toContextText(result);
+        } catch (Exception e) {
+            log.warn("resolveCompanyContext failed: company={}, err={}", companyName, e.getMessage());
+            return "";
         }
     }
 
