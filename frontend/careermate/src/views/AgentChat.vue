@@ -275,6 +275,27 @@
       </div>
     </div>
 
+    <div v-if="pendingExportFormat" class="modal-overlay" @click.self="pendingExportFormat = ''">
+      <div class="modal-panel fact-confirm">
+        <div class="modal-header">
+          <span>⚠ 导出前终检</span>
+          <button type="button" class="modal-close" @click="pendingExportFormat = ''">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="fact-confirm-lead">
+            以下内容在你的原始简历 / 画像里没找到出处，导出前请再确认属实——小职不替你担保这些是真的：
+          </p>
+          <ul class="fact-list">
+            <li v-for="(f, i) in factSuspects" :key="i">{{ f }}</li>
+          </ul>
+          <div class="fact-confirm-actions">
+            <button type="button" class="fact-btn-ghost" @click="pendingExportFormat = ''">再改改</button>
+            <button type="button" class="fact-btn-primary" @click="confirmExport">确认属实，继续导出</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div v-if="versionsDrawerOpen" class="modal-overlay" @click.self="versionsDrawerOpen = false">
       <div class="modal-panel drawer-panel">
         <div class="modal-header">
@@ -408,6 +429,9 @@ const workspaceVersions = ref([])
 const diffMode = ref(false)
 const diffLoading = ref(false)
 const diffLines = ref([])
+// 导出前 Critic 终检：当前版本落库的事实核对结果（疑似无出处的强事实）
+const resumeViewerFactCheck = ref(null)
+const pendingExportFormat = ref('')
 const pdfDownloading = ref(false)
 const wordDownloading = ref(false)
 const currentTraceId = ref('')
@@ -923,6 +947,7 @@ async function openResumeVersion(versionId) {
     resumeViewerTitle.value = detail?.versionName || '简历预览'
     resumeViewerContent.value = detail?.contentMarkdown || ''
     resumeViewerSummary.value = detail?.changeSummary || ''
+    resumeViewerFactCheck.value = parseFactCheck(detail?.factCheck)
     resumeViewerOpen.value = true
     versionsDrawerOpen.value = false
     // 切版本时退出对比态，避免旧 diff 残留误导
@@ -1016,27 +1041,67 @@ async function toggleDiff() {
   }
 }
 
+// 事实核对：解析落库的 factCheck，取出"疑似无出处"的强事实
+function parseFactCheck(raw) {
+  if (!raw) return null
+  try {
+    return typeof raw === 'string' ? JSON.parse(raw) : raw
+  } catch (e) {
+    return null
+  }
+}
+const factSuspects = computed(() => {
+  const fc = resumeViewerFactCheck.value
+  const list = fc && Array.isArray(fc.unsourcedFacts) ? fc.unsourcedFacts : []
+  return list.filter((f) => f != null && String(f).trim())
+})
+
 async function canvasExportPdf() {
   if (!activeVersionId.value) return
-  pdfDownloading.value = true
-  try {
-    await downloadVersionPdf(activeVersionId.value, resumeViewerTitle.value)
-  } catch (e) {
-    globalError.value = e?.message || 'PDF 下载失败'
-  } finally {
-    pdfDownloading.value = false
+  // 导出前终检：有疑似无出处的强事实 → 先弹确认，属实才导出
+  if (factSuspects.value.length) {
+    pendingExportFormat.value = 'pdf'
+    return
   }
+  await runExport('pdf')
 }
 
 async function canvasExportWord() {
   if (!activeVersionId.value) return
-  wordDownloading.value = true
-  try {
-    await downloadVersionDocx(activeVersionId.value, resumeViewerTitle.value)
-  } catch (e) {
-    globalError.value = e?.message || 'Word 下载失败'
-  } finally {
-    wordDownloading.value = false
+  if (factSuspects.value.length) {
+    pendingExportFormat.value = 'word'
+    return
+  }
+  await runExport('word')
+}
+
+// 用户在终检弹窗点"确认属实，继续导出"
+async function confirmExport() {
+  const fmt = pendingExportFormat.value
+  pendingExportFormat.value = ''
+  if (fmt) await runExport(fmt)
+}
+
+async function runExport(format) {
+  if (!activeVersionId.value) return
+  if (format === 'pdf') {
+    pdfDownloading.value = true
+    try {
+      await downloadVersionPdf(activeVersionId.value, resumeViewerTitle.value)
+    } catch (e) {
+      globalError.value = e?.message || 'PDF 下载失败'
+    } finally {
+      pdfDownloading.value = false
+    }
+  } else {
+    wordDownloading.value = true
+    try {
+      await downloadVersionDocx(activeVersionId.value, resumeViewerTitle.value)
+    } catch (e) {
+      globalError.value = e?.message || 'Word 下载失败'
+    } finally {
+      wordDownloading.value = false
+    }
   }
 }
 
@@ -1663,6 +1728,53 @@ onBeforeUnmount(() => {
   background: #4f46e5;
   border-color: #4f46e5;
   color: #fff;
+}
+.fact-confirm {
+  max-width: 440px;
+}
+.fact-confirm-lead {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #b45309;
+  margin: 0 0 12px;
+}
+.fact-list {
+  margin: 0 0 16px;
+  padding: 10px 12px 10px 28px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  max-height: 220px;
+  overflow: auto;
+}
+.fact-list li {
+  font-size: 13px;
+  color: #92400e;
+  line-height: 1.8;
+}
+.fact-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.fact-btn-ghost {
+  font-size: 13px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 16px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+}
+.fact-btn-primary {
+  font-size: 13px;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
 }
 .canvas-diff {
   font-family: 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
