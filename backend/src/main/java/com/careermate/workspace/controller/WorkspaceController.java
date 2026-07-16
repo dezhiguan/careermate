@@ -9,6 +9,7 @@ import com.careermate.security.CurrentUserContext;
 import com.careermate.workspace.dto.ActionAckResponse;
 import com.careermate.workspace.dto.ActionRequest;
 import com.careermate.workspace.dto.MessageVO;
+import com.careermate.workspace.dto.RecentLineVO;
 import com.careermate.workspace.dto.WorkspaceCreateRequest;
 import com.careermate.workspace.dto.WorkspaceCreateResponse;
 import com.careermate.workspace.dto.WorkspaceVO;
@@ -60,6 +61,14 @@ public class WorkspaceController {
     ) {
         Long userId = CurrentUserContext.getUserId();
         return ApiResponse.success(workspaceService.createWorkspace(userId, request));
+    }
+
+    @GetMapping("/recent")
+    public ApiResponse<List<RecentLineVO>> listRecentLines(
+            @RequestParam(defaultValue = "8") int limit
+    ) {
+        Long userId = CurrentUserContext.getUserId();
+        return ApiResponse.success(workspaceService.listRecentLines(userId, limit));
     }
 
     @GetMapping("/{sessionId}")

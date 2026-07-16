@@ -121,6 +121,20 @@
         </div>
 
         <div class="messages-area" ref="msgContainer">
+          <section v-if="recentLines.length && showZeroStateExample" class="recent-lines">
+            <div class="recent-lines-title">继续你的会话线</div>
+            <button
+              v-for="ln in recentLines"
+              :key="ln.sessionId"
+              type="button"
+              class="recent-line-item"
+              @click="resumeLine(ln.sessionId)"
+            >
+              <span class="recent-line-name">{{ ln.title }}</span>
+              <span class="recent-line-time">{{ formatVersionDate(ln.lastActiveAt) }}</span>
+            </button>
+          </section>
+
           <section v-if="showZeroStateExample" class="zero-chat-card">
             <div class="zero-chat-label">示例 · 点 chip 开始真实对话</div>
             <div class="zero-chat-bubbles">
@@ -333,7 +347,7 @@ import {
   listAgentSessions,
   sendAgentMessageStream,
 } from '../api/agent'
-import { getWorkspace, getMessages, postAction, openResumeGenerateStreamByEndpoint, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
+import { getWorkspace, getMessages, postAction, openResumeGenerateStreamByEndpoint, listRecentLines, LAST_WORKSPACE_CREATE_KEY } from '../api/workspace'
 import { getOpportunityDetail } from '../api/opportunity'
 import { downloadVersionDocx, downloadVersionPdf, getVersion, listVersions } from '../api/resumeVersion'
 import { getCareerProfile } from '../api/profile'
@@ -432,6 +446,8 @@ const diffLines = ref([])
 // 导出前 Critic 终检：当前版本落库的事实核对结果（疑似无出处的强事实）
 const resumeViewerFactCheck = ref(null)
 const pendingExportFormat = ref('')
+// 最近会话线：落地页（无 wsId）时列出用户在推进的 JD 对话线，一键返回续聊
+const recentLines = ref([])
 const pdfDownloading = ref(false)
 const wordDownloading = ref(false)
 const currentTraceId = ref('')
@@ -1425,6 +1441,21 @@ async function bootstrapChat() {
   sessionId.value = ''
   messages.value = []
   streamState.value = 'idle'
+  loadRecentLines()
+}
+
+async function loadRecentLines() {
+  try {
+    recentLines.value = await listRecentLines(8)
+  } catch (e) {
+    recentLines.value = []
+  }
+}
+
+function resumeLine(sid) {
+  if (sid) {
+    router.push({ name: 'chat-workspace', params: { wsId: sid } })
+  }
 }
 
 async function sendExamplePrompt(prompt) {
@@ -2349,6 +2380,59 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.recent-lines {
+  width: min(680px, 100%);
+  margin: 4px auto 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px;
+}
+
+.recent-lines-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.recent-line-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  margin-bottom: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.recent-line-item:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.recent-line-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-line-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #94a3b8;
 }
 
 .zero-chat-card {
