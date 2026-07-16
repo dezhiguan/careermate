@@ -13,8 +13,24 @@
 
     <p v-if="error" class="pipeline-error">{{ error }}</p>
     <p v-else-if="loading && !board" class="pipeline-loading">加载中…</p>
-    <p v-else-if="board && board.total === 0" class="pipeline-empty">
-      还没有在办的投递机会。去「机会」选一个岗位点「定制简历」，就会出现在这里。
+
+    <!-- 暂存区：收藏但还没动的 JD（不占看板，一键转为机会） -->
+    <section v-if="board && savedJobs.length" class="holding">
+      <div class="holding-head">📌 暂存区 · {{ savedJobs.length }}<span class="holding-hint">收藏但还没动，一键转为机会</span></div>
+      <div class="holding-list">
+        <div v-for="job in savedJobs" :key="job.id" class="holding-card">
+          <div class="holding-main">
+            <div class="holding-co">{{ job.company || '未知公司' }}</div>
+            <div class="holding-role">{{ job.roleTitle || '岗位' }}</div>
+          </div>
+          <button class="holding-btn promote" :disabled="savedBusyId === job.jdDocId" @click="promoteSaved(job)">转为机会</button>
+          <button class="holding-btn" :disabled="savedBusyId === job.jdDocId" @click="removeSaved(job)">移除</button>
+        </div>
+      </div>
+    </section>
+
+    <p v-if="board && board.total === 0 && !savedJobs.length" class="pipeline-empty">
+      还没有在办的投递机会。去「机会」选一个岗位点「定制简历」，或收藏几个 JD 进暂存区。
     </p>
 
     <!-- 桌面：五列看板 -->
@@ -125,13 +141,16 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getPipelineBoard, updateApplicationStage, archiveApplication } from '../api/pipeline'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
+import { listSavedJobs, promoteJob, unsaveJob } from '../api/savedJobs'
 
 const router = useRouter()
 const board = ref(null)
+const savedJobs = ref([])
 const loading = ref(false)
 const error = ref('')
 const busyId = ref(null)
 const openingId = ref(null)
+const savedBusyId = ref(null)
 
 // 分平台：桌面五列看板 / 移动阶段分段器 + 单列列表
 const isDesktop = ref(false)
@@ -201,7 +220,9 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    board.value = await getPipelineBoard()
+    const [boardData, saved] = await Promise.all([getPipelineBoard(), listSavedJobs()])
+    board.value = boardData
+    savedJobs.value = saved
     // 移动分段器默认选第一个有卡的阶段，否则第一列
     const cols = board.value?.columns || []
     if (!activeStage.value || !cols.some((c) => c.stage === activeStage.value)) {
@@ -211,6 +232,32 @@ async function load() {
     error.value = e?.message || '加载看板失败'
   } finally {
     loading.value = false
+  }
+}
+
+async function promoteSaved(job) {
+  if (!job?.jdDocId || savedBusyId.value) return
+  savedBusyId.value = job.jdDocId
+  try {
+    await promoteJob(job.jdDocId)
+    await load()
+  } catch (e) {
+    error.value = e?.message || '转为机会失败'
+  } finally {
+    savedBusyId.value = null
+  }
+}
+
+async function removeSaved(job) {
+  if (!job?.jdDocId || savedBusyId.value) return
+  savedBusyId.value = job.jdDocId
+  try {
+    await unsaveJob(job.jdDocId)
+    savedJobs.value = savedJobs.value.filter((j) => j.jdDocId !== job.jdDocId)
+  } catch (e) {
+    error.value = e?.message || '移除失败'
+  } finally {
+    savedBusyId.value = null
   }
 }
 
@@ -490,5 +537,73 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .mobile-list {
   display: flex;
   flex-direction: column;
+}
+
+/* 暂存区 */
+.holding {
+  background: #fffdf5;
+  border: 1px dashed #fde68a;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.holding-head {
+  font-size: 13px;
+  font-weight: 700;
+  color: #92400e;
+  margin-bottom: 10px;
+}
+.holding-hint {
+  font-weight: 400;
+  color: #b45309;
+  margin-left: 8px;
+  font-size: 12px;
+}
+.holding-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.holding-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.holding-main {
+  min-width: 0;
+}
+.holding-co {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+.holding-role {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.holding-btn {
+  flex-shrink: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  font-family: inherit;
+}
+.holding-btn.promote {
+  color: #4338ca;
+  border-color: #c7d2fe;
+  background: #eef2ff;
+  font-weight: 600;
+}
+.holding-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

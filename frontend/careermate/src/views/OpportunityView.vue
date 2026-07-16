@@ -77,6 +77,15 @@
           <span v-if="item.matchScore != null" class="tier-chip tier-badge" :class="tierClass(item.matchTier)">
             {{ tierLabel(item.matchTier) }}
           </span>
+          <button
+            type="button"
+            class="save-star"
+            :class="{ saved: isSaved(item) }"
+            :title="isSaved(item) ? '取消收藏' : '收藏到暂存区'"
+            @click.stop="toggleSave(item)"
+          >
+            {{ isSaved(item) ? '★' : '☆' }}
+          </button>
         </div>
 
         <div v-if="(item.matchReasons || []).length" class="tier-row">
@@ -161,6 +170,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { listOpportunities } from '../api/opportunity'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 import { createApplication } from '../api/pipeline'
+import { listSavedJobs, saveJob, unsaveJob } from '../api/savedJobs'
 import { homeStore } from '../stores/homeStore'
 
 const router = useRouter()
@@ -178,6 +188,44 @@ const preparingId = ref('')
 const degraded = ref(false)
 const degradedRetryCount = ref(0)
 let degradedRefreshTimer = null
+
+// 暂存区收藏：记录已收藏的 jdDocId（数字）
+const savedSet = ref(new Set())
+function jdNum(item) {
+  const n = item?.docId || Number(String(item?.jdId || '').replace(/\D/g, ''))
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+function isSaved(item) {
+  const n = jdNum(item)
+  return n != null && savedSet.value.has(n)
+}
+async function loadSaved() {
+  try {
+    const list = await listSavedJobs()
+    savedSet.value = new Set(list.map((s) => Number(s.jdDocId)).filter(Boolean))
+  } catch (e) {
+    // 收藏态非关键，失败忽略
+  }
+}
+async function toggleSave(item) {
+  const n = jdNum(item)
+  if (n == null) return
+  const next = new Set(savedSet.value)
+  try {
+    if (next.has(n)) {
+      next.delete(n)
+      savedSet.value = next
+      await unsaveJob(n)
+    } else {
+      next.add(n)
+      savedSet.value = next
+      await saveJob({ jdDocId: n, company: item.company, roleTitle: item.title })
+    }
+  } catch (e) {
+    error.value = e?.message || '收藏操作失败'
+    loadSaved()
+  }
+}
 
 const CITY_OPTIONS = ['不限', '北京', '上海', '广州', '深圳', '杭州', '成都', '武汉', '南京', '西安']
 const SORT_OPTIONS = [
@@ -453,6 +501,7 @@ function tierClass(tier) {
 
 onMounted(() => {
   updateIsDesktop()
+  loadSaved()
   window.addEventListener('resize', updateIsDesktop, { passive: true })
   window.addEventListener('scroll', handleScroll, { passive: true })
   if (!activeKeyword.value && homeStore.state.initialized && homeStore.state.topOpportunities.length > 0) {
@@ -639,6 +688,21 @@ onBeforeUnmount(() => {
 .pager-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.save-star {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.save-star.saved {
+  color: #f59e0b;
 }
 
 @media (min-width: 768px) {
