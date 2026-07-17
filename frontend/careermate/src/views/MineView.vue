@@ -286,9 +286,22 @@
       </div>
     </section>
 
+    <!-- 设置卡（照定稿：全宽、灰度收底） -->
+    <section class="profile-section settings-card">
+      <div class="section-head"><span class="section-title">设置</span></div>
+      <button type="button" class="setrow" @click="$router.push('/mine/account-settings')">
+        <span>账号与隐私</span><span class="setrow-arrow">▸</span>
+      </button>
+      <button type="button" class="setrow" @click="$router.push('/mine/account-settings')">
+        <span>通知偏好</span><span class="setrow-arrow">▸</span>
+      </button>
+      <button type="button" class="setrow" @click="$router.push('/mine/account-settings')">
+        <span>数据导出 / 注销</span><span class="setrow-arrow">▸</span>
+      </button>
+    </section>
+
     <div class="mine-footer-actions" style="display:flex;gap:10px;padding:0 16px 24px;">
       <button type="button" class="logout-btn" style="flex:1" @click="handleLogout">退出登录</button>
-      <button type="button" class="logout-btn" style="flex:1;background:#F5F6F8;color:#4E5BEF;border:1px solid #4E5BEF;" @click="$router.push('/mine/account-settings')">账号与安全</button>
     </div>
   </div>
 </template>
@@ -1344,8 +1357,28 @@ onMounted(async () => {
   .identity-card,
   .entry-btn,
   .activity-row,
+  .settings-card,
   .mine-footer-actions {
     grid-column: 1 / -1;
   }
 }
+
+/* 设置卡（照定稿 setrow：灰度收底） */
+.settings-card { padding-top: 8px; }
+.setrow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: none;
+  background: transparent;
+  border-top: 1px solid #F1F3F7;
+  padding: 13px 2px;
+  font-size: 13.5px;
+  color: #5C6472;
+  cursor: pointer;
+  font-family: inherit;
+}
+.setrow:first-of-type { border-top: none; }
+.setrow-arrow { color: #9AA2AF; }
 </style>
