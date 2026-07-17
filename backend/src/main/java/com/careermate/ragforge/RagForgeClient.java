@@ -514,7 +514,8 @@ public class RagForgeClient {
                     node.path("filename").asText(null),
                     node.path("content").asText(""),
                     node.path("chunkType").asText(null),
-                    node.path("finalScore").isNumber() ? node.path("finalScore").asDouble() : null
+                    node.path("finalScore").isNumber() ? node.path("finalScore").asDouble() : null,
+                    node.path("vectorScore").isNumber() ? node.path("vectorScore").asDouble() : null
                 ));
             }
             log.info("ragforge.search.after kbId={} resultCount={}", kbId, chunks.size());

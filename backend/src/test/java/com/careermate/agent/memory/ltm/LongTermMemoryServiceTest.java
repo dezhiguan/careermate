@@ -55,7 +55,8 @@ class LongTermMemoryServiceTest {
     }
 
     private RagForgeChunk chunk(long docId, String content, double score) {
-        return new RagForgeChunk(docId, docId, "mem", content, "PREFERENCE", score);
+        // score 放 vectorScore（门限比余弦）；finalScore 给个 RRF 量级的小值模拟 hybrid。
+        return new RagForgeChunk(docId, docId, "mem", content, "PREFERENCE", 0.05, score);
     }
 
     // ============================================================ KB backend（默认）
