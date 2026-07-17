@@ -1,0 +1,104 @@
+name: CareerMate Enable LTM
+
+# 一次性/可复用：把长期记忆(RAGForge KB)相关 env 幂等写进 server3 的 careermate.env，
+# 重建 backend Secret 并滚动重启。API key 走 dispatch 输入（不入库、日志 mask）。
+on:
+  workflow_dispatch:
+    inputs:
+      ragforge_api_key:
+        description: 'RAGForge API Key（sk-rf-...）'
+        required: true
+      confirm:
+        description: '写入 LTM env 并重启后端。输入 yes 确认'
+        required: true
+        default: 'no'
+
+jobs:
+  enable-ltm:
+    name: enable-ltm
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ github.event.inputs.confirm == 'yes' }}
+    environment:
+      name: production
+    steps:
+      - name: Configure SSH (Server 3)
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          DEPLOY_USER: ${{ secrets.CAREERMATE_APP_USER }}
+          DEPLOY_PORT: ${{ secrets.CAREERMATE_APP_PORT }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+          JUMP_USER: ${{ secrets.CAREERMATE_INGRESS_USER }}
+          JUMP_PORT: ${{ secrets.CAREERMATE_INGRESS_PORT }}
+        run: |
+          if [[ -z "${SSH_KEY}" || -z "${DEPLOY_HOST}" || -z "${DEPLOY_USER}" ]]; then
+            echo "CAREERMATE_APP_SSH_KEY / CAREERMATE_APP_HOST / CAREERMATE_APP_USER must be set"
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          PORT="${DEPLOY_PORT:-22}"
+          JUMP_HOST="${JUMP_HOST:-8.163.63.222}"
+          JUMP_USER="${JUMP_USER:-root}"
+          JUMP_PORT="${JUMP_PORT:-22}"
+          ssh-keyscan -p "${JUMP_PORT}" "${JUMP_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          {
+            printf '%s\n' 'Host careermate-jump'
+            printf '%s\n' "  HostName ${JUMP_HOST}"
+            printf '%s\n' "  User ${JUMP_USER}"
+            printf '%s\n' "  Port ${JUMP_PORT}"
+            printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
+            printf '%s\n' '  IdentitiesOnly yes'
+            printf '%s\n' '  StrictHostKeyChecking accept-new'
+            printf '%s\n' '  BatchMode yes'
+            printf '%s\n' '  ConnectTimeout 15'
+            printf '%s\n' '  ServerAliveInterval 30'
+            printf '%s\n' '  ServerAliveCountMax 3'
+            printf '%s\n' ''
+            printf '%s\n' 'Host careermate-app'
+            printf '%s\n' "  HostName ${DEPLOY_HOST}"
+            printf '%s\n' "  User ${DEPLOY_USER}"
+            printf '%s\n' "  Port ${PORT}"
+            printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
+            printf '%s\n' '  IdentitiesOnly yes'
+            printf '%s\n' '  StrictHostKeyChecking accept-new'
+            printf '%s\n' '  BatchMode yes'
+            printf '%s\n' '  ConnectTimeout 15'
+            printf '%s\n' '  ServerAliveInterval 30'
+            printf '%s\n' '  ServerAliveCountMax 3'
+            printf '%s\n' '  ProxyJump careermate-jump'
+          } > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Upsert LTM env, regenerate secret, restart backend
+        env:
+          RAGFORGE_API_KEY: ${{ github.event.inputs.ragforge_api_key }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${RAGFORGE_API_KEY}"
+          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+          ssh "${SSH_OPTS[@]}" careermate-app 'bash -s' <<REMOTE
+          set -euo pipefail
+          FILE=/opt/shared/env/careermate.env
+          upsert() { sudo sed -i "/^\$1=/d" "\$FILE"; printf '%s=%s\n' "\$1" "\$2" | sudo tee -a "\$FILE" >/dev/null; }
+          upsert RAGFORGE_ENABLED true
+          upsert RAGFORGE_URL https://ragforge.net
+          upsert RAGFORGE_API_KEY '${RAGFORGE_API_KEY}'
+          upsert RAGFORGE_LTM_KB_ID 677
+          upsert AGENT_LTM_ENABLED true
+          upsert AGENT_LTM_STORAGE KB
+          upsert RAGFORGE_JD_KB_ID 599
+          upsert RAGFORGE_INTERVIEW_KB_ID 596
+          upsert RAGFORGE_COMPANY_KB_ID 595
+          upsert RAGFORGE_MARKET_KB_ID 597
+          upsert RAGFORGE_SKILL_KB_ID 598
+          SCRIPT=/opt/careermate/k8s-src/deploy/scripts/create-careermate-k8s-secret.sh
+          if [[ ! -f "\$SCRIPT" ]]; then echo "找不到 \$SCRIPT（先跑一次代码部署同步仓库）" >&2; exit 1; fi
+          sudo bash "\$SCRIPT"
+          if command -v k3s >/dev/null 2>&1; then KUBECTL="k3s kubectl"; else KUBECTL="kubectl"; fi
+          \${KUBECTL} -n careermate rollout restart deploy/careermate-backend
+          \${KUBECTL} -n careermate rollout status deploy/careermate-backend --timeout=300s
+          echo "enable-ltm 完成：careermate.env 已更新 + Secret 重建 + 后端重启"
+          REMOTE
