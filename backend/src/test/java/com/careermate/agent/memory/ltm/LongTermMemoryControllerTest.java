@@ -18,7 +18,12 @@ import static org.mockito.Mockito.when;
 class LongTermMemoryControllerTest {
 
     private final LongTermMemoryService service = mock(LongTermMemoryService.class);
-    private final LongTermMemoryController controller = new LongTermMemoryController(service);
+    private final ConsolidationService consolidationService = mock(ConsolidationService.class);
+    private final com.careermate.mapper.AgentMessageMapper agentMessageMapper =
+            mock(com.careermate.mapper.AgentMessageMapper.class);
+    private final LtmProperties properties = new LtmProperties();
+    private final LongTermMemoryController controller =
+            new LongTermMemoryController(service, consolidationService, agentMessageMapper, properties);
 
     @AfterEach
     void clear() {
@@ -66,5 +71,30 @@ class LongTermMemoryControllerTest {
     void forget_noUser_noop() {
         controller.forget(9L);
         verify(service, never()).forget(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void consolidate_gathersConvoAndReturnsStats() {
+        login(7L);
+        properties.setEnabled(true);
+        when(agentMessageMapper.findConversationTexts(org.mockito.ArgumentMatchers.eq(7L),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of("m1", "m2", "m3", "m4"));
+        when(consolidationService.consolidate(org.mockito.ArgumentMatchers.eq(7L),
+                org.mockito.ArgumentMatchers.anyList())).thenReturn(3);
+
+        ApiResponse<java.util.Map<String, Object>> resp = controller.consolidate(7);
+
+        assertThat(resp.getData().get("ltmEnabled")).isEqualTo(true);
+        assertThat(resp.getData().get("factsStored")).isEqualTo(3);
+        assertThat(resp.getData().get("messageCount")).isEqualTo(4);
+    }
+
+    @Test
+    void consolidate_noUser_noop() {
+        ApiResponse<java.util.Map<String, Object>> resp = controller.consolidate(7);
+        assertThat(resp.getData().get("factsStored")).isEqualTo(0);
+        verify(consolidationService, never()).consolidate(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyList());
     }
 }
