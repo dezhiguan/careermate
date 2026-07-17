@@ -1,9 +1,21 @@
 <template>
   <div class="shell-desktop">
     <aside class="sidebar" aria-label="侧边导航">
-      <div class="sidebar-logo">C</div>
+      <div class="sidebar-logo"><span class="logo-mark">C</span><span class="logo-text">CareerMate</span></div>
 
       <div class="sidebar-nav">
+        <button
+          type="button"
+          class="sidebar-item"
+          :class="{ active: isChatActive }"
+          @click="go('/chat')"
+        >
+          <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          <span>小职</span>
+        </button>
+
         <button
           type="button"
           class="sidebar-item"
@@ -34,18 +46,6 @@
         <button
           type="button"
           class="sidebar-item"
-          :class="{ active: isChatActive }"
-          @click="go('/chat')"
-        >
-          <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          <span>小职</span>
-        </button>
-
-        <button
-          type="button"
-          class="sidebar-item"
           :class="{ active: isActive('/assets') }"
           @click="go('/assets')"
         >
@@ -56,16 +56,23 @@
           </svg>
           <span>资产</span>
         </button>
-      </div>
 
-      <button type="button" class="sidebar-avatar" aria-label="我的" @click="go('/mine')">
-        {{ avatarInitial }}
-        <span class="online-dot" aria-hidden="true" />
-      </button>
+        <div class="sidebar-grow" />
+
+        <button
+          type="button"
+          class="sidebar-item"
+          :class="{ active: isActive('/mine') }"
+          @click="go('/mine')"
+        >
+          <span class="sidebar-ava">{{ avatarInitial }}</span>
+          <span>我的</span>
+        </button>
+      </div>
     </aside>
 
     <div class="main-column">
-      <header v-if="showUserBar" class="user-bar">
+      <header v-if="showUserBarFinal" class="user-bar">
         <div class="user-bar-title">{{ pageTitle }}</div>
         <div v-if="showTopSearch" class="user-bar-search">
           <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -112,6 +119,10 @@ const router = useRouter()
 const searchQuery = ref('')
 
 const pageTitle = computed(() => route.meta?.title || 'CareerMate')
+
+// 这些主页面已有自己的定稿页头（mhead），隐藏 app 级顶栏避免标题重复
+const OWN_HEADER_ROUTES = ['/opportunity', '/pipeline', '/assets', '/mine']
+const showUserBarFinal = computed(() => props.showUserBar && !OWN_HEADER_ROUTES.includes(route.path))
 
 const showTopSearch = computed(() => route.path !== '/market')
 
@@ -160,95 +171,98 @@ watch(
   color: #1A1D26;
 }
 
+/* 照 09 定稿 sideV：浅色宽侧栏 */
 .sidebar {
-  width: 72px;
+  width: 200px;
   flex-shrink: 0;
-  background: #020617;
-  color: #cbd5e1;
+  background: #FFFFFF;
+  border-right: 1px solid #E8EAF0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 14px 0;
+  padding: 16px 12px;
 }
 
 .sidebar-logo {
-  width: 42px;
-  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 800;
+  font-size: 15px;
+  color: #1A1D26;
+  padding: 2px 10px 16px;
+}
+.logo-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
   background: linear-gradient(135deg, #4E5BEF, #8B5CF6);
-  border-radius: 12px;
   display: grid;
   place-items: center;
   color: #fff;
-  font-weight: 800;
   font-size: 14px;
-  margin-bottom: 18px;
+  font-weight: 800;
 }
 
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   flex: 1;
   width: 100%;
 }
 
 .sidebar-item {
   width: 100%;
-  padding: 10px 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 10px;
+  padding: 9px 12px;
   border: none;
+  border-radius: 10px;
   background: transparent;
-  color: #64748b;
+  color: #5C6472;
   cursor: pointer;
   font-family: inherit;
-  font-size: 9px;
+  font-size: 13.5px;
+  text-align: left;
+}
+
+.sidebar-item:hover {
+  background: #F1F3F7;
 }
 
 .sidebar-item.active {
-  color: #a5b4fc;
-  background: rgba(99, 102, 241, 0.15);
-  border-left: 3px solid #6366f1;
+  background: #EEF0FE;
+  color: #4E5BEF;
+  font-weight: 700;
 }
 
 .sidebar-icon {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   stroke: currentColor;
   fill: none;
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+  flex-shrink: 0;
 }
 
-.sidebar-avatar {
-  position: relative;
-  margin-top: 10px;
-  width: 40px;
-  height: 40px;
-  background: #fff;
-  border: 2px solid #6366f1;
-  border-radius: 50%;
+.sidebar-grow {
+  flex: 1;
+}
+
+.sidebar-ava {
+  width: 20px;
+  height: 20px;
+  border-radius: 7px;
+  background: #EEF1F6;
+  color: #3E4654;
   display: grid;
   place-items: center;
   font-weight: 700;
-  color: #4338ca;
-  font-size: 13px;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.online-dot {
-  position: absolute;
-  bottom: 0;
-  right: -1px;
-  width: 10px;
-  height: 10px;
-  background: #10b981;
-  border: 2px solid #020617;
-  border-radius: 50%;
+  font-size: 11px;
+  flex-shrink: 0;
 }
 
 .main-column {
