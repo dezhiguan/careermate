@@ -44,7 +44,8 @@ class ResumeVersionPdfExportTest {
         docxRenderer = new ResumeVersionDocxRenderer();
         service = new ResumeVersionServiceImpl(
                 resumeVersionMapper, new ObjectMapper(), pdfRenderer, docxRenderer, agentArtifactService,
-                new com.careermate.resume.version.verify.ResumeFactVerifier()
+                new com.careermate.resume.version.verify.ResumeFactVerifier(),
+                org.mockito.Mockito.mock(com.careermate.mapper.JobApplicationMapper.class)
         );
     }
 
@@ -125,7 +126,8 @@ class ResumeVersionPdfExportTest {
         }).when(failingRenderer).render(eq("# test"), any());
         ResumeVersionServiceImpl failingService = new ResumeVersionServiceImpl(
                 resumeVersionMapper, new ObjectMapper(), failingRenderer, docxRenderer, agentArtifactService,
-                new com.careermate.resume.version.verify.ResumeFactVerifier()
+                new com.careermate.resume.version.verify.ResumeFactVerifier(),
+                org.mockito.Mockito.mock(com.careermate.mapper.JobApplicationMapper.class)
         );
 
         MockHttpServletResponse response = new MockHttpServletResponse();

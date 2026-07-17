@@ -46,6 +46,7 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     private final ResumeVersionDocxRenderer docxRenderer;
     private final AgentArtifactService agentArtifactService;
     private final com.careermate.resume.version.verify.ResumeFactVerifier factVerifier;
+    private final com.careermate.mapper.JobApplicationMapper jobApplicationMapper;
 
     public ResumeVersionServiceImpl(
             ResumeVersionMapper resumeVersionMapper,
@@ -53,7 +54,8 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
             ResumeVersionPdfRenderer pdfRenderer,
             ResumeVersionDocxRenderer docxRenderer,
             AgentArtifactService agentArtifactService,
-            com.careermate.resume.version.verify.ResumeFactVerifier factVerifier
+            com.careermate.resume.version.verify.ResumeFactVerifier factVerifier,
+            com.careermate.mapper.JobApplicationMapper jobApplicationMapper
     ) {
         this.resumeVersionMapper = resumeVersionMapper;
         this.objectMapper = objectMapper;
@@ -61,6 +63,7 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
         this.docxRenderer = docxRenderer;
         this.agentArtifactService = agentArtifactService;
         this.factVerifier = factVerifier;
+        this.jobApplicationMapper = jobApplicationMapper;
     }
 
     @Override
@@ -177,9 +180,27 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
         }
         // BUG-19：兜底上限，避免版本堆积导致无分页全量返回（向后兼容仍返回数组）
         wrapper.last("LIMIT 200");
+        java.util.Map<String, Integer> reuseCounts = reuseCountByVersion(userId);
         return resumeVersionMapper.selectList(wrapper).stream()
-                .map(this::toListItemVO)
+                .map(v -> toListItemVO(v, reuseCounts))
                 .toList();
+    }
+
+    /** 各版本被多少机会引用（用于「用于 N 机会」）。 */
+    private java.util.Map<String, Integer> reuseCountByVersion(Long userId) {
+        java.util.Map<String, Integer> map = new java.util.HashMap<>();
+        try {
+            for (java.util.Map<String, Object> row : jobApplicationMapper.countByResumeVersion(userId)) {
+                Object vid = row.get("versionId");
+                Object cnt = row.get("cnt");
+                if (vid != null && cnt instanceof Number n) {
+                    map.put(String.valueOf(vid), n.intValue());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("统计简历版本复用数失败（忽略）: {}", e.getMessage());
+        }
+        return map;
     }
 
     @Override
@@ -234,9 +255,10 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public void exportPdf(Long userId, String versionId, HttpServletResponse response) {
         ResumeVersionEntity entity = requireOwnedVersion(userId, versionId);
+        resumeVersionMapper.markExported(userId, versionId);
         try {
             ResumeExportResponseHeaders.pdf(response, entity.getVersionName());
             pdfRenderer.render(entity.getContentMarkdown(), response.getOutputStream());
@@ -250,9 +272,10 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public void exportDocx(Long userId, String versionId, HttpServletResponse response) {
         ResumeVersionEntity entity = requireOwnedVersion(userId, versionId);
+        resumeVersionMapper.markExported(userId, versionId);
         try {
             ResumeExportResponseHeaders.docx(response, entity.getVersionName());
             docxRenderer.render(entity.getContentMarkdown(), response.getOutputStream());
@@ -362,7 +385,7 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
         return entity;
     }
 
-    private ResumeVersionListItemVO toListItemVO(ResumeVersionEntity entity) {
+    private ResumeVersionListItemVO toListItemVO(ResumeVersionEntity entity, java.util.Map<String, Integer> reuseCounts) {
         return new ResumeVersionListItemVO(
                 entity.getVersionId(),
                 displayName(entity),
@@ -373,6 +396,8 @@ public class ResumeVersionServiceImpl implements ResumeVersionService {
                 entity.getVersionSeq(),
                 normalizeChangeSummary(entity.getChangeSummary(), parseNotes(entity.getOptimizationNotes())),
                 entity.getAiScore(),
+                Boolean.TRUE.equals(entity.getExported()),
+                reuseCounts.getOrDefault(entity.getVersionId(), 0),
                 toOffsetDateTime(entity.getCreatedAt())
         );
     }

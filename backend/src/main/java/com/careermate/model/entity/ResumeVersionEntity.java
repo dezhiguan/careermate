@@ -40,6 +40,8 @@ public class ResumeVersionEntity {
     /** P4 版本来源：GENERATED（AI 生成）/ MANUAL_EDIT（手工编辑派生），默认 GENERATED。 */
     private String origin;
     private BigDecimal aiScore;
+    /** 是否已导出过 PDF/Word。 */
+    private Boolean exported;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

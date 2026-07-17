@@ -54,7 +54,8 @@ class ResumeVersionServiceImplTest {
                 pdfRenderer,
                 new ResumeVersionDocxRenderer(),
                 agentArtifactService,
-                new com.careermate.resume.version.verify.ResumeFactVerifier()
+                new com.careermate.resume.version.verify.ResumeFactVerifier(),
+                org.mockito.Mockito.mock(com.careermate.mapper.JobApplicationMapper.class)
         );
     }
 
