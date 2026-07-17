@@ -2,7 +2,8 @@
   <div class="asset-page">
     <header class="asset-head">
       <h1 class="asset-title">资产</h1>
-      <span class="asset-badge">全部归你 · 与机会 / 会话生死无关</span>
+      <span class="asset-badge">全部归你 · 与会话生死无关</span>
+      <button type="button" class="ask-chip" @click="router.push('/chat')">问小职：我给字节那份简历</button>
     </header>
 
     <div class="asset-tabs">
@@ -554,8 +555,9 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 </script>
 
 <style scoped>
-.asset-page { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
+.asset-page { padding: 20px 24px; max-width: 900px; margin: 0 auto; background: #F5F6F8; min-height: 100%; }
 .asset-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.ask-chip { margin-left: auto; display: inline-flex; align-items: center; font-size: 12px; background: #fff; border: 1px solid #E8EAF0; border-radius: 16px; padding: 5px 12px; color: #5C6472; cursor: pointer; font-family: inherit; }
 .asset-title { margin: 0; font-size: 20px; font-weight: 700; color: #1A1D26; }
 .asset-badge { font-size: 11px; font-weight: 600; color: #0da76a; background: #e6f6ef; border-radius: 12px; padding: 3px 10px; }
 .asset-tabs { display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px; }
