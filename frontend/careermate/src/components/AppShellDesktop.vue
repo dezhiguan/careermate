@@ -155,9 +155,9 @@ watch(
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
-  background: #f8fafc;
+  background: #F5F6F8;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  color: #0f172a;
+  color: #1A1D26;
 }
 
 .sidebar {
@@ -174,7 +174,7 @@ watch(
 .sidebar-logo {
   width: 42px;
   height: 42px;
-  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+  background: linear-gradient(135deg, #4E5BEF, #8B5CF6);
   border-radius: 12px;
   display: grid;
   place-items: center;
@@ -272,14 +272,14 @@ watch(
 .user-bar-title {
   font-size: 15px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1A1D26;
 }
 
 .user-bar-search {
   flex: 1;
   min-width: 0;
   margin-left: 18px;
-  background: #f8fafc;
+  background: #F5F6F8;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 6px 12px;
@@ -308,7 +308,7 @@ watch(
   background: transparent;
   outline: none;
   font-size: 12px;
-  color: #0f172a;
+  color: #1A1D26;
   font-family: inherit;
 }
 
@@ -319,7 +319,7 @@ watch(
 .search-submit-btn {
   flex-shrink: 0;
   border: none;
-  background: #4f46e5;
+  background: #4E5BEF;
   color: #fff;
   border-radius: 6px;
   padding: 4px 12px;

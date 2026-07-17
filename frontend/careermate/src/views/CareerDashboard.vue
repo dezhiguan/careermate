@@ -290,7 +290,7 @@ function formatTime(iso) {
 .stat-label { font-size: 10px; opacity: .55; margin-top: 2px; }
 
 .summary-panel {
-  background: #f8fafc; border: 1px solid var(--border); border-radius: 12px;
+  background: #F5F6F8; border: 1px solid var(--border); border-radius: 12px;
   padding: 14px 16px; margin-bottom: 22px;
 }
 .summary-row {
@@ -301,7 +301,7 @@ function formatTime(iso) {
 .summary-label { color: var(--text-muted); min-width: 72px; }
 .summary-value { color: var(--slate); flex: 1; word-break: break-word; }
 .summary-value.ok { color: var(--green); font-weight: 600; }
-.summary-value.warn { color: #b45309; }
+.summary-value.warn { color: #DB9A2D; }
 .summary-value.muted { color: var(--text-muted); }
 
 .section-title { font-weight: 600; font-size: 12px; margin-bottom: 10px; color: var(--navy); }
@@ -326,11 +326,11 @@ function formatTime(iso) {
   color: var(--purple); font-size: 11px; text-decoration: none; font-weight: 500;
   margin-top: 4px;
 }
-.card-link:hover { color: #7c3aed; }
+.card-link:hover { color: #8B5CF6; }
 
 .empty-state {
   text-align: center; color: var(--text-muted); padding: 24px 16px; font-size: 13px;
-  background: #f8fafc; border-radius: 10px; margin-bottom: 22px;
+  background: #F5F6F8; border-radius: 10px; margin-bottom: 22px;
 }
 .tasks-empty { padding: 16px; margin-bottom: 22px; }
 
@@ -360,7 +360,7 @@ function formatTime(iso) {
 .skill-gap-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
 .gap-label { width: 90px; flex-shrink: 0; color: var(--slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gap-bar-wrap { flex: 1; background: #f1f5f9; border-radius: 4px; height: 8px; overflow: hidden; }
-.gap-bar { height: 100%; background: linear-gradient(90deg, #8b5cf6, #6366f1); border-radius: 4px; transition: width .3s; }
+.gap-bar { height: 100%; background: linear-gradient(90deg, #8B5CF6, #6366f1); border-radius: 4px; transition: width .3s; }
 .gap-count { width: 24px; text-align: right; color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
 .gap-note { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 

@@ -441,10 +441,10 @@ const pwdStrength = computed(() => {
 </script>
 
 <style scoped>
-.settings-page { min-height: 100vh; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+.settings-page { min-height: 100vh; background: #F5F6F8; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
 .settings-header { padding: 16px 20px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; }
-.settings-header h2 { margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; }
-.back-btn { border: 0; background: none; color: #4f46e5; font-size: 14px; cursor: pointer; padding: 0; font-family: inherit; }
+.settings-header h2 { margin: 0; font-size: 16px; font-weight: 700; color: #1A1D26; }
+.back-btn { border: 0; background: none; color: #4E5BEF; font-size: 14px; cursor: pointer; padding: 0; font-family: inherit; }
 .settings-body { padding: 16px 20px; max-width: 600px; margin: 0 auto; display: grid; gap: 16px; }
 @media (min-width: 768px) { .settings-body { max-width: 720px; padding: 28px 24px; gap: 18px; } }
 
@@ -453,17 +453,17 @@ const pwdStrength = computed(() => {
 .setting-row { display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #f1f5f9; gap: 12px; }
 .setting-row:last-child { border-bottom: 0; }
 .setting-info { flex: 1; min-width: 0; }
-.setting-label { font-size: 14px; font-weight: 500; color: #0f172a; margin-bottom: 2px; }
+.setting-label { font-size: 14px; font-weight: 500; color: #1A1D26; margin-bottom: 2px; }
 .setting-desc { font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 6px; }
 .badge-unverified { background: #fef3c7; color: #d97706; border-radius: 4px; padding: 1px 5px; font-size: 11px; }
-.badge-current { background: #ede9fe; color: #4f46e5; border-radius: 4px; padding: 1px 5px; font-size: 11px; margin-left: 6px; }
-.btn-link { border: 0; background: none; color: #4f46e5; font-size: 13px; cursor: pointer; font-family: inherit; padding: 0; white-space: nowrap; }
+.badge-current { background: #ede9fe; color: #4E5BEF; border-radius: 4px; padding: 1px 5px; font-size: 11px; margin-left: 6px; }
+.btn-link { border: 0; background: none; color: #4E5BEF; font-size: 13px; cursor: pointer; font-family: inherit; padding: 0; white-space: nowrap; }
 .btn-danger-link { border: 0; background: none; color: #ef4444; font-size: 13px; cursor: pointer; font-family: inherit; padding: 0; white-space: nowrap; }
 
 .session-row { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; gap: 12px; }
 .session-row:last-of-type { border-bottom: 0; }
 .session-info { flex: 1; }
-.session-device { font-size: 13px; font-weight: 500; color: #0f172a; }
+.session-device { font-size: 13px; font-weight: 500; color: #1A1D26; }
 .session-meta { font-size: 11px; color: #94a3b8; margin-top: 2px; }
 .btn-outline-danger { border: 1px solid #ef4444; background: none; color: #ef4444; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; font-family: inherit; width: 100%; }
 .loading-row, .empty-row { padding: 16px; font-size: 13px; color: #94a3b8; text-align: center; }
@@ -473,22 +473,22 @@ const pwdStrength = computed(() => {
 /* Modal */
 .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
 .modal { background: #fff; border-radius: 16px; padding: 24px; width: min(440px, 100%); }
-.modal h3 { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: #0f172a; }
+.modal h3 { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: #1A1D26; }
 .modal-tip { margin: 0 0 16px; font-size: 13px; color: #64748b; line-height: 1.6; }
 .field-label { display: block; font-size: 12px; font-weight: 500; color: #334155; margin-bottom: 6px; }
 .field-input { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 13px; font-family: inherit; box-sizing: border-box; }
-.field-input:focus { outline: none; border-color: #4f46e5; }
+.field-input:focus { outline: none; border-color: #4E5BEF; }
 .modal-error { margin: 8px 0 0; font-size: 12px; color: #ef4444; }
 .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
 .modal-actions .btn-primary, .modal-actions .btn-secondary, .modal-actions .btn-danger { flex: 1; border: 0; border-radius: 8px; padding: 10px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.btn-primary { background: #4f46e5; color: #fff; }
+.btn-primary { background: #4E5BEF; color: #fff; }
 .btn-primary:disabled { opacity: 0.6; cursor: default; }
-.btn-secondary { background: #f8fafc; color: #334155; border: 1px solid #e2e8f0 !important; }
+.btn-secondary { background: #F5F6F8; color: #334155; border: 1px solid #e2e8f0 !important; }
 .btn-danger { background: #ef4444; color: #fff; }
 .btn-danger:disabled { opacity: 0.6; cursor: default; }
 
 .sms-row { display: flex; gap: 8px; }
-.btn-sms { flex-shrink: 0; border: 1px solid #4f46e5; background: #fff; color: #4f46e5; border-radius: 8px; padding: 9px 10px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; }
+.btn-sms { flex-shrink: 0; border: 1px solid #4E5BEF; background: #fff; color: #4E5BEF; border-radius: 8px; padding: 9px 10px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; }
 .btn-sms:disabled { opacity: 0.6; cursor: default; }
 
 .warning-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #991b1b; }

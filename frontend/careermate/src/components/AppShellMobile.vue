@@ -109,7 +109,7 @@ function go(path) {
   overscroll-behavior-x: none;
   display: flex;
   flex-direction: column;
-  background: var(--bg, #f8fafc);
+  background: var(--bg, #F5F6F8);
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --mobile-bottom-nav-space: calc(84px + env(safe-area-inset-bottom));
 }
@@ -169,7 +169,7 @@ function go(path) {
 }
 
 .nav-item.active {
-  color: #4f46e5;
+  color: #4E5BEF;
 }
 
 .nav-icon {

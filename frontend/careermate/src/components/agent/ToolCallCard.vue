@@ -75,7 +75,7 @@ const showAction = computed(() => props.tool.status === 'success' && !!route.val
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: #f8fafc;
+  background: #F5F6F8;
   font-size: 11px;
   line-height: 1.5;
 }
