@@ -155,8 +155,9 @@ public class LongTermMemoryService {
                         (supersedeTarget.getConfidence() == null ? confidence : supersedeTarget.getConfidence()) + 0.1);
             }
 
-            String title = "[" + factType + "] u" + userId;
-            Optional<Long> docId = ragForgeClient.syncText(kbId, title, factText, factType);
+            // externalId 幂等：同用户同 type 同文本重复入库→RAGForge 侧返回既有 docId，不产生重复文档。
+            String externalId = ltmExternalId(userId, factType, factText);
+            Optional<Long> docId = ragForgeClient.ingestText(kbId, externalId, factText, factType);
             if (docId.isEmpty()) {
                 return false;
             }
@@ -180,6 +181,18 @@ public class LongTermMemoryService {
         } catch (Exception ex) {
             log.warn("长期记忆存储失败（KB，静默降级）: {}", ex.getMessage());
             return false;
+        }
+    }
+
+    /** 稳定 externalId：同用户+type+文本恒定 → RAGForge 侧幂等去重。 */
+    private String ltmExternalId(Long userId, String factType, String factText) {
+        String seed = userId + "|" + factType + "|" + factText;
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            String hex = java.util.HexFormat.of().formatHex(md.digest(seed.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            return "ltm-u" + userId + "-" + hex.substring(0, 16);
+        } catch (Exception e) {
+            return "ltm-u" + userId + "-" + Integer.toHexString(seed.hashCode());
         }
     }
 
