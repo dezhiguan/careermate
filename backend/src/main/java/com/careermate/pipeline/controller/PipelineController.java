@@ -5,6 +5,7 @@ import com.careermate.pipeline.dto.ApplicationVO;
 import com.careermate.pipeline.dto.ConfirmStageRequest;
 import com.careermate.pipeline.dto.CreateApplicationRequest;
 import com.careermate.pipeline.dto.PipelineBoardVO;
+import com.careermate.pipeline.dto.UpdateNameRequest;
 import com.careermate.pipeline.dto.UpdateStageRequest;
 import com.careermate.pipeline.service.PipelineService;
 import com.careermate.security.CurrentUserContext;
@@ -53,6 +54,13 @@ public class PipelineController {
     public ApiResponse<ApplicationVO> updateStage(@PathVariable Long id, @RequestBody UpdateStageRequest request) {
         String stage = request == null ? null : request.getStage();
         return ApiResponse.success(pipelineService.updateStage(CurrentUserContext.getUserId(), id, stage));
+    }
+
+    /** 卡片改名（空则回退自动生成名）。 */
+    @PatchMapping("/applications/{id}/name")
+    public ApiResponse<ApplicationVO> updateName(@PathVariable Long id, @RequestBody UpdateNameRequest request) {
+        String name = request == null ? null : request.getDisplayName();
+        return ApiResponse.success(pipelineService.updateName(CurrentUserContext.getUserId(), id, name));
     }
 
     /** 按 JD 一键确认流转阶段（Layer-2 确认卡的「确认」；无卡时自动建卡）。 */

@@ -13,6 +13,7 @@ public class ApplicationVO {
     private Long jdDocId;
     private String company;
     private String roleTitle;
+    private String displayName;
     private String stage;
     private String stageLabel;
     private String resumeVersionId;

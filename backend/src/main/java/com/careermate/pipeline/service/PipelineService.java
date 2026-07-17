@@ -199,6 +199,20 @@ public class PipelineService {
         return toVO(requireOwned(userId, applicationId));
     }
 
+    /** 卡片改名：空/纯空白 → 清除自定义名（回退自动生成）。 */
+    @Transactional
+    public ApplicationVO updateName(Long userId, Long applicationId, String displayName) {
+        JobApplicationEntity entity = requireOwned(userId, applicationId);
+        String name = displayName == null ? null : displayName.trim();
+        if (name != null && name.length() > 120) {
+            name = name.substring(0, 120);
+        }
+        String finalName = (name == null || name.isEmpty()) ? null : name;
+        applicationMapper.updateDisplayName(applicationId, finalName);
+        entity.setDisplayName(finalName);
+        return toVO(entity);
+    }
+
     /** 归档（软删）。 */
     @Transactional
     public void archiveApplication(Long userId, Long applicationId) {
@@ -230,6 +244,7 @@ public class PipelineService {
         vo.setJdDocId(e.getJdDocId());
         vo.setCompany(e.getCompany());
         vo.setRoleTitle(e.getRoleTitle());
+        vo.setDisplayName(e.getDisplayName());
         vo.setStage(e.getStage());
         ApplicationStage stage = ApplicationStage.fromCode(e.getStage());
         vo.setStageLabel(stage == null ? e.getStage() : stage.label());
