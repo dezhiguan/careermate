@@ -1,66 +1,15 @@
 <template>
   <div class="mine-page">
-    <!-- 区块一：用户身份卡 -->
-    <section class="identity-card">
-      <div class="identity-top">
-        <label class="identity-avatar-wrap" title="点击上传头像">
-          <input
-            ref="avatarInputRef"
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            class="avatar-input"
-            @change="onAvatarSelected"
-          >
-          <div class="identity-avatar">
-            <img v-if="avatarUrl" :src="avatarUrl" alt="" class="avatar-image">
-            <span v-else class="avatar-initial">{{ avatarInitial }}</span>
-            <span class="online-dot" />
-            <span class="avatar-upload-hint">换头像</span>
-          </div>
-        </label>
-        <div class="identity-info">
-          <div v-if="!editingName" class="identity-name-row">
-            <div class="identity-name">{{ displayName }}</div>
-            <button type="button" class="name-edit-btn" @click="startEditName">编辑</button>
-          </div>
-          <div v-else class="identity-name-edit">
-            <input
-              v-model="editDisplayName"
-              class="name-input"
-              type="text"
-              maxlength="64"
-              placeholder="输入昵称"
-              @keydown.enter="saveDisplayName"
-            >
-            <button type="button" class="name-save-btn" :disabled="profileSaving" @click="saveDisplayName">
-              {{ profileSaving ? '保存中' : '保存' }}
-            </button>
-            <button type="button" class="name-cancel-btn" @click="cancelEditName">取消</button>
-          </div>
-          <div class="identity-career">
-            {{ profile.targetRole || '未设置岗位' }} · {{ profile.targetCity || '未设置城市' }}
-          </div>
-          <div v-if="profileMessage" class="profile-message" :class="{ 'profile-message--error': profileError }">
-            {{ profileMessage }}
-          </div>
-        </div>
-      </div>
-      <div class="completeness-block">
-        <div class="completeness-head">
-          <span class="completeness-label">画像完整度</span>
-          <span class="completeness-pct">{{ profileCompleteness }}%</span>
-        </div>
-        <div class="completeness-track">
-          <div class="completeness-fill" :style="{ width: profileCompleteness + '%' }" />
-        </div>
-        <p v-if="profileCompleteness < 80" class="completeness-hint">补充完整后 AI 匹配更精准</p>
-      </div>
-    </section>
+    <!-- 页头（照定稿 mheadV） -->
+    <header class="mine-mhead">
+      <span class="mine-mhead-t">我的</span>
+      <span class="mine-mhead-sub">画像越全，机会越准</span>
+    </header>
 
-    <!-- 区块二：职业定位 -->
+    <!-- 求职画像（含完整度，照定稿） -->
     <section class="profile-section">
       <div class="section-head">
-        <span class="section-title">职业定位</span>
+        <span class="section-title">求职画像</span>
         <button v-if="!editingCareer" type="button" class="btn-text" @click="startEditCareer">编辑</button>
         <div v-else class="edit-actions">
           <button type="button" class="btn-text" :disabled="careerSaving" @click="saveCareer">
@@ -68,6 +17,11 @@
           </button>
           <button type="button" class="btn-text-muted" @click="cancelEditCareer">取消</button>
         </div>
+      </div>
+
+      <p class="completeness-line">完整度 {{ profileCompleteness }}%<template v-if="!profile.targetCity"> · 补全「期望城市」可提升匹配</template></p>
+      <div class="completeness-track">
+        <div class="completeness-fill" :style="{ width: profileCompleteness + '%' }" />
       </div>
 
       <template v-if="!editingCareer">
@@ -132,8 +86,8 @@
       <p v-if="careerSaveMsg" class="save-msg">{{ careerSaveMsg }}</p>
     </section>
 
-    <!-- 区块三：技能标签 -->
-    <section class="profile-section">
+    <!-- 区块三：技能标签（照定稿 3 卡：隐藏） -->
+    <section v-if="false" class="profile-section">
       <div class="section-head">
         <span class="section-title">我的技能</span>
         <button v-if="!editingSkills" type="button" class="btn-text" @click="startEditSkills">编辑</button>
@@ -171,7 +125,7 @@
     </section>
 
     <!-- 区块四：AI 对我的理解 -->
-    <section class="profile-section ai-section">
+    <section v-if="false" class="profile-section ai-section">
       <div class="section-head">
         <span class="section-title">AI 对我的理解</span>
       </div>
@@ -184,12 +138,14 @@
       <button type="button" class="btn-link" @click="router.push('/chat')">去小职完善画像 →</button>
     </section>
 
-    <!-- A4：小职认识你这些（长期记忆） -->
-    <section v-if="ltmFacts.length" class="profile-section ltm-section">
+    <!-- 🧠 小职认识你这些（长期记忆，照定稿常驻右列） -->
+    <section class="profile-section ltm-section">
       <div class="section-head">
-        <span class="section-title">小职认识你这些</span>
+        <span class="section-title">🧠 小职认识你这些</span>
+        <button type="button" class="btn-text" @click="router.push('/chat')">全部</button>
       </div>
-      <div class="ltm-groups">
+      <p class="ltm-sub">来自对话的长期记忆 · 可随时纠正</p>
+      <div v-if="ltmFacts.length" class="ltm-groups">
         <div v-for="group in ltmGrouped" :key="group.type" class="ltm-group">
           <span class="ltm-type-chip" :class="`ltm-type-${group.type.toLowerCase()}`">{{ ltmTypeLabel(group.type) }}</span>
           <ul class="ltm-fact-list">
@@ -200,10 +156,11 @@
           </ul>
         </div>
       </div>
+      <p v-else class="empty-tip">还没记住你的偏好 / 底线 / 强项 / 意向——多和小职聊聊，它会自动记住并可随时纠正。</p>
     </section>
 
-    <!-- 区块五：最近产物 -->
-    <section v-if="recentArtifacts.length" class="profile-section artifacts-section">
+    <!-- 区块五：最近产物（照定稿 3 卡：隐藏） -->
+    <section v-if="false" class="profile-section artifacts-section">
       <div class="section-head">
         <span class="section-title">最近产物</span>
       </div>
@@ -232,7 +189,8 @@
       </ul>
     </section>
 
-    <!-- 区块六：快捷入口 + 活动摘要 -->
+    <!-- 区块六：快捷入口 + 活动摘要（照定稿 3 卡：隐藏；简历/资产/准备已是导航 tab，深度任务走设置） -->
+    <template v-if="false">
     <button type="button" class="entry-btn" @click="router.push('/mine/resume')">
       <span class="entry-icon">📄</span>
       <div class="entry-info">
@@ -285,6 +243,7 @@
         <div class="activity-label">面试均分</div>
       </div>
     </section>
+    </template>
 
     <!-- 设置卡（照定稿：全宽、灰度收底） -->
     <section class="profile-section settings-card">
@@ -886,11 +845,38 @@ onMounted(async () => {
   font-weight: 700;
 }
 
+.mine-mhead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 4px 4px 6px;
+}
+.mine-mhead-t {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1A1D26;
+}
+.mine-mhead-sub {
+  font-size: 13px;
+  color: #5C6472;
+}
+.completeness-line {
+  margin: 2px 0 8px;
+  font-size: 13px;
+  color: #5C6472;
+}
+.ltm-sub {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #5C6472;
+}
+
 .completeness-track {
   height: 6px;
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: 3px;
+  background: #F1F3F7;
+  border-radius: 6px;
   overflow: hidden;
+  margin-bottom: 6px;
 }
 
 .completeness-fill {
@@ -1350,13 +1336,12 @@ onMounted(async () => {
     grid-template-columns: 1fr 1fr;
     gap: 14px;
     align-items: start;
-    max-width: 1000px;
-    padding: 28px 24px;
+    max-width: 1080px;
+    padding: 28px 32px;
     margin: 0 auto;
   }
-  .identity-card,
-  .entry-btn,
-  .activity-row,
+  /* 求职画像 | 记忆 双列；页头/设置/退出 跨整行 */
+  .mine-mhead,
   .settings-card,
   .mine-footer-actions {
     grid-column: 1 / -1;
