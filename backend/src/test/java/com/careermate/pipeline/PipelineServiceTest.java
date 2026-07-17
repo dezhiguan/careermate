@@ -52,7 +52,7 @@ class PipelineServiceTest {
 
         verify(applicationMapper, times(1)).insert(any(JobApplicationEntity.class));
         assertEquals("PREPARING", vo.getStage());
-        assertEquals("准备/投递", vo.getStageLabel());
+        assertEquals("准备投递", vo.getStageLabel());
         assertEquals("字节跳动", vo.getCompany());
     }
 
@@ -99,7 +99,7 @@ class PipelineServiceTest {
         verify(applicationMapper).updateById(cap.capture());
         assertEquals("OFFER", cap.getValue().getStage());
         assertEquals("OFFER", vo.getStage());
-        assertEquals("Offer/谈薪", vo.getStageLabel());
+        assertEquals("Offer谈薪", vo.getStageLabel());
     }
 
     @Test
@@ -172,7 +172,7 @@ class PipelineServiceTest {
         assertEquals(4, board.getTotal());
         assertEquals(5, board.getColumns().size());
         assertEquals(2, board.getColumns().get(0).getCount()); // PREPARING
-        assertEquals("准备/投递", board.getColumns().get(0).getLabel());
+        assertEquals("准备投递", board.getColumns().get(0).getLabel());
         assertEquals(0, board.getColumns().get(1).getCount()); // INTERVIEW_SCHEDULED empty
         assertEquals(1, board.getColumns().get(2).getCount()); // INTERVIEWING
     }
