@@ -138,6 +138,7 @@ import { useRouter } from 'vue-router'
 import { getPipelineBoard, updateApplicationStage, archiveApplication, renameApplication } from '../api/pipeline'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 import { listSavedJobs, promoteJob, unsaveJob } from '../api/savedJobs'
+import { cardDistinguishers } from '../utils/cardDistinguisher'
 
 const router = useRouter()
 const board = ref(null)
@@ -159,22 +160,18 @@ const mobileColumn = computed(() => {
   return cols.find((c) => c.stage === activeStage.value) || cols[0] || null
 })
 
-// 同「公司·职位」在看板上出现多次时补序号区分项（②③…）
+// 同「公司·职位」多次出现时补区分项：职级 > 产品线 > 城市 > 序号（设计 v2.3）
 const dedupSuffix = computed(() => {
-  const map = {}
-  const groups = {}
+  const all = []
   for (const col of board.value?.columns || []) {
-    for (const app of col.applications || []) {
-      const key = `${app.company || ''}|${app.roleTitle || ''}`
-      ;(groups[key] = groups[key] || []).push(app.id)
-    }
+    for (const app of col.applications || []) all.push(app)
   }
-  for (const ids of Object.values(groups)) {
-    if (ids.length > 1) {
-      ids.forEach((id, i) => { map[id] = `②③④⑤⑥⑦⑧⑨`[i - 1] || (i > 0 ? `·${i + 1}` : '') })
-    }
-  }
-  return map
+  return cardDistinguishers(all, {
+    getId: (a) => a.id,
+    getCompany: (a) => a.company,
+    getRole: (a) => a.roleTitle,
+    getCity: (a) => a.city,
+  })
 })
 function cardName(app) {
   if (app.displayName && app.displayName.trim()) return app.displayName.trim()
