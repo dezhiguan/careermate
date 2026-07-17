@@ -44,6 +44,8 @@
               <span v-if="v.targetJdLabel" class="row-tag">→ {{ shortJd(v.targetJdLabel) }}</span>
               <span v-else class="row-tag base">base</span>
               <span v-if="v.origin === 'MANUAL_EDIT'" class="row-tag gray">手改</span>
+              <span v-if="v.exported" class="row-tag exported">已导出 ✓</span>
+              <span v-if="v.reusedCount > 0" class="row-tag reused">用于 {{ v.reusedCount }} 机会</span>
               <span class="row-time">{{ formatDate(v.createdAt) }}</span>
             </div>
           </div>
@@ -615,6 +617,8 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .row-tag.base { color: #475569; background: #f1f5f9; }
 .row-tag.mock { color: #64748b; background: #f1f5f9; }
 .row-tag.real { color: #0DA76A; background: #E6F6EF; }
+.row-tag.exported { color: #0DA76A; background: #E6F6EF; }
+.row-tag.reused { color: #4E5BEF; background: #EEF0FE; }
 .row-tag.score { color: #0DA76A; background: #dcfce7; }
 .itype-bar { display: flex; gap: 8px; margin-bottom: 12px; }
 .itype-chip { font-size: 12px; color: #5C6472; background: #F1F3F7; border: 1px solid transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; }

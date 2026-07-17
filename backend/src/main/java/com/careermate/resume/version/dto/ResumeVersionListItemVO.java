@@ -13,6 +13,8 @@ public record ResumeVersionListItemVO(
         Integer versionSeq,
         String changeSummary,
         BigDecimal aiScore,
+        boolean exported,
+        int reusedCount,
         OffsetDateTime createdAt
 ) {
 }
