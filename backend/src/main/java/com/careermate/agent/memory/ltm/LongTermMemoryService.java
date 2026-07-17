@@ -119,7 +119,9 @@ public class LongTermMemoryService {
                     kbId, query, properties.getRecallTopK(), docIds, null);
             List<LtmMatch> matches = new ArrayList<>();
             for (RagForgeChunk c : chunks) {
-                if (c.finalScore() != null && c.finalScore() < properties.getRecallThreshold()) {
+                // 用 vectorScore（真 0-1 余弦）做门限，而非 hybrid 的 finalScore（RRF 融合分，量纲不同）。
+                Double sim = c.vectorScore();
+                if (sim == null || sim < properties.getRecallThreshold()) {
                     continue;
                 }
                 UserLongTermMemoryEntity e = c.docId() == null ? null : byDocId.get(c.docId());
@@ -131,7 +133,7 @@ public class LongTermMemoryService {
                 m.setFactType(e.getFactType());
                 m.setFactText(e.getFactText());
                 m.setConfidence(e.getConfidence());
-                m.setScore(c.finalScore());
+                m.setScore(sim);
                 matches.add(m);
             }
             return matches;
@@ -211,7 +213,8 @@ public class LongTermMemoryService {
         }
         List<RagForgeChunk> hits = ragForgeClient.searchInKb(kbId, factText, 1, docIds, List.of(factType));
         for (RagForgeChunk c : hits) {
-            if (c.finalScore() != null && c.finalScore() >= properties.getDuplicateThreshold()) {
+            // 去重同样比 vectorScore（余弦），而非 finalScore（RRF）。
+            if (c.vectorScore() != null && c.vectorScore() >= properties.getDuplicateThreshold()) {
                 UserLongTermMemoryEntity e = c.docId() == null ? null : sameTypeByDocId.get(c.docId());
                 if (e != null) {
                     return e;

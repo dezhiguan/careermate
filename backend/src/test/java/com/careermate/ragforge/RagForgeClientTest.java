@@ -208,7 +208,7 @@ class RagForgeClientTest {
             requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             byte[] body = """
                     {"code":0,"data":{"results":[
-                      {"chunkId":7,"docId":9,"filename":"jd.md","content":"Java JD","chunkType":"JD","finalScore":0.81},
+                      {"chunkId":7,"docId":9,"filename":"jd.md","content":"Java JD","chunkType":"JD","finalScore":0.09,"vectorScore":0.87},
                       {"filename":"empty.md","content":"No ids"}
                     ]}}
                     """.getBytes(StandardCharsets.UTF_8);
@@ -227,7 +227,8 @@ class RagForgeClientTest {
         assertEquals(7L, chunks.get(0).chunkId());
         assertEquals(9L, chunks.get(0).docId());
         assertEquals("jd.md", chunks.get(0).filename());
-        assertEquals(0.81, chunks.get(0).finalScore());
+        assertEquals(0.09, chunks.get(0).finalScore());
+        assertEquals(0.87, chunks.get(0).vectorScore());   // 透出 vectorScore 供 LTM 余弦门限
         assertTrue(requestBody.get().contains("\"kbIds\":[16]"));
         assertTrue(requestBody.get().contains("\"chunkType\":[\"JD\",\"MARKET\"]"));
     }
