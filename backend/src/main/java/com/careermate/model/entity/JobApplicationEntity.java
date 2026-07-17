@@ -21,6 +21,7 @@ public class JobApplicationEntity {
     private Long jdDocId;
     private String company;
     private String roleTitle;
+    private String displayName;
     private String stage;
     private String resumeVersionId;
     private String notes;

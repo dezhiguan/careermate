@@ -65,6 +65,9 @@
               >
                 <option v-for="s in board.columns" :key="s.stage" :value="s.stage">{{ s.label }}</option>
               </select>
+              <button class="archive-btn" type="button" @click="onRename(app)">
+                改名
+              </button>
               <button class="archive-btn" type="button" :disabled="busyId === app.id" @click="onArchive(app)">
                 归档
               </button>
@@ -114,6 +117,9 @@
               >
                 <option v-for="s in board.columns" :key="s.stage" :value="s.stage">{{ s.label }}</option>
               </select>
+              <button class="archive-btn" type="button" @click="onRename(app)">
+                改名
+              </button>
               <button class="archive-btn" type="button" :disabled="busyId === app.id" @click="onArchive(app)">
                 归档
               </button>
@@ -129,7 +135,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getPipelineBoard, updateApplicationStage, archiveApplication } from '../api/pipeline'
+import { getPipelineBoard, updateApplicationStage, archiveApplication, renameApplication } from '../api/pipeline'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 import { listSavedJobs, promoteJob, unsaveJob } from '../api/savedJobs'
 
@@ -171,9 +177,21 @@ const dedupSuffix = computed(() => {
   return map
 })
 function cardName(app) {
+  if (app.displayName && app.displayName.trim()) return app.displayName.trim()
   const base = `${app.company || '未知公司'} · ${app.roleTitle || '岗位'}`
   const suffix = dedupSuffix.value[app.id]
   return suffix ? `${base} · ${suffix}` : base
+}
+async function onRename(app) {
+  const current = app.displayName || cardName(app)
+  const next = window.prompt('卡片改名（留空恢复默认名）', current)
+  if (next === null) return
+  try {
+    await renameApplication(app.id, next.trim())
+    app.displayName = next.trim() || null
+  } catch (e) {
+    error.value = e?.message || '改名失败'
+  }
 }
 function avatarChar(app) {
   const c = (app.company || '公').trim()
