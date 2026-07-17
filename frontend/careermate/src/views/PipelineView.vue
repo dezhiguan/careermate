@@ -1,13 +1,9 @@
 <template>
   <div class="pipeline-view">
-    <header class="pipeline-head">
-      <div>
-        <h1 class="pipeline-title">准备 · 投递看板</h1>
-        <p class="pipeline-sub">
-          共 {{ board?.total || 0 }} 个在办 ·
-          <span class="hint">问小职「我最近投得怎么样」也能看</span>
-        </p>
-      </div>
+    <header class="mhead">
+      <span class="mhead-t">准备</span>
+      <span class="mhead-sub">{{ board?.total || 0 }} 个在办 · 阶段由对话自动推断</span>
+      <button class="ask-chip" type="button" @click="router.push('/chat')">问小职：我最近投得怎么样</button>
       <button class="refresh-btn" type="button" :disabled="loading" @click="load">刷新</button>
     </header>
 
@@ -53,19 +49,14 @@
             :class="{ opening: openingId === app.id }"
             @click="openLine(app)"
           >
-            <div class="app-top">
-              <span class="app-avatar">{{ avatarChar(app) }}</span>
-              <div class="app-headtext">
-                <div class="app-co">{{ cardName(app) }}</div>
-                <div class="app-activity">{{ activityText(app) }}</div>
-              </div>
+            <div class="app-co">{{ cardName(app) }}</div>
+            <div class="app-activity">{{ activityText(app) }}</div>
+            <div v-if="app.resumeVersionCount > 0 || app.needsSalaryNegotiation || app.resumeVersionId" class="app-mt">
+              <span v-if="app.resumeVersionCount > 0" class="tagx gray">简历v{{ app.resumeVersionCount }}</span>
+              <span v-else-if="app.resumeVersionId" class="tagx gray">简历已挂</span>
+              <span v-if="app.needsSalaryNegotiation" class="tagx warn">待谈薪</span>
             </div>
-            <div v-if="app.resumeVersionCount > 0 || app.needsSalaryNegotiation || app.resumeVersionId" class="app-meta">
-              <span v-if="app.resumeVersionCount > 0" class="app-tag">简历 v{{ app.resumeVersionCount }}</span>
-              <span v-else-if="app.resumeVersionId" class="app-tag">简历已挂</span>
-              <span v-if="app.needsSalaryNegotiation" class="app-tag warn">待谈薪</span>
-            </div>
-            <div class="app-actions" @click.stop>
+            <div class="app-ctl" @click.stop>
               <select
                 class="stage-select"
                 :value="app.stage"
@@ -107,19 +98,14 @@
             :class="{ opening: openingId === app.id }"
             @click="openLine(app)"
           >
-            <div class="app-top">
-              <span class="app-avatar">{{ avatarChar(app) }}</span>
-              <div class="app-headtext">
-                <div class="app-co">{{ cardName(app) }}</div>
-                <div class="app-activity">{{ activityText(app) }}</div>
-              </div>
+            <div class="app-co">{{ cardName(app) }}</div>
+            <div class="app-activity">{{ activityText(app) }}</div>
+            <div v-if="app.resumeVersionCount > 0 || app.needsSalaryNegotiation || app.resumeVersionId" class="app-mt">
+              <span v-if="app.resumeVersionCount > 0" class="tagx gray">简历v{{ app.resumeVersionCount }}</span>
+              <span v-else-if="app.resumeVersionId" class="tagx gray">简历已挂</span>
+              <span v-if="app.needsSalaryNegotiation" class="tagx warn">待谈薪</span>
             </div>
-            <div v-if="app.resumeVersionCount > 0 || app.needsSalaryNegotiation || app.resumeVersionId" class="app-meta">
-              <span v-if="app.resumeVersionCount > 0" class="app-tag">简历 v{{ app.resumeVersionCount }}</span>
-              <span v-else-if="app.resumeVersionId" class="app-tag">简历已挂</span>
-              <span v-if="app.needsSalaryNegotiation" class="app-tag warn">待谈薪</span>
-            </div>
-            <div class="app-actions" @click.stop>
+            <div class="app-ctl" @click.stop>
               <select
                 class="stage-select"
                 :value="app.stage"
@@ -314,304 +300,75 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 
 <style scoped>
 .pipeline-view {
-  padding: 20px 24px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-.pipeline-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 18px;
-}
-.pipeline-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  color: #1A1D26;
-}
-.pipeline-sub {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #64748b;
-}
-.pipeline-sub .hint {
-  color: #4E5BEF;
-}
-.refresh-btn {
-  padding: 7px 16px;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  color: #334155;
-  font-size: 13px;
-  cursor: pointer;
-}
-.pipeline-error {
-  color: #E5484D;
-}
-.pipeline-loading,
-.pipeline-empty {
-  color: #64748b;
-  font-size: 14px;
-  padding: 20px 0;
-}
-.board {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-}
-.board-col {
-  background: #f5f6f8;
-  border-radius: 12px;
-  padding: 10px 8px;
-  min-height: 220px;
-}
-.col-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 2px 6px 10px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #334155;
-}
-.col-count {
-  font-weight: 600;
-  color: #94a3b8;
-  background: #e8eaf0;
-  border-radius: 10px;
-  padding: 0 8px;
-  font-size: 12px;
-}
-.app-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 9px;
-  box-shadow: 0 1px 2px rgba(20, 24, 40, 0.05);
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.app-card:hover {
-  border-color: #c7d2fe;
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.1);
-}
-.app-card.opening {
-  opacity: 0.6;
-}
-.app-top {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.app-avatar {
-  flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: linear-gradient(135deg, #4E5BEF, #8B5CF6);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  display: grid;
-  place-items: center;
-}
-.app-headtext {
-  min-width: 0;
-}
-.app-activity {
-  font-size: 11px;
-  color: #94a3b8;
-  margin-top: 1px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.col-hot .app-card {
-  border-color: #f5c6c8;
-}
-.col-gold .app-card {
-  border-color: #f0dcb2;
-}
-.app-co {
-  font-weight: 700;
-  font-size: 13px;
-  color: #1A1D26;
-}
-.app-role {
-  font-size: 12px;
-  color: #64748b;
-  margin-top: 1px;
-}
-.app-meta {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-top: 7px;
-}
-.app-tag {
-  font-size: 10px;
-  color: #4E5BEF;
-  background: #eef0fe;
-  border-radius: 6px;
-  padding: 1px 7px;
-}
-.app-tag.warn {
-  color: #DB9A2D;
-  background: #fffbeb;
-}
-.app-time {
-  font-size: 10px;
-  color: #94a3b8;
-  margin-left: auto;
-}
-.app-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 9px;
-}
-.stage-select {
-  flex: 1;
-  font-size: 11px;
-  border: 1px solid #e2e8f0;
-  border-radius: 7px;
-  padding: 4px 6px;
-  color: #334155;
-  background: #fff;
-}
-.archive-btn {
-  font-size: 11px;
-  border: 1px solid #e2e8f0;
-  border-radius: 7px;
-  padding: 4px 10px;
-  background: #fff;
-  color: #94a3b8;
-  cursor: pointer;
-}
-.col-empty {
-  text-align: center;
-  color: #cbd5e1;
-  font-size: 12px;
-  margin: 6px 0;
-}
-@media (max-width: 900px) {
-  .board {
-    grid-template-columns: 1fr 1fr;
-  }
+  min-height: 100%;
+  background: #F5F6F8;
+  padding: 0 0 20px;
+  --line: #E8EAF0; --line2: #F1F3F7; --ink: #1A1D26; --ink2: #5C6472; --ink3: #9AA2AF;
+  --brand: #4E5BEF; --brand-soft: #EEF0FE; --brand-line: #D8DCFB;
+  --good: #0DA76A; --good-soft: #E6F6EF; --warn: #DB9A2D; --warn-soft: #FBF3E2; --bad: #E5484D;
 }
 
-/* 手机：阶段分段器 + 单列卡片列表（<640px 用 mobile-pipe，不再渲染 board） */
-.stage-seg {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 8px;
-  margin-bottom: 6px;
-}
-.seg-chip {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  background: #fff;
-  color: #64748b;
-  font-size: 13px;
-  padding: 6px 12px;
-  cursor: pointer;
-  font-family: inherit;
-}
-.seg-chip.on {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-  color: #4338ca;
-  font-weight: 600;
-}
-.seg-count {
-  font-size: 11px;
-  background: #e8eaf0;
-  color: #64748b;
-  border-radius: 8px;
-  padding: 0 6px;
-}
-.seg-chip.on .seg-count {
-  background: #c7d2fe;
-  color: #3730a3;
-}
-.mobile-list {
-  display: flex;
-  flex-direction: column;
-}
+/* 头部 */
+.mhead { display:flex; align-items:center; gap:12px; padding:14px 20px; background:#fff; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+.mhead-t { font-size:16px; font-weight:700; color:var(--ink); }
+.mhead-sub { font-size:13px; color:var(--ink2); }
+.ask-chip { margin-left:auto; display:inline-flex; align-items:center; font-size:12px; background:#fff; border:1px solid var(--line); border-radius:16px; padding:5px 12px; color:var(--ink2); cursor:pointer; font-family:inherit; }
+.refresh-btn { border:1px solid var(--line); background:#fff; color:var(--ink2); border-radius:9px; padding:6px 12px; font-size:12px; cursor:pointer; font-family:inherit; }
+.refresh-btn:disabled { opacity:.5; cursor:not-allowed; }
 
-/* 暂存区 */
-.holding {
-  background: #fffdf5;
-  border: 1px dashed #fde68a;
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 16px;
-}
-.holding-head {
-  font-size: 13px;
-  font-weight: 700;
-  color: #92400e;
-  margin-bottom: 10px;
-}
-.holding-hint {
-  font-weight: 400;
-  color: #DB9A2D;
-  margin-left: 8px;
-  font-size: 12px;
-}
-.holding-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.holding-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #fff;
-  border: 1px solid #fde68a;
-  border-radius: 10px;
-  padding: 8px 10px;
-}
-.holding-main {
-  min-width: 0;
-}
-.holding-co {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1A1D26;
-}
-.holding-role {
-  font-size: 11px;
-  color: #94a3b8;
-}
-.holding-btn {
-  flex-shrink: 0;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 4px 10px;
-  font-size: 12px;
-  background: #fff;
-  color: #64748b;
-  cursor: pointer;
-  font-family: inherit;
-}
-.holding-btn.promote {
-  color: #4338ca;
-  border-color: #c7d2fe;
-  background: #eef2ff;
-  font-weight: 600;
-}
-.holding-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.pipeline-error { color:var(--bad); padding:14px 20px; font-size:13px; }
+.pipeline-loading, .pipeline-empty { padding:24px 20px; color:var(--ink3); font-size:13px; }
+
+/* 暂存区 (stash) */
+.holding { margin:16px 20px 0; border:1.5px dashed var(--line); border-radius:12px; padding:12px 14px; background:#FCFCFE; }
+.holding-head { font-size:12.5px; font-weight:700; color:var(--ink2); margin-bottom:10px; }
+.holding-hint { font-weight:400; color:var(--ink3); margin-left:8px; font-size:11.5px; }
+.holding-list { display:flex; flex-wrap:wrap; gap:8px; }
+.holding-card { display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
+.holding-main { min-width:0; }
+.holding-co { font-size:13px; font-weight:600; color:var(--ink); }
+.holding-role { font-size:11px; color:var(--ink3); }
+.holding-btn { flex-shrink:0; border:1px solid var(--line); border-radius:8px; padding:4px 10px; font-size:12px; background:#fff; color:var(--ink2); cursor:pointer; font-family:inherit; }
+.holding-btn.promote { color:var(--brand); border-color:var(--brand-line); background:var(--brand-soft); font-weight:600; }
+.holding-btn:disabled { opacity:.5; cursor:not-allowed; }
+
+/* 桌面看板 */
+.board { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; padding:18px 20px; }
+.board-col { background:transparent; padding:0; }
+.col-head { display:flex; justify-content:space-between; align-items:center; padding:2px 6px 10px; font-size:12.5px; font-weight:700; color:var(--ink2); }
+.col-count { color:var(--ink3); font-weight:600; background:var(--line2); border-radius:10px; padding:0 8px; font-size:11px; }
+.col-body { min-height:60px; }
+
+.app-card { position:relative; background:#fff; border:1px solid var(--line); border-radius:12px; padding:11px 13px; margin-bottom:10px; box-shadow:0 1px 2px rgba(20,24,40,.05),0 3px 10px rgba(20,24,40,.05); cursor:pointer; transition:border-color .15s, box-shadow .15s; }
+.app-card:hover { box-shadow:0 2px 8px rgba(78,91,239,.12); }
+.app-card.opening { opacity:.6; }
+.col-hot .app-card { border-color:#F5C6C8; }
+.col-gold .app-card { border-color:#F0DCB2; }
+.app-co { font-weight:700; font-size:12.5px; color:var(--ink); }
+.app-activity { font-size:11px; color:var(--ink2); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.app-mt { display:flex; gap:5px; margin-top:8px; flex-wrap:wrap; }
+.tagx { font-size:10.5px; border-radius:8px; padding:1px 8px; font-weight:600; }
+.tagx.gray { background:var(--line2); color:var(--ink3); }
+.tagx.brand { background:var(--brand-soft); color:var(--brand); }
+.tagx.warn { background:var(--warn-soft); color:var(--warn); }
+
+/* 卡片控件：桌面 hover 揭示，保持卡面干净 */
+.app-ctl { display:flex; gap:6px; margin-top:9px; opacity:0; max-height:0; overflow:hidden; transition:opacity .15s; }
+.app-card:hover .app-ctl { opacity:1; max-height:60px; }
+.stage-select { flex:1; font-size:11px; border:1px solid var(--line); border-radius:7px; padding:4px 6px; color:var(--ink2); background:#fff; }
+.archive-btn { font-size:11px; border:1px solid var(--line); border-radius:7px; padding:4px 10px; background:#fff; color:var(--ink3); cursor:pointer; font-family:inherit; }
+.col-empty { text-align:center; color:#CBD3DE; font-size:12px; margin:6px 0; }
+
+/* 移动端阶段分段 + 列表 */
+.stage-seg { display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding:14px 16px 6px; }
+.seg-chip { flex:0 0 auto; display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--ink2); font-size:12.5px; padding:6px 12px; cursor:pointer; font-family:inherit; }
+.seg-chip.on { background:var(--brand-soft); border-color:var(--brand-line); color:var(--brand); font-weight:600; }
+.seg-count { font-size:11px; background:var(--line2); color:var(--ink3); border-radius:8px; padding:0 6px; }
+.seg-chip.on .seg-count { background:var(--brand-line); color:var(--brand); }
+.mobile-list { display:flex; flex-direction:column; padding:0 16px; }
+.mobile-list .app-ctl { opacity:1; max-height:none; }
+
+@media (min-width: 900px) {
+  .board, .mhead, .holding { max-width:1180px; margin-left:auto; margin-right:auto; }
 }
 </style>
