@@ -44,7 +44,8 @@ class InterviewQuestionServiceTest {
     @BeforeEach
     void setUp() {
         service = new InterviewQuestionService(
-                knowledgeRetrievalService, resumeContextProvider, llmClient, new ObjectMapper());
+                knowledgeRetrievalService, resumeContextProvider, llmClient, new ObjectMapper(),
+                org.mockito.Mockito.mock(com.careermate.agent.memory.AgentMemoryService.class));
     }
 
     @Test
