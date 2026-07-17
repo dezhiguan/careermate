@@ -3354,15 +3354,17 @@ onBeforeUnmount(() => {
 .send-btn {
   flex-shrink: 0;
   padding: 6px 14px;
-  background: #4E5BEF;
+  /* 定稿：发送键用 AI 渐变 */
+  background: linear-gradient(135deg, #4E5BEF, #8B5CF6);
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: opacity .2s;
   white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(78, 91, 239, .28);
 }
 
 .send-btn:disabled { opacity: .4; cursor: default; }
