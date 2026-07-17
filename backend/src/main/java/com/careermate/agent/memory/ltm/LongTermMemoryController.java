@@ -63,10 +63,18 @@ public class LongTermMemoryController {
         ZoneId zone = ZoneId.systemDefault();
         OffsetDateTime until = LocalDate.now(zone).plusDays(1).atStartOfDay(zone).toOffsetDateTime();
         OffsetDateTime since = until.minusDays(safeDays);
-        List<String> convo = agentMessageMapper.findConversationTexts(userId, since, until);
-        int stored = consolidationService.consolidate(userId, convo);
+        // 按会话粒度蒸馏：每条 JD 线单独蒸并记来源会话。
+        List<Long> sessionIds = agentMessageMapper.findActiveSessionIds(userId, since, until);
+        int stored = 0;
+        int messageCount = 0;
+        for (Long sessionId : sessionIds) {
+            List<String> convo = agentMessageMapper.findSessionConversationTexts(sessionId, since, until);
+            messageCount += convo == null ? 0 : convo.size();
+            stored += consolidationService.consolidate(userId, convo, sessionId);
+        }
         result.put("days", safeDays);
-        result.put("messageCount", convo == null ? 0 : convo.size());
+        result.put("sessionCount", sessionIds.size());
+        result.put("messageCount", messageCount);
         result.put("factsStored", stored);
         return ApiResponse.success(result);
     }

@@ -46,14 +46,25 @@ class ConsolidationServiceTest {
                   {"fact_type":"BOGUS","fact_text":"忽略我","confidence":0.9},
                   {"fact_type":"GOAL","fact_text":"","confidence":0.5}
                 ]}"""));
-        when(ltm.store(eq(7L), any(), any(), anyDouble())).thenReturn(true);
+        when(ltm.store(eq(7L), any(), any(), anyDouble(), any())).thenReturn(true);
 
         int stored = service.consolidate(7L, msgs(6));
 
         // 有效：PREFERENCE + skill(归一化 SKILL)；BOGUS 类型无效、GOAL 空文本被过滤
         assertThat(stored).isEqualTo(2);
-        verify(ltm).store(7L, "PREFERENCE", "只考虑远程", 0.8);
-        verify(ltm).store(7L, "SKILL", "精通Java", 0.7);
+        verify(ltm).store(7L, "PREFERENCE", "只考虑远程", 0.8, null);
+        verify(ltm).store(7L, "SKILL", "精通Java", 0.7, null);
+    }
+
+    @Test
+    void threadsSourceSessionIdIntoStore() {
+        when(llm.chat(any(ChatRequest.class))).thenReturn(resp("""
+                {"facts":[{"fact_type":"PREFERENCE","fact_text":"只考虑远程","confidence":0.8}]}"""));
+        when(ltm.store(eq(7L), any(), any(), anyDouble(), any())).thenReturn(true);
+
+        service.consolidate(7L, msgs(6), 42L);
+
+        verify(ltm).store(7L, "PREFERENCE", "只考虑远程", 0.8, 42L);
     }
 
     @Test

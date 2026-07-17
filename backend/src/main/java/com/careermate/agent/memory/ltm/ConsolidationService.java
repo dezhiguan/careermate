@@ -45,11 +45,20 @@ public class ConsolidationService {
     }
 
     /**
-     * 蒸馏一个用户的对话为 fact 并入库。
+     * 蒸馏一个用户的对话为 fact 并入库（不带来源会话）。
      *
      * @return 入库 fact 数
      */
     public int consolidate(Long userId, List<String> messages) {
+        return consolidate(userId, messages, null);
+    }
+
+    /**
+     * 蒸馏一段对话为 fact 并入库，sourceSessionId 记来源会话（按会话粒度蒸馏）。
+     *
+     * @return 入库 fact 数
+     */
+    public int consolidate(Long userId, List<String> messages, Long sourceSessionId) {
         if (userId == null || messages == null || messages.size() < MIN_MESSAGES) {
             return 0;
         }
@@ -80,7 +89,7 @@ public class ConsolidationService {
                 if (!VALID_TYPES.contains(type) || !StringUtils.hasText(text)) {
                     continue;
                 }
-                if (longTermMemoryService.store(userId, type, text, conf)) {
+                if (longTermMemoryService.store(userId, type, text, conf, sourceSessionId)) {
                     stored++;
                 }
             }
