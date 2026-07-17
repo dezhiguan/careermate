@@ -25,6 +25,9 @@ public class UserLongTermMemoryEntity {
     @TableField(exist = false)
     private String embedding;
 
+    /** KB 模式下该 fact 在 RAGForge 记忆库中的文档 id；PGVECTOR 模式为空。 */
+    private Long ragDocId;
+
     private Long supersededBy;
     private Boolean deleted;
     private OffsetDateTime createdAt;

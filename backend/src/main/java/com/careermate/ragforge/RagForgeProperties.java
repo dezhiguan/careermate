@@ -34,4 +34,6 @@ public class RagForgeProperties {
     private String companyKbId = "";
     /** A1-4：岗位技能画像库 id（简历定制技能对齐用）；空则不做技能对齐检索 */
     private String skillKbId = "";
+    /** A4：长期记忆库 id（用户级隔离靠 docId 过滤）；空则 KB 模式记忆链路禁用 */
+    private String ltmKbId = "";
 }
