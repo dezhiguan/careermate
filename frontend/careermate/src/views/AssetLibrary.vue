@@ -65,14 +65,24 @@
 
     <!-- 面试记录 -->
     <section v-else-if="activeTab === 'interview'" class="asset-body">
+      <div class="itype-bar">
+        <button
+          v-for="opt in INTERVIEW_TYPES"
+          :key="opt.value"
+          type="button"
+          class="itype-chip"
+          :class="{ on: interviewType === opt.value }"
+          @click="setInterviewType(opt.value)"
+        >{{ opt.label }}</button>
+      </div>
       <p v-if="loadingInterview" class="asset-loading">加载中…</p>
-      <p v-else-if="interviewSessions.length === 0" class="asset-empty">还没有面试记录。让小职来一轮模拟面试，记录会存到这里。</p>
+      <p v-else-if="filteredInterview.length === 0" class="asset-empty">还没有面试记录。让小职来一轮模拟面试，记录会存到这里。</p>
       <div v-else class="asset-list">
         <article v-for="s in pagedInterview" :key="s.id" class="asset-row">
           <div class="row-main">
             <div class="row-name">🎤 {{ s.title || s.company || '模拟面试' }}</div>
             <div class="row-meta">
-              <span class="row-tag mock">模拟</span>
+              <span class="row-tag" :class="s.sessionType === 'REAL' ? 'real' : 'mock'">{{ s.sessionType === 'REAL' ? '真实' : '模拟' }}</span>
               <span v-if="s.status" class="row-tag gray">{{ statusLabel(s.status) }}</span>
               <span v-if="interviewScore(s) != null" class="row-tag score">得分 {{ interviewScore(s) }}</span>
               <span class="row-time">{{ formatDate(s.createdAt || s.updatedAt) }}</span>
@@ -316,11 +326,25 @@ const pagedResume = computed(() => {
   return sortedResume.value.slice(start, start + PAGE_SIZE)
 })
 
-const interviewPages = computed(() => Math.max(1, Math.ceil(interviewSessions.value.length / PAGE_SIZE)))
+const INTERVIEW_TYPES = [
+  { value: 'ALL', label: '全部' },
+  { value: 'REAL', label: '真实复盘' },
+  { value: 'MOCK', label: '模拟面试' },
+]
+const interviewType = ref('ALL')
+function setInterviewType(v) {
+  interviewType.value = v
+  interviewPage.value = 1
+}
+const filteredInterview = computed(() => {
+  if (interviewType.value === 'ALL') return interviewSessions.value
+  return interviewSessions.value.filter((s) => (s.sessionType || 'MOCK') === interviewType.value)
+})
+const interviewPages = computed(() => Math.max(1, Math.ceil(filteredInterview.value.length / PAGE_SIZE)))
 const pagedInterview = computed(() => {
-  if (!isDesktop.value) return interviewSessions.value
+  if (!isDesktop.value) return filteredInterview.value
   const start = (interviewPage.value - 1) * PAGE_SIZE
-  return interviewSessions.value.slice(start, start + PAGE_SIZE)
+  return filteredInterview.value.slice(start, start + PAGE_SIZE)
 })
 function interviewScore(s) {
   const v = s?.score ?? s?.averageScore
@@ -575,7 +599,11 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .row-tag.gray { color: #64748b; background: #f1f5f9; }
 .row-tag.base { color: #475569; background: #f1f5f9; }
 .row-tag.mock { color: #64748b; background: #f1f5f9; }
+.row-tag.real { color: #0DA76A; background: #E6F6EF; }
 .row-tag.score { color: #0DA76A; background: #dcfce7; }
+.itype-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+.itype-chip { font-size: 12px; color: #5C6472; background: #F1F3F7; border: 1px solid transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.itype-chip.on { color: #4E5BEF; background: #EEF0FE; border-color: #D8DCFB; font-weight: 600; }
 .asset-subbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
 .asset-sort { font-size: 12px; color: #64748b; display: inline-flex; align-items: center; gap: 6px; }
 .asset-sort-sel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; font-size: 12px; color: #334155; background: #fff; font-family: inherit; cursor: pointer; }

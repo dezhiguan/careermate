@@ -24,6 +24,9 @@ public class InterviewSessionEntity {
 
     private String status;
 
+    /** 面试类型：MOCK 模拟 / REAL 真实复盘。 */
+    private String sessionType;
+
     private Integer totalQuestions;
 
     private Integer answeredQuestions;
