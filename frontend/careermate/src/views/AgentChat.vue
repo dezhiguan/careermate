@@ -26,7 +26,7 @@
     </div>
 
     <div class="chat-layout">
-      <aside v-if="!isMobile" class="chat-sessions">
+      <aside v-if="!isMobile" class="chat-sessions" @scroll="onSessionsScroll">
         <button type="button" class="cs-new" @click="startNewChat">＋ 新对话</button>
         <div class="cs-section">
           <div class="cs-title">我的准备</div>
@@ -46,16 +46,17 @@
         <div class="cs-section">
           <div class="cs-title">通用对话</div>
           <button
-            v-for="s in leftChatSessions"
+            v-for="s in displayChatSessions"
             :key="s.sessionId"
             type="button"
             class="cs-item"
             :class="{ active: activeSessionId === s.sessionId }"
             @click="openSessionLine(s.sessionId)"
           >
-            <span class="cs-name">💬 {{ s.title || '对话' }}</span>
+            <span class="cs-name">💬 {{ chatSessionTitle(s) }}</span>
           </button>
           <div v-if="!leftChatSessions.length" class="cs-empty">暂无</div>
+          <div v-else-if="leftVisibleCount < leftChatSessions.length" class="cs-more">下滑加载更多…</div>
         </div>
       </aside>
       <div class="chat-main">
@@ -1733,11 +1734,28 @@ function resumeLine(sid) {
 async function loadSessionPanes() {
   loadRecentLines()
   try {
-    const sessions = await listAgentSessions({ taskType: 'CHAT', limit: 20 })
+    const sessions = await listAgentSessions({ taskType: 'CHAT', limit: 100 })
     leftChatSessions.value = Array.isArray(sessions) ? sessions : (sessions?.items || [])
   } catch (e) {
     leftChatSessions.value = []
   }
+}
+
+// 通用对话滚动分页：先渲染一批，左栏触底再加载更多（web/移动统一滚动分页）
+const leftVisibleCount = ref(15)
+const displayChatSessions = computed(() => leftChatSessions.value.slice(0, leftVisibleCount.value))
+function onSessionsScroll(evt) {
+  const el = evt.target
+  if (el.scrollHeight - (el.scrollTop + el.clientHeight) < 120
+    && leftVisibleCount.value < leftChatSessions.value.length) {
+    leftVisibleCount.value += 15
+  }
+}
+// 通用对话标题兜底：默认「新会话」/空 → 用相对时间，避免整列同名
+function chatSessionTitle(s) {
+  const t = String(s?.title || '').trim()
+  if (t && t !== '新会话') return t
+  return s?.updatedAt ? `对话 · ${formatVersionDate(s.updatedAt)}` : '新对话'
 }
 
 // 点左栏某条会话线 → 切换到该 JD/对话（复用 /chat/:wsId 路由）
@@ -2443,8 +2461,7 @@ onBeforeUnmount(() => {
 }
 
 .chat-page {
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -2540,6 +2557,12 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: #cbd5e1;
   padding: 4px 8px;
+}
+.cs-more {
+  text-align: center;
+  font-size: 11px;
+  color: #9AA2AF;
+  padding: 8px 0;
 }
 
 .context-chips-bar {
