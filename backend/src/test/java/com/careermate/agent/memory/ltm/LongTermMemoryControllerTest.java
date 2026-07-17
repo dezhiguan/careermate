@@ -74,20 +74,29 @@ class LongTermMemoryControllerTest {
     }
 
     @Test
-    void consolidate_gathersConvoAndReturnsStats() {
+    void consolidate_perSession_gathersConvoAndReturnsStats() {
         login(7L);
         properties.setEnabled(true);
-        when(agentMessageMapper.findConversationTexts(org.mockito.ArgumentMatchers.eq(7L),
+        when(agentMessageMapper.findActiveSessionIds(org.mockito.ArgumentMatchers.eq(7L),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(11L, 22L));
+        when(agentMessageMapper.findSessionConversationTexts(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(List.of("m1", "m2", "m3", "m4"));
         when(consolidationService.consolidate(org.mockito.ArgumentMatchers.eq(7L),
-                org.mockito.ArgumentMatchers.anyList())).thenReturn(3);
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyLong())).thenReturn(2);
 
         ApiResponse<java.util.Map<String, Object>> resp = controller.consolidate(7);
 
         assertThat(resp.getData().get("ltmEnabled")).isEqualTo(true);
-        assertThat(resp.getData().get("factsStored")).isEqualTo(3);
-        assertThat(resp.getData().get("messageCount")).isEqualTo(4);
+        assertThat(resp.getData().get("sessionCount")).isEqualTo(2);
+        assertThat(resp.getData().get("factsStored")).isEqualTo(4);   // 2 会话 × 2
+        assertThat(resp.getData().get("messageCount")).isEqualTo(8);  // 2 会话 × 4
+        // 每条会话都带上其 sessionId 蒸馏
+        verify(consolidationService).consolidate(org.mockito.ArgumentMatchers.eq(7L),
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.eq(11L));
+        verify(consolidationService).consolidate(org.mockito.ArgumentMatchers.eq(7L),
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.eq(22L));
     }
 
     @Test
@@ -95,6 +104,6 @@ class LongTermMemoryControllerTest {
         ApiResponse<java.util.Map<String, Object>> resp = controller.consolidate(7);
         assertThat(resp.getData().get("factsStored")).isEqualTo(0);
         verify(consolidationService, never()).consolidate(org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyList());
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.anyLong());
     }
 }

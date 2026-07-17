@@ -40,8 +40,12 @@ public class ConsolidationScheduler {
             List<Long> users = agentMessageMapper.findActiveUserIds(since, until);
             int totalFacts = 0;
             for (Long userId : users) {
-                List<String> convo = agentMessageMapper.findConversationTexts(userId, since, until);
-                totalFacts += consolidationService.consolidate(userId, convo);
+                // 按会话粒度蒸馏：尊重"隔离对话"红线，每条 JD 线单独蒸并记来源会话。
+                List<Long> sessionIds = agentMessageMapper.findActiveSessionIds(userId, since, until);
+                for (Long sessionId : sessionIds) {
+                    List<String> convo = agentMessageMapper.findSessionConversationTexts(sessionId, since, until);
+                    totalFacts += consolidationService.consolidate(userId, convo, sessionId);
+                }
             }
             log.info("长期记忆蒸馏完成：用户 {}，新增 fact {}", users.size(), totalFacts);
         } catch (Exception e) {

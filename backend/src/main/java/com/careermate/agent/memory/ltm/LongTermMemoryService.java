@@ -48,14 +48,19 @@ public class LongTermMemoryService {
         return properties.isKbMode() ? recallFromKb(userId, query) : recallFromPgVector(userId, query);
     }
 
-    /** 存 fact：同 type 高相似则 supersede 旧的并提升置信，否则新增。返回是否落库。 */
+    /** 存 fact（不带来源会话）。 */
     public boolean store(Long userId, String factType, String factText, double confidence) {
+        return store(userId, factType, factText, confidence, null);
+    }
+
+    /** 存 fact：同 type 高相似则 supersede 旧的并提升置信，否则新增。sourceSessionId 记来源会话。返回是否落库。 */
+    public boolean store(Long userId, String factType, String factText, double confidence, Long sourceSessionId) {
         if (!properties.isEnabled() || userId == null || !StringUtils.hasText(factText)) {
             return false;
         }
         return properties.isKbMode()
-                ? storeToKb(userId, factType, factText, confidence)
-                : storeToPgVector(userId, factType, factText, confidence);
+                ? storeToKb(userId, factType, factText, confidence, sourceSessionId)
+                : storeToPgVector(userId, factType, factText, confidence, sourceSessionId);
     }
 
     /** 用户"忘掉这条"=软删；KB 模式下同时删除记忆库中的文档。 */
@@ -143,7 +148,7 @@ public class LongTermMemoryService {
         }
     }
 
-    private boolean storeToKb(Long userId, String factType, String factText, double confidence) {
+    private boolean storeToKb(Long userId, String factType, String factText, double confidence, Long sourceSessionId) {
         Long kbId = resolveLtmKbId();
         if (kbId == null) {
             return false;
@@ -170,6 +175,7 @@ public class LongTermMemoryService {
             e.setFactText(factText);
             e.setConfidence(boosted);
             e.setRagDocId(docId.get());
+            e.setSourceSessionId(sourceSessionId);
             e.setDeleted(false);
             mapper.insert(e);
 
@@ -242,7 +248,7 @@ public class LongTermMemoryService {
         }
     }
 
-    private boolean storeToPgVector(Long userId, String factType, String factText, double confidence) {
+    private boolean storeToPgVector(Long userId, String factType, String factText, double confidence, Long sourceSessionId) {
         Optional<float[]> vec = embeddingClient.embed(factText);
         if (vec.isEmpty()) {
             return false;
@@ -262,6 +268,7 @@ public class LongTermMemoryService {
             e.setFactText(factText);
             e.setConfidence(boosted);
             e.setEmbedding(pg);
+            e.setSourceSessionId(sourceSessionId);
             e.setDeleted(false);
             mapper.insertWithEmbedding(e);
             if (supersedeId != null && e.getId() != null) {

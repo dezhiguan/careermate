@@ -16,8 +16,8 @@ import java.util.List;
 public interface UserLongTermMemoryMapper extends BaseMapper<UserLongTermMemoryEntity> {
 
     /** 带 embedding 的插入（pgvector ::vector 转换）。 */
-    @Insert("INSERT INTO user_long_term_memory(user_id, fact_type, fact_text, confidence, embedding) "
-            + "VALUES(#{userId}, #{factType}, #{factText}, #{confidence}, #{embedding}::vector)")
+    @Insert("INSERT INTO user_long_term_memory(user_id, fact_type, fact_text, confidence, embedding, source_session_id) "
+            + "VALUES(#{userId}, #{factType}, #{factText}, #{confidence}, #{embedding}::vector, #{sourceSessionId})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insertWithEmbedding(UserLongTermMemoryEntity entity);
 
