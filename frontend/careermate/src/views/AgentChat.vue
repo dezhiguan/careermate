@@ -101,17 +101,6 @@
               <code class="trace-id-value">{{ currentTraceId }}</code>
               <button type="button" class="trace-id-copy" @click="copyTraceId">复制</button>
             </div>
-            <button
-              type="button"
-              class="header-action secondary"
-              :disabled="!workspaceInfo"
-              @click="openContext"
-            >
-              查看上下文
-            </button>
-            <button class="header-action" :disabled="sessionCreating" @click="resetChat">
-              {{ sessionCreating ? '创建中...' : '重置会话' }}
-            </button>
           </div>
         </div>
 
@@ -968,11 +957,6 @@ async function copyTraceId() {
   } catch {
     // clipboard unavailable
   }
-}
-
-function openContext() {
-  if (!workspaceInfo.value) return
-  versionsDrawerOpen.value = true
 }
 
 function defaultWelcomeMessage() {
@@ -1950,26 +1934,6 @@ async function sendMessage() {
   }
 }
 
-async function resetChat() {
-  abortActiveStream('用户已停止当前 Agent 流式请求')
-  if (activeAgentMessage.value?.streaming) {
-    markStreamInterrupted(activeAgentMessage.value, '当前流式请求已停止，已切换到新会话。')
-  }
-  activeAgentMessage.value = null
-  clearGlobalError()
-  streamState.value = 'idle'
-  sessionId.value = ''
-  messages.value = [withMarkdown({
-    id: `m_${Date.now()}_reset`,
-    role: 'agent',
-    text: '新会话已重置。你可以继续提问。',
-    streaming: false,
-    error: '',
-    toolCalls: [],
-  })]
-  await createNewSession({ withWelcome: false })
-  scrollBottom()
-}
 
 watch(() => route.params.wsId, async (rawWsId) => {
   const wsId = normalizeWsId(rawWsId)
