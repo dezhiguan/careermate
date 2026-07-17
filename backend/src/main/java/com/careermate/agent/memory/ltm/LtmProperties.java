@@ -12,6 +12,8 @@ public class LtmProperties {
 
     /** 是否启用长期记忆（召回注入 + 蒸馏）。 */
     private boolean enabled = false;
+    /** 存储后端：KB=RAGForge 知识库（默认）；PGVECTOR=本地 pgvector（保留可回退）。 */
+    private String storage = "KB";
     /** DashScope 兼容 embedding endpoint。 */
     private String embeddingEndpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings";
     /** embedding 模型。 */
@@ -30,4 +32,9 @@ public class LtmProperties {
     private int timeoutMs = 3000;
     /** 重复判定阈值（同 type cosine ≥ 视为重复，+confidence）。 */
     private double duplicateThreshold = 0.85;
+
+    /** 是否走知识库（RAGForge）存储后端。 */
+    public boolean isKbMode() {
+        return storage == null || !"PGVECTOR".equalsIgnoreCase(storage.trim());
+    }
 }

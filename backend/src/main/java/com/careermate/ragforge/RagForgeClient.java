@@ -387,6 +387,21 @@ public class RagForgeClient {
         return doSearch(query, List.of(kbId), null, topK, chunkTypes);
     }
 
+    /**
+     * 在指定 KB 中按一组 docId 收窄搜索（长期记忆按 userId↔docId 隔离用）。
+     * docIds 为空 → 返回空列表（避免误召回全库）。enabled=false / 参数非法 → 空列表。
+     */
+    public List<RagForgeChunk> searchInKb(Long kbId, String query, int topK,
+                                          List<Long> docIds, List<String> chunkTypes) {
+        if (!properties.isEnabled() || kbId == null || query == null || query.isBlank()) {
+            return List.of();
+        }
+        if (docIds == null || docIds.isEmpty()) {
+            return List.of();
+        }
+        return doSearch(query, List.of(kbId), docIds, topK, chunkTypes);
+    }
+
     private List<RagForgeChunk> doSearch(String query, List<Long> kbIds, List<Long> docIds,
                                          int topK, List<String> chunkTypes) {
         try {

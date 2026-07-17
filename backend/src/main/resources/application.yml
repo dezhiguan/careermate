@@ -139,8 +139,9 @@ careermate:
         gpt-4o-mini:
           input: 0.0011
           output: 0.0043
-    ltm:                                               # A4 长期语义记忆（pgvector）
+    ltm:                                               # A4 长期语义记忆（默认知识库 RAGForge KB 后端）
       enabled: ${AGENT_LTM_ENABLED:false}
+      storage: ${AGENT_LTM_STORAGE:KB}                 # KB=RAGForge 知识库（默认）；PGVECTOR=本地 pgvector（回退）
       embedding-model: ${AGENT_LTM_EMBED_MODEL:text-embedding-v3}
       dimensions: ${AGENT_LTM_DIMENSIONS:1024}
       api-key: ${AGENT_LTM_API_KEY:}                   # 留空复用 LLM_API_KEY
@@ -176,6 +177,7 @@ careermate:
     market-kb-id: ${RAGFORGE_MARKET_KB_ID:}    # 薪资行情库（org316 实际 id=597）
     company-kb-id: ${RAGFORGE_COMPANY_KB_ID:}  # 目标公司库（org316 实际 id=595）
     skill-kb-id: ${RAGFORGE_SKILL_KB_ID:}      # 岗位技能画像库（org316 实际 id=598）
+    ltm-kb-id: ${RAGFORGE_LTM_KB_ID:}          # 长期记忆库（用户级隔离靠 docId 过滤）；空则 KB 记忆链路禁用
   prompt:
     active-versions:
       resume-generate-from-jd: ${RESUME_PROMPT_VERSION:v1}
