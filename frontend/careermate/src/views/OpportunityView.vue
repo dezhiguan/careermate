@@ -628,7 +628,7 @@ onBeforeUnmount(() => {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
-  background: #f8fafc;
+  background: #F5F6F8;
   /* 底部留白由 AppShellMobile 统一处理 */
 }
 
@@ -642,7 +642,7 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1A1D26;
   line-height: 1.3;
 }
 
@@ -709,7 +709,7 @@ onBeforeUnmount(() => {
 
 .resume-banner-btn {
   border: 0;
-  background: #4f46e5;
+  background: #4E5BEF;
   color: #fff;
   border-radius: 8px;
   padding: 8px 14px;
@@ -776,8 +776,8 @@ onBeforeUnmount(() => {
 }
 
 .pager-num.active {
-  background: #4f46e5;
-  border-color: #4f46e5;
+  background: #4E5BEF;
+  border-color: #4E5BEF;
   color: #fff;
   cursor: default;
 }
@@ -809,7 +809,7 @@ onBeforeUnmount(() => {
   max-width: 52%;
   border: 1px solid #e2e8f0;
   border-radius: 999px;
-  background: #f8fafc;
+  background: #F5F6F8;
   padding: 7px 12px;
   cursor: pointer;
   font-family: inherit;
@@ -851,7 +851,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   border: none;
   background: transparent;
-  color: #4f46e5;
+  color: #4E5BEF;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -953,14 +953,14 @@ onBeforeUnmount(() => {
 }
 
 .jd-card-high {
-  border: 2px solid #4f46e5;
+  border: 2px solid #4E5BEF;
 }
 
 .high-badge {
   position: absolute;
   top: -9px;
   left: 14px;
-  background: #4f46e5;
+  background: #4E5BEF;
   color: #fff;
   padding: 2px 10px;
   border-radius: 10px;
@@ -1000,7 +1000,7 @@ onBeforeUnmount(() => {
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: #4f46e5;
+  background: #4E5BEF;
   color: #fff;
   display: grid;
   place-items: center;
@@ -1017,7 +1017,7 @@ onBeforeUnmount(() => {
 .company-name {
   font-size: 13px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1A1D26;
 }
 
 .job-meta {
@@ -1043,7 +1043,7 @@ onBeforeUnmount(() => {
 .match-score {
   font-size: 32px;
   font-weight: 800;
-  color: #4f46e5;
+  color: #4E5BEF;
   line-height: 1;
 }
 
@@ -1081,7 +1081,7 @@ onBeforeUnmount(() => {
 
 .tier-low {
   background: #fef3c7;
-  color: #b45309;
+  color: #DB9A2D;
 }
 
 .tier-unknown {
@@ -1099,7 +1099,7 @@ onBeforeUnmount(() => {
 }
 .gap-text {
   font-size: 11px;
-  color: #b45309;
+  color: #DB9A2D;
 }
 
 .skills-row {
@@ -1113,7 +1113,7 @@ onBeforeUnmount(() => {
   font-size: 10px;
   padding: 2px 8px;
   background: #eef2ff;
-  color: #4f46e5;
+  color: #4E5BEF;
   border-radius: 999px;
   font-weight: 500;
 }
@@ -1157,7 +1157,7 @@ onBeforeUnmount(() => {
 
 .btn-primary {
   flex: 1 1 100%;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, #4E5BEF, #8B5CF6);
   color: #fff;
   padding: 9px 6px;
   font-size: 12.5px;

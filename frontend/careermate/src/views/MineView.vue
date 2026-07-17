@@ -288,7 +288,7 @@
 
     <div class="mine-footer-actions" style="display:flex;gap:10px;padding:0 16px 24px;">
       <button type="button" class="logout-btn" style="flex:1" @click="handleLogout">退出登录</button>
-      <button type="button" class="logout-btn" style="flex:1;background:#f8fafc;color:#4f46e5;border:1px solid #4f46e5;" @click="$router.push('/mine/account-settings')">账号与安全</button>
+      <button type="button" class="logout-btn" style="flex:1;background:#F5F6F8;color:#4E5BEF;border:1px solid #4E5BEF;" @click="$router.push('/mine/account-settings')">账号与安全</button>
     </div>
   </div>
 </template>
@@ -695,7 +695,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: #f8fafc;
+  background: #F5F6F8;
   min-height: 100%;
   width: 100%;
   max-width: 100%;
@@ -704,7 +704,7 @@ onMounted(async () => {
 
 /* 区块一：身份卡 */
 .identity-card {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, #4E5BEF, #8B5CF6);
   border-radius: 16px;
   padding: 18px;
   color: #fff;
@@ -883,7 +883,7 @@ onMounted(async () => {
 .completeness-fill {
   height: 100%;
   /* AI 渐变：画像直接喂给小职，用 Agent 身份色 */
-  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+  background: linear-gradient(135deg, #4E5BEF, #8B5CF6);
   border-radius: 3px;
   transition: width 0.3s;
 }
@@ -912,13 +912,13 @@ onMounted(async () => {
 .section-title {
   font-size: 14px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1A1D26;
 }
 
 .btn-text {
   background: none;
   border: none;
-  color: #7c3aed;
+  color: #8B5CF6;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -969,7 +969,7 @@ onMounted(async () => {
 .profile-value {
   flex: 1;
   font-size: 14px;
-  color: #0f172a;
+  color: #1A1D26;
   font-weight: 500;
 }
 
@@ -1018,7 +1018,7 @@ onMounted(async () => {
   align-items: center;
   gap: 4px;
   background: #f3e8ff;
-  color: #7c3aed;
+  color: #8B5CF6;
   border-radius: 20px;
   padding: 4px 10px;
   font-size: 12px;
@@ -1057,7 +1057,7 @@ onMounted(async () => {
 
 .btn-add-skill {
   border: none;
-  background: #7c3aed;
+  background: #8B5CF6;
   color: #fff;
   border-radius: 8px;
   padding: 8px 14px;
@@ -1102,9 +1102,9 @@ onMounted(async () => {
   margin-top: 3px;
 }
 /* 记忆徽章按类型语义上色：偏好紫 / 底线红 / 强项绿 / 意向蓝 / 经历灰 */
-.ltm-type-preference { background: #f3e8ff; color: #7c3aed; border-color: #e9d5ff; }
-.ltm-type-constraint { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
-.ltm-type-skill { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+.ltm-type-preference { background: #f3e8ff; color: #8B5CF6; border-color: #e9d5ff; }
+.ltm-type-constraint { background: #fee2e2; color: #E5484D; border-color: #fecaca; }
+.ltm-type-skill { background: #dcfce7; color: #0DA76A; border-color: #bbf7d0; }
 .ltm-type-goal { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
 .ltm-type-experience { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
 .ltm-fact-list {
@@ -1147,7 +1147,7 @@ onMounted(async () => {
 .btn-link {
   background: none;
   border: none;
-  color: #7c3aed;
+  color: #8B5CF6;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -1191,7 +1191,7 @@ onMounted(async () => {
 .artifact-type {
   font-size: 11px;
   font-weight: 600;
-  color: #7c3aed;
+  color: #8B5CF6;
   background: #f3e8ff;
   border-radius: 4px;
   padding: 2px 6px;
@@ -1206,7 +1206,7 @@ onMounted(async () => {
 .artifact-title {
   font-size: 14px;
   font-weight: 600;
-  color: #0f172a;
+  color: #1A1D26;
   line-height: 1.4;
 }
 
@@ -1221,7 +1221,7 @@ onMounted(async () => {
   margin-top: 8px;
   background: none;
   border: none;
-  color: #7c3aed;
+  color: #8B5CF6;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -1260,7 +1260,7 @@ onMounted(async () => {
 .entry-title {
   font-size: 14px;
   font-weight: 600;
-  color: #0f172a;
+  color: #1A1D26;
 }
 
 .entry-sub {
@@ -1270,7 +1270,7 @@ onMounted(async () => {
 }
 
 .entry-arrow {
-  color: #7c3aed;
+  color: #8B5CF6;
   font-size: 16px;
   flex-shrink: 0;
 }
@@ -1292,7 +1292,7 @@ onMounted(async () => {
 .activity-num {
   font-size: 28px;
   font-weight: 800;
-  color: #4f46e5;
+  color: #4E5BEF;
   line-height: 1.1;
 }
 

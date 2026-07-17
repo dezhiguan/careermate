@@ -62,11 +62,11 @@ async function leave() {
 .cancelling-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f1f5f9; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; }
 .cancelling-card { background: #fff; border-radius: 18px; box-shadow: 0 4px 24px rgba(15,23,42,.1); padding: 36px 28px; max-width: 420px; width: 100%; text-align: center; }
 .ic { width: 60px; height: 60px; border-radius: 50%; background: #fff7ed; color: #ea580c; font-size: 30px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
-h2 { margin: 0 0 14px; font-size: 20px; color: #0f172a; }
+h2 { margin: 0 0 14px; font-size: 20px; color: #1A1D26; }
 .desc { margin: 0 0 6px; font-size: 14px; color: #475569; }
-.big { font-size: 17px; font-weight: 800; color: #dc2626; }
+.big { font-size: 17px; font-weight: 800; color: #E5484D; }
 .sub { margin: 10px 0 24px; font-size: 12.5px; color: #94a3b8; line-height: 1.7; }
-.btn-primary { width: 100%; border: 0; border-radius: 10px; padding: 12px; font-size: 15px; font-weight: 700; background: #4f46e5; color: #fff; cursor: pointer; }
+.btn-primary { width: 100%; border: 0; border-radius: 10px; padding: 12px; font-size: 15px; font-weight: 700; background: #4E5BEF; color: #fff; cursor: pointer; }
 .btn-primary:disabled { opacity: .6; cursor: default; }
 .btn-ghost { width: 100%; margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; font-size: 14px; background: #fff; color: #64748b; cursor: pointer; }
 .err { color: #ef4444; font-size: 12px; margin-top: 12px; }

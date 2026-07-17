@@ -183,13 +183,13 @@ function actionLabel(act) {
   margin-top: 8px;
   padding: 12px 14px;
   border-radius: 12px;
-  background: #f8fafc;
+  background: #F5F6F8;
   border: 1px solid #e2e8f0;
 }
 .chat-card-title {
   margin: 0 0 8px;
   font-weight: 600;
-  color: #0f172a;
+  color: #1A1D26;
 }
 .chat-card-subtitle {
   margin: 0 0 8px;
@@ -225,12 +225,12 @@ function actionLabel(act) {
 }
 .chat-card-error {
   margin: 0 0 10px;
-  color: #dc2626;
+  color: #E5484D;
   font-size: 14px;
 }
 .chat-card-risk {
   margin: 0 0 8px;
-  color: #b45309;
+  color: #DB9A2D;
   font-size: 12px;
   font-weight: 600;
 }
@@ -254,7 +254,7 @@ function actionLabel(act) {
   cursor: pointer;
 }
 .chat-card-btn.primary {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, #4E5BEF, #8B5CF6);
   border-color: transparent;
   color: #fff;
 }
@@ -297,7 +297,7 @@ function actionLabel(act) {
   flex: 0 0 auto;
 }
 .cc-v {
-  color: #0f172a;
+  color: #1A1D26;
 }
 .cc-anchor {
   color: #db9a2d;
@@ -343,7 +343,7 @@ function actionLabel(act) {
   flex: 0 0 auto;
 }
 .cc-q-text {
-  color: #0f172a;
+  color: #1A1D26;
   flex: 1;
 }
 .cc-q-tag {
@@ -353,7 +353,7 @@ function actionLabel(act) {
   padding: 1px 7px;
 }
 .cc-q-tag.jd {
-  color: #4f46e5;
+  color: #4E5BEF;
   background: #eef0fe;
 }
 .cc-q-tag.hit {
@@ -385,7 +385,7 @@ function actionLabel(act) {
 }
 .cc-sal-v {
   font-weight: 700;
-  color: #0f172a;
+  color: #1A1D26;
   font-size: 15px;
 }
 </style>

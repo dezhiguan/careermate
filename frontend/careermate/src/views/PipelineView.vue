@@ -328,7 +328,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
   margin: 0;
   font-size: 20px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1A1D26;
 }
 .pipeline-sub {
   margin: 4px 0 0;
@@ -336,7 +336,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
   color: #64748b;
 }
 .pipeline-sub .hint {
-  color: #4f46e5;
+  color: #4E5BEF;
 }
 .refresh-btn {
   padding: 7px 16px;
@@ -348,7 +348,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
   cursor: pointer;
 }
 .pipeline-error {
-  color: #dc2626;
+  color: #E5484D;
 }
 .pipeline-loading,
 .pipeline-empty {
@@ -411,7 +411,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
   width: 26px;
   height: 26px;
   border-radius: 7px;
-  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+  background: linear-gradient(135deg, #4E5BEF, #8B5CF6);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -438,7 +438,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .app-co {
   font-weight: 700;
   font-size: 13px;
-  color: #0f172a;
+  color: #1A1D26;
 }
 .app-role {
   font-size: 12px;
@@ -453,13 +453,13 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 }
 .app-tag {
   font-size: 10px;
-  color: #4f46e5;
+  color: #4E5BEF;
   background: #eef0fe;
   border-radius: 6px;
   padding: 1px 7px;
 }
 .app-tag.warn {
-  color: #b45309;
+  color: #DB9A2D;
   background: #fffbeb;
 }
 .app-time {
@@ -563,7 +563,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 }
 .holding-hint {
   font-weight: 400;
-  color: #b45309;
+  color: #DB9A2D;
   margin-left: 8px;
   font-size: 12px;
 }
@@ -587,7 +587,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .holding-co {
   font-size: 13px;
   font-weight: 600;
-  color: #0f172a;
+  color: #1A1D26;
 }
 .holding-role {
   font-size: 11px;

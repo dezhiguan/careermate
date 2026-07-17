@@ -556,24 +556,24 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 <style scoped>
 .asset-page { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
 .asset-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-.asset-title { margin: 0; font-size: 20px; font-weight: 700; color: #0f172a; }
+.asset-title { margin: 0; font-size: 20px; font-weight: 700; color: #1A1D26; }
 .asset-badge { font-size: 11px; font-weight: 600; color: #0da76a; background: #e6f6ef; border-radius: 12px; padding: 3px 10px; }
 .asset-tabs { display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px; }
 .asset-tab { font-size: 13.5px; padding: 9px 15px; color: #64748b; border: 0; background: transparent; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; }
-.asset-tab.on { color: #4f46e5; border-bottom-color: #4f46e5; font-weight: 700; }
+.asset-tab.on { color: #4E5BEF; border-bottom-color: #4E5BEF; font-weight: 700; }
 .tab-count { font-size: 11px; color: #94a3b8; margin-left: 4px; }
-.asset-error { color: #dc2626; }
+.asset-error { color: #E5484D; }
 .asset-loading, .asset-empty { color: #64748b; font-size: 14px; padding: 20px 0; }
 .asset-list { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(20,24,40,.05); }
 .asset-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; gap: 12px; }
 .asset-row:last-child { border-bottom: 0; }
-.row-name { font-size: 13.5px; font-weight: 600; color: #0f172a; }
+.row-name { font-size: 13.5px; font-weight: 600; color: #1A1D26; }
 .row-meta { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
-.row-tag { font-size: 10.5px; color: #4f46e5; background: #eef0fe; border-radius: 7px; padding: 1px 8px; }
+.row-tag { font-size: 10.5px; color: #4E5BEF; background: #eef0fe; border-radius: 7px; padding: 1px 8px; }
 .row-tag.gray { color: #64748b; background: #f1f5f9; }
 .row-tag.base { color: #475569; background: #f1f5f9; }
 .row-tag.mock { color: #64748b; background: #f1f5f9; }
-.row-tag.score { color: #15803d; background: #dcfce7; }
+.row-tag.score { color: #0DA76A; background: #dcfce7; }
 .asset-subbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
 .asset-sort { font-size: 12px; color: #64748b; display: inline-flex; align-items: center; gap: 6px; }
 .asset-sort-sel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; font-size: 12px; color: #334155; background: #fff; font-family: inherit; cursor: pointer; }
@@ -581,11 +581,11 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .row-time { font-size: 11px; color: #94a3b8; }
 .row-actions { display: flex; gap: 6px; flex: 0 0 auto; }
 .row-btn { font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 5px 11px; background: #fff; color: #334155; cursor: pointer; }
-.row-btn.danger { color: #dc2626; }
+.row-btn.danger { color: #E5484D; }
 .row-btn:disabled { opacity: .5; cursor: not-allowed; }
 .pager { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 16px; }
 .pg { min-width: 30px; height: 30px; border: 1px solid #e2e8f0; border-radius: 9px; background: #fff; color: #334155; cursor: pointer; }
-.pg.on { background: #4f46e5; color: #fff; border-color: #4f46e5; font-weight: 700; }
+.pg.on { background: #4E5BEF; color: #fff; border-color: #4E5BEF; font-weight: 700; }
 .pg:disabled { opacity: .4; cursor: not-allowed; }
 .pg-total { font-size: 12px; color: #94a3b8; }
 .asset-placeholder { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px 24px; text-align: center; box-shadow: 0 1px 2px rgba(20,24,40,.05); }
@@ -594,23 +594,23 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .sal-sel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; font-size: 13px; color: #334155; background: #fff; font-family: inherit; cursor: pointer; }
 .sal-result { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px rgba(20,24,40,.05); }
 .sal-dist { display: flex; align-items: center; gap: 10px; }
-.sal-cell { flex: 1; text-align: center; background: #f8fafc; border: 1px solid #eef2f7; border-radius: 10px; padding: 10px 6px; }
+.sal-cell { flex: 1; text-align: center; background: #F5F6F8; border: 1px solid #eef2f7; border-radius: 10px; padding: 10px 6px; }
 .sal-cell.hl { background: #eef2ff; border-color: #c7d2fe; }
 .sal-k { display: block; font-size: 11px; color: #94a3b8; }
-.sal-v { display: block; font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 2px; }
+.sal-v { display: block; font-size: 16px; font-weight: 700; color: #1A1D26; margin-top: 2px; }
 .sal-cell.hl .sal-v { color: #4338ca; }
-.sal-trend { flex: 0 0 auto; font-size: 12px; color: #15803d; background: #dcfce7; border-radius: 8px; padding: 4px 10px; }
+.sal-trend { flex: 0 0 auto; font-size: 12px; color: #0DA76A; background: #dcfce7; border-radius: 8px; padding: 4px 10px; }
 .sal-tip { margin: 12px 0; font-size: 13px; line-height: 1.6; color: #475569; }
 .sal-heat { margin-top: 14px; }
 .sal-heat-title { font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 8px; }
 .heat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .heat-name { flex: 0 0 84px; font-size: 12px; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .heat-bar-wrap { flex: 1; height: 8px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
-.heat-bar { display: block; height: 100%; background: linear-gradient(90deg, #8b5cf6, #4f46e5); border-radius: 999px; }
-.heat-growth { flex: 0 0 auto; font-size: 11px; color: #15803d; }
-.ph-title { font-weight: 700; font-size: 15px; color: #0f172a; }
+.heat-bar { display: block; height: 100%; background: linear-gradient(90deg, #8B5CF6, #4E5BEF); border-radius: 999px; }
+.heat-growth { flex: 0 0 auto; font-size: 11px; color: #0DA76A; }
+.ph-title { font-weight: 700; font-size: 15px; color: #1A1D26; }
 .ph-text { color: #64748b; font-size: 13px; line-height: 1.7; margin: 10px 0 14px; }
-.ph-btn { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; border: 0; border-radius: 10px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.ph-btn { background: linear-gradient(135deg, #4E5BEF, #8B5CF6); color: #fff; border: 0; border-radius: 10px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .prev-overlay { position: fixed; inset: 0; z-index: 420; background: rgba(15,23,42,.4); display: flex; justify-content: flex-end; }
 .prev-panel { width: min(560px, 92vw); height: 100%; background: #eef0f5; display: flex; flex-direction: column; }
 .prev-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #fff; border-bottom: 1px solid #e2e8f0; font-weight: 700; font-size: 14px; }
@@ -626,7 +626,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .qbank-chip.on { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; font-weight: 600; }
 .qbank-actions { display: flex; gap: 8px; align-items: center; }
 .qbank-search { border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; font-size: 12px; outline: none; font-family: inherit; }
-.qbank-add { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; border: 0; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.qbank-add { background: linear-gradient(135deg, #4E5BEF, #8B5CF6); color: #fff; border: 0; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; }
 .qbank-add:disabled { opacity: .5; cursor: not-allowed; }
 .qbank-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .qbank-item { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; }
@@ -637,7 +637,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .qbank-a-empty { color: #94a3b8; }
 .qbank-item-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 .qbank-mini { border: 1px solid #e2e8f0; background: #fff; color: #475569; border-radius: 8px; padding: 5px 12px; font-size: 12px; cursor: pointer; font-family: inherit; }
-.qbank-mini.danger { color: #b91c1c; border-color: #fecaca; }
+.qbank-mini.danger { color: #E5484D; border-color: #fecaca; }
 .qbank-mini:disabled { opacity: .5; cursor: not-allowed; }
 .note-editor { width: min(560px, 96vw); }
 .note-body { flex: 1; overflow: auto; padding: 18px; display: flex; flex-direction: column; gap: 6px; background: #eef0f5; }

@@ -650,7 +650,7 @@ onMounted(async () => {
 <style scoped>
 .resume-page {
   min-height: 100%;
-  background: #f8fafc;
+  background: #F5F6F8;
   padding: 16px;
   max-width: 720px;
   margin: 0 auto;
@@ -675,7 +675,7 @@ onMounted(async () => {
 .btn-back {
   background: none;
   border: none;
-  color: #4f46e5;
+  color: #4E5BEF;
   font-size: 14px;
   cursor: pointer;
   font-family: inherit;
@@ -686,7 +686,7 @@ onMounted(async () => {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1A1D26;
 }
 
 .resume-section {
@@ -700,7 +700,7 @@ onMounted(async () => {
 .section-title {
   font-size: 14px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1A1D26;
   margin-bottom: 12px;
 }
 
@@ -732,7 +732,7 @@ onMounted(async () => {
 .upload-title {
   font-size: 15px;
   font-weight: 600;
-  color: #0f172a;
+  color: #1A1D26;
 }
 
 .upload-desc {
@@ -744,7 +744,7 @@ onMounted(async () => {
 .upload-progress {
   margin-top: 10px;
   font-size: 13px;
-  color: #4f46e5;
+  color: #4E5BEF;
 }
 
 .hidden-input {
@@ -760,7 +760,7 @@ onMounted(async () => {
 .btn-text-link {
   background: none;
   border: none;
-  color: #7c3aed;
+  color: #8B5CF6;
   font-size: 13px;
   cursor: pointer;
   padding: 8px 0 0;
@@ -782,7 +782,7 @@ onMounted(async () => {
 }
 
 .badge-default {
-  background: #4f46e5;
+  background: #4E5BEF;
   color: #fff;
   padding: 2px 8px;
   border-radius: 5px;
@@ -803,7 +803,7 @@ onMounted(async () => {
 .resume-name {
   font-size: 14px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1A1D26;
 }
 
 .resume-date {
@@ -845,7 +845,7 @@ onMounted(async () => {
 }
 
 .action-btn--danger {
-  color: #dc2626;
+  color: #E5484D;
   border-color: #fecaca;
   background: #fef2f2;
 }
@@ -895,7 +895,7 @@ onMounted(async () => {
 .version-name {
   font-size: 13px;
   font-weight: 600;
-  color: #0f172a;
+  color: #1A1D26;
 }
 
 .version-meta {
@@ -926,7 +926,7 @@ onMounted(async () => {
   align-self: flex-start;
   border: none;
   background: transparent;
-  color: #4f46e5;
+  color: #4E5BEF;
   font-size: 12px;
   font-weight: 600;
   padding: 0;
@@ -936,7 +936,7 @@ onMounted(async () => {
 
 .change-summary {
   border-left: 3px solid #a5b4fc;
-  background: #f8fafc;
+  background: #F5F6F8;
   color: #334155;
   border-radius: 8px;
   padding: 9px 10px;
@@ -1018,7 +1018,7 @@ onMounted(async () => {
   padding: 12px 16px;
   border-bottom: 1px solid #e2e8f0;
   font-weight: 600;
-  color: #0f172a;
+  color: #1A1D26;
 }
 
 .modal-header-actions {
@@ -1029,7 +1029,7 @@ onMounted(async () => {
 
 .modal-tab-btn {
   border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  background: #F5F6F8;
   color: #334155;
   border-radius: 6px;
   padding: 4px 10px;
@@ -1055,7 +1055,7 @@ onMounted(async () => {
 }
 
 .modal-status--error {
-  color: #b91c1c;
+  color: #E5484D;
 }
 
 .modal-body {
@@ -1103,7 +1103,7 @@ onMounted(async () => {
 .markdown-preview :deep(h2),
 .markdown-preview :deep(h3) {
   margin: 12px 0 6px;
-  color: #0f172a;
+  color: #1A1D26;
 }
 
 .modal-edit {
@@ -1127,7 +1127,7 @@ onMounted(async () => {
   padding: 8px 10px;
   font-size: 13px;
   font-family: inherit;
-  color: #0f172a;
+  color: #1A1D26;
 }
 
 .edit-content {
@@ -1145,7 +1145,7 @@ onMounted(async () => {
 }
 
 .modal-edit-error {
-  color: #b91c1c;
+  color: #E5484D;
   font-size: 12px;
 }
 
@@ -1157,7 +1157,7 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background: #4f46e5;
+  background: #4E5BEF;
   color: #fff;
   border: none;
   border-radius: 8px;

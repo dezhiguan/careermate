@@ -75,18 +75,18 @@ onBeforeUnmount(() => {
 }
 
 :root {
-  --primary: #4f46e5;
+  --primary: #4E5BEF;
   --primary-50: #eef2ff;
   --primary-100: #e0e7ff;
-  --accent: #8b5cf6;
+  --accent: #8B5CF6;
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
-  --ink: #0f172a;
+  --ink: #1A1D26;
   --ink-2: #334155;
   --ink-3: #64748b;
   --line: #e2e8f0;
-  --bg: #f8fafc;
+  --bg: #F5F6F8;
 }
 
 *,

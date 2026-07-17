@@ -642,8 +642,8 @@ onBeforeUnmount(() => {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
-  background: #f8fafc;
-  color: #0f172a;
+  background: #F5F6F8;
+  color: #1A1D26;
 }
 
 .banner {
@@ -658,7 +658,7 @@ onBeforeUnmount(() => {
 
 .banner-link {
   margin-left: 8px;
-  color: #4f46e5;
+  color: #4E5BEF;
   font-weight: 600;
 }
 
@@ -748,7 +748,7 @@ onBeforeUnmount(() => {
 }
 
 .search-btn {
-  background: #4f46e5;
+  background: #4E5BEF;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -770,7 +770,7 @@ onBeforeUnmount(() => {
 
 .quick-tag {
   border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  background: #F5F6F8;
   color: #334155;
   border-radius: 999px;
   padding: 4px 12px;
@@ -779,7 +779,7 @@ onBeforeUnmount(() => {
   font-family: inherit;
 }
 
-.quick-tag:hover { border-color: #6366f1; color: #4f46e5; }
+.quick-tag:hover { border-color: #6366f1; color: #4E5BEF; }
 
 .ai-summary {
   font-size: 12px;
@@ -810,7 +810,7 @@ onBeforeUnmount(() => {
 .q-index {
   font-size: 11px;
   font-weight: 700;
-  color: #4f46e5;
+  color: #4E5BEF;
   flex-shrink: 0;
 }
 
@@ -862,7 +862,7 @@ onBeforeUnmount(() => {
 
 .btn-kb-ai {
   border: none;
-  background: #7c3aed;
+  background: #8B5CF6;
   color: #fff;
   border-radius: 8px;
   padding: 8px 12px;
@@ -874,7 +874,7 @@ onBeforeUnmount(() => {
 
 .btn-kb-ai.secondary {
   background: #fff;
-  color: #7c3aed;
+  color: #8B5CF6;
   border: 1px solid #ddd6fe;
 }
 
@@ -916,7 +916,7 @@ onBeforeUnmount(() => {
 .sub-title {
   font-size: 11px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1A1D26;
   margin-bottom: 6px;
 }
 
@@ -940,7 +940,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, #4E5BEF, #8B5CF6);
   border-radius: 12px;
   padding: 16px;
   color: #fff;
@@ -952,7 +952,7 @@ onBeforeUnmount(() => {
 
 .btn-start {
   background: #fff;
-  color: #4f46e5;
+  color: #4E5BEF;
   border: none;
   border-radius: 8px;
   padding: 10px 18px;
@@ -978,11 +978,11 @@ onBeforeUnmount(() => {
   background: #fafafa;
 }
 
-.session-item:hover { border-color: #6366f1; background: #f8fafc; }
+.session-item:hover { border-color: #6366f1; background: #F5F6F8; }
 
 .session-score {
   background: #dcfce7;
-  color: #15803d;
+  color: #0DA76A;
   padding: 2px 8px;
   border-radius: 5px;
   font-size: 11px;
@@ -1017,7 +1017,7 @@ onBeforeUnmount(() => {
 }
 
 .status-done { color: #64748b; }
-.status-active { color: #7c3aed; font-weight: 600; }
+.status-active { color: #8B5CF6; font-weight: 600; }
 
 .skeleton-group { display: flex; flex-direction: column; }
 
@@ -1055,7 +1055,7 @@ onBeforeUnmount(() => {
 /* ── 答题视图 ── */
 .practice-view {
   min-height: 100%;
-  background: #f8fafc;
+  background: #F5F6F8;
   padding-bottom: 16px;
   color: #1a1a2e;
 }
@@ -1094,7 +1094,7 @@ onBeforeUnmount(() => {
 
 .progress-bar-fill {
   height: 100%;
-  background: #7c3aed;
+  background: #8B5CF6;
   border-radius: 2px;
   transition: width 0.3s;
 }
@@ -1126,7 +1126,7 @@ onBeforeUnmount(() => {
 .type-badge {
   border-radius: 999px;
   background: #f3e8ff;
-  color: #7c3aed;
+  color: #8B5CF6;
   font-size: 12px;
   padding: 2px 8px;
   font-weight: 600;
@@ -1147,7 +1147,7 @@ onBeforeUnmount(() => {
 .hint-toggle {
   background: none;
   border: none;
-  color: #7c3aed;
+  color: #8B5CF6;
   font-size: 13px;
   cursor: pointer;
   padding: 8px 0 4px;
@@ -1202,7 +1202,7 @@ onBeforeUnmount(() => {
 }
 
 .answer-textarea:focus {
-  border-color: #7c3aed;
+  border-color: #8B5CF6;
 }
 
 .answer-actions,
@@ -1216,7 +1216,7 @@ onBeforeUnmount(() => {
 
 .btn-secondary-ai {
   background: #fff;
-  color: #7c3aed;
+  color: #8B5CF6;
   border: 1px solid #ddd6fe;
   border-radius: 8px;
   padding: 10px 16px;
@@ -1232,7 +1232,7 @@ onBeforeUnmount(() => {
 }
 
 .btn-primary {
-  background: #7c3aed;
+  background: #8B5CF6;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -1259,7 +1259,7 @@ onBeforeUnmount(() => {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: #7c3aed;
+  background: #8B5CF6;
   color: #fff;
   font-size: 24px;
   font-weight: 700;
@@ -1305,11 +1305,11 @@ onBeforeUnmount(() => {
   line-height: 1.7;
 }
 
-.fb-good .fb-title { color: #15803d; }
-.fb-improve .fb-title { color: #b45309; }
+.fb-good .fb-title { color: #0DA76A; }
+.fb-improve .fb-title { color: #DB9A2D; }
 
 .reference-block {
-  background: #f8fafc;
+  background: #F5F6F8;
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 16px;
@@ -1338,7 +1338,7 @@ onBeforeUnmount(() => {
   transition: transform 0.2s, background 0.2s;
 }
 
-.nav-dot.dot-done { background: #7c3aed; }
+.nav-dot.dot-done { background: #8B5CF6; }
 .nav-dot.dot-current { background: #a855f7; transform: scale(1.3); }
 .nav-dot.dot-pending { background: #ddd; }
 </style>

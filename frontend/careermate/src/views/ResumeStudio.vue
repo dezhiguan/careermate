@@ -423,12 +423,12 @@ onMounted(() => {
 .btn:disabled { opacity: 0.5; cursor: default; }
 .btn.primary { background: var(--purple); color: #fff; }
 .btn.ghost { background: #fff; border-color: var(--border); color: var(--text); }
-.btn.danger { background: #fff; border-color: #fecaca; color: #b91c1c; }
+.btn.danger { background: #fff; border-color: #fecaca; color: #E5484D; }
 
 .inline-error {
   margin-top: 8px;
   font-size: 12px;
-  color: #b91c1c;
+  color: #E5484D;
 }
 
 @media (max-width: 768px) {
@@ -444,7 +444,7 @@ onMounted(() => {
 
 .upload-error {
   font-size: 12px;
-  color: #b91c1c;
+  color: #E5484D;
   background: #fef2f2;
   border-radius: 6px;
   padding: 6px 10px;
