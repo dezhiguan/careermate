@@ -30,11 +30,34 @@ public class PipelineService {
 
     private final JobApplicationMapper applicationMapper;
     private final com.careermate.mapper.ResumeVersionMapper resumeVersionMapper;
+    private final com.careermate.mapper.InterviewSessionMapper interviewSessionMapper;
 
     public PipelineService(JobApplicationMapper applicationMapper,
-                           com.careermate.mapper.ResumeVersionMapper resumeVersionMapper) {
+                           com.careermate.mapper.ResumeVersionMapper resumeVersionMapper,
+                           com.careermate.mapper.InterviewSessionMapper interviewSessionMapper) {
         this.applicationMapper = applicationMapper;
         this.resumeVersionMapper = resumeVersionMapper;
+        this.interviewSessionMapper = interviewSessionMapper;
+    }
+
+    /** 各公司面经数（用于卡片「面经×N」）。 */
+    private Map<String, Integer> interviewCountByCompany(Long userId) {
+        Map<String, Integer> map = new java.util.HashMap<>();
+        if (userId == null) {
+            return map;
+        }
+        try {
+            for (Map<String, Object> row : interviewSessionMapper.countByCompany(userId)) {
+                Object co = row.get("company");
+                Object cnt = row.get("cnt");
+                if (co != null && cnt instanceof Number n) {
+                    map.put(String.valueOf(co), n.intValue());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("统计公司面经数失败（忽略）: {}", e.getMessage());
+        }
+        return map;
     }
 
     /**
@@ -154,6 +177,50 @@ public class PipelineService {
         return counts;
     }
 
+    /** 各 JD 最近一次简历版本更新时间（用于派生「改简历中」活动态）。 */
+    private Map<Long, LocalDateTime> resumeVersionLatestUpdate(Long userId) {
+        Map<Long, LocalDateTime> latest = new java.util.HashMap<>();
+        if (userId == null) {
+            return latest;
+        }
+        List<com.careermate.model.entity.ResumeVersionEntity> versions = resumeVersionMapper.selectList(
+                new LambdaQueryWrapper<com.careermate.model.entity.ResumeVersionEntity>()
+                        .eq(com.careermate.model.entity.ResumeVersionEntity::getUserId, userId)
+                        .isNotNull(com.careermate.model.entity.ResumeVersionEntity::getTargetJdId));
+        if (versions == null) {
+            return latest;
+        }
+        for (com.careermate.model.entity.ResumeVersionEntity v : versions) {
+            LocalDateTime t = v.getUpdatedAt() != null ? v.getUpdatedAt() : v.getCreatedAt();
+            if (v.getTargetJdId() != null && t != null) {
+                latest.merge(v.getTargetJdId(), t, (a, b) -> a.isAfter(b) ? a : b);
+            }
+        }
+        return latest;
+    }
+
+    /** 从阶段 + 简历版本更新时间派生卡片活动态副标题。 */
+    private String deriveActivity(JobApplicationEntity row, LocalDateTime latestResumeUpdate, int versionCount) {
+        ApplicationStage stage = ApplicationStage.fromCode(row.getStage());
+        if (stage == ApplicationStage.INTERVIEW_SCHEDULED) {
+            return "待面试";
+        }
+        if (stage == ApplicationStage.INTERVIEWING) {
+            return "面试中";
+        }
+        if (stage == ApplicationStage.OFFER) {
+            return "待谈薪";
+        }
+        if (stage == ApplicationStage.CLOSED) {
+            return "已结束";
+        }
+        // PREPARING / 未知：近 48h 改过简历 → 改简历中
+        if (latestResumeUpdate != null && latestResumeUpdate.isAfter(LocalDateTime.now().minusHours(48))) {
+            return "改简历中";
+        }
+        return versionCount > 0 ? "已备简历" : "待完善简历";
+    }
+
     /** 看板：按阶段分列（5 列固定，含空列），列内按最近活跃倒序。 */
     public PipelineBoardVO getBoard(Long userId) {
         PipelineBoardVO board = new PipelineBoardVO();
@@ -165,6 +232,8 @@ public class PipelineService {
 
         // 该用户各 JD 已产出的简历版本数（一次查询，jdDocId→count），用于卡片「简历 vN」
         Map<Long, Integer> versionCounts = resumeVersionCounts(userId);
+        Map<Long, LocalDateTime> latestResumeUpdate = resumeVersionLatestUpdate(userId);
+        Map<String, Integer> interviewCounts = interviewCountByCompany(userId);
 
         Map<ApplicationStage, List<ApplicationVO>> grouped = new LinkedHashMap<>();
         for (ApplicationStage s : ApplicationStage.values()) {
@@ -173,8 +242,14 @@ public class PipelineService {
         for (JobApplicationEntity row : rows) {
             ApplicationStage s = ApplicationStage.fromCode(row.getStage());
             ApplicationVO vo = toVO(row);
+            int vc = row.getJdDocId() != null ? versionCounts.getOrDefault(row.getJdDocId(), 0) : 0;
             if (row.getJdDocId() != null) {
-                vo.setResumeVersionCount(versionCounts.getOrDefault(row.getJdDocId(), 0));
+                vo.setResumeVersionCount(vc);
+            }
+            LocalDateTime latest = row.getJdDocId() != null ? latestResumeUpdate.get(row.getJdDocId()) : null;
+            vo.setActivity(deriveActivity(row, latest, vc));
+            if (row.getCompany() != null) {
+                vo.setInterviewCount(interviewCounts.getOrDefault(row.getCompany(), 0));
             }
             grouped.get(s == null ? ApplicationStage.PREPARING : s).add(vo);
         }

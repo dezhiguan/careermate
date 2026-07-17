@@ -32,12 +32,14 @@ class PipelineServiceTest {
     private JobApplicationMapper applicationMapper;
     @Mock
     private com.careermate.mapper.ResumeVersionMapper resumeVersionMapper;
+    @Mock
+    private com.careermate.mapper.InterviewSessionMapper interviewSessionMapper;
 
     private PipelineService service;
 
     @BeforeEach
     void setUp() {
-        service = new PipelineService(applicationMapper, resumeVersionMapper);
+        service = new PipelineService(applicationMapper, resumeVersionMapper, interviewSessionMapper);
     }
 
     @Test
