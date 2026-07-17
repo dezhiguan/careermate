@@ -24,6 +24,7 @@
     <!-- 简历版本 -->
     <section v-if="activeTab === 'resume'" class="asset-body">
       <div v-if="resumeVersions.length > 0" class="asset-subbar">
+        <input v-model="resumeSearch" class="asset-search" type="search" placeholder="🔍 搜简历版本（名称 / 岗位）">
         <label class="asset-sort">排序
           <select v-model="resumeSort" class="asset-sort-sel">
             <option value="recent">最近更新</option>
@@ -165,6 +166,11 @@
             <option v-for="c in SAL_CITIES" :key="c" :value="c">{{ c }}</option>
           </select>
         </label>
+        <label class="sal-field">经验
+          <select v-model="salYears" class="sal-sel">
+            <option v-for="y in SAL_YEARS" :key="y" :value="y">{{ y }}</option>
+          </select>
+        </label>
         <button class="qbank-add" :disabled="salLoading" @click="querySalary">查询</button>
       </div>
 
@@ -266,6 +272,7 @@ const resumeVersions = ref([])
 const loadingResume = ref(false)
 const resumePage = ref(1)
 const resumeSort = ref('recent')
+const resumeSearch = ref('')
 const PAGE_SIZE = 6
 
 const interviewSessions = ref([])
@@ -292,8 +299,10 @@ const studyPages = computed(() => Math.max(1, Math.ceil(studyTotal.value / STUDY
 // 薪资行情内联面板
 const SAL_ROLES = ['Java后端', '前端', 'Python', 'Go', '算法', '测试', '产品经理']
 const SAL_CITIES = ['广州', '北京', '上海', '深圳', '杭州', '成都']
+const SAL_YEARS = ['不限', '1-3年', '3-5年', '5-10年', '10年以上']
 const salRole = ref('Java后端')
 const salCity = ref('广州')
+const salYears = ref('不限')
 const salData = ref(null)
 const salSkills = ref([])
 const salLoading = ref(false)
@@ -313,7 +322,13 @@ const tabs = computed(() => [
 ])
 
 const sortedResume = computed(() => {
-  const list = resumeVersions.value.slice()
+  const kw = resumeSearch.value.trim().toLowerCase()
+  let list = resumeVersions.value.slice()
+  if (kw) {
+    list = list.filter((v) =>
+      String(v.versionName || '').toLowerCase().includes(kw)
+      || String(v.targetJdLabel || '').toLowerCase().includes(kw))
+  }
   if (resumeSort.value === 'name') {
     return list.sort((a, b) => String(a.versionName || '').localeCompare(String(b.versionName || ''), 'zh'))
   }
@@ -529,7 +544,7 @@ async function querySalary() {
   error.value = ''
   try {
     const [salary, trends] = await Promise.allSettled([
-      getSalaryInsight({ role: salRole.value, city: salCity.value }),
+      getSalaryInsight({ role: salRole.value, city: salCity.value, years: salYears.value === '不限' ? undefined : salYears.value }),
       getSkillTrends({ role: salRole.value, city: salCity.value }),
     ])
     salData.value = salary.status === 'fulfilled' ? salary.value : null
@@ -604,7 +619,9 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .itype-bar { display: flex; gap: 8px; margin-bottom: 12px; }
 .itype-chip { font-size: 12px; color: #5C6472; background: #F1F3F7; border: 1px solid transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
 .itype-chip.on { color: #4E5BEF; background: #EEF0FE; border-color: #D8DCFB; font-weight: 600; }
-.asset-subbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.asset-subbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+.asset-search { flex: 1; min-width: 0; max-width: 320px; font-size: 12.5px; padding: 6px 12px; border: 1px solid #E8EAF0; border-radius: 8px; background: #F5F6F8; outline: none; }
+.asset-search:focus { border-color: #D8DCFB; background: #fff; }
 .asset-sort { font-size: 12px; color: #64748b; display: inline-flex; align-items: center; gap: 6px; }
 .asset-sort-sel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; font-size: 12px; color: #334155; background: #fff; font-family: inherit; cursor: pointer; }
 .row-btn.reuse { color: #4338ca; border-color: #c7d2fe; background: #eef2ff; }
