@@ -11,6 +11,7 @@ public class CareerProfileUpsertRequest {
     private String targetCity;
     private String seniority;
     private String workMode;
+    private String targetSalaryRange;
     private List<String> skillKeywords;
     private String preferenceSummary;
 }

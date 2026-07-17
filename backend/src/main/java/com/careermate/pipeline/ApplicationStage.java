@@ -8,10 +8,10 @@ import java.util.Locale;
  */
 public enum ApplicationStage {
 
-    PREPARING("准备/投递", 1),
+    PREPARING("准备投递", 1),
     INTERVIEW_SCHEDULED("约面", 2),
     INTERVIEWING("面试中", 3),
-    OFFER("Offer/谈薪", 4),
+    OFFER("Offer谈薪", 4),
     CLOSED("已结束", 5);
 
     private final String label;

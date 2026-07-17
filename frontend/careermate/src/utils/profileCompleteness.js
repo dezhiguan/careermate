@@ -3,8 +3,9 @@ export const PROFILE_FIELDS = [
   { key: 'targetRole', weight: 20, check: (p) => !!p?.targetRole?.trim() },
   { key: 'targetCity', weight: 20, check: (p) => !!p?.targetCity?.trim() },
   { key: 'seniority', weight: 20, check: (p) => !!p?.seniority?.trim() },
-  { key: 'workMode', weight: 20, check: (p) => !!p?.workMode?.trim() },
-  { key: 'skillKeywords', weight: 20, check: (p) => Array.isArray(p?.skillKeywords) && p.skillKeywords.length > 0 },
+  { key: 'targetSalaryRange', weight: 20, check: (p) => !!p?.targetSalaryRange?.trim() },
+  { key: 'workMode', weight: 10, check: (p) => !!p?.workMode?.trim() },
+  { key: 'skillKeywords', weight: 10, check: (p) => Array.isArray(p?.skillKeywords) && p.skillKeywords.length > 0 },
 ]
 
 export function computeProfileCompleteness(profile) {

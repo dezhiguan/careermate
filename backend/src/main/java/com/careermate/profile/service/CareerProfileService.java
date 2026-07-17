@@ -111,6 +111,9 @@ public class CareerProfileService {
         if (request.getWorkMode() != null) {
             entity.setWorkMode(normalize(request.getWorkMode(), 80));
         }
+        if (request.getTargetSalaryRange() != null) {
+            entity.setTargetSalaryRange(normalize(request.getTargetSalaryRange(), 80));
+        }
         if (request.getSkillKeywords() != null) {
             entity.setSkillKeywords(jobMatchJsonSupport.writeStringList(request.getSkillKeywords()));
         }
@@ -129,6 +132,7 @@ public class CareerProfileService {
                 .targetCity(entity.getTargetCity())
                 .seniority(entity.getSeniority())
                 .workMode(entity.getWorkMode())
+                .targetSalaryRange(entity.getTargetSalaryRange())
                 .skillKeywords(skills)
                 .preferenceSummary(entity.getPreferenceSummary())
                 .source(entity.getSource())
