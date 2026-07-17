@@ -22,9 +22,20 @@ public final class InterviewQuestionPrompts {
      */
     public static String jdAwarePrompt(String jdTitle, String jdContext, String resumeContext,
                                        String interviewContext, String companyContext) {
+        return jdAwarePrompt(jdTitle, jdContext, resumeContext, interviewContext, companyContext, null);
+    }
+
+    /**
+     * @param weaknessContext 用户历史模拟面试暴露的弱项（Reflexion：据此针对性多出弱项方向的题；可空）
+     */
+    public static String jdAwarePrompt(String jdTitle, String jdContext, String resumeContext,
+                                       String interviewContext, String companyContext, String weaknessContext) {
         String company = companyContext == null || companyContext.isBlank()
                 ? "（暂无该公司面经，按 JD 通用考法出题即可）"
                 : companyContext;
+        String weakness = weaknessContext == null || weaknessContext.isBlank()
+                ? "（暂无历史弱项记录）"
+                : weaknessContext;
         return """
                 你是资深面试辅导专家「小职」。请根据以下信息，为求职者生成针对这条 JD 的面试题。
                 严格要求：
@@ -34,7 +45,8 @@ public final class InterviewQuestionPrompts {
                    - JD_FOCUSED：该 JD 的核心考察点
                    - HIT_RESUME：命中简历中已有的技能/经历
                    - WEAK_POINT：JD 要求但简历较薄弱、需重点准备
-                4. 只输出合法 JSON，不要任何多余文字、解释或代码块围栏。
+                4. 若下方【历史弱项】非空，请针对性地多出 2-3 道覆盖这些弱项方向的题，并打 WEAK_POINT。
+                5. 只输出合法 JSON，不要任何多余文字、解释或代码块围栏。
 
                 JSON 结构：
                 {
@@ -57,11 +69,15 @@ public final class InterviewQuestionPrompts {
 
                 【该公司面经】
                 %s
+
+                【历史弱项（据此针对性出题）】
+                %s
                 """.formatted(
                 jdTitle == null ? "" : jdTitle,
                 jdContext == null ? "" : jdContext,
                 resumeContext == null ? "" : resumeContext,
                 interviewContext == null ? "" : interviewContext,
-                company);
+                company,
+                weakness);
     }
 }

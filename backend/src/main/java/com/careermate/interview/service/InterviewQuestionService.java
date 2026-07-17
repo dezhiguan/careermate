@@ -49,17 +49,48 @@ public class InterviewQuestionService {
     private final ResumeContextProvider resumeContextProvider;
     private final LlmClient llmClient;
     private final ObjectMapper objectMapper;
+    private final com.careermate.agent.memory.AgentMemoryService agentMemoryService;
 
     public InterviewQuestionService(
             KnowledgeRetrievalService knowledgeRetrievalService,
             ResumeContextProvider resumeContextProvider,
             LlmClient llmClient,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            com.careermate.agent.memory.AgentMemoryService agentMemoryService
     ) {
         this.knowledgeRetrievalService = knowledgeRetrievalService;
         this.resumeContextProvider = resumeContextProvider;
         this.llmClient = llmClient;
         this.objectMapper = objectMapper;
+        this.agentMemoryService = agentMemoryService;
+    }
+
+    /** Reflexion：取用户历史模拟面试暴露的弱项，用于针对性出题。无则空串。 */
+    private String resolveWeaknessContext(Long userId) {
+        if (userId == null) {
+            return "";
+        }
+        try {
+            com.careermate.agent.memory.AgentMemoryContext ctx =
+                    agentMemoryService.loadMemoryContext(userId, null);
+            if (ctx == null) {
+                return "";
+            }
+            StringBuilder sb = new StringBuilder();
+            if (ctx.getInterviewWeaknessSummary() != null && !ctx.getInterviewWeaknessSummary().isBlank()) {
+                sb.append(ctx.getInterviewWeaknessSummary().trim());
+            }
+            if (ctx.getWeaknessKeywords() != null && !ctx.getWeaknessKeywords().isEmpty()) {
+                if (sb.length() > 0) {
+                    sb.append("；");
+                }
+                sb.append("弱项关键词：").append(String.join("、", ctx.getWeaknessKeywords()));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            log.warn("resolveWeaknessContext failed: userId={}, err={}", userId, e.getMessage());
+            return "";
+        }
     }
 
     /**
@@ -107,9 +138,10 @@ public class InterviewQuestionService {
             String interviewContext = toContextText(interviewResult);
 
             String companyContext = resolveCompanyContext(companyName);
+            String weaknessContext = resolveWeaknessContext(userId);
 
             String prompt = InterviewQuestionPrompts.jdAwarePrompt(
-                    jdTitle, jdContext, resumeText, interviewContext, companyContext);
+                    jdTitle, jdContext, resumeText, interviewContext, companyContext, weaknessContext);
             JdAwareQuestionsVO parsed = parseLlmJson(prompt, JdAwareQuestionsVO.class);
             if (parsed == null) {
                 return fallback(jdDocId);
