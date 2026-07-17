@@ -24,6 +24,7 @@
     <!-- 简历版本 -->
     <section v-if="activeTab === 'resume'" class="asset-body">
       <div v-if="resumeVersions.length > 0" class="asset-subbar">
+        <input v-model="resumeSearch" class="asset-search" type="search" placeholder="🔍 搜简历版本（名称 / 岗位）">
         <label class="asset-sort">排序
           <select v-model="resumeSort" class="asset-sort-sel">
             <option value="recent">最近更新</option>
@@ -65,14 +66,24 @@
 
     <!-- 面试记录 -->
     <section v-else-if="activeTab === 'interview'" class="asset-body">
+      <div class="itype-bar">
+        <button
+          v-for="opt in INTERVIEW_TYPES"
+          :key="opt.value"
+          type="button"
+          class="itype-chip"
+          :class="{ on: interviewType === opt.value }"
+          @click="setInterviewType(opt.value)"
+        >{{ opt.label }}</button>
+      </div>
       <p v-if="loadingInterview" class="asset-loading">加载中…</p>
-      <p v-else-if="interviewSessions.length === 0" class="asset-empty">还没有面试记录。让小职来一轮模拟面试，记录会存到这里。</p>
+      <p v-else-if="filteredInterview.length === 0" class="asset-empty">还没有面试记录。让小职来一轮模拟面试，记录会存到这里。</p>
       <div v-else class="asset-list">
         <article v-for="s in pagedInterview" :key="s.id" class="asset-row">
           <div class="row-main">
             <div class="row-name">🎤 {{ s.title || s.company || '模拟面试' }}</div>
             <div class="row-meta">
-              <span class="row-tag mock">模拟</span>
+              <span class="row-tag" :class="s.sessionType === 'REAL' ? 'real' : 'mock'">{{ s.sessionType === 'REAL' ? '真实' : '模拟' }}</span>
               <span v-if="s.status" class="row-tag gray">{{ statusLabel(s.status) }}</span>
               <span v-if="interviewScore(s) != null" class="row-tag score">得分 {{ interviewScore(s) }}</span>
               <span class="row-time">{{ formatDate(s.createdAt || s.updatedAt) }}</span>
@@ -153,6 +164,11 @@
         <label class="sal-field">城市
           <select v-model="salCity" class="sal-sel">
             <option v-for="c in SAL_CITIES" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </label>
+        <label class="sal-field">经验
+          <select v-model="salYears" class="sal-sel">
+            <option v-for="y in SAL_YEARS" :key="y" :value="y">{{ y }}</option>
           </select>
         </label>
         <button class="qbank-add" :disabled="salLoading" @click="querySalary">查询</button>
@@ -256,6 +272,7 @@ const resumeVersions = ref([])
 const loadingResume = ref(false)
 const resumePage = ref(1)
 const resumeSort = ref('recent')
+const resumeSearch = ref('')
 const PAGE_SIZE = 6
 
 const interviewSessions = ref([])
@@ -282,8 +299,10 @@ const studyPages = computed(() => Math.max(1, Math.ceil(studyTotal.value / STUDY
 // 薪资行情内联面板
 const SAL_ROLES = ['Java后端', '前端', 'Python', 'Go', '算法', '测试', '产品经理']
 const SAL_CITIES = ['广州', '北京', '上海', '深圳', '杭州', '成都']
+const SAL_YEARS = ['不限', '1-3年', '3-5年', '5-10年', '10年以上']
 const salRole = ref('Java后端')
 const salCity = ref('广州')
+const salYears = ref('不限')
 const salData = ref(null)
 const salSkills = ref([])
 const salLoading = ref(false)
@@ -303,7 +322,13 @@ const tabs = computed(() => [
 ])
 
 const sortedResume = computed(() => {
-  const list = resumeVersions.value.slice()
+  const kw = resumeSearch.value.trim().toLowerCase()
+  let list = resumeVersions.value.slice()
+  if (kw) {
+    list = list.filter((v) =>
+      String(v.versionName || '').toLowerCase().includes(kw)
+      || String(v.targetJdLabel || '').toLowerCase().includes(kw))
+  }
   if (resumeSort.value === 'name') {
     return list.sort((a, b) => String(a.versionName || '').localeCompare(String(b.versionName || ''), 'zh'))
   }
@@ -316,11 +341,25 @@ const pagedResume = computed(() => {
   return sortedResume.value.slice(start, start + PAGE_SIZE)
 })
 
-const interviewPages = computed(() => Math.max(1, Math.ceil(interviewSessions.value.length / PAGE_SIZE)))
+const INTERVIEW_TYPES = [
+  { value: 'ALL', label: '全部' },
+  { value: 'REAL', label: '真实复盘' },
+  { value: 'MOCK', label: '模拟面试' },
+]
+const interviewType = ref('ALL')
+function setInterviewType(v) {
+  interviewType.value = v
+  interviewPage.value = 1
+}
+const filteredInterview = computed(() => {
+  if (interviewType.value === 'ALL') return interviewSessions.value
+  return interviewSessions.value.filter((s) => (s.sessionType || 'MOCK') === interviewType.value)
+})
+const interviewPages = computed(() => Math.max(1, Math.ceil(filteredInterview.value.length / PAGE_SIZE)))
 const pagedInterview = computed(() => {
-  if (!isDesktop.value) return interviewSessions.value
+  if (!isDesktop.value) return filteredInterview.value
   const start = (interviewPage.value - 1) * PAGE_SIZE
-  return interviewSessions.value.slice(start, start + PAGE_SIZE)
+  return filteredInterview.value.slice(start, start + PAGE_SIZE)
 })
 function interviewScore(s) {
   const v = s?.score ?? s?.averageScore
@@ -505,7 +544,7 @@ async function querySalary() {
   error.value = ''
   try {
     const [salary, trends] = await Promise.allSettled([
-      getSalaryInsight({ role: salRole.value, city: salCity.value }),
+      getSalaryInsight({ role: salRole.value, city: salCity.value, years: salYears.value === '不限' ? undefined : salYears.value }),
       getSkillTrends({ role: salRole.value, city: salCity.value }),
     ])
     salData.value = salary.status === 'fulfilled' ? salary.value : null
@@ -575,8 +614,14 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .row-tag.gray { color: #64748b; background: #f1f5f9; }
 .row-tag.base { color: #475569; background: #f1f5f9; }
 .row-tag.mock { color: #64748b; background: #f1f5f9; }
+.row-tag.real { color: #0DA76A; background: #E6F6EF; }
 .row-tag.score { color: #0DA76A; background: #dcfce7; }
-.asset-subbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.itype-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+.itype-chip { font-size: 12px; color: #5C6472; background: #F1F3F7; border: 1px solid transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.itype-chip.on { color: #4E5BEF; background: #EEF0FE; border-color: #D8DCFB; font-weight: 600; }
+.asset-subbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+.asset-search { flex: 1; min-width: 0; max-width: 320px; font-size: 12.5px; padding: 6px 12px; border: 1px solid #E8EAF0; border-radius: 8px; background: #F5F6F8; outline: none; }
+.asset-search:focus { border-color: #D8DCFB; background: #fff; }
 .asset-sort { font-size: 12px; color: #64748b; display: inline-flex; align-items: center; gap: 6px; }
 .asset-sort-sel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; font-size: 12px; color: #334155; background: #fff; font-family: inherit; cursor: pointer; }
 .row-btn.reuse { color: #4338ca; border-color: #c7d2fe; background: #eef2ff; }

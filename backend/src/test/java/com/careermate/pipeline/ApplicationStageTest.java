@@ -24,7 +24,7 @@ class ApplicationStageTest {
 
     @Test
     void labelAndOrderAreStable() {
-        assertEquals("准备/投递", ApplicationStage.PREPARING.label());
+        assertEquals("准备投递", ApplicationStage.PREPARING.label());
         assertEquals(1, ApplicationStage.PREPARING.order());
         assertEquals("已结束", ApplicationStage.CLOSED.label());
         assertEquals(5, ApplicationStage.CLOSED.order());

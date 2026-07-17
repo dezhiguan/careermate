@@ -322,6 +322,7 @@ public class InterviewPracticeService {
                 .id(entity.getId())
                 .title(entity.getTitle())
                 .status(entity.getStatus())
+                .sessionType(entity.getSessionType() == null ? "MOCK" : entity.getSessionType())
                 .totalQuestions(entity.getTotalQuestions())
                 .answeredQuestions(entity.getAnsweredQuestions())
                 .averageScore(entity.getAverageScore())

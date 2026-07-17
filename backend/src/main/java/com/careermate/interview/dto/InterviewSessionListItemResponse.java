@@ -16,6 +16,8 @@ public class InterviewSessionListItemResponse {
     private Long id;
     private String title;
     private String status;
+    /** MOCK 模拟 / REAL 真实复盘。 */
+    private String sessionType;
     private Integer totalQuestions;
     private Integer answeredQuestions;
     private Integer averageScore;

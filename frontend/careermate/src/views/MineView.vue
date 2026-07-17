@@ -49,6 +49,12 @@
             {{ profile.workMode || '未填写' }}
           </span>
         </div>
+        <div class="profile-row">
+          <span class="profile-label">期望薪资</span>
+          <span class="profile-value" :class="{ empty: !profile.targetSalaryRange }">
+            {{ profile.targetSalaryRange || '未填写' }}
+          </span>
+        </div>
       </template>
 
       <template v-else>
@@ -81,6 +87,13 @@
             <option value="全职远程">全职远程</option>
             <option value="兼职">兼职</option>
           </select>
+        </div>
+        <div class="edit-row">
+          <label>期望薪资</label>
+          <input v-model="editCareer.targetSalaryRange" list="salary-list" placeholder="如：30-45K·15薪">
+          <datalist id="salary-list">
+            <option v-for="s in SALARY_SUGGESTIONS" :key="s" :value="s" />
+          </datalist>
         </div>
       </template>
       <p v-if="careerSaveMsg" class="save-msg">{{ careerSaveMsg }}</p>
@@ -299,6 +312,7 @@ const CITY_SUGGESTIONS = [
   '广州', '深圳', '北京', '上海', '杭州', '成都', '南京', '武汉', '西安', '苏州',
 ]
 const YEARS_OPTIONS = ['应届', '1-3年', '3-5年', '5-10年', '10年以上']
+const SALARY_SUGGESTIONS = ['15-25K·12薪', '20-35K·13薪', '30-45K·15薪', '40-60K·16薪', '60K以上·面议']
 
 const resumes = ref([])
 const versions = ref([])
@@ -334,6 +348,7 @@ const profile = ref({
   targetCity: '',
   seniority: '',
   workMode: '',
+  targetSalaryRange: '',
   skillKeywords: [],
   preferenceSummary: '',
 })
@@ -396,6 +411,7 @@ function startEditCareer() {
     targetCity: profile.value.targetCity || '',
     seniority: profile.value.seniority || '',
     workMode: profile.value.workMode || '',
+    targetSalaryRange: profile.value.targetSalaryRange || '',
   }
   editingCareer.value = true
   careerSaveMsg.value = ''
