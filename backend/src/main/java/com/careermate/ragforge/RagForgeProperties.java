@@ -12,8 +12,13 @@ public class RagForgeProperties {
     private boolean enabled = false;
     /** RAGForge HTTP 地址 */
     private String url = "http://localhost:8080";
-    /** X-API-Key */
+    /** X-API-Key（默认 key；CareerMate求职智能体组织：LTM/个人库） */
     private String apiKey = "";
+    /**
+     * 数据组织 X-API-Key（职场数据分享有限公司 org316：JD/面试/公司/市场/技能库）。
+     * 这些库属独立组织，单靠 apiKey 跨组织会静默返回空；留空则回退 apiKey（行为同旧版）。
+     */
+    private String dataApiKey = "";
     /** Auth Gateway token-exchange requested audience. */
     private String requestedAudience = "ragforge-api";
     /** Auth Gateway token-exchange requested scopes. */

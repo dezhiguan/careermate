@@ -97,24 +97,42 @@ public class RagForgeClient {
     }
 
     private ResponseEntity<String> exchange(String path, HttpMethod method, Object body, Object... uriVars) {
-        HttpHeaders headers = defaultHeaders();
+        return exchangeWithKey(path, method, body, null, uriVars);
+    }
+
+    /**
+     * 与 {@link #exchange} 相同，但可指定使用哪把 X-API-Key。
+     * apiKeyOverride 非空时用它（用于跨组织知识库，如 JD 库属独立数据组织 org316）；为空则用默认 apiKey。
+     */
+    private ResponseEntity<String> exchangeWithKey(String path, HttpMethod method, Object body,
+                                                   String apiKeyOverride, Object... uriVars) {
+        HttpHeaders headers = defaultHeaders(apiKeyOverride);
         HttpEntity<Object> entity = body == null ? new HttpEntity<>(headers) : new HttpEntity<>(body, headers);
         String url = properties.getUrl() + path;
         log.info("ragforge.http.before {} {}", method, path);
         return restTemplate.exchange(url, method, entity, String.class, uriVars);
     }
 
-    private HttpHeaders defaultHeaders() {
-        HttpHeaders headers = authHeaders();
+    private HttpHeaders defaultHeaders(String apiKeyOverride) {
+        HttpHeaders headers = authHeaders(apiKeyOverride);
         headers.setContentType(MediaType.APPLICATION_JSON);
         return headers;
     }
 
-    /** 仅鉴权头（X-API-Key 或交换后的 Bearer），不设 Content-Type，供 multipart 复用。 */
+    /** 仅鉴权头（X-API-Key 或交换后的 Bearer），不设 Content-Type，供 multipart 复用。用默认 apiKey。 */
     private HttpHeaders authHeaders() {
+        return authHeaders(null);
+    }
+
+    /**
+     * 鉴权头，可指定使用哪把 X-API-Key。
+     * apiKeyOverride 非空时优先；否则回退默认 apiKey；再为空才走 token-exchange。
+     */
+    private HttpHeaders authHeaders(String apiKeyOverride) {
         HttpHeaders headers = new HttpHeaders();
-        if (StringUtils.hasText(properties.getApiKey())) {
-            headers.set("X-API-Key", properties.getApiKey());
+        String apiKey = StringUtils.hasText(apiKeyOverride) ? apiKeyOverride : properties.getApiKey();
+        if (StringUtils.hasText(apiKey)) {
+            headers.set("X-API-Key", apiKey);
         } else {
             String exchangedToken = resolveExchangedToken();
             if (StringUtils.hasText(exchangedToken)) {
@@ -122,6 +140,48 @@ public class RagForgeClient {
             }
         }
         return headers;
+    }
+
+    /** 数据组织（职场数据分享有限公司 org316）的 key；未配置 dataApiKey 时回退默认 apiKey，行为同旧版。 */
+    private String dataApiKey() {
+        return StringUtils.hasText(properties.getDataApiKey())
+                ? properties.getDataApiKey()
+                : properties.getApiKey();
+    }
+
+    /**
+     * 按目标 KB 判定用哪把 key：命中数据组织库集合（JD/面试/公司/市场/技能）→ dataApiKey；
+     * 否则返回 null（= 用默认 apiKey，个人库/LTM 走这条）。
+     */
+    private String apiKeyForKb(List<Long> kbIds) {
+        if (kbIds == null || kbIds.isEmpty()) {
+            return null;
+        }
+        Long kbId = kbIds.get(0);
+        if (kbId != null && dataOrgKbIds().contains(kbId)) {
+            return dataApiKey();
+        }
+        return null;
+    }
+
+    private java.util.Set<Long> dataOrgKbIds() {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        addKbId(ids, properties.getJdKbId());
+        addKbId(ids, properties.getInterviewKbId());
+        addKbId(ids, properties.getCompanyKbId());
+        addKbId(ids, properties.getMarketKbId());
+        addKbId(ids, properties.getSkillKbId());
+        return ids;
+    }
+
+    private void addKbId(java.util.Set<Long> ids, String raw) {
+        if (raw != null && !raw.isBlank()) {
+            try {
+                ids.add(Long.parseLong(raw.trim()));
+            } catch (NumberFormatException ignored) {
+                // 非数字 id 跳过
+            }
+        }
     }
 
     private String resolveExchangedToken() {
@@ -208,10 +268,12 @@ public class RagForgeClient {
             int page = 1;
             int size = 100;
             while (true) {
-                ResponseEntity<String> response = exchange(
+                // JD 文档属数据组织（org316），按 docId 拉 chunks 需用 dataApiKey。
+                ResponseEntity<String> response = exchangeWithKey(
                         "/api/v1/documents/{id}/chunks?page={page}&size={size}",
                         HttpMethod.GET,
                         null,
+                        dataApiKey(),
                         docId,
                         page,
                         size
@@ -489,7 +551,8 @@ public class RagForgeClient {
                     query.length()
             );
 
-            ResponseEntity<String> response = exchange("/api/v1/search", HttpMethod.POST, body);
+            ResponseEntity<String> response =
+                    exchangeWithKey("/api/v1/search", HttpMethod.POST, body, apiKeyForKb(kbIds));
             String responseBody = response.getBody();
             if (responseBody == null || responseBody.isBlank()) {
                 return List.of();
