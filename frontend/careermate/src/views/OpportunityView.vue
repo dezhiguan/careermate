@@ -127,6 +127,12 @@
             🏢 只看「{{ c }}」
           </button>
         </div>
+        <div v-if="titleSuggest.length" class="search-sect">
+          <div class="search-sect-title">岗位</div>
+          <button v-for="t in titleSuggest" :key="t" type="button" class="search-row" @click="doSearch(t)">
+            💼 {{ t }}
+          </button>
+        </div>
         <div v-if="searchHistory.length" class="search-sect">
           <div class="search-sect-title">
             搜索历史
@@ -136,7 +142,7 @@
             🕘 {{ h }}
           </button>
         </div>
-        <p v-if="!companySuggest.length && !searchHistory.length" class="search-empty">
+        <p v-if="!companySuggest.length && !titleSuggest.length && !searchHistory.length" class="search-empty">
           输入关键词搜索岗位或公司
         </p>
       </div>
@@ -185,6 +191,21 @@ const companySuggest = computed(() => {
     if (co && co.toLowerCase().includes(kw) && !seen.has(co)) {
       seen.add(co)
       out.push(co)
+      if (out.length >= 6) break
+    }
+  }
+  return out
+})
+const titleSuggest = computed(() => {
+  const kw = searchInput.value.trim().toLowerCase()
+  if (!kw) return []
+  const seen = new Set()
+  const out = []
+  for (const it of items.value) {
+    const t = it.title || it.roleTitle
+    if (t && t.toLowerCase().includes(kw) && !seen.has(t)) {
+      seen.add(t)
+      out.push(t)
       if (out.length >= 6) break
     }
   }
@@ -267,9 +288,9 @@ async function toggleSave(item) {
 }
 
 const CITY_OPTIONS = ['不限', '北京', '上海', '广州', '深圳', '杭州', '成都', '武汉', '南京', '西安']
+// v2.9 定稿：排序只留「匹配度·最新」两项（六维筛选/薪资排序已删）
 const SORT_OPTIONS = [
   { value: 'match', label: '匹配度' },
-  { value: 'salaryDesc', label: '薪资高→低' },
   { value: 'fresh', label: '最新发布' },
 ]
 const sortMode = ref('match')
@@ -290,28 +311,15 @@ function onCityChange(evt) {
   router.replace({ path: '/opportunity', query })
 }
 
-// 薪资排序键：取字符串中最大数字，「万」量级近似折算到「K」量级便于同轴比较
-function parseSalaryKey(range) {
-  if (!range) return -1
-  const nums = String(range).match(/\d+(?:\.\d+)?/g)
-  if (!nums) return -1
-  let key = Math.max(...nums.map(Number))
-  if (/万/.test(range)) key *= 10
-  return key
-}
-
 function parseFreshKey(publishedAt) {
   if (!publishedAt) return 0
   const t = Date.parse(publishedAt)
   return Number.isNaN(t) ? 0 : t
 }
 
-// 排序仅对已加载结果重排（匹配度=服务端 AI 排序原样）；薪资/最新为客户端重排
+// 排序仅对已加载结果重排（匹配度=服务端 AI 排序原样）；最新为客户端重排
 const displayItems = computed(() => {
   const list = items.value.slice()
-  if (sortMode.value === 'salaryDesc') {
-    return list.sort((a, b) => parseSalaryKey(b.salaryRange) - parseSalaryKey(a.salaryRange))
-  }
   if (sortMode.value === 'fresh') {
     return list.sort((a, b) => parseFreshKey(b.publishedAt) - parseFreshKey(a.publishedAt))
   }
