@@ -245,6 +245,16 @@
     </section>
     </template>
 
+    <!-- 移动端专属：资产入口（Web 资产为独立 tab，桌面隐藏；移动无资产底 tab，靠此进 /assets） -->
+    <button type="button" class="entry-btn mine-assets-entry" data-testid="entry-assets" @click="router.push('/assets')">
+      <span class="entry-icon">📁</span>
+      <div class="entry-info">
+        <div class="entry-title">我的资产</div>
+        <div class="entry-sub">简历版本 · 八股题库 · 面试记录，全部归你</div>
+      </div>
+      <span class="entry-arrow">→</span>
+    </button>
+
     <!-- 设置卡（照定稿：全宽、灰度收底） -->
     <section class="profile-section settings-card">
       <div class="section-head"><span class="section-title">设置</span></div>
@@ -1345,6 +1355,10 @@ onMounted(async () => {
   .settings-card,
   .mine-footer-actions {
     grid-column: 1 / -1;
+  }
+  /* Web 资产为独立 tab，桌面不显示「我的资产」入口 */
+  .mine-assets-entry {
+    display: none;
   }
 }
 
