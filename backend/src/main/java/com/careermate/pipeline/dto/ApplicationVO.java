@@ -16,6 +16,10 @@ public class ApplicationVO {
     private String displayName;
     private String stage;
     private String stageLabel;
+    /** 派生的真实活动态副标题（改简历中/待面试/待谈薪…）。 */
+    private String activity;
+    /** 该公司面经（面试练习）数，用于卡片「面经×N」。 */
+    private int interviewCount;
     private String resumeVersionId;
     /** 该 JD 已产出的简历版本数（0=还没定制）。 */
     private int resumeVersionCount;

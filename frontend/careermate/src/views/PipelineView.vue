@@ -51,9 +51,10 @@
           >
             <div class="app-co">{{ cardName(app) }}</div>
             <div class="app-activity">{{ activityText(app) }}</div>
-            <div v-if="app.resumeVersionCount > 0 || app.needsSalaryNegotiation || app.resumeVersionId" class="app-mt">
+            <div v-if="app.resumeVersionCount > 0 || app.needsSalaryNegotiation || app.resumeVersionId || app.interviewCount > 0" class="app-mt">
               <span v-if="app.resumeVersionCount > 0" class="tagx gray">简历v{{ app.resumeVersionCount }}</span>
               <span v-else-if="app.resumeVersionId" class="tagx gray">简历已挂</span>
+              <span v-if="app.interviewCount > 0" class="tagx gray">面经×{{ app.interviewCount }}</span>
               <span v-if="app.needsSalaryNegotiation" class="tagx warn">待谈薪</span>
             </div>
             <div class="app-ctl" @click.stop>
@@ -103,9 +104,10 @@
           >
             <div class="app-co">{{ cardName(app) }}</div>
             <div class="app-activity">{{ activityText(app) }}</div>
-            <div v-if="app.resumeVersionCount > 0 || app.needsSalaryNegotiation || app.resumeVersionId" class="app-mt">
+            <div v-if="app.resumeVersionCount > 0 || app.needsSalaryNegotiation || app.resumeVersionId || app.interviewCount > 0" class="app-mt">
               <span v-if="app.resumeVersionCount > 0" class="tagx gray">简历v{{ app.resumeVersionCount }}</span>
               <span v-else-if="app.resumeVersionId" class="tagx gray">简历已挂</span>
+              <span v-if="app.interviewCount > 0" class="tagx gray">面经×{{ app.interviewCount }}</span>
               <span v-if="app.needsSalaryNegotiation" class="tagx warn">待谈薪</span>
             </div>
             <div class="app-ctl" @click.stop>
@@ -195,7 +197,7 @@ function avatarChar(app) {
   return c.charAt(0).toUpperCase()
 }
 function activityText(app) {
-  const label = app.stageLabel || ''
+  const label = app.activity || app.stageLabel || ''
   const t = formatTime(app.lastActiveAt)
   return t ? `${label} · 最近 ${t}` : label
 }
