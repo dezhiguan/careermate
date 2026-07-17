@@ -1,38 +1,28 @@
 <template>
   <div class="opportunity-page">
-    <header class="page-header">
-      <div class="header-top">
-        <div>
-          <h1 class="page-title">今天的机会</h1>
-          <p class="page-sub">
-            {{ hasResume ? '基于你的简历 AI 匹配排序' : '传简历即可看到每个 JD 的匹配分' }}
-          </p>
-        </div>
-        <button v-if="!isDesktop" type="button" class="mobile-search-trigger" aria-label="搜索" @click="openSearch">
-          <span class="mst-icon">🔍</span>
-          <span class="mst-text">{{ activeKeyword || '搜 JD / 公司' }}</span>
-        </button>
-      </div>
-      <div class="filter-bar" aria-label="机会筛选">
-        <label class="filter-field">
-          <span class="filter-label">城市</span>
-          <select class="filter-select" :value="activeCity" @change="onCityChange($event)">
-            <option v-for="c in CITY_OPTIONS" :key="c" :value="c">{{ c }}</option>
-          </select>
-        </label>
-        <label class="filter-field">
-          <span class="filter-label">排序</span>
-          <select class="filter-select" v-model="sortMode">
-            <option v-for="s in SORT_OPTIONS" :key="s.value" :value="s.value">{{ s.label }}</option>
-          </select>
-        </label>
-      </div>
+    <header class="mhead">
+      <h1 class="mhead-t">机会</h1>
+      <button type="button" class="search-chip" @click="openSearch">
+        🔍 <span class="sc-ph">{{ activeKeyword || '搜公司 / 岗位' }}</span>
+      </button>
+      <button type="button" class="fchip" :class="{ on: sortMode === 'match' }" @click="setSort('match')">匹配度</button>
+      <button type="button" class="fchip" :class="{ on: sortMode === 'fresh' }" @click="setSort('fresh')">最新</button>
+      <label class="fchip city-chip" :class="{ on: activeCity !== '不限' }">
+        <span>{{ activeCity !== '不限' ? '城市·' + activeCity + ' ✕' : '城市' }}</span>
+        <select class="city-native" :value="activeCity" @change="onCityChange($event)">
+          <option v-for="c in CITY_OPTIONS" :key="c" :value="c">{{ c }}</option>
+        </select>
+      </label>
     </header>
 
     <div v-if="!hasResume && !loading && !degraded" class="resume-banner">
       <span class="resume-banner-text">传简历获得 AI 匹配分</span>
       <button type="button" class="resume-banner-btn" @click="goUploadResume">上传简历</button>
     </div>
+
+    <p v-if="!loading && !degraded && items.length" class="opp-count">
+      共 <b>{{ totalCount || items.length }}</b> 个机会 · 已按你的画像匹配排序
+    </p>
 
     <div v-if="loading || degraded" class="card-list">
       <div v-if="degraded" class="degraded-hint">
@@ -51,92 +41,38 @@
     </div>
 
     <div v-else class="card-list">
-      <article
-        v-for="(item, index) in displayItems"
-        :key="item.jdId"
-        class="jd-card"
-        :class="{ 'jd-card-high': item.matchTier === 'HIGH' }"
-      >
-        <div v-if="item.matchTier === 'HIGH'" class="high-badge">⭐ AI 强推{{ index === 0 && sortMode === 'match' ? ' TOP 1' : '' }}</div>
-        <button
-          v-if="item.isDemo"
-          type="button"
-          class="demo-badge"
-          @click.stop="goUploadResume"
-        >
+      <article v-for="item in displayItems" :key="item.jdId" class="opp">
+        <button v-if="item.isDemo" type="button" class="demo-badge" @click.stop="goUploadResume">
           示例 · 上传简历看真实匹配分
         </button>
-
-        <div class="card-head">
-          <div class="company-avatar">{{ companyInitial(item.company) }}</div>
-          <div class="card-head-text">
-            <div class="company-name">{{ item.company || '未知公司' }}</div>
-            <div class="job-meta">
-              {{ item.title || '岗位' }}
-              <template v-if="item.salaryRange"> · {{ item.salaryRange }}</template>
-              <template v-else-if="item.level"> · {{ item.level }}</template>
-              <template v-if="item.city"> · {{ item.city }}</template>
-            </div>
+        <div class="opp-top">
+          <span class="coav">{{ companyInitial(item.company) }}</span>
+          <div class="opp-i">
+            <div class="co">{{ item.company || '未知公司' }}</div>
+            <div class="ro">{{ item.title || '岗位' }}<template v-if="item.city"> · {{ item.city }}</template></div>
+            <div v-if="item.salaryRange || item.level" class="salr">{{ item.salaryRange || item.level }}</div>
           </div>
-          <span v-if="item.matchScore != null" class="tier-chip tier-badge" :class="tierClass(item.matchTier)">
-            {{ tierLabel(item.matchTier) }}
-          </span>
+          <div v-if="item.matchScore != null" class="score">
+            <span class="ring" :class="ringClass(item.matchTier)">{{ item.matchScore }}</span>
+            <div class="lbl">{{ tierLabel(item.matchTier) }}</div>
+          </div>
+        </div>
+        <div v-if="hitCount(item) || (item.missingSkills || []).length" class="hit">
+          <template v-if="hitCount(item)"><span class="g">✓ 命中 {{ hitCount(item) }}</span> {{ hitNames(item) }}</template>
+          <template v-if="(item.missingSkills || []).length">　<span class="r">✗ 缺 {{ item.missingSkills.length }}</span> {{ item.missingSkills.slice(0, 3).join(' · ') }}</template>
+        </div>
+        <div class="opp-act">
           <button
             type="button"
-            class="save-star"
-            :class="{ saved: isSaved(item) }"
-            :title="isSaved(item) ? '取消收藏' : '收藏到暂存区'"
-            @click.stop="toggleSave(item)"
-          >
-            {{ isSaved(item) ? '★' : '☆' }}
-          </button>
-        </div>
-
-        <div v-if="(item.matchReasons || []).length" class="tier-row">
-          <span v-for="reason in (item.matchReasons || []).slice(0, 2)" :key="reason" class="reason-text">
-            ✓ {{ reason }}
-          </span>
-        </div>
-
-        <div v-if="(item.missingSkills || []).length" class="gap-row">
-          <span class="gap-text">✗ 缺 {{ item.missingSkills.length }}：{{ item.missingSkills.slice(0, 4).join(' · ') }}</span>
-        </div>
-
-        <div v-if="item.skills?.length" class="skills-row">
-          <span v-for="skill in item.skills.slice(0, 4)" :key="skill" class="skill-chip">{{ skill }}</span>
-        </div>
-
-        <div class="meta-row">
-          <span v-if="item.experienceRange">{{ item.experienceRange }}</span>
-          <span v-if="item.education">{{ item.education }}</span>
-          <span v-if="item.companySize">{{ item.companySize }}</span>
-        </div>
-
-        <div class="card-actions">
-          <button
-            type="button"
-            class="btn-action btn-primary"
+            class="btn ai"
             :disabled="!!preparingId || !hasResume"
-            :title="!hasResume ? '定制简历需要先上传简历，去「我的简历」上传后即可使用' : ''"
+            :title="!hasResume ? '定制简历需先上传简历' : ''"
             @click.stop="handleWorkspaceAction(item, 'GENERATE_RESUME')"
           >
             ✦ 定制简历
           </button>
-          <button
-            type="button"
-            class="btn-action btn-mini"
-            :disabled="!!preparingId"
-            @click.stop="handleWorkspaceAction(item, 'ANALYZE_JD')"
-          >
-            分析 JD
-          </button>
-          <button
-            type="button"
-            class="btn-action btn-mini"
-            :disabled="!!preparingId"
-            @click.stop="handleWorkspaceAction(item, 'PREPARE_INTERVIEW')"
-          >
-            准备面试
+          <button type="button" class="btn g" @click.stop="toggleSave(item)">
+            {{ isSaved(item) ? '★ 已收藏' : '☆ 收藏' }}
           </button>
         </div>
       </article>
@@ -602,6 +538,27 @@ function tierClass(tier) {
   return 'tier-unknown'
 }
 
+// 定稿：匹配环配色 hi/mid/low
+function ringClass(tier) {
+  if (tier === 'HIGH') return 'hi'
+  if (tier === 'MEDIUM') return 'mid'
+  return 'low'
+}
+// 命中技能 = JD 技能里用户已会的（skills − missingSkills）
+function hitSkillsOf(item) {
+  const miss = new Set((item.missingSkills || []).map((s) => String(s).toLowerCase()))
+  return (item.skills || []).filter((s) => !miss.has(String(s).toLowerCase()))
+}
+function hitCount(item) {
+  return hitSkillsOf(item).length
+}
+function hitNames(item) {
+  return hitSkillsOf(item).slice(0, 3).join(' · ')
+}
+function setSort(v) {
+  sortMode.value = v
+}
+
 onMounted(() => {
   updateIsDesktop()
   loadSaved()
@@ -629,8 +586,46 @@ onBeforeUnmount(() => {
   max-width: 100%;
   overflow-x: hidden;
   background: #F5F6F8;
-  /* 底部留白由 AppShellMobile 统一处理 */
+  /* v3.4 视觉定稿 token */
+  --line: #E8EAF0; --line2: #F1F3F7; --ink: #1A1D26; --ink2: #5C6472; --ink3: #9AA2AF;
+  --brand: #4E5BEF; --brand-soft: #EEF0FE; --brand-line: #D8DCFB;
+  --ai-grad: linear-gradient(135deg, #4E5BEF, #8B5CF6);
+  --good: #0DA76A; --warn: #DB9A2D; --bad: #E5484D;
 }
+
+/* ===== 机会页 · 照 09 定稿 ===== */
+.mhead { display:flex; align-items:center; gap:10px; padding:14px 20px; background:#fff; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+.mhead-t { margin:0; font-size:16px; font-weight:700; color:var(--ink); }
+.search-chip { flex:1; max-width:340px; min-width:110px; display:inline-flex; align-items:center; gap:6px; justify-content:flex-start; background:#fff; border:1px solid var(--line); border-radius:12px; padding:7px 14px; color:var(--ink3); font-size:12px; cursor:pointer; font-family:inherit; }
+.sc-ph { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fchip { display:inline-flex; align-items:center; gap:5px; font-size:12px; background:#fff; border:1px solid var(--line); border-radius:16px; padding:4px 12px; color:var(--ink2); white-space:nowrap; cursor:pointer; font-family:inherit; position:relative; }
+.fchip.on { background:var(--brand-soft); border-color:var(--brand-line); color:var(--brand); font-weight:600; }
+.city-native { position:absolute; inset:0; width:100%; opacity:0; cursor:pointer; font-family:inherit; }
+.opp-count { margin:14px 20px 0; font-size:13px; color:var(--ink2); }
+.opp-count b { color:var(--brand); }
+
+.opp { position:relative; background:#fff; border:1px solid var(--line); border-radius:16px; padding:16px 18px; box-shadow:0 1px 2px rgba(20,24,40,.05),0 3px 10px rgba(20,24,40,.05); }
+.opp-top { display:flex; gap:12px; align-items:flex-start; }
+.coav { width:34px; height:34px; border-radius:10px; background:#EEF1F6; color:#3E4654; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex:0 0 auto; border:1px solid var(--line); }
+.opp-i { min-width:0; flex:1; }
+.opp .co { font-weight:700; font-size:15px; color:var(--ink); }
+.opp .ro { font-size:12.5px; color:var(--ink2); margin-top:1px; }
+.opp .salr { font-size:13px; color:var(--warn); font-weight:700; margin-top:4px; }
+.score { text-align:center; flex:0 0 auto; }
+.ring { width:48px; height:48px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:17px; border:3px solid; }
+.ring.hi { border-color:var(--good); color:var(--good); }
+.ring.mid { border-color:var(--warn); color:var(--warn); }
+.ring.low { border-color:var(--bad); color:var(--bad); }
+.lbl { font-size:10px; color:var(--ink3); margin-top:3px; }
+.opp .hit { font-size:11.5px; margin-top:12px; color:var(--ink2); background:var(--line2); border-radius:9px; padding:7px 11px; line-height:1.6; }
+.opp .hit .g { color:var(--good); font-weight:600; }
+.opp .hit .r { color:var(--bad); font-weight:600; }
+.opp-act { display:flex; gap:9px; margin-top:13px; align-items:center; }
+.opp .btn { display:inline-flex; align-items:center; gap:6px; justify-content:center; border:none; border-radius:10px; padding:8px 16px; font-size:13px; font-weight:600; white-space:nowrap; cursor:pointer; font-family:inherit; }
+.opp .btn.ai { flex:1; background:var(--ai-grad); color:#fff; box-shadow:0 2px 10px rgba(110,80,240,.3); }
+.opp .btn.ai:disabled { opacity:.55; cursor:not-allowed; }
+.opp .btn.g { background:#fff; border:1px solid var(--line); color:var(--ink2); }
+.opp .demo-badge { margin-bottom:8px; }
 
 .page-header {
   background: #fff;
@@ -720,9 +715,10 @@ onBeforeUnmount(() => {
 }
 
 .card-list {
-  padding: 14px 16px;
+  padding: 16px 20px;
   display: grid;
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 14px;
 }
 
 .degraded-hint {
@@ -916,31 +912,16 @@ onBeforeUnmount(() => {
 
 @media (min-width: 768px) {
   .card-list {
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-template-columns: 1fr 1fr;
     padding: 20px 32px;
-    max-width: 1240px;
+    max-width: 1100px;
     margin: 0 auto;
     width: 100%;
   }
-  .page-header {
-    padding: 20px 32px 16px;
-    max-width: 1240px;
-    margin: 0 auto;
-    width: 100%;
-    background: transparent;
-    border-bottom: none;
-  }
-  .page-title {
-    font-size: 22px;
-  }
-  .page-sub {
-    font-size: 13px;
-  }
-}
-
-@media (min-width: 1280px) {
-  .card-list {
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  .mhead, .opp-count {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
   }
 }
 
