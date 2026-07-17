@@ -100,13 +100,13 @@ class LongTermMemoryServiceTest {
         props.setEnabled(true);
         ragProps.setLtmKbId("42");
         when(mapper.selectList(any())).thenReturn(List.of());   // 无同 type 旧 fact
-        when(ragForgeClient.syncText(anyLong(), anyString(), anyString(), anyString()))
+        when(ragForgeClient.ingestText(anyLong(), anyString(), anyString(), anyString()))
                 .thenReturn(Optional.of(950L));
 
         boolean ok = service.store(7L, "PREFERENCE", "我只想远程", 0.6);
 
         assertThat(ok).isTrue();
-        verify(ragForgeClient).syncText(eq(42L), anyString(), eq("我只想远程"), eq("PREFERENCE"));
+        verify(ragForgeClient).ingestText(eq(42L), anyString(), eq("我只想远程"), eq("PREFERENCE"));
         verify(mapper).insert(any(UserLongTermMemoryEntity.class));
         verify(mapper, never()).markSuperseded(anyLong(), anyLong());
         verify(ragForgeClient, never()).deleteDocument(anyLong());
@@ -120,7 +120,7 @@ class LongTermMemoryServiceTest {
         when(mapper.selectList(any())).thenReturn(List.of(fact(99L, "PREFERENCE", "想远程", 900L, 0.6)));
         when(ragForgeClient.searchInKb(anyLong(), anyString(), anyInt(), anyList(), any()))
                 .thenReturn(List.of(chunk(900L, "想远程", 0.9)));   // 命中旧 fact
-        when(ragForgeClient.syncText(anyLong(), anyString(), anyString(), anyString()))
+        when(ragForgeClient.ingestText(anyLong(), anyString(), anyString(), anyString()))
                 .thenReturn(Optional.of(950L));
         when(mapper.insert(any(UserLongTermMemoryEntity.class))).thenAnswer(inv -> {
             inv.getArgument(0, UserLongTermMemoryEntity.class).setId(100L);
@@ -139,7 +139,7 @@ class LongTermMemoryServiceTest {
         props.setEnabled(true);
         ragProps.setLtmKbId("42");
         when(mapper.selectList(any())).thenReturn(List.of());
-        when(ragForgeClient.syncText(anyLong(), anyString(), anyString(), anyString()))
+        when(ragForgeClient.ingestText(anyLong(), anyString(), anyString(), anyString()))
                 .thenReturn(Optional.empty());
         assertThat(service.store(7L, "PREFERENCE", "x", 0.6)).isFalse();
         verify(mapper, never()).insert(any(UserLongTermMemoryEntity.class));

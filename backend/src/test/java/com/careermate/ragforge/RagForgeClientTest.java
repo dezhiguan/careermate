@@ -104,6 +104,73 @@ class RagForgeClientTest {
     }
 
     @Test
+    void ingestTextRelayParsesDocumentIdAndSendsMultipartWithApiKey() throws IOException {
+        AtomicReference<String> contentType = new AtomicReference<>();
+        AtomicReference<String> apiKeyHeader = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        int port = server.getAddress().getPort();
+        server.createContext("/api/v1/documents", exchange -> {
+            contentType.set(exchange.getRequestHeaders().getFirst("Content-Type"));
+            apiKeyHeader.set(exchange.getRequestHeaders().getFirst("X-API-Key"));
+            exchange.getRequestBody().readAllBytes();
+            byte[] body = "{\"status\":\"CREATED\",\"documentId\":93052}".getBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+
+        RagForgeProperties props = new RagForgeProperties();
+        props.setEnabled(true);
+        props.setUrl("http://localhost:" + port);
+        props.setApiKey("k");
+        RagForgeClient client = new RagForgeClient(props);
+
+        Optional<Long> docId = client.ingestText(677L, "ltm-u7-abc123", "只考虑远程岗位", "PREFERENCE");
+
+        assertTrue(docId.isPresent());
+        assertEquals(93052L, docId.get());
+        assertTrue(contentType.get() != null && contentType.get().startsWith("multipart/form-data"));
+        assertEquals("k", apiKeyHeader.get());
+    }
+
+    @Test
+    void ingestTextReturnsExistingDocIdOnConflict() throws IOException {
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        int port = server.getAddress().getPort();
+        server.createContext("/api/v1/documents", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            byte[] body = "{\"error\":\"DOC_IDENTITY_CONFLICT\",\"existingDocId\":555}".getBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+
+        RagForgeProperties props = new RagForgeProperties();
+        props.setEnabled(true);
+        props.setUrl("http://localhost:" + port);
+        props.setApiKey("k");
+        RagForgeClient client = new RagForgeClient(props);
+
+        Optional<Long> docId = client.ingestText(677L, "ltm-u7-dup", "重复事实", "SKILL");
+        assertEquals(Optional.of(555L), docId);
+    }
+
+    @Test
+    void ingestTextDisabledOrBlankReturnsEmpty() {
+        RagForgeProperties props = new RagForgeProperties();
+        props.setEnabled(false);
+        assertEquals(Optional.empty(), new RagForgeClient(props).ingestText(677L, "x", "内容", "PREFERENCE"));
+        props.setEnabled(true);
+        RagForgeClient client = new RagForgeClient(props);
+        assertEquals(Optional.empty(), client.ingestText(null, "x", "内容", "PREFERENCE"));
+        assertEquals(Optional.empty(), client.ingestText(677L, "x", "  ", "PREFERENCE"));
+    }
+
+    @Test
     void usesApiKeyHeaderWhenConfigured() throws IOException {
         AtomicReference<String> apiKeyHeader = new AtomicReference<>();
         AtomicReference<String> authorizationHeader = new AtomicReference<>();

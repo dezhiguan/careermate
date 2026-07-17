@@ -105,8 +105,14 @@ public class RagForgeClient {
     }
 
     private HttpHeaders defaultHeaders() {
-        HttpHeaders headers = new HttpHeaders();
+        HttpHeaders headers = authHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        return headers;
+    }
+
+    /** 仅鉴权头（X-API-Key 或交换后的 Bearer），不设 Content-Type，供 multipart 复用。 */
+    private HttpHeaders authHeaders() {
+        HttpHeaders headers = new HttpHeaders();
         if (StringUtils.hasText(properties.getApiKey())) {
             headers.set("X-API-Key", properties.getApiKey());
         } else {
@@ -347,6 +353,68 @@ public class RagForgeClient {
             return Optional.of(docId);
         } catch (Exception e) {
             log.warn("RAGForge syncText 失败（已降级）: title={} err={}", title, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * 通过 relay 入库端点（{@code POST /api/v1/documents}，multipart）同步入库一段文本，成功返回 docId。
+     * 这是 API-Key 可达的通用入库通道（采集器同款）：{@code file}=正文，{@code meta}=IngestCommand JSON。
+     * externalId 用于幂等（同 kb 同 externalId 重复入库→409，返回既有 docId）。
+     * enabled=false / kbId 空 / 内容空 → Optional.empty()；任何异常 → warn + empty。
+     */
+    public Optional<Long> ingestText(Long kbId, String externalId, String content, String chunkType) {
+        if (!properties.isEnabled() || kbId == null || content == null || content.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            String filename = "ltm-" + (externalId == null ? "doc" : externalId) + ".txt";
+            var meta = new java.util.HashMap<String, Object>();
+            meta.put("kbId", kbId);
+            meta.put("filename", filename);
+            meta.put("contentType", "text/plain");
+            if (chunkType != null) {
+                meta.put("chunkType", chunkType);
+            }
+            if (StringUtils.hasText(externalId)) {
+                meta.put("identity", java.util.Map.of("externalId", externalId));
+            }
+
+            org.springframework.core.io.ByteArrayResource fileResource =
+                    new org.springframework.core.io.ByteArrayResource(content.getBytes(StandardCharsets.UTF_8)) {
+                        @Override
+                        public String getFilename() {
+                            return filename;
+                        }
+                    };
+            org.springframework.util.MultiValueMap<String, Object> body =
+                    new org.springframework.util.LinkedMultiValueMap<>();
+            body.add("file", fileResource);
+            body.add("meta", objectMapper.writeValueAsString(meta));
+
+            HttpHeaders headers = authHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            ResponseEntity<String> response = restTemplate.exchange(
+                    properties.getUrl() + "/api/v1/documents", HttpMethod.POST,
+                    new HttpEntity<>(body, headers), String.class);
+
+            String responseBody = response.getBody();
+            if (responseBody == null || responseBody.isBlank()) {
+                return Optional.empty();
+            }
+            JsonNode root = objectMapper.readTree(responseBody);
+            // relay 直接返回 {documentId,status}，无 code/msg 包裹；冲突时返回 {error,existingDocId}。
+            long docId = root.path("documentId").asLong(-1);
+            if (docId <= 0) {
+                docId = root.path("existingDocId").asLong(-1);
+            }
+            if (docId <= 0) {
+                log.warn("RAGForge ingestText 未拿到 docId: kbId={} body={}", kbId, responseBody);
+                return Optional.empty();
+            }
+            return Optional.of(docId);
+        } catch (Exception e) {
+            log.warn("RAGForge ingestText 失败（已降级）: kbId={} err={}", kbId, e.getMessage());
             return Optional.empty();
         }
     }
