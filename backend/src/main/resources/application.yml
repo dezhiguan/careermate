@@ -166,7 +166,8 @@ careermate:
   ragforge:
     enabled: ${RAGFORGE_ENABLED:false}          # true 时才真实调用，false 时跳过（开发期不强依赖）
     url: ${RAGFORGE_URL:http://localhost:8080}
-    api-key: ${RAGFORGE_API_KEY:}
+    api-key: ${RAGFORGE_API_KEY:}                 # 默认 key（CareerMate求职智能体组织：LTM/个人库）
+    data-api-key: ${RAGFORGE_DATA_API_KEY:}       # 数据组织 key（职场数据分享有限公司 org316：JD/面试/公司/市场/技能库）；空则回退 api-key
     requested-audience: ${RAGFORGE_REQUESTED_AUDIENCE:ragforge-api}
     requested-scopes: ${RAGFORGE_REQUESTED_SCOPES:rag:search}
     exchanged-token-cache-ttl-ms: ${RAGFORGE_EXCHANGED_TOKEN_CACHE_TTL_MS:300000}
