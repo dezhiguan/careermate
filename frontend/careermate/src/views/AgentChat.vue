@@ -430,12 +430,20 @@
           <button type="button" class="modal-close" @click="pendingExportFormat = ''">×</button>
         </div>
         <div class="modal-body">
-          <p class="fact-confirm-lead">
-            以下内容在你的原始简历 / 画像里没找到出处，导出前请再确认属实——小职不替你担保这些是真的：
-          </p>
-          <ul class="fact-list">
-            <li v-for="(f, i) in factSuspects" :key="i">{{ f }}</li>
-          </ul>
+          <template v-if="factSuspects.length">
+            <p class="fact-confirm-lead">
+              以下内容在你的原始简历 / 画像里没找到出处，导出前请再确认属实——小职不替你担保这些是真的：
+            </p>
+            <ul class="fact-list">
+              <li v-for="(f, i) in factSuspects" :key="'f' + i">{{ f }}</li>
+            </ul>
+          </template>
+          <template v-if="completenessWarnings.length">
+            <p class="fact-confirm-lead">完整性检查发现以下问题，建议补全后再导出：</p>
+            <ul class="fact-list">
+              <li v-for="(w, i) in completenessWarnings" :key="'w' + i">{{ w }}</li>
+            </ul>
+          </template>
           <div class="fact-confirm-actions">
             <button type="button" class="fact-btn-ghost" @click="pendingExportFormat = ''">再改改</button>
             <button type="button" class="fact-btn-primary" @click="confirmExport">确认属实，继续导出</button>
@@ -1405,10 +1413,36 @@ const factSuspects = computed(() => {
   return list.filter((f) => f != null && String(f).trim())
 })
 
+// #3 导出前完整性终检：占位符 / 联系方式 / 日期。基于当前 Canvas 正文本地扫描。
+const completenessWarnings = computed(() => {
+  const text = String(resumeViewerContent.value || '')
+  const warns = []
+  if (!text.trim()) return warns
+  const placeholders = text.match(/[[【][^\]】]{0,20}(待填|待补充|填写|你的|xxx|todo|placeholder)[^\]】]*[\]】]|_{3,}|[xX]{4,}/gi)
+  if (placeholders && placeholders.length) {
+    warns.push(`存在 ${placeholders.length} 处占位符/待填内容（如 ${placeholders[0]}）`)
+  }
+  const hasEmail = /[\w.+-]+@[\w-]+\.[\w.-]+/.test(text)
+  const hasPhone = /(?<!\d)\d{11}(?!\d)|\d{3,4}[-\s]?\d{7,8}/.test(text)
+  if (!hasEmail && !hasPhone) {
+    warns.push('未检测到联系方式（邮箱/手机）')
+  } else if (!hasEmail) {
+    warns.push('未检测到邮箱')
+  } else if (!hasPhone) {
+    warns.push('未检测到手机号')
+  }
+  if (/##\s*(工作经历|项目经历)/.test(text) && !/20\d{2}|19\d{2}/.test(text)) {
+    warns.push('工作/项目经历似乎缺少年份日期')
+  }
+  return warns
+})
+
+const exportWarnings = computed(() => [...factSuspects.value, ...completenessWarnings.value])
+
 async function canvasExportPdf() {
   if (!activeVersionId.value) return
-  // 导出前终检：有疑似无出处的强事实 → 先弹确认，属实才导出
-  if (factSuspects.value.length) {
+  // 导出前终检：有疑似无出处事实 或 完整性问题 → 先弹确认
+  if (exportWarnings.value.length) {
     pendingExportFormat.value = 'pdf'
     return
   }
@@ -1417,7 +1451,7 @@ async function canvasExportPdf() {
 
 async function canvasExportWord() {
   if (!activeVersionId.value) return
-  if (factSuspects.value.length) {
+  if (exportWarnings.value.length) {
     pendingExportFormat.value = 'word'
     return
   }
