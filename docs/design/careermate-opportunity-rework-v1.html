@@ -247,7 +247,7 @@
 
   <div class="meta">
     <span class="chip"><span>拟制日期</span><b>2026-07-18</b></span>
-    <span class="chip"><span>版本</span><b>V1.0 草案</b></span>
+    <span class="chip"><span>版本</span><b>V1.1</b></span>
     <span class="chip"><span>拟制</span><b>架构</b></span>
     <span class="chip"><span>状态</span><span class="status-dot"></span><b>待审核</b></span>
   </div>
@@ -260,6 +260,7 @@
         <thead><tr><th style="width:5rem">版本</th><th style="width:7rem">日期</th><th>变更</th><th style="width:5rem">拟制</th></tr></thead>
         <tbody>
           <tr><td class="mono">V1.0</td><td class="num">2026-07-18</td><td>初稿：撤销全量分页，确立「默认过滤 + 匹配池扩大 + 冷启动三档 + 去 demo + 分页统一」。</td><td>架构</td></tr>
+          <tr><td class="mono">V1.1</td><td class="num">2026-07-18</td><td>后端上线并实测：匹配池定为 <strong>150</strong>（配套把 RAGForge <code>/search</code> topK 上限 50→150）；机会列表实测 total 稳定=150、翻页不漂移、每页可到 50。城市接口上线（37 城+默认城市）。前端按实现说明落地中。</td><td>架构</td></tr>
         </tbody>
       </table>
     </div>
@@ -339,7 +340,7 @@
 
     <h3>3.1　匹配池扩大 &amp; total 稳定（后端）</h3>
     <ul>
-      <li>把检索取数与页码<strong>解耦</strong>：列表固定按匹配池上限取 <code>topK</code>（建议 <strong>150</strong>），去重后作为稳定 total，分页仅对内存池切片。</li>
+      <li>把检索取数与页码<strong>解耦</strong>：列表固定按匹配池上限取 <code>topK</code>（<strong>150</strong>），去重后作为稳定 total，分页仅对内存池切片。<strong>RAGForge 约束已放宽</strong>：其 <code>/search</code> 原硬限 <code>topK≤50</code>（超过 400 查空），已配套上调到 <strong>150</strong>；两处（RAGForge <code>SearchRequest.topK@Max</code> 与 CareerMate <code>MAX_TOP_K</code>/<code>OPPORTUNITY_POOL_SIZE</code>）需同步。hybrid 策略不走 rerank，成本主要是召回量（<code>recallTopK=topK×4</code>），Qdrant/ES 可承受。</li>
       <li>调整 <code>OpportunityServiceImpl.searchTopKFor</code> 与 <code>MAX_SEARCH_TOP_K</code>；<code>total</code> 不再随页码变化。</li>
       <li>匹配池是「最相关的前 N 个」，非全库——与推荐定位一致。</li>
     </ul>
@@ -411,7 +412,7 @@
         <span class="mb-tabs"><span class="on">匹配度</span><span>最新</span></span>
         <span class="mb-city">城市·深圳 ✕</span>
       </div>
-      <div class="mock-count">共 <b>152</b> 个机会 · 已按你的画像匹配排序</div>
+      <div class="mock-count">共 <b>150</b> 个机会 · 已按你的画像匹配排序</div>
       <div class="mock-grid">
         <div class="jd">
           <div class="jd-top">
@@ -433,12 +434,12 @@
         </div>
       </div>
       <div class="pgbar">
-        <span class="pg-info">第 <b>1–10</b> 条 / 共 <b>152</b> 条</span>
+        <span class="pg-info">第 <b>1–10</b> 条 / 共 <b>150</b> 条</span>
         <span class="pg-ctrl">
           每页 <span class="pg-select">10 ▾</span> 条
           <span class="pg-btn">‹</span>
           <span class="pg-num on">1</span><span class="pg-num">2</span><span class="pg-num">3</span>
-          <span class="pg-dots">…</span><span class="pg-num">16</span>
+          <span class="pg-dots">…</span><span class="pg-num">15</span>
           <span class="pg-btn">›</span>
         </span>
       </div>
@@ -566,7 +567,7 @@
         <tbody>
           <tr><td class="mono">Q1</td><td>城市下拉来源</td><td><strong>建议：离线/定时聚合</strong> JD 库的「城市→岗位数」，存 CareerMate 侧，下拉只显示有岗位的城市、按量排序、周期刷新（运行时零 RAGForge 依赖）。<span class="pill p1">推荐</span>　备选：① 后端全国主要城市表（简单但可能含空城市、非真实分布，可作兜底）；② RAGForge 加 distinct-city 端点走实时（需改 RAGForge，且运行时 API-Key 现打不到文档列表）。</td></tr>
           <tr><td class="mono">Q2</td><td>纯新用户冷启动方式</td><td>进页<strong>轻问答</strong>（岗位+城市，相关性最高，<span class="pill p1">建议</span>）　/　<strong>定位默认</strong>（无打扰但较粗）。</td></tr>
-          <tr><td class="mono">Q3</td><td>匹配池上限具体值</td><td>建议 <strong>150</strong>；可 100 / 200。越大越慢且低相关噪声增多。</td></tr>
+          <tr><td class="mono">Q3</td><td>匹配池上限具体值</td><td><span class="pill ok">已定 150</span>：RAGForge topK 上限同步放宽到 150，机会列表实测稳定 total=150（去重后按数据量略少）。再大需评估召回/延迟与相关性尾部。</td></tr>
           <tr><td class="mono">Q4</td><td>每页默认条数</td><td>建议默认 <strong>10</strong>，可选 10 / 20 / 50。</td></tr>
           <tr><td class="mono">Q5</td><td>冷启动「岗位」输入形态</td><td><strong>建议：输入框 + 联想（combobox）</strong>，自由文本覆盖全部岗位，联想复用现有「岗位联想」。<span class="pill p1">推荐</span>　不建议封闭下拉（岗位为开放词汇，无法枚举全部）。城市仍用下拉。</td></tr>
         </tbody>
