@@ -84,26 +84,15 @@
       </template>
     </div>
 
-    <!-- 桌面：点击页码翻页 -->
-    <nav v-if="isDesktop && !loading && !degraded && totalPages > 1" class="pager" aria-label="分页导航">
-      <button type="button" class="pager-btn" :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">
-        上一页
-      </button>
-      <button
-        v-for="(p, i) in pageWindow"
-        :key="`${p}-${i}`"
-        type="button"
-        class="pager-num"
-        :class="{ active: p === currentPage, ellipsis: p === '…' }"
-        :disabled="p === '…'"
-        @click="goToPage(p)"
-      >
-        {{ p }}
-      </button>
-      <button type="button" class="pager-btn" :disabled="currentPage >= totalPages" @click="goToPage(currentPage + 1)">
-        下一页
-      </button>
-    </nav>
+    <!-- 桌面：统一分页组件 -->
+    <PaginationBar
+      v-if="isDesktop && !loading && !degraded && totalCount > 0"
+      :total="totalCount"
+      :page="currentPage"
+      :size="pageSize"
+      @update:page="goToPage"
+      @update:size="onPageSizeChange"
+    />
 
     <p v-if="error" class="error-text">{{ error }}</p>
 
@@ -159,6 +148,7 @@ import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 import { createApplication } from '../api/pipeline'
 import { listSavedJobs, saveJob, unsaveJob } from '../api/savedJobs'
 import { homeStore } from '../stores/homeStore'
+import PaginationBar from '../components/PaginationBar.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -455,28 +445,21 @@ function appendUniqueItems(currentItems, nextItems) {
 }
 
 // 分页分平台：桌面点击页码翻页、移动端触底无限滚动（设计 R54/R162）
-const PAGE_SIZE = 10
 const isDesktop = ref(false)
 function updateIsDesktop() {
   isDesktop.value = typeof window !== 'undefined' && window.innerWidth >= 900
 }
-const totalPages = computed(() => Math.max(1, Math.ceil((totalCount.value || 0) / PAGE_SIZE)))
-const pageWindow = computed(() => {
-  const total = totalPages.value
-  const cur = currentPage.value
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
-  const out = [1]
-  const start = Math.max(2, cur - 1)
-  const end = Math.min(total - 1, cur + 1)
-  if (start > 2) out.push('…')
-  for (let p = start; p <= end; p++) out.push(p)
-  if (end < total - 1) out.push('…')
-  out.push(total)
-  return out
-})
+const totalPages = computed(() => Math.max(1, Math.ceil((totalCount.value || 0) / pageSize.value)))
 async function goToPage(p) {
   if (typeof p !== 'number' || p < 1 || p > totalPages.value || p === currentPage.value) return
   await fetchList({ page: p, append: false })
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+async function onPageSizeChange(s) {
+  const next = Number(s) || 10
+  if (next === pageSize.value) return
+  pageSize.value = next
+  await fetchList({ page: 1, append: false })
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
