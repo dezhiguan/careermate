@@ -91,6 +91,18 @@ const routes = [
     component: () => import('../views/AccountSettings.vue'),
     meta: { title: '账号与安全' },
   },
+  {
+    path: '/mine/notifications',
+    name: 'notification-settings',
+    component: () => import('../views/NotificationSettings.vue'),
+    meta: { title: '通知偏好' },
+  },
+  {
+    path: '/mine/data-export',
+    name: 'data-export',
+    component: () => import('../views/DataExportSettings.vue'),
+    meta: { title: '数据导出' },
+  },
   { path: '/match', redirect: '/opportunity' },
   { path: '/dashboard', redirect: '/opportunity' },
   { path: '/resume', redirect: '/mine/resume' },

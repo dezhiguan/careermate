@@ -274,11 +274,14 @@
       <button type="button" class="setrow" @click="$router.push('/mine/account-settings')">
         <span>账号与隐私</span><span class="setrow-arrow">▸</span>
       </button>
-      <button type="button" class="setrow" @click="$router.push('/mine/account-settings')">
+      <button type="button" class="setrow" @click="$router.push('/mine/notifications')">
         <span>通知偏好</span><span class="setrow-arrow">▸</span>
       </button>
+      <button type="button" class="setrow" @click="$router.push('/mine/data-export')">
+        <span>数据导出</span><span class="setrow-arrow">▸</span>
+      </button>
       <button type="button" class="setrow" @click="$router.push('/mine/account-settings')">
-        <span>数据导出 / 注销</span><span class="setrow-arrow">▸</span>
+        <span>账号注销</span><span class="setrow-arrow">▸</span>
       </button>
     </section>
 
