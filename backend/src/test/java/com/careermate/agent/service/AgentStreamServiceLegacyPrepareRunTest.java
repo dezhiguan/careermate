@@ -143,7 +143,8 @@ class AgentStreamServiceLegacyPrepareRunTest {
                 new com.careermate.agent.cost.TokenCostRecorder(
                         new io.micrometer.core.instrument.simple.SimpleMeterRegistry(),
                         new com.careermate.agent.cost.LlmPricingProperties()),
-                org.mockito.Mockito.mock(com.careermate.agent.memory.ltm.LongTermMemoryAdvisor.class)
+                org.mockito.Mockito.mock(com.careermate.agent.memory.ltm.LongTermMemoryAdvisor.class),
+                org.mockito.Mockito.mock(com.careermate.resume.version.service.ResumeVersionService.class)
         );
         stubContextLoaders();
     }

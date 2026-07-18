@@ -73,6 +73,7 @@ public class AgentStreamService {
     private final AgentTaskRegistry taskRegistry;
     private final AgentSessionService agentSessionService;
     private final ResumeContextProvider resumeContextProvider;
+    private final com.careermate.resume.version.service.ResumeVersionService resumeVersionService;
     private final JobMatchContextProvider jobMatchContextProvider;
     private final ObjectMapper objectMapper;
     private final AgentProperties agentProperties;
@@ -134,7 +135,8 @@ public class AgentStreamService {
             com.careermate.agent.rag.DeepPathKnowledgeAugmentor deepPathKnowledgeAugmentor,
             com.careermate.agent.reflect.DeepPathReflectionRunner deepPathReflectionRunner,
             com.careermate.agent.cost.TokenCostRecorder tokenCostRecorder,
-            com.careermate.agent.memory.ltm.LongTermMemoryAdvisor longTermMemoryAdvisor
+            com.careermate.agent.memory.ltm.LongTermMemoryAdvisor longTermMemoryAdvisor,
+            com.careermate.resume.version.service.ResumeVersionService resumeVersionService
     ) {
         this.llmClient = llmClient;
         this.agentExecutor = agentExecutor;
@@ -165,6 +167,7 @@ public class AgentStreamService {
         this.deepPathReflectionRunner = deepPathReflectionRunner;
         this.tokenCostRecorder = tokenCostRecorder;
         this.longTermMemoryAdvisor = longTermMemoryAdvisor;
+        this.resumeVersionService = resumeVersionService;
     }
 
     public SseEmitter stream(Long userId, String sessionId, AgentMessageRequest request) {
@@ -522,6 +525,18 @@ public class AgentStreamService {
         String systemPrompt = AgentPromptAssembler.buildBaseSystemPrompt(basePrompt.content());
         systemPrompt = AgentPromptAssembler.appendCareerProfileContext(systemPrompt, careerProfileContext);
         systemPrompt = AgentPromptAssembler.appendResumeContext(systemPrompt, resumeContext);
+        // #6 路由提示：本条 JD 线已有定制简历版本时，明确告诉模型「微调走 modify_resume，重做才用 generate_resume_from_jd」。
+        try {
+            int resumeVersionCount = resumeVersionService.listBySession(userId, sessionId).size();
+            if (resumeVersionCount > 0) {
+                systemPrompt = systemPrompt + "\n\n【当前 JD 线简历状态】本条 JD 线已有 " + resumeVersionCount
+                        + " 个定制简历版本。用户若要求微调某处（改数字/加或删一段/调措辞/换说法），"
+                        + "请调用 modify_resume 工具（以最新版本为基做最小改动、保留其余），不要重新整份生成；"
+                        + "仅当用户明确要重做整份、或尚无任何版本时，才用 generate_resume_from_jd。";
+            }
+        } catch (Exception ignored) {
+            // 版本查询失败不影响主流程
+        }
         systemPrompt = AgentPromptAssembler.appendJobMatchContext(systemPrompt, jobMatchContext);
         systemPrompt = AgentPromptAssembler.appendConversationContext(systemPrompt, conversationContext);
 
