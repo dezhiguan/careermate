@@ -29,6 +29,7 @@ class AgentToolRegistryTest {
             "search_knowledge_base",
             "rag_retriever",
             "generate_resume_from_jd",
+            "modify_resume",
             // 围绕 JD 的六项能力新增工具（M1/M2/M3）
             "get_company_atmosphere",
             "generate_jd_aware_questions",
@@ -44,7 +45,7 @@ class AgentToolRegistryTest {
     @Test
     void listDefinitionsContainsAllTools() {
         List<AgentToolDefinition> definitions = registry.listDefinitions();
-        assertEquals(17, definitions.size());
+        assertEquals(18, definitions.size());
         Set<String> names = definitions.stream()
                 .map(AgentToolDefinition::getName)
                 .collect(java.util.stream.Collectors.toSet());
