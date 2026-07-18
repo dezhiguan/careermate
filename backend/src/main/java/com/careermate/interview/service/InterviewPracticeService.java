@@ -225,11 +225,13 @@ public class InterviewPracticeService {
         );
 
         String summary = buildSummary(session, answered);
+        String weakness = weakestQuestionType(answered);
         sessionMapper.update(null, new LambdaUpdateWrapper<InterviewSessionEntity>()
                 .eq(InterviewSessionEntity::getId, sessionId)
                 .eq(InterviewSessionEntity::getUserId, userId)
                 .set(InterviewSessionEntity::getStatus, STATUS_COMPLETED)
                 .set(InterviewSessionEntity::getSummary, summary)
+                .set(InterviewSessionEntity::getWeakness, weakness)
                 .set(InterviewSessionEntity::getUpdatedAt, now));
 
         return getSession(sessionId);
@@ -317,12 +319,39 @@ public class InterviewPracticeService {
         return userId;
     }
 
+    /** 最弱题型：按题型均分排序，取最低且低于阈值(75)的那类；不足则空。 */
+    private String weakestQuestionType(List<InterviewQuestionEntity> answered) {
+        if (answered == null || answered.isEmpty()) {
+            return null;
+        }
+        java.util.Map<String, int[]> agg = new java.util.HashMap<>();  // type -> [sum, count]
+        for (InterviewQuestionEntity q : answered) {
+            if (q.getQuestionType() == null || q.getScore() == null) {
+                continue;
+            }
+            int[] a = agg.computeIfAbsent(q.getQuestionType(), k -> new int[2]);
+            a[0] += q.getScore();
+            a[1] += 1;
+        }
+        String weakest = null;
+        double lowest = Double.MAX_VALUE;
+        for (var e : agg.entrySet()) {
+            double avg = (double) e.getValue()[0] / e.getValue()[1];
+            if (avg < lowest) {
+                lowest = avg;
+                weakest = e.getKey();
+            }
+        }
+        return lowest < 75 ? weakest : null;
+    }
+
     private InterviewSessionListItemResponse toListItem(InterviewSessionEntity entity) {
         return InterviewSessionListItemResponse.builder()
                 .id(entity.getId())
                 .title(entity.getTitle())
                 .status(entity.getStatus())
                 .sessionType(entity.getSessionType() == null ? "MOCK" : entity.getSessionType())
+                .weakness(entity.getWeakness())
                 .totalQuestions(entity.getTotalQuestions())
                 .answeredQuestions(entity.getAnsweredQuestions())
                 .averageScore(entity.getAverageScore())

@@ -18,6 +18,8 @@ public class InterviewSessionListItemResponse {
     private String status;
     /** MOCK 模拟 / REAL 真实复盘。 */
     private String sessionType;
+    /** 本场最弱题型。 */
+    private String weakness;
     private Integer totalQuestions;
     private Integer answeredQuestions;
     private Integer averageScore;

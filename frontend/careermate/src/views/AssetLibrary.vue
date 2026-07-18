@@ -86,6 +86,7 @@
             <div class="row-name">🎤 {{ s.title || s.company || '模拟面试' }}</div>
             <div class="row-meta">
               <span class="row-tag" :class="s.sessionType === 'REAL' ? 'real' : 'mock'">{{ s.sessionType === 'REAL' ? '真实' : '模拟' }}</span>
+              <span v-if="s.weakness" class="row-tag weak">弱项·{{ s.weakness }}</span>
               <span v-if="s.status" class="row-tag gray">{{ statusLabel(s.status) }}</span>
               <span v-if="interviewScore(s) != null" class="row-tag score">得分 {{ interviewScore(s) }}</span>
               <span class="row-time">{{ formatDate(s.createdAt || s.updatedAt) }}</span>
@@ -617,6 +618,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .row-tag.base { color: #475569; background: #f1f5f9; }
 .row-tag.mock { color: #64748b; background: #f1f5f9; }
 .row-tag.real { color: #0DA76A; background: #E6F6EF; }
+.row-tag.weak { color: #DB9A2D; background: #FBF3E2; }
 .row-tag.exported { color: #0DA76A; background: #E6F6EF; }
 .row-tag.reused { color: #4E5BEF; background: #EEF0FE; }
 .row-tag.score { color: #0DA76A; background: #dcfce7; }

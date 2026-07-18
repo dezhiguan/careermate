@@ -235,6 +235,16 @@
         </div>
 
         <div class="input-area">
+          <div class="quick-bar" role="group" aria-label="快捷话术">
+            <button
+              v-for="q in QUICK_ACTIONS"
+              :key="q.label"
+              type="button"
+              class="quick-chip"
+              :disabled="streamState === 'streaming'"
+              @click="sendExamplePrompt(q.text)"
+            >{{ q.label }}</button>
+          </div>
           <div class="focus-bar" role="group" aria-label="焦点">
             <span class="focus-label">焦点</span>
             <button
@@ -420,12 +430,20 @@
           <button type="button" class="modal-close" @click="pendingExportFormat = ''">×</button>
         </div>
         <div class="modal-body">
-          <p class="fact-confirm-lead">
-            以下内容在你的原始简历 / 画像里没找到出处，导出前请再确认属实——小职不替你担保这些是真的：
-          </p>
-          <ul class="fact-list">
-            <li v-for="(f, i) in factSuspects" :key="i">{{ f }}</li>
-          </ul>
+          <template v-if="factSuspects.length">
+            <p class="fact-confirm-lead">
+              以下内容在你的原始简历 / 画像里没找到出处，导出前请再确认属实——小职不替你担保这些是真的：
+            </p>
+            <ul class="fact-list">
+              <li v-for="(f, i) in factSuspects" :key="'f' + i">{{ f }}</li>
+            </ul>
+          </template>
+          <template v-if="completenessWarnings.length">
+            <p class="fact-confirm-lead">完整性检查发现以下问题，建议补全后再导出：</p>
+            <ul class="fact-list">
+              <li v-for="(w, i) in completenessWarnings" :key="'w' + i">{{ w }}</li>
+            </ul>
+          </template>
           <div class="fact-confirm-actions">
             <button type="button" class="fact-btn-ghost" @click="pendingExportFormat = ''">再改改</button>
             <button type="button" class="fact-btn-primary" @click="confirmExport">确认属实，继续导出</button>
@@ -549,6 +567,13 @@ const deepModeOn = ref(false)
 const sessionCreating = ref(false)
 const globalError = ref('')
 // 焦点条：会话内检索信号（可多选），切焦点不新建会话、不中断对话
+// #7 底部快捷条：点了直接发话术（区别于焦点条的"注入焦点"）
+const QUICK_ACTIONS = [
+  { label: '改简历', text: '帮我按这条 JD 优化简历' },
+  { label: '模拟面试', text: '来一轮针对这个岗位的模拟面试' },
+  { label: '谈薪建议', text: '给我这个岗位的薪资范围和谈薪建议' },
+  { label: '换一条 JD', text: '帮我看看还有哪些匹配的机会' },
+]
 const FOCUS_OPTIONS = [
   { key: 'resume', label: '改简历' },
   { key: 'jd', label: 'JD分析' },
@@ -1388,10 +1413,36 @@ const factSuspects = computed(() => {
   return list.filter((f) => f != null && String(f).trim())
 })
 
+// #3 导出前完整性终检：占位符 / 联系方式 / 日期。基于当前 Canvas 正文本地扫描。
+const completenessWarnings = computed(() => {
+  const text = String(resumeViewerContent.value || '')
+  const warns = []
+  if (!text.trim()) return warns
+  const placeholders = text.match(/[[【][^\]】]{0,20}(待填|待补充|填写|你的|xxx|todo|placeholder)[^\]】]*[\]】]|_{3,}|[xX]{4,}/gi)
+  if (placeholders && placeholders.length) {
+    warns.push(`存在 ${placeholders.length} 处占位符/待填内容（如 ${placeholders[0]}）`)
+  }
+  const hasEmail = /[\w.+-]+@[\w-]+\.[\w.-]+/.test(text)
+  const hasPhone = /(?<!\d)\d{11}(?!\d)|\d{3,4}[-\s]?\d{7,8}/.test(text)
+  if (!hasEmail && !hasPhone) {
+    warns.push('未检测到联系方式（邮箱/手机）')
+  } else if (!hasEmail) {
+    warns.push('未检测到邮箱')
+  } else if (!hasPhone) {
+    warns.push('未检测到手机号')
+  }
+  if (/##\s*(工作经历|项目经历)/.test(text) && !/20\d{2}|19\d{2}/.test(text)) {
+    warns.push('工作/项目经历似乎缺少年份日期')
+  }
+  return warns
+})
+
+const exportWarnings = computed(() => [...factSuspects.value, ...completenessWarnings.value])
+
 async function canvasExportPdf() {
   if (!activeVersionId.value) return
-  // 导出前终检：有疑似无出处的强事实 → 先弹确认，属实才导出
-  if (factSuspects.value.length) {
+  // 导出前终检：有疑似无出处事实 或 完整性问题 → 先弹确认
+  if (exportWarnings.value.length) {
     pendingExportFormat.value = 'pdf'
     return
   }
@@ -1400,7 +1451,7 @@ async function canvasExportPdf() {
 
 async function canvasExportWord() {
   if (!activeVersionId.value) return
-  if (factSuspects.value.length) {
+  if (exportWarnings.value.length) {
     pendingExportFormat.value = 'word'
     return
   }
@@ -3333,6 +3384,26 @@ onBeforeUnmount(() => {
   background: #fff;
   z-index: 10;
 }
+
+.quick-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.quick-chip {
+  font-size: 12px;
+  color: #4E5BEF;
+  background: #EEF0FE;
+  border: 1px solid #D8DCFB;
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.quick-chip:hover { background: #E0E4FD; }
+.quick-chip:disabled { opacity: .5; cursor: default; }
 
 .focus-bar {
   display: flex;
