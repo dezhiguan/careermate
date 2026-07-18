@@ -23,5 +23,5 @@ public record OpportunityListItemVO(
         List<String> skills,
         Double ragScore,
         String externalUrl,
-        boolean isDemo
+        boolean unmatched
 ) {}

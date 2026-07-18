@@ -2,6 +2,7 @@ package com.careermate.opportunity.controller;
 
 import com.careermate.common.api.ApiResponse;
 import com.careermate.common.api.PageResult;
+import com.careermate.opportunity.dto.OpportunityCitiesVO;
 import com.careermate.opportunity.dto.OpportunityDetailVO;
 import com.careermate.opportunity.dto.OpportunityListItemVO;
 import com.careermate.opportunity.dto.OpportunityListRequest;
@@ -36,11 +37,17 @@ public class OpportunityController {
             @RequestParam(required = false) String position,
             @RequestParam(required = false) String mode,
             @RequestParam(defaultValue = "1") @Min(value = 1, message = "页码需大于等于 1") Integer page,
-            @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页数量需在 1-20 之间")
-            @Max(value = 20, message = "每页数量需在 1-20 之间") Integer size
+            @RequestParam(defaultValue = "10") @Min(value = 1, message = "每页数量需在 1-50 之间")
+            @Max(value = 50, message = "每页数量需在 1-50 之间") Integer size
     ) {
         OpportunityListRequest request = new OpportunityListRequest(keyword, city, position, mode, page, size);
         return ApiResponse.success(opportunityService.list(CurrentUserContext.getUserId(), request));
+    }
+
+    /** 城市筛选选项：可选城市列表 + 默认选中城市（取自用户画像目标城市）。 */
+    @GetMapping("/cities")
+    public ApiResponse<OpportunityCitiesVO> cities() {
+        return ApiResponse.success(opportunityService.cities(CurrentUserContext.getUserId()));
     }
 
     @GetMapping("/{jdId}")

@@ -40,7 +40,9 @@ public class KnowledgeRetrievalService {
     public static final String ERROR_RAGFORGE_FAILED = "RAGFORGE_FAILED";
 
     private static final int DEFAULT_TOP_K = 5;
-    private static final int MAX_TOP_K = 50;
+    // 检索 topK 上限。机会页匹配池需一次取回较多 JD（池上限 150），故放宽到 150；
+    // 其余场景各自传入较小 topK，不受影响。
+    private static final int MAX_TOP_K = 150;
 
     private final RagForgeClient ragForgeClient;
     private final RagForgeProperties ragForgeProperties;

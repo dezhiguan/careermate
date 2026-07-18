@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CareerMate 机会页改造方案 V1.0</title>
+<style>
+  :root {
+    --bg: #f6f6fb;
+    --surface: #ffffff;
+    --surface-2: #f0f0f7;
+    --ink: #1b1c2b;
+    --ink-muted: #5b5c73;
+    --ink-faint: #8a8ba0;
+    --border: #e4e4ef;
+    --border-strong: #d3d3e2;
+    --accent: #4f46e5;
+    --accent-ink: #4038c4;
+    --accent-soft: #ecebfb;
+    --ok: #0f7a54;
+    --ok-soft: #e2f3ec;
+    --warn: #9a5b00;
+    --warn-soft: #f6ecd9;
+    --crit: #b3352b;
+    --crit-soft: #f6e4e2;
+    --shadow: 0 1px 2px rgba(27,28,43,.04), 0 8px 24px rgba(27,28,43,.05);
+    --radius: 12px;
+    --maxw: 60rem;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101017;
+      --surface: #1a1a24;
+      --surface-2: #22232f;
+      --ink: #e9e9f2;
+      --ink-muted: #a2a3b7;
+      --ink-faint: #74758a;
+      --border: #2c2d3c;
+      --border-strong: #3a3b4d;
+      --accent: #8b83f7;
+      --accent-ink: #a49dfb;
+      --accent-soft: #24234000;
+      --accent-soft: #262447;
+      --ok: #3fbf8f;
+      --ok-soft: #16281f;
+      --warn: #d69a3a;
+      --warn-soft: #2a2211;
+      --crit: #e8776b;
+      --crit-soft: #2c1917;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f6fb; --surface: #ffffff; --surface-2: #f0f0f7; --ink: #1b1c2b;
+    --ink-muted: #5b5c73; --ink-faint: #8a8ba0; --border: #e4e4ef; --border-strong: #d3d3e2;
+    --accent: #4f46e5; --accent-ink: #4038c4; --accent-soft: #ecebfb;
+    --ok: #0f7a54; --ok-soft: #e2f3ec; --warn: #9a5b00; --warn-soft: #f6ecd9;
+    --crit: #b3352b; --crit-soft: #f6e4e2; --shadow: 0 1px 2px rgba(27,28,43,.04), 0 8px 24px rgba(27,28,43,.05);
+  }
+  :root[data-theme="dark"] {
+    --bg: #101017; --surface: #1a1a24; --surface-2: #22232f; --ink: #e9e9f2;
+    --ink-muted: #a2a3b7; --ink-faint: #74758a; --border: #2c2d3c; --border-strong: #3a3b4d;
+    --accent: #8b83f7; --accent-ink: #a49dfb; --accent-soft: #262447;
+    --ok: #3fbf8f; --ok-soft: #16281f; --warn: #d69a3a; --warn-soft: #2a2211;
+    --crit: #e8776b; --crit-soft: #2c1917; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.65;
+    -webkit-font-smoothing: antialiased; font-size: 16px;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 3.5rem 1.5rem 6rem; }
+
+  /* ---- masthead ---- */
+  .eyebrow {
+    font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent-ink); font-weight: 700; margin: 0 0 .9rem;
+  }
+  h1 {
+    font-size: clamp(1.9rem, 4.5vw, 2.7rem); line-height: 1.12; margin: 0 0 1rem;
+    letter-spacing: -.02em; text-wrap: balance; font-weight: 760;
+  }
+  .lede { font-size: 1.08rem; color: var(--ink-muted); margin: 0 0 1.8rem; max-width: 46rem; }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: .5rem .5rem;
+    border-top: 1px solid var(--border); padding-top: 1.3rem;
+  }
+  .meta .chip {
+    display: inline-flex; align-items: baseline; gap: .45rem;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 999px; padding: .34rem .8rem; font-size: .82rem;
+    box-shadow: var(--shadow);
+  }
+  .meta .chip b { color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 650; }
+  .meta .chip span { color: var(--ink-faint); text-transform: uppercase; letter-spacing: .06em; font-size: .68rem; }
+  .status-dot { width: .5rem; height: .5rem; border-radius: 999px; background: var(--warn); align-self: center; }
+
+  /* ---- sections ---- */
+  section { margin-top: 3.2rem; }
+  h2 {
+    font-size: 1.4rem; margin: 0 0 1rem; letter-spacing: -.01em; font-weight: 720;
+    display: flex; align-items: baseline; gap: .7rem;
+  }
+  h2 .num {
+    font-family: var(--mono); font-size: .82rem; color: var(--accent);
+    background: var(--accent-soft); border-radius: 7px; padding: .15rem .5rem;
+    font-weight: 700; letter-spacing: 0; flex: none;
+  }
+  h3 { font-size: 1.02rem; margin: 1.8rem 0 .6rem; font-weight: 680; letter-spacing: -.005em; }
+  p { margin: .5rem 0; }
+  a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; }
+  ul, ol { margin: .5rem 0; padding-left: 1.3rem; }
+  li { margin: .3rem 0; }
+  code {
+    font-family: var(--mono); font-size: .86em; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 5px; padding: .08em .38em;
+    color: var(--ink); word-break: break-word;
+  }
+  strong { font-weight: 680; }
+
+  /* ---- cards / callouts ---- */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.3rem 1.4rem; box-shadow: var(--shadow);
+    margin: 1rem 0;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+
+  .callout {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    border-radius: 0 10px 10px 0; padding: .9rem 1.1rem; margin: 1rem 0;
+  }
+  .callout.decide { border-color: var(--accent); }
+  .callout.risk { border-color: var(--warn); background: var(--warn-soft); }
+  .callout.win  { border-color: var(--ok); background: var(--ok-soft); }
+  .callout .k { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--ink-muted); display: block; margin-bottom: .3rem; }
+
+  /* ---- tables ---- */
+  .tbl-scroll { overflow-x: auto; margin: 1rem 0; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; background: var(--surface); min-width: 34rem; }
+  th, td { text-align: left; padding: .7rem .85rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  thead th { background: var(--surface-2); font-weight: 640; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-muted); }
+  tbody tr:last-child td { border-bottom: none; }
+  td.mono, th.mono { font-family: var(--mono); font-size: .82rem; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .del { color: var(--crit); text-decoration: line-through; text-decoration-color: var(--crit); }
+  .arw { color: var(--ink-faint); padding: 0 .25rem; }
+  .new { color: var(--ok); font-weight: 600; }
+
+  /* ---- pills ---- */
+  .pill { display: inline-block; font-size: .72rem; font-weight: 650; padding: .12rem .5rem; border-radius: 999px; letter-spacing: .02em; white-space: nowrap; }
+  .pill.p1 { background: var(--accent-soft); color: var(--accent-ink); }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .pill.crit { background: var(--crit-soft); color: var(--crit); }
+  .pill.muted { background: var(--surface-2); color: var(--ink-muted); }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+  .foot { margin-top: 3.5rem; padding-top: 1.3rem; border-top: 1px solid var(--border); color: var(--ink-faint); font-size: .82rem; }
+
+  .tier { display: grid; grid-template-columns: auto 1fr; gap: .1rem 1rem; align-items: start; }
+  .tier .t-badge { grid-column: 1; }
+  .tier .t-body { grid-column: 2; }
+
+  /* ---------- 页面效果示意 ---------- */
+  .mock { border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); padding: 1rem; box-shadow: var(--shadow); }
+  .mock + .mock { margin-top: 1.1rem; }
+  .mock-cap { font-size: .72rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .1em; margin: 0 0 .7rem; font-weight: 700; display: flex; align-items: center; gap: .5rem; }
+  .mock-cap .pill { text-transform: none; letter-spacing: 0; }
+  .mb { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .5rem .7rem; }
+  .mb-title { font-weight: 780; font-size: 1rem; }
+  .mb-search { flex: 1; min-width: 7rem; color: var(--ink-faint); font-size: .8rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: .32rem .8rem; }
+  .mb-tabs { display: inline-flex; gap: .15rem; font-size: .78rem; }
+  .mb-tabs span { padding: .24rem .55rem; border-radius: 8px; color: var(--ink-muted); }
+  .mb-tabs span.on { color: var(--accent-ink); background: var(--accent-soft); font-weight: 650; }
+  .mb-city { font-size: .78rem; font-weight: 650; color: var(--accent-ink); background: var(--accent-soft); border-radius: 999px; padding: .26rem .7rem; }
+  .mock-count { font-size: .82rem; color: var(--ink-muted); margin: .8rem .15rem .7rem; }
+  .mock-count b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .mock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+  @media (max-width: 560px){ .mock-grid { grid-template-columns: 1fr; } }
+  .jd { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .8rem; display: flex; flex-direction: column; gap: .6rem; }
+  .jd-top { display: flex; gap: .6rem; align-items: flex-start; }
+  .ava { width: 2rem; height: 2rem; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; color: var(--ink-muted); flex: none; }
+  .jd-main { flex: 1; min-width: 0; }
+  .jd-co { font-weight: 700; font-size: .9rem; }
+  .jd-role { font-size: .78rem; color: var(--ink-muted); }
+  .jd-sal { font-size: .82rem; color: var(--warn); font-weight: 700; margin-top: .2rem; }
+  .ring-wrap { display: flex; flex-direction: column; align-items: center; gap: .18rem; flex: none; }
+  .ring { width: 2.1rem; height: 2.1rem; border-radius: 999px; border: 2px solid var(--crit); color: var(--crit); display: flex; align-items: center; justify-content: center; font-weight: 780; font-size: .85rem; }
+  .ring.mid { border-color: var(--warn); color: var(--warn); }
+  .ring.hi { border-color: var(--ok); color: var(--ok); }
+  .ring-wrap small { font-size: .58rem; color: var(--ink-faint); }
+  .latest-tag { align-self: flex-start; font-size: .66rem; font-weight: 700; color: var(--accent-ink); background: var(--accent-soft); border-radius: 999px; padding: .12rem .5rem; }
+  .jd-skills { font-size: .7rem; display: flex; flex-wrap: wrap; gap: .3rem; }
+  .jd-skills .hit { color: var(--ok); background: var(--ok-soft); border-radius: 6px; padding: .12rem .42rem; }
+  .jd-skills .miss { color: var(--crit); background: var(--crit-soft); border-radius: 6px; padding: .12rem .42rem; }
+  .jd-skills .tag { color: var(--ink-muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: .12rem .42rem; }
+  .jd-actions { display: flex; gap: .4rem; }
+  .jd-actions button { font: inherit; font-size: .76rem; font-weight: 650; border-radius: 8px; padding: .42rem .5rem; cursor: default; border: 1px solid var(--border); }
+  .jd-actions .primary { flex: 1; background: var(--accent); color: #fff; border-color: var(--accent); }
+  .jd-actions .ghost { background: var(--surface); color: var(--ink-muted); }
+  .cta-banner { display: flex; align-items: center; gap: .6rem; background: var(--accent-soft); border: 1px dashed var(--accent); border-radius: 10px; padding: .55rem .85rem; font-size: .82rem; color: var(--accent-ink); margin-bottom: .7rem; }
+  .cta-banner .b-btn { margin-left: auto; background: var(--accent); color: #fff; border-radius: 8px; padding: .32rem .7rem; font-weight: 650; font-size: .76rem; white-space: nowrap; }
+
+  .pgbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .6rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .55rem .85rem; margin-top: .9rem; }
+  .pg-info { font-size: .82rem; color: var(--ink-muted); }
+  .pg-info b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .pg-ctrl { display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem; color: var(--ink-muted); }
+  .pg-select { border: 1px solid var(--border-strong); border-radius: 7px; padding: .2rem .5rem; background: var(--surface-2); color: var(--ink); }
+  .pg-btn, .pg-num { min-width: 1.7rem; height: 1.7rem; padding: 0 .4rem; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--surface); color: var(--ink-muted); display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-variant-numeric: tabular-nums; }
+  .pg-num.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+  .pg-dots { color: var(--ink-faint); padding: 0 .1rem; }
+
+  .cs-card { max-width: 23rem; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem; display: flex; flex-direction: column; gap: .55rem; }
+  .cs-q { font-weight: 740; font-size: 1rem; }
+  .cs-sub { font-size: .8rem; color: var(--ink-muted); margin-top: -.3rem; }
+  .cs-row { display: flex; align-items: center; gap: .6rem; }
+  .cs-row label { font-size: .78rem; color: var(--ink-muted); width: 2.4rem; flex: none; }
+  .cs-input { flex: 1; border: 1px solid var(--border-strong); border-radius: 8px; padding: .38rem .6rem; font-size: .84rem; background: var(--surface-2); color: var(--ink); }
+  .cs-go { background: var(--accent); color: #fff; border-radius: 8px; padding: .48rem; font-weight: 650; font-size: .84rem; text-align: center; margin-top: .25rem; }
+  .cs-hint { font-size: .74rem; color: var(--ink-faint); text-align: center; }
+  .cs-combo { flex: 1; display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+  .cs-suggest { display: flex; flex-direction: column; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; background: var(--surface); font-size: .8rem; }
+  .cs-suggest span { padding: .32rem .6rem; color: var(--ink-muted); border-top: 1px solid var(--border); }
+  .cs-suggest span:first-child { border-top: none; }
+  .cs-suggest span.on { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+  .cs-caret { color: var(--accent); font-weight: 400; }
+  .cs-note { font-size: .7rem; color: var(--ink-faint); }
+  .srch { display: inline-flex; align-items: center; gap: 6px; width: 100%; border: 1px solid var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--surface); border-radius: 10px; padding: .42rem .7rem; font-size: .84rem; color: var(--ink); }
+  .srch-drop { display: flex; flex-direction: column; border: 1px solid var(--border-strong); border-radius: 10px; overflow: hidden; background: var(--surface); margin-top: 6px; box-shadow: var(--shadow); }
+  .sd-sect { font-size: .64rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-faint); padding: .42rem .7rem .2rem; }
+  .sd-item { padding: .34rem .7rem; font-size: .82rem; color: var(--ink-muted); }
+  .sd-item.on { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">CareerMate · 产品设计方案</p>
+  <h1>机会页：从「取数修复」到「真实推荐产品」</h1>
+  <p class="lede">承接跨组织 API-Key 取数修复（已上线），本方案解决机会列表的四件事：<strong>条数放开、冷启动展示、去除 demo 口径、全站分页统一</strong>。核心立场——机会页是<strong>按画像匹配的推荐产品</strong>，不是可翻完的职位库。</p>
+
+  <div class="meta">
+    <span class="chip"><span>拟制日期</span><b>2026-07-18</b></span>
+    <span class="chip"><span>版本</span><b>V1.0 草案</b></span>
+    <span class="chip"><span>拟制</span><b>架构</b></span>
+    <span class="chip"><span>状态</span><span class="status-dot"></span><b>待审核</b></span>
+  </div>
+
+  <!-- 修订记录 -->
+  <section>
+    <h2><span class="num">修订</span>修订记录</h2>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th style="width:5rem">版本</th><th style="width:7rem">日期</th><th>变更</th><th style="width:5rem">拟制</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">V1.0</td><td class="num">2026-07-18</td><td>初稿：撤销全量分页，确立「默认过滤 + 匹配池扩大 + 冷启动三档 + 去 demo + 分页统一」。</td><td>架构</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 背景 -->
+  <section>
+    <h2><span class="num">0</span>背景</h2>
+    <div class="callout win">
+      <span class="k">前情 · 已上线</span>
+      跨组织取数已修复：机会列表原本恒为「暂无机会」，根因是 JD 库（<code>KB 599</code>，职场数据分享 org316）被产品组织的 API-Key 跨组织访问、RAGForge 静默返回空。已按知识库路由双 Key（<code>RAGFORGE_DATA_API_KEY</code>）并上线，生产实测深圳岗位正常返回。本方案在此基础上继续。
+    </div>
+    <p>当前机会页暴露出四个待办：</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th style="width:2.5rem">#</th><th style="width:9rem">问题</th><th>现状 / 根因</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td>条数被卡在 ~29</td><td>列表总数=检索 <code>topK</code> 去重后的 JD 数。<code>searchTopKFor</code> 首页取 <code>topK=30</code>，经 <code>ChunksToOpportunityConverter</code> 按 <code>docId</code> 去重 ≈ 29 条；<code>topK</code> 还随页码涨、上限 100，导致 <strong>total 跨页不稳定</strong>。</td></tr>
+          <tr><td class="num">2</td><td>冷启动无展示逻辑</td><td>新用户无简历、无画像时如何推荐？现仅有一套写死 <code>广州 / Java 后端</code> 的兜底，不理想。</td></tr>
+          <tr><td class="num">3</td><td>代码含 demo 口径</td><td>这是真实产品，代码与设计不应出现 <code>demo / 演示</code> 字眼。现存 <code>MODE_DEMO / demoMode / asDemoItem</code> 等一批命名待清理。</td></tr>
+          <tr><td class="num">4</td><td>分页样式不统一</td><td>无公共分页组件，机会页自写 <code>.pager</code>，资产库 / 对话 各不相同。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 目标 -->
+  <section>
+    <h2><span class="num">1</span>目标与非目标</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3 style="margin-top:0">目标</h3>
+        <ul>
+          <li>有画像 → 精准匹配；无画像 → 真实通用推荐。全程真数据、无假匹配。</li>
+          <li>条数放开到<strong>合理匹配池</strong>，total 跨页稳定。</li>
+          <li>筛选驱动：默认城市 + 动态城市下拉。</li>
+          <li>去除全部 demo / 演示 口径，产品化命名。</li>
+          <li>全站分页组件统一为标准样式。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">非目标</h3>
+        <ul>
+          <li><strong>不做全量分页</strong>（撤 Option 2）——见决策 D1。</li>
+          <li><strong>不改 RAGForge</strong>：不新增/开放 RAGForge 端点，改动收敛在 CareerMate 前后端。</li>
+          <li>不把机会页变成「可刷完整个职位库」的职位板。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 关键决策 -->
+  <section>
+    <h2><span class="num">2</span>关键决策</h2>
+
+    <div class="callout decide">
+      <span class="k">D1 · 不做全量分页，走「默认过滤 + 匹配池扩大」</span>
+      机会页是按画像匹配的<strong>推荐流</strong>，用户只看最相关的前几十个；价值在匹配与排序。全量分页（按时间刷上千条）会把差异化稀释成职位板，且需跨仓库改 RAGForge 白名单、每页额外打分、城市只能按文件名近似过滤——<strong>低用户价值 × 高实现成本</strong>。故撤销全量分页。
+    </div>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th style="width:4rem">决策</th><th>结论</th><th style="width:8rem">影响面</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">D1</td><td>不做全量分页；匹配池扩大到合理上限、total 稳定，池内分页。</td><td><span class="pill p1">后端</span></td></tr>
+          <tr><td class="mono">D2</td><td>冷启动三档：有简历 / 有意向无简历 / 纯新用户，逐级降级到「通用推荐」。</td><td><span class="pill p1">前后端</span></td></tr>
+          <tr><td class="mono">D3</td><td>清理全部 <code>demo</code> 命名与文案，改产品化措辞（逻辑不删，仅改名与口径）。</td><td><span class="pill p1">前后端</span></td></tr>
+          <tr><td class="mono">D4</td><td>抽公共分页组件，统一为「第 X–Y 条 / 共 N 条 · 每页选择器 · ‹ 页码 ›」。</td><td><span class="pill p1">前端</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 方案详述 -->
+  <section>
+    <h2><span class="num">3</span>方案详述</h2>
+
+    <h3>3.1　匹配池扩大 &amp; total 稳定（后端）</h3>
+    <ul>
+      <li>把检索取数与页码<strong>解耦</strong>：列表固定按匹配池上限取 <code>topK</code>（建议 <strong>150</strong>），去重后作为稳定 total，分页仅对内存池切片。</li>
+      <li>调整 <code>OpportunityServiceImpl.searchTopKFor</code> 与 <code>MAX_SEARCH_TOP_K</code>；<code>total</code> 不再随页码变化。</li>
+      <li>匹配池是「最相关的前 N 个」，非全库——与推荐定位一致。</li>
+    </ul>
+
+    <h3>3.2　默认城市 + 动态城市下拉</h3>
+    <ul>
+      <li>进页<strong>默认城市 = 画像目标城市</strong>（<code>targetCity</code>）；无则由定位/轻问答得到（见 3.3）。</li>
+      <li>城市下拉从写死的 10 个改为<strong>「有岗位的真实城市集」</strong>。来源见开放问题 Q1，推荐<strong>离线/定时聚合</strong>：定时任务对 JD 库算「城市→岗位数」索引存 CareerMate 侧，下拉只显示有岗位的城市、按数量排序、周期刷新。运行时零 RAGForge 依赖、零 per-request 成本；上线前可用「全国主要城市表」兜底、聚合就绪后无缝替换。（<strong>注意</strong>：运行时 API-Key 打不到 RAGForge 文档列表端点，故不走运行时实时聚合。）</li>
+      <li>城市对结果的作用：现为拼进语义 query（非精确过滤）。本期保持语义参与即可，精确过滤列入后续增强。</li>
+    </ul>
+
+    <h3>3.3　冷启动三档（去 demo 化）</h3>
+    <div class="tier card">
+      <div class="t-badge"><span class="pill ok">档 1</span></div>
+      <div class="t-body"><strong>有简历</strong> → 个性化匹配态：命中 / 缺技能徽章 + 匹配度排序（现状保留）。</div>
+    </div>
+    <div class="tier card">
+      <div class="t-badge"><span class="pill p1">档 2</span></div>
+      <div class="t-body"><strong>无简历、有意向</strong>（<code>targetRole</code> / <code>targetCity</code>，来自注册或 agent 对话自动抽取）→ <strong>通用推荐态</strong>：按意向岗位+城市出最新机会，<strong>不展示匹配徽章</strong>（无技能不摆假分），徽章位换成薪资/最新标签 + 「上传简历解锁匹配」CTA。</div>
+    </div>
+    <div class="tier card">
+      <div class="t-badge"><span class="pill muted">档 3</span></div>
+      <div class="t-body"><strong>纯新用户</strong>（无任何信号）→ 进页轻问一句（岗位+城市）或用定位，出对应城市的<strong>「最新机会」</strong>通用流 + 强引导上传简历。（问答 vs 定位见开放问题 Q2）</div>
+    </div>
+    <div class="callout">
+      <span class="k">原则</span>
+      绝不给无画像用户展示假匹配分；冷启动的「最新浏览」是<strong>降级态</strong>而非核心态；有上限、按默认城市，不是无限翻页。
+    </div>
+
+    <h3>3.4　demo 命名清理清单</h3>
+    <p>逻辑保留，仅改名与文案。建议命名（<span class="new">generic / unmatched</span> 口径）：</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>位置</th><th>现名</th><th>建议新名</th></tr></thead>
+        <tbody>
+          <tr><td>OpportunityServiceImpl</td><td class="mono del">MODE_DEMO</td><td class="mono new">MODE_GENERIC</td></tr>
+          <tr><td>OpportunityServiceImpl</td><td class="mono del">demoMode / isDemoMode</td><td class="mono new">genericMode / isGenericMode</td></tr>
+          <tr><td>OpportunityServiceImpl</td><td class="mono del">resolveDemoSearchCriteria</td><td class="mono new">resolveGenericSearchCriteria</td></tr>
+          <tr><td>OpportunityServiceImpl</td><td class="mono del">DemoSearchCriteria</td><td class="mono new">GenericSearchCriteria</td></tr>
+          <tr><td>OpportunityServiceImpl</td><td class="mono del">asDemoItem</td><td class="mono new">asUnmatchedItem</td></tr>
+          <tr><td>OpportunityListItemVO</td><td class="mono del">demo (boolean)</td><td class="mono new">unmatched / personalized:false</td></tr>
+          <tr><td>写死默认值</td><td class="mono del">DEFAULT_QUERY="Java 后端" / 广州</td><td class="mono new">意向 / 定位驱动</td></tr>
+          <tr><td>前端 + 文案</td><td class="mono del">demo / 演示 字样</td><td class="mono new">通用推荐 / 最新机会</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout risk">
+      <span class="k">注意 · API 契约变更</span>
+      <code>OpportunityListItemVO</code> 的 <code>demo</code> 字段改名会改变前后端接口契约，需前后端同步改、避免线上错位。
+    </div>
+
+    <h3>3.5　全站分页组件统一</h3>
+    <p>抽一个公共分页组件，样式对齐目标：<strong>第 X–Y 条 / 共 N 条 · 每页 [10 ▾] 条 · ‹ 1 ›</strong>。</p>
+    <ul>
+      <li>能力：总数展示、当前区间、每页条数选择、上一页/下一页、页码。</li>
+      <li>应用范围：机会页（替换自写 <code>.pager</code>）、资产库、对话历史等现有分页/滚动处。</li>
+      <li>桌面用完整分页；移动端沿用滚动加载但复用同一数据契约。</li>
+    </ul>
+
+    <h3>3.6　页面效果（示意）</h3>
+    <p style="color:var(--ink-faint);font-size:.9rem">以下为目标状态示意，用于对齐视觉与信息结构，非最终视觉稿。</p>
+
+    <!-- 匹配态 -->
+    <div class="mock">
+      <div class="mock-cap"><span class="pill ok">档 1</span> 有画像 · 精准匹配态</div>
+      <div class="mb">
+        <span class="mb-title">机会</span>
+        <span class="mb-search">🔍 搜公司 / 岗位</span>
+        <span class="mb-tabs"><span class="on">匹配度</span><span>最新</span></span>
+        <span class="mb-city">城市·深圳 ✕</span>
+      </div>
+      <div class="mock-count">共 <b>152</b> 个机会 · 已按你的画像匹配排序</div>
+      <div class="mock-grid">
+        <div class="jd">
+          <div class="jd-top">
+            <span class="ava">腾</span>
+            <span class="jd-main"><span class="jd-co">腾讯科技</span><span class="jd-role">高级 Java 后端工程师 · 深圳</span><span class="jd-sal">30-60K·16薪</span></span>
+            <span class="ring-wrap"><span class="ring hi">8</span><small>高匹配</small></span>
+          </div>
+          <div class="jd-skills"><span class="hit">✓ 命中 6 Java·Redis·微服务</span><span class="miss">✕ 缺 2 K8s</span></div>
+          <div class="jd-actions"><button class="primary">✦ 定制简历</button><button class="ghost">☆ 收藏</button></div>
+        </div>
+        <div class="jd">
+          <div class="jd-top">
+            <span class="ava">软</span>
+            <span class="jd-main"><span class="jd-co">软通动力</span><span class="jd-role">大模型开发工程师 · 深圳</span><span class="jd-sal">25-30K·13薪</span></span>
+            <span class="ring-wrap"><span class="ring">4</span><small>低匹配</small></span>
+          </div>
+          <div class="jd-skills"><span class="hit">✓ 命中 3 Java·Docker·MySQL</span><span class="miss">✕ 缺 14 团队管理</span></div>
+          <div class="jd-actions"><button class="primary">✦ 定制简历</button><button class="ghost">☆ 收藏</button></div>
+        </div>
+      </div>
+      <div class="pgbar">
+        <span class="pg-info">第 <b>1–10</b> 条 / 共 <b>152</b> 条</span>
+        <span class="pg-ctrl">
+          每页 <span class="pg-select">10 ▾</span> 条
+          <span class="pg-btn">‹</span>
+          <span class="pg-num on">1</span><span class="pg-num">2</span><span class="pg-num">3</span>
+          <span class="pg-dots">…</span><span class="pg-num">16</span>
+          <span class="pg-btn">›</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- 搜索优化 -->
+    <div class="mock">
+      <div class="mock-cap">搜索优化 · 桌面聚焦态（内联展开 + 联想，不独占整行 / 不全屏）</div>
+      <div class="mb">
+        <span class="mb-title">机会</span>
+        <span style="flex:0 1 300px; min-width:150px"><span class="srch">🔍 Java 后端 <span class="cs-caret">▎</span></span></span>
+        <span class="mb-tabs"><span class="on">匹配度</span><span>最新</span></span>
+        <span class="mb-city">城市·深圳 ✕</span>
+      </div>
+      <div style="max-width:300px; margin-top:2px">
+        <span class="srch-drop">
+          <span class="sd-sect">岗位</span>
+          <span class="sd-item on">Java 后端开发工程师</span>
+          <span class="sd-item">Java 高级后端工程师</span>
+          <span class="sd-sect">公司</span>
+          <span class="sd-item">字节跳动 · 深圳</span>
+        </span>
+      </div>
+      <p class="cs-note" style="margin-top:.6rem">桌面：搜索固定宽度留在工具条内、聚焦时其下浮出联想；筛选 chip 保持同一行。移动端仍用全屏搜索。<strong>修复点</strong>：现全屏遮罩在桌面也弹出、且 <code>.search-chip</code> 用 <code>flex:1</code> 会被撑满换行——改为按端区分 + 固定宽度。</p>
+    </div>
+
+    <!-- 通用推荐态 -->
+    <div class="mock">
+      <div class="mock-cap"><span class="pill p1">档 2</span> 无简历 · 通用推荐态（无假匹配）</div>
+      <div class="mb">
+        <span class="mb-title">机会</span>
+        <span class="mb-search">🔍 搜公司 / 岗位</span>
+        <span class="mb-tabs"><span>匹配度</span><span class="on">最新</span></span>
+        <span class="mb-city">城市·深圳 ✕</span>
+      </div>
+      <div class="mock-count">通用推荐 · 深圳 · Java 后端 —— 上传简历后为你精准匹配</div>
+      <div class="cta-banner">📄 上传简历，解锁「命中 / 缺」技能匹配与定制简历<span class="b-btn">上传简历</span></div>
+      <div class="mock-grid">
+        <div class="jd">
+          <div class="jd-top">
+            <span class="ava">字</span>
+            <span class="jd-main"><span class="jd-co">字节跳动</span><span class="jd-role">后端开发工程师 · 深圳</span><span class="jd-sal">28-45K·15薪</span></span>
+            <span class="latest-tag">最新</span>
+          </div>
+          <div class="jd-skills"><span class="tag">Java</span><span class="tag">Go</span><span class="tag">分布式</span><span class="tag">MySQL</span></div>
+          <div class="jd-actions"><button class="primary">查看详情</button><button class="ghost">☆ 收藏</button></div>
+        </div>
+        <div class="jd">
+          <div class="jd-top">
+            <span class="ava">比</span>
+            <span class="jd-main"><span class="jd-co">比亚迪</span><span class="jd-role">Java 开发工程师 · 深圳</span><span class="jd-sal">20-35K</span></span>
+            <span class="latest-tag">最新</span>
+          </div>
+          <div class="jd-skills"><span class="tag">Java</span><span class="tag">Spring</span><span class="tag">MyBatis</span></div>
+          <div class="jd-actions"><button class="primary">查看详情</button><button class="ghost">☆ 收藏</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 冷启动 -->
+    <div class="mock">
+      <div class="mock-cap"><span class="pill muted">档 3</span> 纯新用户 · 冷启动轻问答</div>
+      <div class="cs-card">
+        <span class="cs-q">先告诉我们，你想找什么？</span>
+        <span class="cs-sub">用于给你第一批机会，稍后上传简历即可精准匹配。</span>
+        <span class="cs-row" style="align-items:flex-start"><label style="margin-top:.4rem">岗位</label>
+          <span class="cs-combo">
+            <span class="cs-input">Java 后端<span class="cs-caret">▎</span></span>
+            <span class="cs-suggest">
+              <span class="on">Java 后端开发工程师</span>
+              <span>Java 高级后端工程师</span>
+              <span>后端开发（Golang / Java）</span>
+            </span>
+            <span class="cs-note">自由输入，联想来自 JD 库真实岗位（复用现有「岗位联想」），覆盖全部岗位</span>
+          </span>
+        </span>
+        <span class="cs-row"><label>城市</label><span class="cs-input">深圳 ▾</span></span>
+        <span class="cs-go">看看机会 →</span>
+        <span class="cs-hint">也可跳过，先看深圳的最新机会</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 分阶段计划 -->
+  <section>
+    <h2><span class="num">4</span>分阶段计划（建议目标日期，待确认）</h2>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th style="width:3.5rem">阶段</th><th>内容</th><th style="width:10rem">目标日期</th><th style="width:6rem">依赖</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">P1</td><td>后端：匹配池扩大 + total 稳定；demo 命名清理 + VO 字段改名（含前端契约同步）。</td><td class="num">2026-07-19 ~ 07-21</td><td>—</td></tr>
+          <tr><td class="mono">P2</td><td>冷启动三档 + 默认城市/意向驱动 + 动态城市下拉（含城市来源端点）。</td><td class="num">2026-07-22 ~ 07-24</td><td>P1</td></tr>
+          <tr><td class="mono">P3</td><td>前端公共分页组件 + 全站应用 + 样式规范。</td><td class="num">2026-07-25 ~ 07-28</td><td>P1</td></tr>
+          <tr><td class="mono">P4</td><td>联调 + Playwright 验收 + 上线。</td><td class="num">2026-07-29</td><td>P1–P3</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 验收 -->
+  <section>
+    <h2><span class="num">5</span>验收标准（Playwright）</h2>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th style="width:2.5rem">#</th><th>用例</th><th>期望</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td>有简历用户打开机会页</td><td>列表 &gt; 29 条；<code>total</code> 跨页一致；命中/缺技能徽章显示。</td></tr>
+          <tr><td class="num">2</td><td>无简历、有意向用户</td><td>进入通用推荐态；无匹配徽章；出现「上传简历」CTA；结果城市=意向城市。</td></tr>
+          <tr><td class="num">3</td><td>纯新用户首次进入</td><td>触发轻问答或定位默认；出对应城市「最新机会」；引导上传简历。</td></tr>
+          <tr><td class="num">4</td><td>城市下拉</td><td>非硬编码 10 项；覆盖全国主要城市；默认选中=画像城市。</td></tr>
+          <tr><td class="num">5</td><td>分页组件</td><td>显示「第 X–Y 条 / 共 N 条」+ 每页选择器 + 上/下页 + 页码；机会页/资产库样式一致。</td></tr>
+          <tr><td class="num">6</td><td>桌面搜索交互</td><td>点击搜索<strong>不</strong>触发全屏遮罩、<strong>不</strong>独占整行；搜索框固定宽度留在工具条内，聚焦时下方浮出联想；匹配度/最新/城市 chip 仍在同一行。移动端仍为全屏搜索。</td></tr>
+          <tr><td class="num">7</td><td>去 demo 校验</td><td>全仓库 grep：代码符号、注释、前端文案<strong>无</strong> <code>demo</code> / <code>演示</code> 字样。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 开放问题 -->
+  <section>
+    <h2><span class="num">6</span>开放问题（需你拍板）</h2>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th style="width:3rem">Q</th><th>问题</th><th>选项 / 建议</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">Q1</td><td>城市下拉来源</td><td><strong>建议：离线/定时聚合</strong> JD 库的「城市→岗位数」，存 CareerMate 侧，下拉只显示有岗位的城市、按量排序、周期刷新（运行时零 RAGForge 依赖）。<span class="pill p1">推荐</span>　备选：① 后端全国主要城市表（简单但可能含空城市、非真实分布，可作兜底）；② RAGForge 加 distinct-city 端点走实时（需改 RAGForge，且运行时 API-Key 现打不到文档列表）。</td></tr>
+          <tr><td class="mono">Q2</td><td>纯新用户冷启动方式</td><td>进页<strong>轻问答</strong>（岗位+城市，相关性最高，<span class="pill p1">建议</span>）　/　<strong>定位默认</strong>（无打扰但较粗）。</td></tr>
+          <tr><td class="mono">Q3</td><td>匹配池上限具体值</td><td>建议 <strong>150</strong>；可 100 / 200。越大越慢且低相关噪声增多。</td></tr>
+          <tr><td class="mono">Q4</td><td>每页默认条数</td><td>建议默认 <strong>10</strong>，可选 10 / 20 / 50。</td></tr>
+          <tr><td class="mono">Q5</td><td>冷启动「岗位」输入形态</td><td><strong>建议：输入框 + 联想（combobox）</strong>，自由文本覆盖全部岗位，联想复用现有「岗位联想」。<span class="pill p1">推荐</span>　不建议封闭下拉（岗位为开放词汇，无法枚举全部）。城市仍用下拉。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 风险 -->
+  <section>
+    <h2><span class="num">7</span>风险</h2>
+    <div class="callout risk">
+      <span class="k">R1 · 接口契约</span>
+      VO <code>demo</code> 字段改名须前后端原子同步，否则线上字段错位。建议同一 PR 内前后端一起改。
+    </div>
+    <div class="callout risk">
+      <span class="k">R2 · 匹配池上限的取舍</span>
+      上限过高会拖慢检索并引入低相关结果；过低则小众城市结果偏少。需结合筛选一起调。
+    </div>
+    <div class="callout risk">
+      <span class="k">R3 · 城市语义 vs 精确</span>
+      城市当前仅参与语义 query，非精确过滤；「城市·深圳」可能混入近似结果。精确过滤列入后续增强，本期不阻塞。
+    </div>
+  </section>
+
+  <div class="foot">
+    CareerMate 机会页改造方案 · V1.0 草案 · 2026-07-18 · 待审核　|　执行前请先在开放问题 Q1–Q4 给出选择，据此细化为实现提示词（含禁止项 / 字段设计 / Playwright 验收）。
+  </div>
+
+</div>
+</body>
+</html>

@@ -4,6 +4,7 @@ import com.careermate.common.api.PageResult;
 import com.careermate.common.api.CacheMeta;
 import com.careermate.common.exception.BizException;
 import com.careermate.model.entity.ResumeEntity;
+import com.careermate.opportunity.dto.OpportunityCitiesVO;
 import com.careermate.opportunity.dto.OpportunityDetailVO;
 import com.careermate.opportunity.dto.OpportunityListItemVO;
 import com.careermate.opportunity.dto.OpportunityListRequest;
@@ -11,6 +12,7 @@ import com.careermate.opportunity.dto.OpportunityPrepareResponse;
 import com.careermate.model.entity.AgentMessageEntity;
 import com.careermate.model.entity.AgentSessionEntity;
 import com.careermate.opportunity.service.impl.OpportunityServiceImpl;
+import com.careermate.opportunity.support.OpportunityCityCatalog;
 import com.careermate.profile.service.CareerProfileService;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
 import com.careermate.profile.dto.CareerProfileResponse;
@@ -40,14 +42,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OpportunityServiceImplTest {
+
+    /** 匹配池上限：与生产实现 OpportunityServiceImpl.OPPORTUNITY_POOL_SIZE 保持一致。 */
+    private static final int POOL = 150;
 
     private static final String SAMPLE_JD = """
             # 【JD】星天科技 | 算法工程师 |  | 北京
@@ -75,6 +78,7 @@ class OpportunityServiceImplTest {
     private OpportunityServiceImpl service;
     private ObjectMapper objectMapper;
     private KnowledgeRetrievalService knowledgeRetrievalService;
+    private final OpportunityCityCatalog cityCatalog = new OpportunityCityCatalog();
 
     @BeforeEach
     void setUp() {
@@ -89,6 +93,7 @@ class OpportunityServiceImplTest {
                 resumeService,
                 careerProfileService,
                 workspaceSessionRepository,
+                cityCatalog,
                 objectMapper,
                 redisTemplate
         );
@@ -97,11 +102,11 @@ class OpportunityServiceImplTest {
     @Test
     void listKeywordEmptyNoProfileUsesDefaultQuery() {
         when(careerProfileService.getProfile(1L)).thenReturn(emptyProfile());
-        when(ragForgeClient.searchJd("Java 后端", 30)).thenReturn(List.of());
+        when(ragForgeClient.searchJd("Java 后端", POOL)).thenReturn(List.of());
 
         service.list(1L, new OpportunityListRequest(null, null, null, null, 1, 10));
 
-        verify(ragForgeClient).searchJd("Java 后端", 30);
+        verify(ragForgeClient).searchJd("Java 后端", POOL);
     }
 
     @Test
@@ -110,26 +115,26 @@ class OpportunityServiceImplTest {
                 .targetRole("Java 后端")
                 .targetCity("北京")
                 .build());
-        when(ragForgeClient.searchJd("Java 后端 北京", 30)).thenReturn(List.of());
+        when(ragForgeClient.searchJd("Java 后端 北京", POOL)).thenReturn(List.of());
 
         service.list(2L, new OpportunityListRequest(null, null, null, null, 1, 10));
 
-        verify(ragForgeClient).searchJd("Java 后端 北京", 30);
+        verify(ragForgeClient).searchJd("Java 后端 北京", POOL);
     }
 
     @Test
     void listKeywordPassedThrough() {
-        when(ragForgeClient.searchJd("Redis", 30)).thenReturn(List.of());
+        when(ragForgeClient.searchJd("Redis", POOL)).thenReturn(List.of());
 
         service.list(1L, new OpportunityListRequest("Redis", null, null, null, 1, 10));
 
-        verify(ragForgeClient).searchJd("Redis", 30);
+        verify(ragForgeClient).searchJd("Redis", POOL);
         verify(careerProfileService, times(0)).getProfile(any());
     }
 
     @Test
     void listRagForgeEmptyReturnsZeroTotal() {
-        when(ragForgeClient.searchJd(anyString(), eq(30))).thenReturn(List.of());
+        when(ragForgeClient.searchJd(anyString(), eq(POOL))).thenReturn(List.of());
 
         PageResult<OpportunityListItemVO> result =
                 service.list(1L, new OpportunityListRequest("test", null, null, null, 1, 10));
@@ -141,7 +146,7 @@ class OpportunityServiceImplTest {
 
     @Test
     void listRagForgeFailureReturnsDegradedNotLoading() {
-        when(ragForgeClient.searchJd(anyString(), eq(30))).thenThrow(new IllegalStateException("rag down"));
+        when(ragForgeClient.searchJd(anyString(), eq(POOL))).thenThrow(new IllegalStateException("rag down"));
 
         PageResult<OpportunityListItemVO> result =
                 service.list(1L, new OpportunityListRequest("test", null, null, null, 1, 10));
@@ -153,7 +158,7 @@ class OpportunityServiceImplTest {
 
     @Test
     void listMultiChunkAggregation() {
-        when(ragForgeClient.searchJd("Java", 30)).thenReturn(List.of(
+        when(ragForgeClient.searchJd("Java", POOL)).thenReturn(List.of(
                 new RagForgeChunk(2L, 100L, "f.md", "尾部", "JD", 0.5),
                 new RagForgeChunk(1L, 100L, "f.md", SAMPLE_JD, "JD", 0.8)
         ));
@@ -169,7 +174,7 @@ class OpportunityServiceImplTest {
 
     @Test
     void listWithResumeMatchScoreSortedByMatchScoreDesc() {
-        when(ragForgeClient.searchJd("Java", 30)).thenReturn(List.of(
+        when(ragForgeClient.searchJd("Java", POOL)).thenReturn(List.of(
                 chunk(1L, 1L, SAMPLE_JD.replace("算法设计", "Python"), 0.9),
                 chunk(2L, 2L, SAMPLE_JD, 0.5)
         ));
@@ -184,6 +189,7 @@ class OpportunityServiceImplTest {
         assertEquals("MATCH", result.sortStrategy());
         var top = result.items().get(0);
         assertNotNull(top.matchScore());
+        assertFalse(top.unmatched());
         assertTrue(top.matchScore() >= result.items().get(1).matchScore());
         // 缺失技能：非空、不含用户已会的(Java/Redis)、均来自 JD 技能集
         assertNotNull(top.missingSkills());
@@ -193,8 +199,8 @@ class OpportunityServiceImplTest {
     }
 
     @Test
-    void listWithoutResumeNullMatchScoreSortedByRagScoreDesc() {
-        when(ragForgeClient.searchJd("Java", 30)).thenReturn(List.of(
+    void listWithoutResumeIsGenericUnmatchedSortedByRagScoreDesc() {
+        when(ragForgeClient.searchJd("Java", POOL)).thenReturn(List.of(
                 chunk(1L, 1L, SAMPLE_JD, 0.3),
                 chunk(2L, 2L, SAMPLE_JD, 0.9)
         ));
@@ -205,61 +211,108 @@ class OpportunityServiceImplTest {
 
         assertFalse(result.hasResume());
         assertEquals("LATEST", result.sortStrategy());
+        // 通用推荐态：无个性化匹配、标记 unmatched，且不摆假匹配分
+        assertTrue(result.items().get(0).unmatched());
         assertNull(result.items().get(0).matchScore());
         assertEquals("UNKNOWN", result.items().get(0).matchTier());
+        assertTrue(result.items().get(0).matchReasons().isEmpty());
+        assertTrue(result.items().get(0).missingSkills().isEmpty());
         assertEquals(0.9, result.items().get(0).ragScore());
     }
 
     @Test
-    void listDemoModeWithoutResumeUsesDefaultDemoQueryAndMarksItems() {
-        when(ragForgeClient.searchJd("广州 Java 3-5年", 30)).thenReturn(List.of(
-                chunk(1L, 1L, SAMPLE_JD, 0.8)
-        ));
-        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
+    void listNoResumeWithProfileIntentDrivesQueryNotHardcodedCity() {
+        when(resumeService.getDefaultActiveResume(3L)).thenReturn(Optional.empty());
+        when(careerProfileService.getProfile(3L)).thenReturn(CareerProfileResponse.builder()
+                .targetRole("Python")
+                .targetCity("深圳")
+                .build());
+        when(ragForgeClient.searchJd("Python 深圳", POOL)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.8)));
 
         PageResult<OpportunityListItemVO> result =
-                service.list(1L, new OpportunityListRequest(null, null, null, "demo", 1, 10));
+                service.list(3L, new OpportunityListRequest(null, null, null, null, 1, 10));
 
-        assertFalse(result.hasResume());
-        assertEquals(1, result.total());
-        assertTrue(result.items().get(0).isDemo());
-        assertNull(result.items().get(0).matchScore());
-        verify(ragForgeClient).searchJd("广州 Java 3-5年", 30);
+        // 无简历也按意向(画像)驱动查询，而非写死的「广州/Java」
+        verify(ragForgeClient).searchJd("Python 深圳", POOL);
+        assertTrue(result.items().get(0).unmatched());
     }
 
     @Test
-    void listDemoModeUsesRequestKeywordCityAndPosition() {
-        String pythonJd = SAMPLE_JD
-                .replace("算法工程师", "Python 后端工程师")
-                .replace("北京", "深圳")
-                .replace("Java, Redis, 算法设计", "Python, Django, Redis");
-        when(ragForgeClient.searchJd("Python 深圳 后端 3-5年", 30)).thenReturn(List.of(
-                chunk(1L, 1L, pythonJd, 0.8)
-        ));
+    void listPoolSizeConstantRegardlessOfPage() {
+        when(ragForgeClient.searchJd("Java", POOL)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.6)));
+        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
+
+        service.list(1L, new OpportunityListRequest("Java", null, null, null, 4, 10));
+
+        // 匹配池与页码解耦：第 4 页仍按固定池上限取回，不再随页码放大 topK
+        verify(ragForgeClient).searchJd("Java", POOL);
+    }
+
+    @Test
+    void listTotalStableAcrossPages() {
+        List<RagForgeChunk> chunks = new java.util.ArrayList<>();
+        for (long i = 1; i <= 25; i++) {
+            chunks.add(chunk(i, i, SAMPLE_JD.replace("星天科技", "公司" + i), 1.0 - i / 100.0));
+        }
+        when(ragForgeClient.searchJd("Java", POOL)).thenReturn(chunks);
+        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
+
+        PageResult<OpportunityListItemVO> page1 =
+                service.list(1L, new OpportunityListRequest("Java", null, null, null, 1, 10));
+        PageResult<OpportunityListItemVO> page3 =
+                service.list(1L, new OpportunityListRequest("Java", null, null, null, 3, 10));
+
+        // total 跨页一致（不再随页码变化）
+        assertEquals(25, page1.total());
+        assertEquals(25, page3.total());
+    }
+
+    @Test
+    void listSecondPageReturnsNextSlice() {
+        List<RagForgeChunk> chunks = new java.util.ArrayList<>();
+        for (long i = 1; i <= 12; i++) {
+            chunks.add(chunk(i, i, SAMPLE_JD.replace("星天科技", "公司" + i), 1.0 - i / 100.0));
+        }
+        when(ragForgeClient.searchJd("Java", POOL)).thenReturn(chunks);
         when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
 
         PageResult<OpportunityListItemVO> result =
-                service.list(1L, new OpportunityListRequest(" Python ", "深圳", "后端", "demo", 1, 10));
+                service.list(1L, new OpportunityListRequest("Java", null, null, null, 2, 10));
 
-        assertFalse(result.hasResume());
-        assertEquals(1, result.total());
-        assertTrue(result.items().get(0).isDemo());
-        assertEquals("Python 后端工程师", result.items().get(0).title());
-        assertTrue(result.items().get(0).skills().contains("Python"));
-        assertNull(result.items().get(0).matchScore());
-        verify(ragForgeClient).searchJd("Python 深圳 后端 3-5年", 30);
+        assertEquals(12, result.total());
+        assertEquals(2, result.page());
+        assertEquals(2, result.items().size());
+        assertEquals("公司11", result.items().get(0).company());
+        assertEquals("公司12", result.items().get(1).company());
+    }
+
+    @Test
+    void listAcceptsPageSizeUpTo50() {
+        List<RagForgeChunk> chunks = new java.util.ArrayList<>();
+        for (long i = 1; i <= 30; i++) {
+            chunks.add(chunk(i, i, SAMPLE_JD.replace("星天科技", "公司" + i), 1.0 - i / 100.0));
+        }
+        when(ragForgeClient.searchJd("Java", POOL)).thenReturn(chunks);
+        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
+
+        PageResult<OpportunityListItemVO> result =
+                service.list(1L, new OpportunityListRequest("Java", null, null, null, 1, 50));
+
+        assertEquals(30, result.total());
+        assertEquals(50, result.size());
+        assertEquals(30, result.items().size());
     }
 
     @Test
     void listDoesNotUseCachedOpportunityList() {
-        when(ragForgeClient.searchJd("cached-query", 30)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.8)));
+        when(ragForgeClient.searchJd("cached-query", POOL)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.8)));
 
         PageResult<OpportunityListItemVO> result =
                 service.list(1L, new OpportunityListRequest("cached-query", null, null, null, 1, 10));
 
         assertEquals(1, result.total());
         verify(redisTemplate, times(0)).opsForValue();
-        verify(ragForgeClient).searchJd("cached-query", 30);
+        verify(ragForgeClient).searchJd("cached-query", POOL);
     }
 
     @Test
@@ -270,16 +323,64 @@ class OpportunityServiceImplTest {
                 resumeService,
                 careerProfileService,
                 workspaceSessionRepository,
+                cityCatalog,
                 objectMapper,
                 null
         );
-        when(ragForgeClient.searchJd("Java", 30)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.7)));
+        when(ragForgeClient.searchJd("Java", POOL)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.7)));
         when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
 
         PageResult<OpportunityListItemVO> result =
                 degraded.list(1L, new OpportunityListRequest("Java", null, null, null, 1, 10));
 
         assertEquals(1, result.total());
+    }
+
+    @Test
+    void citiesReturnsCatalogWithDefaultFromProfile() {
+        when(careerProfileService.getProfile(1L)).thenReturn(CareerProfileResponse.builder()
+                .targetCity("深圳")
+                .build());
+
+        OpportunityCitiesVO result = service.cities(1L);
+
+        assertEquals("深圳", result.defaultCity());
+        assertFalse(result.cities().isEmpty());
+        assertEquals("不限", result.cities().get(0));
+        assertTrue(result.cities().contains("深圳"));
+        assertTrue(result.cities().contains("成都"));
+        // 非硬编码的旧 10 城：包含更全量的城市
+        assertTrue(result.cities().size() > 10);
+    }
+
+    @Test
+    void citiesDefaultFallsBackToAnyWhenProfileCityUnknown() {
+        when(careerProfileService.getProfile(1L)).thenReturn(CareerProfileResponse.builder()
+                .targetCity("火星城")
+                .build());
+
+        OpportunityCitiesVO result = service.cities(1L);
+
+        assertEquals("不限", result.defaultCity());
+    }
+
+    @Test
+    void citiesDefaultAnyWhenNoProfileCity() {
+        when(careerProfileService.getProfile(1L)).thenReturn(emptyProfile());
+
+        OpportunityCitiesVO result = service.cities(1L);
+
+        assertEquals("不限", result.defaultCity());
+    }
+
+    @Test
+    void citiesDefaultAnyWhenProfileLookupFails() {
+        when(careerProfileService.getProfile(1L)).thenThrow(new IllegalStateException("profile down"));
+
+        OpportunityCitiesVO result = service.cities(1L);
+
+        assertEquals("不限", result.defaultCity());
+        assertFalse(result.cities().isEmpty());
     }
 
     @Test
@@ -332,8 +433,6 @@ class OpportunityServiceImplTest {
         assertThrows(BizException.class, () -> service.prepare(1L, "doc-999"));
     }
 
-    // 修复回归：documents/{id}/chunks 端点对 API-Key 不开放（取正文空），
-    // 应改走 /search + docIds 过滤（searchJdByDocId）取到 JD，prepare 仍成功——不再误报"不存在或已下架"。
     @Test
     void prepareFallsBackToSearchByDocIdWhenDocChunksUnavailable() {
         when(workspaceSessionRepository.findActiveJdPrepSession(1L, "doc-83428")).thenReturn(null);
@@ -394,7 +493,7 @@ class OpportunityServiceImplTest {
 
     @Test
     void listWithResumeMatchScoreWithinRange() {
-        when(ragForgeClient.searchJd("Java", 30)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.87)));
+        when(ragForgeClient.searchJd("Java", POOL)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.87)));
         ResumeEntity resume = new ResumeEntity();
         resume.setContent("Java Redis 算法设计 项目经验");
         when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.of(resume));
@@ -407,53 +506,38 @@ class OpportunityServiceImplTest {
     }
 
     @Test
+    void listCachedDelegatesToListComputation() {
+        when(ragForgeClient.searchJd("Java", POOL)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.8)));
+        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
+
+        PageResult<OpportunityListItemVO> result =
+                service.listCached(1L, new OpportunityListRequest("Java", null, null, null, 1, 10));
+
+        assertEquals(1, result.total());
+        assertEquals("星天科技", result.items().get(0).company());
+    }
+
+    @Test
+    void listPageBeyondRangeReturnsEmptySliceWithTotalPreserved() {
+        when(ragForgeClient.searchJd("Java", POOL)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.8)));
+        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
+
+        PageResult<OpportunityListItemVO> result =
+                service.list(1L, new OpportunityListRequest("Java", null, null, null, 99, 10));
+
+        assertEquals(1, result.total());
+        assertEquals(99, result.page());
+        assertTrue(result.items().isEmpty());
+    }
+
+    @Test
     void listDoesNotWriteCacheOnMiss() {
-        when(ragForgeClient.searchJd("Java", 30)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.6)));
+        when(ragForgeClient.searchJd("Java", POOL)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.6)));
         when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
 
         service.list(1L, new OpportunityListRequest("Java", null, null, null, 1, 10));
 
         verify(redisTemplate, times(0)).opsForValue();
-    }
-
-    @Test
-    void listDemoModeQueryIncludesKeyword() {
-        when(ragForgeClient.searchJd("Python 广州 Java 3-5年", 30))
-                .thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.6)));
-        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
-
-        service.list(1L, new OpportunityListRequest("Python", null, null, "demo", 1, 10));
-
-        verify(ragForgeClient).searchJd("Python 广州 Java 3-5年", 30);
-    }
-
-    @Test
-    void listExpandsSearchTopKForLaterPages() {
-        when(ragForgeClient.searchJd("Java", 40)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.6)));
-        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
-
-        service.list(1L, new OpportunityListRequest("Java", null, null, null, 4, 10));
-
-        verify(ragForgeClient).searchJd("Java", 40);
-    }
-
-    @Test
-    void listSecondPageReturnsNextSlice() {
-        List<RagForgeChunk> chunks = new java.util.ArrayList<>();
-        for (long i = 1; i <= 12; i++) {
-            chunks.add(chunk(i, i, SAMPLE_JD.replace("星天科技", "公司" + i), 1.0 - i / 100.0));
-        }
-        when(ragForgeClient.searchJd("Java", 30)).thenReturn(chunks);
-        when(resumeService.getDefaultActiveResume(1L)).thenReturn(Optional.empty());
-
-        PageResult<OpportunityListItemVO> result =
-                service.list(1L, new OpportunityListRequest("Java", null, null, null, 2, 10));
-
-        assertEquals(12, result.total());
-        assertEquals(2, result.page());
-        assertEquals(2, result.items().size());
-        assertEquals("公司11", result.items().get(0).company());
-        assertEquals("公司12", result.items().get(1).company());
     }
 
     private static RagForgeChunk chunk(Long chunkId, Long docId, String content, double score) {
