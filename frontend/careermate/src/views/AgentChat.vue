@@ -235,6 +235,16 @@
         </div>
 
         <div class="input-area">
+          <div class="quick-bar" role="group" aria-label="快捷话术">
+            <button
+              v-for="q in QUICK_ACTIONS"
+              :key="q.label"
+              type="button"
+              class="quick-chip"
+              :disabled="streamState === 'streaming'"
+              @click="sendExamplePrompt(q.text)"
+            >{{ q.label }}</button>
+          </div>
           <div class="focus-bar" role="group" aria-label="焦点">
             <span class="focus-label">焦点</span>
             <button
@@ -549,6 +559,13 @@ const deepModeOn = ref(false)
 const sessionCreating = ref(false)
 const globalError = ref('')
 // 焦点条：会话内检索信号（可多选），切焦点不新建会话、不中断对话
+// #7 底部快捷条：点了直接发话术（区别于焦点条的"注入焦点"）
+const QUICK_ACTIONS = [
+  { label: '改简历', text: '帮我按这条 JD 优化简历' },
+  { label: '模拟面试', text: '来一轮针对这个岗位的模拟面试' },
+  { label: '谈薪建议', text: '给我这个岗位的薪资范围和谈薪建议' },
+  { label: '换一条 JD', text: '帮我看看还有哪些匹配的机会' },
+]
 const FOCUS_OPTIONS = [
   { key: 'resume', label: '改简历' },
   { key: 'jd', label: 'JD分析' },
@@ -3333,6 +3350,26 @@ onBeforeUnmount(() => {
   background: #fff;
   z-index: 10;
 }
+
+.quick-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.quick-chip {
+  font-size: 12px;
+  color: #4E5BEF;
+  background: #EEF0FE;
+  border: 1px solid #D8DCFB;
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.quick-chip:hover { background: #E0E4FD; }
+.quick-chip:disabled { opacity: .5; cursor: default; }
 
 .focus-bar {
   display: flex;

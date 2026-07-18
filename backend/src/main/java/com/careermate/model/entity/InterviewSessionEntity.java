@@ -27,6 +27,9 @@ public class InterviewSessionEntity {
     /** 面试类型：MOCK 模拟 / REAL 真实复盘。 */
     private String sessionType;
 
+    /** 本场最弱题型（完成时按题型均分算出）。 */
+    private String weakness;
+
     private Integer totalQuestions;
 
     private Integer answeredQuestions;
