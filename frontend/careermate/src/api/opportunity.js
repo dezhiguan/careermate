@@ -12,6 +12,10 @@ export async function listOpportunities(params = {}) {
   return request(`/opportunity/list${qs ? `?${qs}` : ''}`, { method: 'GET' })
 }
 
+export async function getOpportunityCities() {
+  return request('/opportunity/cities', { method: 'GET' })
+}
+
 export async function getOpportunityDetail(jdId) {
   return request(`/opportunity/${encodeURIComponent(jdId)}`, { method: 'GET' })
 }

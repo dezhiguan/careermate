@@ -10,7 +10,7 @@
       <label class="fchip city-chip" :class="{ on: activeCity !== '不限' }">
         <span>{{ activeCity !== '不限' ? '城市·' + activeCity + ' ✕' : '城市' }}</span>
         <select class="city-native" :value="activeCity" @change="onCityChange($event)">
-          <option v-for="c in CITY_OPTIONS" :key="c" :value="c">{{ c }}</option>
+          <option v-for="c in cityOptions" :key="c" :value="c">{{ c }}</option>
         </select>
       </label>
     </header>
@@ -21,7 +21,8 @@
     </div>
 
     <p v-if="!loading && !degraded && items.length" class="opp-count">
-      共 <b>{{ totalCount || items.length }}</b> 个机会 · 已按你的画像匹配排序
+      共 <b>{{ totalCount || items.length }}</b> 个机会 ·
+      {{ hasResume ? '已按你的画像匹配排序' : '通用推荐 · 上传简历后精准匹配' }}
     </p>
 
     <div v-if="loading || degraded" class="card-list">
@@ -42,8 +43,8 @@
 
     <div v-else class="card-list">
       <article v-for="item in displayItems" :key="item.jdId" class="opp">
-        <button v-if="item.isDemo" type="button" class="demo-badge" @click.stop="goUploadResume">
-          示例 · 上传简历看真实匹配分
+        <button v-if="item.unmatched" type="button" class="unmatched-badge" @click.stop="goUploadResume">
+          上传简历，解锁精准匹配分
         </button>
         <div class="opp-top">
           <span class="coav">{{ companyInitial(item.company) }}</span>
@@ -153,7 +154,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { listOpportunities } from '../api/opportunity'
+import { listOpportunities, getOpportunityCities } from '../api/opportunity'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 import { createApplication } from '../api/pipeline'
 import { listSavedJobs, saveJob, unsaveJob } from '../api/savedJobs'
@@ -168,6 +169,7 @@ const loading = ref(true)
 const loadingMore = ref(false)
 const hasMore = ref(true)
 const currentPage = ref(1)
+const pageSize = ref(10)
 const totalCount = ref(0)
 const error = ref('')
 const preparingId = ref('')
@@ -287,7 +289,19 @@ async function toggleSave(item) {
   }
 }
 
-const CITY_OPTIONS = ['不限', '北京', '上海', '广州', '深圳', '杭州', '成都', '武汉', '南京', '西安']
+// 城市下拉：从后端动态获取（可用城市集 + 默认城市），失败保底一份基础列表
+const cityOptions = ref(['不限', '北京', '上海', '广州', '深圳', '杭州', '成都', '武汉', '南京', '西安'])
+const defaultCity = ref('不限')
+async function loadCities() {
+  try {
+    const data = await getOpportunityCities()
+    const cities = data?.cities || []
+    if (cities.length) cityOptions.value = cities
+    if (data?.defaultCity) defaultCity.value = data.defaultCity
+  } catch (e) {
+    // 保底沿用默认城市列表
+  }
+}
 // v2.9 定稿：排序只留「匹配度·最新」两项（六维筛选/薪资排序已删）
 const SORT_OPTIONS = [
   { value: 'match', label: '匹配度' },
@@ -296,7 +310,7 @@ const SORT_OPTIONS = [
 const sortMode = ref('match')
 
 const activeKeyword = computed(() => String(route.query.keyword || '').trim())
-const activeCity = computed(() => String(route.query.city || '不限').trim())
+const activeCity = computed(() => String(route.query.city || defaultCity.value || '不限').trim())
 const activeYears = computed(() => String(route.query.years || '不限').trim())
 const activeRole = computed(() => activeKeyword.value || String(route.query.position || '全部').trim())
 
@@ -350,14 +364,12 @@ async function fetchList({ autoRefresh = false, page = 1, append = false } = {})
   }
   error.value = ''
   try {
-    const hasDefaultResume = !!homeStore.state.defaultResume
     const data = await listOpportunities({
       keyword: activeKeyword.value || undefined,
-      city: route.query.city || undefined,
+      city: activeCity.value !== '不限' ? activeCity.value : undefined,
       position: route.query.position || undefined,
-      mode: hasDefaultResume ? undefined : 'demo',
       page,
-      size: 10,
+      size: pageSize.value,
     })
     const meta = data?._meta || data?.meta || null
     if (meta?.state === 'LOADING') {
@@ -571,6 +583,7 @@ onMounted(() => {
   updateIsDesktop()
   loadSaved()
   loadSearchHistory()
+  loadCities()
   window.addEventListener('resize', updateIsDesktop, { passive: true })
   window.addEventListener('scroll', handleScroll, { passive: true })
   if (!activeKeyword.value && homeStore.state.initialized && homeStore.state.topOpportunities.length > 0) {
@@ -633,7 +646,7 @@ onBeforeUnmount(() => {
 .opp .btn.ai { flex:1; background:var(--ai-grad); color:#fff; box-shadow:0 2px 10px rgba(110,80,240,.3); }
 .opp .btn.ai:disabled { opacity:.55; cursor:not-allowed; }
 .opp .btn.g { background:#fff; border:1px solid var(--line); color:var(--ink2); }
-.opp .demo-badge { margin-bottom:8px; }
+.opp .unmatched-badge { margin-bottom:8px; }
 
 .page-header {
   background: #fff;
@@ -957,7 +970,7 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-.demo-badge {
+.unmatched-badge {
   position: absolute;
   top: 10px;
   right: 10px;
@@ -974,7 +987,7 @@ onBeforeUnmount(() => {
   white-space: normal;
 }
 
-.demo-badge:hover {
+.unmatched-badge:hover {
   background: #dbeafe;
 }
 
