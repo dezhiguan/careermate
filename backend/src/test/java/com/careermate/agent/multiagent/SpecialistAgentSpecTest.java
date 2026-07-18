@@ -22,7 +22,7 @@ class SpecialistAgentSpecTest {
     @Test
     void allSpecialistsExposeNonEmptySpec() {
         List<SpecialistAgent> agents = List.of(
-                new ResumeSpecialistAgent(toolExecutionService),
+                new ResumeSpecialistAgent(toolExecutionService, org.mockito.Mockito.mock(com.careermate.resume.version.service.ResumeVersionService.class)),
                 new JobMatchSpecialistAgent(toolExecutionService),
                 new InterviewSpecialistAgent(toolExecutionService),
                 new MarketSpecialistAgent(toolExecutionService),
@@ -43,12 +43,13 @@ class SpecialistAgentSpecTest {
 
     @Test
     void resumeSpecDeclaresAllowedTools() {
-        SpecialistAgentSpec spec = new ResumeSpecialistAgent(toolExecutionService).spec();
+        SpecialistAgentSpec spec = new ResumeSpecialistAgent(toolExecutionService, org.mockito.Mockito.mock(com.careermate.resume.version.service.ResumeVersionService.class)).spec();
 
         assertEquals(AgentDomain.RESUME, spec.domain());
         assertEquals(List.of(
                 "get_default_resume",
                 "generate_resume_from_jd",
+                "modify_resume",
                 "search_knowledge_base"
         ), spec.allowedTools());
     }
