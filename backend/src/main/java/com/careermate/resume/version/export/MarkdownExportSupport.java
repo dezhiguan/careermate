@@ -229,11 +229,24 @@ public final class MarkdownExportSupport {
                     }
                 }
             }
-            List<Map<String, Object>> changes = changesNode == null || !changesNode.isArray()
+            List<Map<String, Object>> changes = new ArrayList<>(changesNode == null || !changesNode.isArray()
                     ? List.of()
-                    : parseChangesArray(changesNode);
+                    : parseChangesArray(changesNode));
+            // v3：内联建议（用户可采纳/忽略），以 kind=suggestion 混入同一 list，前端按 kind 分流。
+            JsonNode suggestionsNode = root.get("suggestions");
+            if ((suggestionsNode == null || !suggestionsNode.isArray()) && root.has("meta")
+                    && root.get("meta").isObject()) {
+                suggestionsNode = root.get("meta").get("suggestions");
+            }
+            if (suggestionsNode != null && suggestionsNode.isArray()) {
+                for (Map<String, Object> s : parseChangesArray(suggestionsNode)) {
+                    Map<String, Object> tagged = new LinkedHashMap<>(s);
+                    tagged.put("kind", "suggestion");
+                    changes.add(tagged);
+                }
+            }
             String summary = summaryNode != null && summaryNode.isTextual() ? summaryNode.asText() : "";
-            return new OptimizationMeta(changes, normalizeSummary(summary));
+            return new OptimizationMeta(List.copyOf(changes), normalizeSummary(summary));
         } catch (Exception e) {
             return new OptimizationMeta(List.of(), "");
         }

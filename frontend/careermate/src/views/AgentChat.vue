@@ -356,9 +356,9 @@
           <span v-if="resumeGap.understated.length" class="gapl mid" :title="resumeGap.understated.join(' · ')">◐ 未突出 {{ resumeGap.understated.length }}：{{ resumeGap.understated.slice(0, 3).join(' · ') }}</span>
           <span v-if="resumeGap.missing.length" class="gapl miss" :title="resumeGap.missing.join(' · ')">✗ 缺 {{ resumeGap.missing.length }}：{{ resumeGap.missing.slice(0, 3).join(' · ') }}</span>
         </div>
-        <div v-if="resumeViewerNotes.length && !diffMode" class="canvas-notes">
+        <div v-if="canvasAnnotated.unmatched.length && !diffMode" class="canvas-notes">
           <div
-            v-for="(note, idx) in resumeViewerNotes"
+            v-for="(note, idx) in canvasAnnotated.unmatched"
             :key="idx"
             class="canvas-note"
             :class="{ kept: note.state === 'kept', reverting: note.state === 'reverting' }"
@@ -390,7 +390,25 @@
               <span class="diff-text">{{ ln.text || ' ' }}</span>
             </div>
           </div>
-          <div v-else class="canvas-paper markdown-preview" v-html="renderMd(resumeViewerContent)"></div>
+          <div v-else class="canvas-paper markdown-preview resume-annotated">
+            <div
+              v-for="blk in canvasAnnotated.blocks"
+              :key="blk.key"
+              class="rline"
+              :class="{ chg: blk.changes.length }"
+            >
+              <div class="rline-body" v-html="blk.html"></div>
+              <div v-for="(c, ci) in blk.changes" :key="'c' + ci" class="rline-note">
+                <span class="rline-note-mark">✎ 小职</span>{{ c.reason || c.text }}
+              </div>
+              <div v-for="(s, si) in blk.suggestions" :key="'s' + si" class="rline-sug">
+                <span class="rline-sug-icon">💡</span>
+                <span class="rline-sug-text">{{ s.text }}</span>
+                <button type="button" class="rline-sug-btn accept" @click="acceptSuggestion(s)">采纳</button>
+                <button type="button" class="rline-sug-btn ignore" @click="ignoreSuggestion(s)">忽略</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1216,10 +1234,17 @@ function normalizeNotes(raw) {
   if (!Array.isArray(raw)) return []
   return raw
     .map((n) => {
-      const text = typeof n === 'string'
-        ? n
-        : (n?.text || n?.note || n?.content || n?.change || n?.detail || '')
-      return { text: String(text || '').trim(), state: '' }
+      if (typeof n === 'string') {
+        return { text: n.trim(), reason: n.trim(), anchor: '', kind: 'change', state: '' }
+      }
+      const reason = String(n?.reason || n?.text || n?.note || n?.content || n?.change || n?.detail || '').trim()
+      return {
+        text: reason,
+        reason,
+        anchor: String(n?.anchor || '').trim(),
+        kind: n?.kind === 'suggestion' ? 'suggestion' : 'change',
+        state: '',
+      }
     })
     .filter((x) => x.text)
 }
@@ -1233,6 +1258,42 @@ function keepNote(note) {
 function revertNote(note) {
   note.state = 'reverting'
   inputText.value = `请撤销这处改动：${note.text}`
+}
+
+// #3 Canvas 逐行归因 + 内联建议：按 anchor 把改动/建议锚到正文行，内联渲染。
+const ignoredSuggestions = ref(new Set())
+function sugKey(s) {
+  return `${s.anchor}|${s.text}`
+}
+const canvasAnnotated = computed(() => {
+  const content = String(resumeViewerContent.value || '')
+  const notes = resumeViewerNotes.value || []
+  const changes = notes.filter((n) => n.kind !== 'suggestion')
+  const sugs = notes.filter((n) => n.kind === 'suggestion' && !ignoredSuggestions.value.has(sugKey(n)))
+  const usedC = new Set()
+  const usedS = new Set()
+  const blocks = content.split('\n').map((line, i) => {
+    const lc = []
+    changes.forEach((c, ci) => {
+      if (c.anchor && !usedC.has(ci) && line.includes(c.anchor)) { usedC.add(ci); lc.push(c) }
+    })
+    const ls = []
+    sugs.forEach((s, si) => {
+      if (s.anchor && !usedS.has(si) && line.includes(s.anchor)) { usedS.add(si); ls.push(s) }
+    })
+    return { key: i, html: renderMd(line), changes: lc, suggestions: ls }
+  })
+  // 未锚定到行的改动 → 底部清单兜底
+  const unmatched = changes.filter((c, ci) => !usedC.has(ci))
+  return { blocks, unmatched }
+})
+
+function acceptSuggestion(s) {
+  inputText.value = `请采纳这条建议：${s.text}`
+  ignoredSuggestions.value = new Set(ignoredSuggestions.value).add(sugKey(s))
+}
+function ignoreSuggestion(s) {
+  ignoredSuggestions.value = new Set(ignoredSuggestions.value).add(sugKey(s))
 }
 
 // 当前版本的"上一版"：按 createdAt 找严格更早、且时间最近的那一版（不依赖数组顺序）
@@ -2280,6 +2341,50 @@ onBeforeUnmount(() => {
   color: #DB9A2D;
   border-color: #fde68a;
 }
+/* #3 逐行归因 + 内联建议 */
+.resume-annotated .rline {
+  position: relative;
+}
+.resume-annotated .rline.chg {
+  border-left: 2px solid #D8DCFB;
+  padding-left: 8px;
+  margin-left: -10px;
+}
+.rline-note {
+  font-size: 11.5px;
+  color: #5C6472;
+  margin: 2px 0 6px;
+  padding-left: 2px;
+}
+.rline-note-mark {
+  font-weight: 700;
+  color: #4E5BEF;
+  margin-right: 6px;
+}
+.rline-sug {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  padding: 6px 10px;
+  border: 1px dashed #D8DCFB;
+  border-radius: 8px;
+  background: #F5F7FF;
+  font-size: 12px;
+}
+.rline-sug-icon { flex-shrink: 0; }
+.rline-sug-text { flex: 1; color: #334155; }
+.rline-sug-btn {
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 11.5px;
+  cursor: pointer;
+  background: #fff;
+}
+.rline-sug-btn.accept { color: #4E5BEF; border-color: #D8DCFB; font-weight: 600; }
+.rline-sug-btn.ignore { color: #9AA2AF; border-color: #E8EAF0; }
 .canvas-body {
   flex: 1;
   overflow: auto;

@@ -54,6 +54,24 @@ class MarkdownExportSupportTest {
     }
 
     @Test
+    void parsesV3ChangesWithAnchorAndSuggestions() {
+        String raw = "# 张三\n## 专业技能\nJava、Go\n\n```meta\n{\"change_summary\":\"做了改动\","
+                + "\"changes\":[{\"reason\":\"补全技能\",\"anchor\":\"Java、Go\"}],"
+                + "\"suggestions\":[{\"text\":\"弱化前端\",\"anchor\":\"React\"}]}\n```";
+        var result = MarkdownExportSupport.stripOptimizationMeta(raw);
+        // changes 含 1 个改动 + 1 个 suggestion(kind=suggestion)
+        assertEquals(2, result.changes().size());
+        var change = result.changes().get(0);
+        assertEquals("补全技能", change.get("reason"));
+        assertEquals("Java、Go", change.get("anchor"));
+        var sug = result.changes().get(1);
+        assertEquals("suggestion", sug.get("kind"));
+        assertEquals("弱化前端", sug.get("text"));
+        assertEquals("React", sug.get("anchor"));
+        assertTrue(result.markdown().contains("专业技能"));
+    }
+
+    @Test
     void parserSupportsGfmTables() {
         Node doc = MarkdownExportSupport.parser().parse("| a | b |\n|---|---|\n| 1 | 2 |");
         boolean[] hasTable = {false};
