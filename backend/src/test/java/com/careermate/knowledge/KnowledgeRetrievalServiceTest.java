@@ -173,14 +173,14 @@ class KnowledgeRetrievalServiceTest {
 
     @Test
     void resumeSceneUsesPersonalKbWithChunkTypeFilterAndNormalizesTopK() {
-        when(ragForgeClient.search(31L, "我的简历", 50, List.of("RESUME"))).thenReturn(List.of(
+        when(ragForgeClient.search(31L, "我的简历", 150, List.of("RESUME"))).thenReturn(List.of(
                 new RagForgeChunk(10L, 20L, "resume.md", "Java 后端简历", "PERSONAL_RESUME", 0.91)
         ));
 
         RagRetrieveResult result = service.retrieve(RagRetrieveRequest.builder()
                 .query(" 我的简历 ")
                 .scene(RagRetrieveScene.RESUME)
-                .topK(99)
+                .topK(999)
                 .filters(Map.of("chunkTypes", List.of("RESUME")))
                 .build());
 
@@ -189,7 +189,7 @@ class KnowledgeRetrievalServiceTest {
         assertEquals(RagRetrieverChunkType.RESUME, result.getChunks().get(0).getChunkType());
         assertEquals("resume.md", result.getChunks().get(0).getSourceTitle());
         assertEquals("PERSONAL_RESUME", result.getChunks().get(0).getMetadata().get("rawChunkType"));
-        verify(ragForgeClient).search(31L, "我的简历", 50, List.of("RESUME"));
+        verify(ragForgeClient).search(31L, "我的简历", 150, List.of("RESUME"));
     }
 
     @Test

@@ -9,7 +9,7 @@ public record OpportunityListRequest(
         String position,
         String mode,
         @Min(value = 1, message = "页码需大于等于 1") Integer page,
-        @Min(value = 1, message = "每页数量需在 1-20 之间") @Max(value = 20, message = "每页数量需在 1-20 之间") Integer size
+        @Min(value = 1, message = "每页数量需在 1-50 之间") @Max(value = 50, message = "每页数量需在 1-50 之间") Integer size
 ) {
     public OpportunityListRequest {
         if (page == null) {

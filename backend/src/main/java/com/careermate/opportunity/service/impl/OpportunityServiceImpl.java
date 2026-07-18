@@ -5,11 +5,13 @@ import com.careermate.common.api.CacheMeta;
 import com.careermate.common.exception.BizException;
 import com.careermate.cache.CacheKeys;
 import com.careermate.opportunity.converter.ChunksToOpportunityConverter;
+import com.careermate.opportunity.dto.OpportunityCitiesVO;
 import com.careermate.opportunity.dto.OpportunityDetailVO;
 import com.careermate.opportunity.dto.OpportunityListItemVO;
 import com.careermate.opportunity.dto.OpportunityListRequest;
 import com.careermate.opportunity.dto.OpportunityPrepareResponse;
 import com.careermate.opportunity.service.OpportunityService;
+import com.careermate.opportunity.support.OpportunityCityCatalog;
 import com.careermate.profile.service.CareerProfileService;
 import com.careermate.profile.dto.CareerProfileResponse;
 import com.careermate.agent.tool.rag.RagRetrieveRequest;
@@ -30,7 +32,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -49,9 +50,8 @@ import java.util.stream.Collectors;
 public class OpportunityServiceImpl implements OpportunityService {
 
     private static final String DEFAULT_QUERY = "Java 后端";
-    private static final String MODE_DEMO = "demo";
-    private static final int SEARCH_TOP_K = 30;
-    private static final int MAX_SEARCH_TOP_K = 100;
+    // 匹配池：一次固定取回上限，与页码解耦，去重后作为稳定 total，分页仅对内存池切片。
+    private static final int OPPORTUNITY_POOL_SIZE = 150;
     private static final int DETAIL_SEARCH_TOP_K = 50;
     private static final Duration DETAIL_CACHE_TTL = Duration.ofMinutes(10);
     private static final String SORT_MATCH = "MATCH";
@@ -68,6 +68,7 @@ public class OpportunityServiceImpl implements OpportunityService {
     private final ResumeService resumeService;
     private final CareerProfileService careerProfileService;
     private final WorkspaceSessionRepository workspaceSessionRepository;
+    private final OpportunityCityCatalog cityCatalog;
     private final ChunksToOpportunityConverter converter = new ChunksToOpportunityConverter();
     private final ObjectMapper objectMapper;
     private final Optional<StringRedisTemplate> redisTemplate;
@@ -79,6 +80,7 @@ public class OpportunityServiceImpl implements OpportunityService {
             ResumeService resumeService,
             CareerProfileService careerProfileService,
             WorkspaceSessionRepository workspaceSessionRepository,
+            OpportunityCityCatalog cityCatalog,
             ObjectMapper objectMapper,
             @Autowired(required = false) StringRedisTemplate redisTemplate
     ) {
@@ -87,6 +89,7 @@ public class OpportunityServiceImpl implements OpportunityService {
         this.resumeService = resumeService;
         this.careerProfileService = careerProfileService;
         this.workspaceSessionRepository = workspaceSessionRepository;
+        this.cityCatalog = cityCatalog;
         this.objectMapper = objectMapper;
         this.redisTemplate = Optional.ofNullable(redisTemplate);
     }
@@ -98,6 +101,22 @@ public class OpportunityServiceImpl implements OpportunityService {
                 ? new OpportunityListRequest(null, null, null, null, 1, 10)
                 : request;
         return computeOpportunityList(userId, safeRequest);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OpportunityCitiesVO cities(Long userId) {
+        String defaultCity = OpportunityCityCatalog.ANY;
+        try {
+            CareerProfileResponse profile = careerProfileService.getProfile(userId);
+            String targetCity = normalize(profile.getTargetCity());
+            if (targetCity != null && cityCatalog.contains(targetCity)) {
+                defaultCity = targetCity;
+            }
+        } catch (Exception e) {
+            log.warn("resolve default city from profile failed, userId={}", userId, e);
+        }
+        return new OpportunityCitiesVO(cityCatalog.cities(), defaultCity);
     }
 
     public PageResult<OpportunityListItemVO> computeOpportunityList(
@@ -135,7 +154,7 @@ public class OpportunityServiceImpl implements OpportunityService {
         PageResult<OpportunityListItemVO> result = buildListPage(
                 cached.items(),
                 resumeContext,
-                plan.demoMode(),
+                plan.genericMode(),
                 safeRequest.page(),
                 safeRequest.size(),
                 metaFromCached(cached, CacheMeta.State.FRESH)
@@ -177,11 +196,12 @@ public class OpportunityServiceImpl implements OpportunityService {
         }
     }
 
+    /**
+     * 匹配池大小与页码解耦：始终取回固定上限，去重后作为稳定 total，翻页只切内存池。
+     * 这样 total 不再随页码变化，也不再被首页的小 topK 卡住条数。
+     */
     private int searchTopKFor(OpportunityListRequest request) {
-        int page = request == null || request.page() == null ? 1 : Math.max(1, request.page());
-        int size = request == null || request.size() == null ? 10 : Math.max(1, request.size());
-        long required = (long) page * size;
-        return (int) Math.min(MAX_SEARCH_TOP_K, Math.max(SEARCH_TOP_K, required));
+        return OPPORTUNITY_POOL_SIZE;
     }
 
     @Override
@@ -205,14 +225,14 @@ public class OpportunityServiceImpl implements OpportunityService {
     private PageResult<OpportunityListItemVO> buildListPage(
             List<OpportunityListItemVO> items,
             ResumeContext resumeContext,
-            boolean demoMode,
+            boolean genericMode,
             int page,
             int size,
             CacheMeta meta
     ) {
         List<OpportunityListItemVO> enriched = items.stream()
                 .map(item -> applyMatch(item, resumeContext))
-                .map(item -> demoMode ? asDemoItem(item) : item)
+                .map(item -> genericMode ? asUnmatchedItem(item) : item)
                 .toList();
 
         String sortStrategy;
@@ -488,15 +508,6 @@ public class OpportunityServiceImpl implements OpportunityService {
         );
     }
 
-    private DemoSearchCriteria resolveDemoSearchCriteria(OpportunityListRequest request) {
-        String city = nullToDefault(request.city(), "广州");
-        String role = nullToDefault(request.position(), "Java");
-        String years = "3-5年";
-        String keyword = StringUtils.hasText(request.keyword()) ? request.keyword().trim() : "";
-        String query = (keyword.isBlank() ? "" : keyword + " ") + city + " " + role + " " + years;
-        return new DemoSearchCriteria(city, role, years, keyword, query);
-    }
-
     public String opportunityListCacheKey(Long userId, OpportunityListRequest request) {
         OpportunityListRequest safeRequest = request == null
                 ? new OpportunityListRequest(null, null, null, null, 1, 10)
@@ -510,17 +521,16 @@ public class OpportunityServiceImpl implements OpportunityService {
             OpportunityListRequest request,
             ResumeContext resumeContext
     ) {
-        boolean demoMode = isDemoMode(request, resumeContext);
+        // 无简历 = 通用推荐态（不展示个性化匹配）；有简历 = 精准匹配态。查询一律按意向（关键词/城市/岗位/画像）驱动。
+        boolean genericMode = !resumeContext.hasResume();
         SearchCriteria criteria = resolveSearchCriteria(userId, request);
-        DemoSearchCriteria demoCriteria = resolveDemoSearchCriteria(request);
-        String query = demoMode ? demoCriteria.query() : criteria.query();
         String cacheKey = CacheKeys.opportunityList(
-                demoMode ? demoCriteria.city() : criteria.city(),
-                demoMode ? demoCriteria.role() : criteria.role(),
-                demoMode ? demoCriteria.years() : criteria.years(),
-                demoMode ? demoCriteria.keyword() : criteria.keyword()
+                criteria.city(),
+                criteria.role(),
+                criteria.years(),
+                criteria.keyword()
         );
-        return new ListQueryPlan(demoMode, query, cacheKey);
+        return new ListQueryPlan(genericMode, criteria.query(), cacheKey);
     }
 
     private ResumeContext resolveResumeContext(Long userId) {
@@ -616,11 +626,15 @@ public class OpportunityServiceImpl implements OpportunityService {
                 item.skills(),
                 item.ragScore(),
                 item.externalUrl(),
-                item.isDemo()
+                item.unmatched()
         );
     }
 
-    private static OpportunityListItemVO asDemoItem(OpportunityListItemVO item) {
+    /**
+     * 通用推荐态：无画像用户不展示个性化匹配。清空匹配分/技能命中与缺失，
+     * 标记 unmatched=true，让前端改为展示「上传简历解锁匹配」而非假匹配。
+     */
+    private static OpportunityListItemVO asUnmatchedItem(OpportunityListItemVO item) {
         return new OpportunityListItemVO(
                 item.jdId(),
                 item.docId(),
@@ -644,12 +658,6 @@ public class OpportunityServiceImpl implements OpportunityService {
                 item.externalUrl(),
                 true
         );
-    }
-
-    private static boolean isDemoMode(OpportunityListRequest request, ResumeContext resumeContext) {
-        return request != null
-                && MODE_DEMO.equalsIgnoreCase(request.mode())
-                && !resumeContext.hasResume();
     }
 
     private List<RagForgeChunk> fetchChunksByDocId(Long docId) {
@@ -802,17 +810,10 @@ public class OpportunityServiceImpl implements OpportunityService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private static String nullToDefault(String value, String fallback) {
-        return StringUtils.hasText(value) ? value.trim() : fallback;
-    }
-
     private record SearchCriteria(String city, String role, String years, String keyword, String query) {
     }
 
-    private record DemoSearchCriteria(String city, String role, String years, String keyword, String query) {
-    }
-
-    private record ListQueryPlan(boolean demoMode, String query, String cacheKey) {
+    private record ListQueryPlan(boolean genericMode, String query, String cacheKey) {
     }
 
     public record CachedOpportunityList(List<OpportunityListItemVO> items, Long cachedAt, CacheMeta.State state) {
