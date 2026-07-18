@@ -2,9 +2,39 @@
   <div class="opportunity-page">
     <header class="mhead">
       <h1 class="mhead-t">机会</h1>
-      <button type="button" class="search-chip" @click="openSearch">
-        🔍 <span class="sc-ph">{{ activeKeyword || '搜公司 / 岗位' }}</span>
-      </button>
+      <div class="search-wrap">
+        <button v-if="!(isDesktop && searchInlineOpen)" type="button" class="search-chip" @click="openSearch">
+          🔍 <span class="sc-ph">{{ activeKeyword || '搜公司 / 岗位' }}</span>
+        </button>
+        <div v-else class="search-inline">
+          <span class="si-icon">🔍</span>
+          <input
+            ref="searchInlineEl"
+            v-model="searchInput"
+            class="si-input"
+            type="search"
+            placeholder="搜公司 / 岗位"
+            @keydown.enter="doSearch(searchInput)"
+            @keydown.esc="closeInlineSearch"
+            @blur="onInlineBlur"
+          >
+          <div v-if="inlineSuggests.length" class="search-drop">
+            <div v-for="g in inlineSuggests" :key="g.title" class="sd-sect">
+              <div class="sd-title">
+                {{ g.title }}
+                <button v-if="g.title === '搜索历史'" type="button" class="sd-clear" @mousedown.prevent="clearHistory">清空</button>
+              </div>
+              <button
+                v-for="it in g.items"
+                :key="it"
+                type="button"
+                class="sd-row"
+                @mousedown.prevent="pickSuggest(it)"
+              >{{ g.icon }} {{ it }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
       <button type="button" class="fchip" :class="{ on: sortMode === 'match' }" @click="setSort('match')">匹配度</button>
       <button type="button" class="fchip" :class="{ on: sortMode === 'fresh' }" @click="setSort('fresh')">最新</button>
       <label class="fchip city-chip" :class="{ on: activeCity !== '不限' }">
@@ -211,14 +241,46 @@ function loadSearchHistory() {
     searchHistory.value = []
   }
 }
+// 桌面：工具条内内联搜索 + 联想；移动端：全屏搜索遮罩
+const searchInlineOpen = ref(false)
+const searchInlineEl = ref(null)
+let inlineBlurTimer = null
 function openSearch() {
   searchInput.value = activeKeyword.value
-  searchOverlayOpen.value = true
-  nextTick(() => searchInputEl.value?.focus())
+  if (isDesktop.value) {
+    searchInlineOpen.value = true
+    nextTick(() => searchInlineEl.value?.focus())
+  } else {
+    searchOverlayOpen.value = true
+    nextTick(() => searchInputEl.value?.focus())
+  }
 }
 function closeSearch() {
   searchOverlayOpen.value = false
 }
+function closeInlineSearch() {
+  searchInlineOpen.value = false
+}
+function onInlineBlur() {
+  // 延迟收起，留出点选联想项的时间
+  inlineBlurTimer = setTimeout(() => {
+    searchInlineOpen.value = false
+  }, 160)
+}
+function pickSuggest(kw) {
+  if (inlineBlurTimer) clearTimeout(inlineBlurTimer)
+  doSearch(kw)
+}
+// 内联联想：公司 + 岗位 + 历史（复用既有联想数据）
+const inlineSuggests = computed(() => {
+  const groups = []
+  if (companySuggest.value.length) groups.push({ title: '公司', icon: '🏢', items: companySuggest.value })
+  if (titleSuggest.value.length) groups.push({ title: '岗位', icon: '💼', items: titleSuggest.value })
+  if (!searchInput.value.trim() && searchHistory.value.length) {
+    groups.push({ title: '搜索历史', icon: '🕘', items: searchHistory.value })
+  }
+  return groups
+})
 function doSearch(kw) {
   const q = String(kw || '').trim()
   if (!q) return
@@ -230,6 +292,7 @@ function doSearch(kw) {
     // localStorage 不可用忽略
   }
   searchOverlayOpen.value = false
+  searchInlineOpen.value = false
   router.replace({ path: '/opportunity', query: { keyword: q, t: String(Date.now()) } })
 }
 function clearHistory() {
@@ -600,8 +663,19 @@ onBeforeUnmount(() => {
 /* ===== 机会页 · 照 09 定稿 ===== */
 .mhead { display:flex; align-items:center; gap:10px; padding:14px 20px; background:#fff; border-bottom:1px solid var(--line); flex-wrap:wrap; }
 .mhead-t { margin:0; font-size:16px; font-weight:700; color:var(--ink); }
-.search-chip { flex:1; max-width:340px; min-width:110px; display:inline-flex; align-items:center; gap:6px; justify-content:flex-start; background:#fff; border:1px solid var(--line); border-radius:12px; padding:7px 14px; color:var(--ink3); font-size:12px; cursor:pointer; font-family:inherit; }
+.search-wrap { position:relative; flex:0 1 320px; min-width:130px; }
+.search-chip { width:100%; display:inline-flex; align-items:center; gap:6px; justify-content:flex-start; background:#fff; border:1px solid var(--line); border-radius:12px; padding:7px 14px; color:var(--ink3); font-size:12px; cursor:pointer; font-family:inherit; }
 .sc-ph { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* 桌面内联搜索 */
+.search-inline { display:flex; align-items:center; gap:6px; width:100%; background:#fff; border:1px solid #4E5BEF; box-shadow:0 0 0 3px rgba(78,91,239,.12); border-radius:12px; padding:6px 12px; }
+.si-icon { font-size:13px; }
+.si-input { flex:1; min-width:0; border:none; outline:none; background:transparent; font:inherit; font-size:12px; color:var(--ink); }
+.search-drop { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:60; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,.12); padding:6px; max-height:340px; overflow-y:auto; }
+.sd-sect + .sd-sect { border-top:1px solid var(--line); margin-top:4px; padding-top:4px; }
+.sd-title { display:flex; align-items:center; justify-content:space-between; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink3); padding:4px 8px 2px; }
+.sd-clear { border:none; background:transparent; color:#4E5BEF; font-size:11px; cursor:pointer; font-family:inherit; }
+.sd-row { display:block; width:100%; text-align:left; border:none; background:transparent; border-radius:8px; padding:7px 8px; font:inherit; font-size:12px; color:var(--ink2); cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sd-row:hover { background:var(--bg); color:#4E5BEF; }
 .fchip { display:inline-flex; align-items:center; gap:5px; font-size:12px; background:#fff; border:1px solid var(--line); border-radius:16px; padding:4px 12px; color:var(--ink2); white-space:nowrap; cursor:pointer; font-family:inherit; position:relative; }
 .fchip.on { background:var(--brand-soft); border-color:var(--brand-line); color:var(--brand); font-weight:600; }
 .city-native { position:absolute; inset:0; width:100%; opacity:0; cursor:pointer; font-family:inherit; }
