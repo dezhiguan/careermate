@@ -35,7 +35,10 @@
         v-for="col in board.columns"
         :key="col.stage"
         class="board-col"
-        :class="colClass(col.stage)"
+        :class="[colClass(col.stage), { 'drag-over': dragOverStage === col.stage }]"
+        @dragover.prevent="dragOverStage = col.stage"
+        @dragleave="dragOverStage === col.stage && (dragOverStage = '')"
+        @drop.prevent="onDrop(col.stage)"
       >
         <div class="col-head">
           <span class="col-label">{{ col.label }}</span>
@@ -46,7 +49,10 @@
             v-for="app in col.applications"
             :key="app.id"
             class="app-card"
-            :class="{ opening: openingId === app.id }"
+            :class="{ opening: openingId === app.id, dragging: draggingId === app.id }"
+            draggable="true"
+            @dragstart="onDragStart(app)"
+            @dragend="onDragEnd"
             @click="openLine(app)"
           >
             <div class="app-co">{{ cardName(app) }}</div>
@@ -271,6 +277,33 @@ async function removeSaved(job) {
 async function onStageChange(app, evt) {
   const stage = evt?.target?.value
   if (!stage || stage === app.stage) return
+  await moveStage(app, stage)
+}
+
+// #4 Web 看板拖拽改阶段
+const draggingId = ref(null)
+const draggingApp = ref(null)
+const dragOverStage = ref('')
+function onDragStart(app) {
+  draggingId.value = app.id
+  draggingApp.value = app
+}
+function onDragEnd() {
+  draggingId.value = null
+  draggingApp.value = null
+  dragOverStage.value = ''
+}
+async function onDrop(stage) {
+  const app = draggingApp.value
+  dragOverStage.value = ''
+  draggingId.value = null
+  draggingApp.value = null
+  if (app && stage && stage !== app.stage) {
+    await moveStage(app, stage)
+  }
+}
+
+async function moveStage(app, stage) {
   busyId.value = app.id
   try {
     await updateApplicationStage(app.id, stage)
@@ -357,6 +390,9 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .col-body { min-height:60px; }
 
 .app-card { position:relative; background:#fff; border:1px solid var(--line); border-radius:12px; padding:11px 13px; margin-bottom:10px; box-shadow:0 1px 2px rgba(20,24,40,.05),0 3px 10px rgba(20,24,40,.05); cursor:pointer; transition:border-color .15s, box-shadow .15s; }
+.app-card[draggable="true"] { cursor: grab; }
+.app-card.dragging { opacity: .5; }
+.board-col.drag-over { background: #EEF0FE; outline: 2px dashed #D8DCFB; outline-offset: -2px; border-radius: 12px; }
 .app-card:hover { box-shadow:0 2px 8px rgba(78,91,239,.12); }
 .app-card.opening { opacity:.6; }
 .col-hot .app-card { border-color:#F5C6C8; }
