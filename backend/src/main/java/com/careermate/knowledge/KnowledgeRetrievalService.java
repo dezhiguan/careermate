@@ -40,9 +40,9 @@ public class KnowledgeRetrievalService {
     public static final String ERROR_RAGFORGE_FAILED = "RAGFORGE_FAILED";
 
     private static final int DEFAULT_TOP_K = 5;
-    // 检索 topK 上限。RAGForge /api/v1/search 服务端硬限制 topK ∈ [1,50]，超过会返回 400，
-    // 故此处上限必须 ≤ 50，否则机会页等一次取回较多结果的场景会整体查空。
-    private static final int MAX_TOP_K = 50;
+    // 检索 topK 上限。须 ≤ RAGForge /api/v1/search 服务端上限（现为 150，超过返回 400 会整体查空）。
+    // 两处需同步：改这里前先确认 RAGForge SearchRequest.topK 的 @Max。
+    private static final int MAX_TOP_K = 150;
 
     private final RagForgeClient ragForgeClient;
     private final RagForgeProperties ragForgeProperties;

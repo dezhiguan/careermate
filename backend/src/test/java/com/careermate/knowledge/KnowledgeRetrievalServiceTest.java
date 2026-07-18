@@ -173,8 +173,8 @@ class KnowledgeRetrievalServiceTest {
 
     @Test
     void resumeSceneUsesPersonalKbWithChunkTypeFilterAndNormalizesTopK() {
-        // RAGForge /search 服务端 topK 硬上限为 50，故检索层必须把超限 topK 收敛到 ≤50。
-        when(ragForgeClient.search(31L, "我的简历", 50, List.of("RESUME"))).thenReturn(List.of(
+        // RAGForge /search 服务端 topK 上限为 150，故检索层必须把超限 topK 收敛到 ≤150。
+        when(ragForgeClient.search(31L, "我的简历", 150, List.of("RESUME"))).thenReturn(List.of(
                 new RagForgeChunk(10L, 20L, "resume.md", "Java 后端简历", "PERSONAL_RESUME", 0.91)
         ));
 
@@ -190,7 +190,7 @@ class KnowledgeRetrievalServiceTest {
         assertEquals(RagRetrieverChunkType.RESUME, result.getChunks().get(0).getChunkType());
         assertEquals("resume.md", result.getChunks().get(0).getSourceTitle());
         assertEquals("PERSONAL_RESUME", result.getChunks().get(0).getMetadata().get("rawChunkType"));
-        verify(ragForgeClient).search(31L, "我的简历", 50, List.of("RESUME"));
+        verify(ragForgeClient).search(31L, "我的简历", 150, List.of("RESUME"));
     }
 
     @Test
