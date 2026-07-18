@@ -45,7 +45,36 @@
       </label>
     </header>
 
-    <div v-if="!hasResume && !loading && !degraded" class="resume-banner">
+    <!-- 冷启动轻问答：纯新用户（无简历 + 无意向）先问一句 -->
+    <section v-if="showColdStart" class="coldstart">
+      <div class="cs-card">
+        <div class="cs-q">先告诉我们，你想找什么？</div>
+        <div class="cs-sub">用于给你第一批机会，稍后上传简历即可精准匹配。</div>
+        <div class="cs-field">
+          <span class="cs-lbl">岗位</span>
+          <input
+            v-model="csRole"
+            class="cs-input"
+            type="text"
+            placeholder="如 Java 后端开发（可自由输入任意岗位）"
+            @keydown.enter="submitColdStart"
+          >
+        </div>
+        <div class="cs-chips">
+          <button v-for="r in COMMON_ROLES" :key="r" type="button" class="cs-chip" :class="{ on: csRole === r }" @click="csRole = r">{{ r }}</button>
+        </div>
+        <div class="cs-field">
+          <span class="cs-lbl">城市</span>
+          <select v-model="csCity" class="cs-select">
+            <option v-for="c in cityOptions" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </div>
+        <button type="button" class="cs-go" :disabled="csSubmitting" @click="submitColdStart">看看机会 →</button>
+        <button type="button" class="cs-skip" @click="dismissColdStart">跳过，先看最新机会</button>
+      </div>
+    </section>
+
+    <div v-if="!hasResume && !loading && !degraded && !showColdStart" class="resume-banner">
       <span class="resume-banner-text">传简历获得 AI 匹配分</span>
       <button type="button" class="resume-banner-btn" @click="goUploadResume">上传简历</button>
     </div>
@@ -177,6 +206,7 @@ import { listOpportunities, getOpportunityCities } from '../api/opportunity'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 import { createApplication } from '../api/pipeline'
 import { listSavedJobs, saveJob, unsaveJob } from '../api/savedJobs'
+import { getCareerProfile, updateCareerProfile } from '../api/profile'
 import { homeStore } from '../stores/homeStore'
 import PaginationBar from '../components/PaginationBar.vue'
 
@@ -350,10 +380,61 @@ async function loadCities() {
     const data = await getOpportunityCities()
     const cities = data?.cities || []
     if (cities.length) cityOptions.value = cities
-    if (data?.defaultCity) defaultCity.value = data.defaultCity
+    if (data?.defaultCity) {
+      defaultCity.value = data.defaultCity
+      if (csCity.value === '不限') csCity.value = data.defaultCity
+    }
   } catch (e) {
     // 保底沿用默认城市列表
   }
+}
+
+// 冷启动轻问答：纯新用户（无简历 + 无画像意向）首次进页引导一句
+const COMMON_ROLES = ['Java 后端', '前端开发', '算法工程师', '测试开发', 'Golang 后端', '数据开发']
+const profileHasIntent = ref(false)
+const coldStartDismissed = ref(false)
+const csRole = ref('')
+const csCity = ref('不限')
+const csSubmitting = ref(false)
+async function loadProfileIntent() {
+  try {
+    const p = await getCareerProfile()
+    profileHasIntent.value = !!(p?.targetRole || p?.targetCity)
+  } catch (e) {
+    profileHasIntent.value = false
+  }
+}
+const showColdStart = computed(() =>
+  !loading.value && !degraded.value && !hasResume.value &&
+  !profileHasIntent.value && !coldStartDismissed.value
+)
+function dismissColdStart() {
+  coldStartDismissed.value = true
+}
+async function submitColdStart() {
+  const role = csRole.value.trim()
+  const city = csCity.value
+  if (!role && (!city || city === '不限')) {
+    dismissColdStart()
+    return
+  }
+  csSubmitting.value = true
+  try {
+    await updateCareerProfile({
+      targetRole: role || undefined,
+      targetCity: city && city !== '不限' ? city : undefined,
+    })
+    profileHasIntent.value = true
+  } catch (e) {
+    // 保存失败不阻断浏览
+  }
+  csSubmitting.value = false
+  coldStartDismissed.value = true
+  const query = { ...route.query, t: String(Date.now()) }
+  if (role) query.position = role
+  if (city && city !== '不限') query.city = city
+  else delete query.city
+  router.replace({ path: '/opportunity', query })
 }
 // v2.9 定稿：排序只留「匹配度·最新」两项（六维筛选/薪资排序已删）
 const SORT_OPTIONS = [
@@ -630,6 +711,7 @@ onMounted(() => {
   loadSaved()
   loadSearchHistory()
   loadCities()
+  loadProfileIntent()
   window.addEventListener('resize', updateIsDesktop, { passive: true })
   window.addEventListener('scroll', handleScroll, { passive: true })
   if (!activeKeyword.value && homeStore.state.initialized && homeStore.state.topOpportunities.length > 0) {
@@ -663,6 +745,24 @@ onBeforeUnmount(() => {
 /* ===== 机会页 · 照 09 定稿 ===== */
 .mhead { display:flex; align-items:center; gap:10px; padding:14px 20px; background:#fff; border-bottom:1px solid var(--line); flex-wrap:wrap; }
 .mhead-t { margin:0; font-size:16px; font-weight:700; color:var(--ink); }
+/* 冷启动轻问答卡 */
+.coldstart { max-width:1100px; margin:16px auto 0; padding:0 16px; }
+.cs-card { max-width:420px; margin:0 auto; background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:0 8px 24px rgba(15,23,42,.06); padding:20px; display:flex; flex-direction:column; gap:10px; }
+.cs-q { font-size:17px; font-weight:760; color:var(--ink); }
+.cs-sub { font-size:12px; color:var(--ink3); margin-top:-4px; }
+.cs-field { display:flex; align-items:center; gap:10px; }
+.cs-lbl { font-size:12px; color:var(--ink2); width:34px; flex:none; }
+.cs-input { flex:1; min-width:0; border:1px solid var(--line); border-radius:10px; padding:9px 12px; font:inherit; font-size:13px; color:var(--ink); background:var(--bg); }
+.cs-input:focus { outline:none; border-color:#4E5BEF; box-shadow:0 0 0 3px rgba(78,91,239,.12); }
+.cs-chips { display:flex; flex-wrap:wrap; gap:6px; padding-left:44px; }
+.cs-chip { border:1px solid var(--line); background:#fff; border-radius:999px; padding:4px 10px; font:inherit; font-size:11px; color:var(--ink2); cursor:pointer; }
+.cs-chip.on, .cs-chip:hover { border-color:#4E5BEF; color:#4E5BEF; background:#eef0fe; }
+.cs-select { flex:1; border:1px solid var(--line); border-radius:10px; padding:9px 12px; font:inherit; font-size:13px; color:var(--ink); background:var(--bg); cursor:pointer; }
+.cs-go { margin-top:4px; background:#4E5BEF; color:#fff; border:none; border-radius:10px; padding:11px; font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
+.cs-go:disabled { opacity:.6; cursor:default; }
+.cs-skip { background:transparent; border:none; color:var(--ink3); font:inherit; font-size:12px; cursor:pointer; }
+.cs-skip:hover { color:#4E5BEF; }
+
 .search-wrap { position:relative; flex:0 1 320px; min-width:130px; }
 .search-chip { width:100%; display:inline-flex; align-items:center; gap:6px; justify-content:flex-start; background:#fff; border:1px solid var(--line); border-radius:12px; padding:7px 14px; color:var(--ink3); font-size:12px; cursor:pointer; font-family:inherit; }
 .sc-ph { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
