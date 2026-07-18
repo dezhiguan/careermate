@@ -254,6 +254,13 @@ public class AgentStreamService {
                     userId, sessionId, "PATH_MODE", "{}", toJson(pathData), "SUCCESS", null, null
             );
 
+            // #6 说一句即改：Spring AI function-calling 有时不调任何工具、直接把改好的简历写进文本作答，
+            // 导致微调不落版本。在调用 LLM 之前做确定性拦截——JD 线 + 已有简历版本 + 明确「改某处」意图
+            // （非重做整份）时，直接执行 modify_resume 并短路本轮，绕开 LLM 的工具选择。
+            if (tryDeterministicResumeModify(userId, sessionId, request.getMessage(), terminalHandled, start)) {
+                return;
+            }
+
             ChatRequest chatRequest;
             String systemPrompt;
             if (agentKernelProperties.isEnabled()) {
@@ -418,6 +425,66 @@ public class AgentStreamService {
             heartbeatExecutor.shutdownNow();
             taskRegistry.complete(sessionId);
         }
+    }
+
+    /**
+     * #6 说一句即改的确定性拦截：满足「JD 线 + 已有简历版本 + 明确改某处意图（非重做整份）」时，
+     * 绕过 LLM 直接执行 modify_resume，落新版本并推卡片，短路本轮流式。返回 true 表示已接管本轮。
+     * 任意门槛不满足或工具未成功，一律返回 false 回退到正常 LLM 流程（不会重复落版本）。
+     */
+    private boolean tryDeterministicResumeModify(Long userId, String sessionId, String message,
+                                                 AtomicBoolean terminalHandled, long start) {
+        try {
+            if (!com.careermate.resume.version.support.ResumeModifyIntent.isModifyOnExistingIntent(message)) {
+                return false;
+            }
+            AgentSessionEntity session = workspaceSessionRepository.requireSession(userId, sessionId);
+            if (!WorkspaceSessionRepository.WORKSPACE_JD_PREP.equals(session.getWorkspaceType())) {
+                return false;
+            }
+            if (resumeVersionService.listBySession(userId, sessionId).isEmpty()) {
+                return false;
+            }
+        } catch (Exception e) {
+            return false;
+        }
+
+        AgentToolResult result;
+        try {
+            AgentToolContext ctx = AgentToolContext.builder()
+                    .userId(userId)
+                    .sessionId(sessionId)
+                    .userMessage(message)
+                    .build();
+            result = agentToolExecutionService.execute(ctx, "modify_resume");
+        } catch (Exception e) {
+            log.warn("[agent] deterministic modify_resume failed, fallback to LLM: {}", e.getMessage());
+            return false;
+        }
+        if (result == null || !result.isSuccess()) {
+            // 修改未成功则不短路，交回 LLM 正常处理（此时未落新版本，无重复风险）
+            return false;
+        }
+        if (!terminalHandled.compareAndSet(false, true)) {
+            return true;
+        }
+        try {
+            String reply = result.getSummary() != null && !result.getSummary().isBlank()
+                    ? result.getSummary() : "已按你的要求更新简历并生成新版本。";
+            sseEmitterService.send(sessionId, SseEventType.TOKEN, Map.of("content", reply));
+            sseEmitterService.send(sessionId, SseEventType.MESSAGE, Map.of("content", reply));
+            agentSessionService.appendMessage(userId, sessionId, "agent", reply, "text");
+            long totalLatencyMs = System.currentTimeMillis() - start;
+            Map<String, Object> doneData = Map.of("sessionId", sessionId, "totalLatencyMs", totalLatencyMs);
+            sseEmitterService.send(sessionId, SseEventType.DONE, doneData);
+            agentSessionService.recordTrace(userId, sessionId, "DONE", "{}", toJson(doneData),
+                    "SUCCESS", totalLatencyMs, null);
+            agentSessionService.markCompleted(userId, sessionId, totalLatencyMs);
+            sseEmitterService.complete(sessionId);
+        } catch (Throwable t) {
+            handleStreamError(userId, sessionId, t, "DETERMINISTIC_MODIFY_ERROR");
+        }
+        return true;
     }
 
     /** A5：记录本轮 token 成本；provider 未返回用量时按字符估算。计量失败不影响对话。 */

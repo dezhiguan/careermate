@@ -85,26 +85,13 @@ public class GenerateResumeFromJdTool implements AgentTool {
             if (msg == null || sessionId == null) {
                 return false;
             }
-            String lower = msg.toLowerCase();
-            boolean modifyIntent = containsAny(lower, "改成", "换成", "调成", "改为", "加一段", "加上", "补一段",
-                    "补充", "删掉", "去掉", "换个说法", "换种说法", "调整", "微调", "改一下", "改下", "这里改", "这段改");
-            boolean regenerate = containsAny(lower, "重新生成", "重做", "重写整份", "再生成一份", "换一份", "重新定制");
-            if (!modifyIntent || regenerate) {
+            if (!com.careermate.resume.version.support.ResumeModifyIntent.isModifyOnExistingIntent(msg)) {
                 return false;
             }
             return !resumeVersionService.listBySession(context.getUserId(), sessionId).isEmpty();
         } catch (Exception e) {
             return false;
         }
-    }
-
-    private static boolean containsAny(String text, String... keywords) {
-        for (String k : keywords) {
-            if (text.contains(k)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     @Override
