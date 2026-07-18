@@ -44,8 +44,9 @@ public class ModifyResumeVersionTool implements AgentTool {
 
     @Override
     public String description() {
-        return "在已生成的简历版本上做最小改动（加一段/删掉某条/改数字/调措辞），只改需要改的、保留其余；"
-                + "当用户已经生成过简历、只想微调某处时用它，而不是重新整份生成";
+        return "【该 JD 线已有简历版本、用户要改动某处时一律用本工具，不要重新整份生成】"
+                + "在最新简历版本上做最小改动（加一段/删掉某条/改数字/调措辞/换说法），只改需要改的、保留其余，落一个新版本。"
+                + "凡是「把X改成Y」「加一段…」「删掉…」「这里换个说法」这类微调都用它，而不是 generate_resume_from_jd";
     }
 
     @Override

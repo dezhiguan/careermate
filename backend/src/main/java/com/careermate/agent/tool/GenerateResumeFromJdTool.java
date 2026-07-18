@@ -37,7 +37,9 @@ public class GenerateResumeFromJdTool implements AgentTool {
 
     @Override
     public String description() {
-        return "根据目标 JD 为用户生成定制简历 Markdown 版本；生成完成后可点击对话卡片「下载 PDF」导出 PDF";
+        return "【仅用于该 JD 线还没有任何简历版本、或用户明确要求「重做/重新生成整份」时】根据目标 JD 首次生成整份定制简历。"
+                + "若该 JD 线已有简历版本、用户只是想改动某处（改数字/加或删一段/调措辞/换说法），"
+                + "禁止用本工具，必须改用 modify_resume。生成完成后可点击对话卡片「下载 PDF」导出 PDF";
     }
 
     @Override
