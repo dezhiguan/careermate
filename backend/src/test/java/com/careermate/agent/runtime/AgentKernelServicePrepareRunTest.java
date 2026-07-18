@@ -93,7 +93,8 @@ class AgentKernelServicePrepareRunTest {
                 agentSupervisor,
                 reactEngine,
                 workspaceSessionRepository,
-                new PromptTemplateService(new PromptTemplateRegistry(), new PromptProperties())
+                new PromptTemplateService(new PromptTemplateRegistry(), new PromptProperties()),
+                org.mockito.Mockito.mock(com.careermate.resume.version.service.ResumeVersionService.class)
         );
         stubContextLoaders();
     }
