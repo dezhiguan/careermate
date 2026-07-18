@@ -20,13 +20,15 @@ class ResumeSpecialistAgentTest {
 
     @Mock
     private AgentToolExecutionService toolExecutionService;
+    @Mock
+    private com.careermate.resume.version.service.ResumeVersionService resumeVersionService;
 
     private ResumeSpecialistAgent agent;
     private AgentToolContext context;
 
     @BeforeEach
     void setUp() {
-        agent = new ResumeSpecialistAgent(toolExecutionService);
+        agent = new ResumeSpecialistAgent(toolExecutionService, resumeVersionService);
         context = AgentToolContext.builder().userId(1L).sessionId("S-1").build();
     }
 
@@ -57,6 +59,30 @@ class ResumeSpecialistAgentTest {
                 .thenReturn(success("generate_resume_from_jd", "已生成"));
 
         SpecialistResult result = agent.process(context, "请按 JD 生成定制简历");
+
+        assertEquals("generate_resume_from_jd", result.toolName());
+    }
+
+    @Test
+    void modifyResumeWhenVersionExistsAndTweakIntent() {
+        when(resumeVersionService.listBySession(eq(1L), eq("S-1")))
+                .thenReturn(java.util.List.of(org.mockito.Mockito.mock(
+                        com.careermate.resume.version.dto.ResumeVersionListItemVO.class)));
+        when(toolExecutionService.execute(context, "modify_resume"))
+                .thenReturn(success("modify_resume", "已改好"));
+
+        SpecialistResult result = agent.process(context, "帮我把简历里的期望薪资改成30-45k");
+
+        assertEquals("modify_resume", result.toolName());
+    }
+
+    @Test
+    void generateNotModifyWhenNoVersionYet() {
+        when(resumeVersionService.listBySession(eq(1L), eq("S-1"))).thenReturn(java.util.List.of());
+        when(toolExecutionService.execute(context, "generate_resume_from_jd"))
+                .thenReturn(success("generate_resume_from_jd", "已生成"));
+
+        SpecialistResult result = agent.process(context, "帮我把简历里的期望薪资改成30-45k");
 
         assertEquals("generate_resume_from_jd", result.toolName());
     }

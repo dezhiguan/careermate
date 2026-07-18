@@ -89,7 +89,7 @@ public class ModifyResumeVersionTool implements AgentTool {
         String sessionId = context.getSessionId();
         String instruction = context.getArgs() != null && context.getArgs().get("instruction") != null
                 ? String.valueOf(context.getArgs().get("instruction"))
-                : null;
+                : context.getUserMessage();  // 专家路径无 args 时回退用户原话作为修改指令
         try {
             List<ResumeVersionListItemVO> versions =
                     resumeVersionService.listBySession(context.getUserId(), sessionId);

@@ -50,7 +50,7 @@ final class AgentEvalRunner {
         supervisor = new AgentSupervisor(
                 supervisorRouter,
                 new CriticAgent(),
-                new ResumeSpecialistAgent(toolExecutionService),
+                new ResumeSpecialistAgent(toolExecutionService, org.mockito.Mockito.mock(com.careermate.resume.version.service.ResumeVersionService.class)),
                 new JobMatchSpecialistAgent(toolExecutionService),
                 new InterviewSpecialistAgent(toolExecutionService),
                 new MarketSpecialistAgent(toolExecutionService)
