@@ -51,8 +51,8 @@ public class OpportunityServiceImpl implements OpportunityService {
 
     private static final String DEFAULT_QUERY = "Java 后端";
     // 匹配池：一次固定取回上限，与页码解耦，去重后作为稳定 total，分页仅对内存池切片。
-    // 受 RAGForge /search 服务端 topK 上限（≤50）约束，池上限取 50——单次检索能拿到的最大量。
-    private static final int OPPORTUNITY_POOL_SIZE = 50;
+    // 上限 150，与 RAGForge /search 放宽后的 topK 上限（≤150）对齐——单次检索能拿到的最大量。
+    private static final int OPPORTUNITY_POOL_SIZE = 150;
     private static final int DETAIL_SEARCH_TOP_K = 50;
     private static final Duration DETAIL_CACHE_TTL = Duration.ofMinutes(10);
     private static final String SORT_MATCH = "MATCH";

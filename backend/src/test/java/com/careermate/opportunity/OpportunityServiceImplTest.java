@@ -51,9 +51,9 @@ class OpportunityServiceImplTest {
 
     /**
      * 匹配池上限：与生产实现 OpportunityServiceImpl.OPPORTUNITY_POOL_SIZE 保持一致。
-     * 注意：受 RAGForge /search 服务端 topK 上限（≤50）约束，池上限即 50——超过会被 RAGForge 400 拒绝。
+     * 与 RAGForge /search 放宽后的 topK 上限（≤150）对齐——超过会被 RAGForge 400 拒绝。
      */
-    private static final int POOL = 50;
+    private static final int POOL = 150;
 
     private static final String SAMPLE_JD = """
             # 【JD】星天科技 | 算法工程师 |  | 北京
