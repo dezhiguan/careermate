@@ -102,7 +102,7 @@ class AgentToolExecutionServiceTest {
 
     @Test
     void generateResumeFromJdMissingSessionIdReturnsFailure() {
-        stubTool("generate_resume_from_jd", new GenerateResumeFromJdTool(null, null, null).definition());
+        stubTool("generate_resume_from_jd", new GenerateResumeFromJdTool(null, null, null, null, null).definition());
 
         AgentToolResult result = service.execute(
                 AgentToolContext.builder()
