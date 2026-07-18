@@ -19,15 +19,21 @@ public class GenerateResumeFromJdTool implements AgentTool {
     private final WorkspaceSessionRepository workspaceSessionRepository;
     private final SseEmitterService sseEmitterService;
     private final PendingActionService pendingActionService;
+    private final ModifyResumeVersionTool modifyResumeVersionTool;
+    private final com.careermate.resume.version.service.ResumeVersionService resumeVersionService;
 
     public GenerateResumeFromJdTool(
             WorkspaceSessionRepository workspaceSessionRepository,
             SseEmitterService sseEmitterService,
-            PendingActionService pendingActionService
+            PendingActionService pendingActionService,
+            ModifyResumeVersionTool modifyResumeVersionTool,
+            com.careermate.resume.version.service.ResumeVersionService resumeVersionService
     ) {
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.sseEmitterService = sseEmitterService;
         this.pendingActionService = pendingActionService;
+        this.modifyResumeVersionTool = modifyResumeVersionTool;
+        this.resumeVersionService = resumeVersionService;
     }
 
     @Override
@@ -73,9 +79,42 @@ public class GenerateResumeFromJdTool implements AgentTool {
         }
     }
 
+    private boolean shouldRedirectToModify(AgentToolContext context, String sessionId) {
+        try {
+            String msg = context.getUserMessage();
+            if (msg == null || sessionId == null) {
+                return false;
+            }
+            String lower = msg.toLowerCase();
+            boolean modifyIntent = containsAny(lower, "改成", "换成", "调成", "改为", "加一段", "加上", "补一段",
+                    "补充", "删掉", "去掉", "换个说法", "换种说法", "调整", "微调", "改一下", "改下", "这里改", "这段改");
+            boolean regenerate = containsAny(lower, "重新生成", "重做", "重写整份", "再生成一份", "换一份", "重新定制");
+            if (!modifyIntent || regenerate) {
+                return false;
+            }
+            return !resumeVersionService.listBySession(context.getUserId(), sessionId).isEmpty();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean containsAny(String text, String... keywords) {
+        for (String k : keywords) {
+            if (text.contains(k)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public AgentToolResult execute(AgentToolContext context) {
         String sessionId = context.getSessionId();
+        // #6 确定性重定向：已有简历版本 + 用户是「微调某处」意图(非重做整份) → 直接走 modify_resume，
+        // 不再弹整份生成确认卡。兜住 LLM function-calling 顽固误选 generate 的情况。
+        if (shouldRedirectToModify(context, sessionId)) {
+            return modifyResumeVersionTool.execute(context);
+        }
         String jdId = context.getArgs() != null && context.getArgs().get("jdId") != null
                 ? String.valueOf(context.getArgs().get("jdId"))
                 : null;

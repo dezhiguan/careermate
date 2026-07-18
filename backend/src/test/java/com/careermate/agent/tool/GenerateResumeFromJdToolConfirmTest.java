@@ -35,7 +35,9 @@ class GenerateResumeFromJdToolConfirmTest {
     @Test
     void executeCreatesConfirmationInsteadOfGenerating() {
         GenerateResumeFromJdTool tool =
-                new GenerateResumeFromJdTool(sessionRepository, sseEmitterService, pendingActionService);
+                new GenerateResumeFromJdTool(sessionRepository, sseEmitterService, pendingActionService,
+                        org.mockito.Mockito.mock(ModifyResumeVersionTool.class),
+                        org.mockito.Mockito.mock(com.careermate.resume.version.service.ResumeVersionService.class));
 
         AgentSessionEntity session = new AgentSessionEntity();
         session.setJdId("doc-1");
