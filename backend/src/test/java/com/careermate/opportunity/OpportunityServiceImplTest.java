@@ -49,8 +49,11 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class OpportunityServiceImplTest {
 
-    /** 匹配池上限：与生产实现 OpportunityServiceImpl.OPPORTUNITY_POOL_SIZE 保持一致。 */
-    private static final int POOL = 150;
+    /**
+     * 匹配池上限：与生产实现 OpportunityServiceImpl.OPPORTUNITY_POOL_SIZE 保持一致。
+     * 注意：受 RAGForge /search 服务端 topK 上限（≤50）约束，池上限即 50——超过会被 RAGForge 400 拒绝。
+     */
+    private static final int POOL = 50;
 
     private static final String SAMPLE_JD = """
             # 【JD】星天科技 | 算法工程师 |  | 北京
