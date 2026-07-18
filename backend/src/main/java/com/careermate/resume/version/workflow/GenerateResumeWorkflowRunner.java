@@ -595,7 +595,7 @@ class GenerateResumeWorkflowRunner {
         return head + list + tail;
     }
 
-    static Map<String, Object> buildGeneratedCard(String versionId, String versionName, String preview) {
+    public static Map<String, Object> buildGeneratedCard(String versionId, String versionName, String preview) {
         Map<String, Object> card = new LinkedHashMap<>();
         card.put("type", "RESUME_GENERATED");
         card.put("title", RESUME_GENERATED_CARD_TITLE);
