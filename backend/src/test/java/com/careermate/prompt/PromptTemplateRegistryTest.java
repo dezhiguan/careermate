@@ -50,6 +50,17 @@ class PromptTemplateRegistryTest {
     }
 
     @Test
+    void resumeGenerateV3IsRegisteredForDefaultConfig() {
+        // 回归护栏：application.yml 默认 RESUME_PROMPT_VERSION=v3。若只在 prompts 目录放了 v3.md
+        // 却忘了把 "v3" 加进 prompt-manifest.json 的 versions 数组，registry 不会加载它，
+        // render 会抛 "Prompt version not found"，导致生产简历生成/修改全线失败（见 #6 事故）。
+        PromptTemplate template = registry.get("resume-generate-from-jd", "v3");
+
+        assertEquals("v3", template.version());
+        assertTrue(template.content().contains("模板 v3"));
+    }
+
+    @Test
     void missingPromptIdThrowsClearException() {
         PromptTemplateNotFoundException ex = assertThrows(
                 PromptTemplateNotFoundException.class,
