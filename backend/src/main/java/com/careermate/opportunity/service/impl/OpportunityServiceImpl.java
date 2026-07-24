@@ -476,23 +476,20 @@ public class OpportunityServiceImpl implements OpportunityService {
         return DEFAULT_QUERY;
     }
 
-    private SearchCriteria resolveSearchCriteria(Long userId, OpportunityListRequest request) {
+    private SearchCriteria resolveSearchCriteria(Long userId, OpportunityListRequest request, String cityFilter) {
         String keyword = normalize(request.keyword());
         if (keyword != null) {
-            return new SearchCriteria("_", "_", "_", keyword, keyword);
+            // 方案B：城市作为「召回偏置」拼入查询串，让固定匹配池(≤150)优先装该城市岗位，
+            // 破解"全国 top-150 里某城市只占零头"的天花板；城市准确性仍由 buildListPage 精确过滤兜底（偏置≠过滤）。
+            String query = cityFilter == null ? keyword : keyword + " " + cityFilter;
+            return new SearchCriteria(cityFilter == null ? "_" : cityFilter, "_", "_", keyword, query);
         }
         String role = normalize(request.position());
-        String city = normalize(request.city());
         String years = "_";
-        if (role == null || city == null) {
+        if (role == null) {
             try {
                 CareerProfileResponse profile = careerProfileService.getProfile(userId);
-                if (role == null) {
-                    role = normalize(profile.getTargetRole());
-                }
-                if (city == null) {
-                    city = normalize(profile.getTargetCity());
-                }
+                role = normalize(profile.getTargetRole());
                 years = normalize(profile.getSeniority());
             } catch (Exception e) {
                 log.warn("resolve opportunity search criteria from profile failed, userId={}", userId, e);
@@ -502,13 +499,16 @@ public class OpportunityServiceImpl implements OpportunityService {
         if (role != null) {
             queryParts.add(role);
         }
-        // 城市不再拼进语义查询串：改为召回后精确过滤（buildListPage），避免污染向量召回并保持匹配池城市无关。
+        // 方案B：城市回归查询串作召回偏置（仅取下拉显式选择的城市 cityFilter，与精确过滤同源；「不限」时不偏置）。
+        if (cityFilter != null) {
+            queryParts.add(cityFilter);
+        }
         if (years != null && !"_".equals(years)) {
             queryParts.add(years);
         }
         String query = queryParts.isEmpty() ? DEFAULT_QUERY : String.join(" ", queryParts);
         return new SearchCriteria(
-                city == null ? "_" : city,
+                cityFilter == null ? "_" : cityFilter,
                 role == null ? "_" : role,
                 years == null ? "_" : years,
                 "_",
@@ -531,16 +531,16 @@ public class OpportunityServiceImpl implements OpportunityService {
     ) {
         // 无简历 = 通用推荐态（不展示个性化匹配）；有简历 = 精准匹配态。查询一律按意向（关键词/城市/岗位/画像）驱动。
         boolean genericMode = !resumeContext.hasResume();
-        SearchCriteria criteria = resolveSearchCriteria(userId, request);
-        // 城市改为「召回后精确过滤」（见 buildListPage）：不进语义查询、不进缓存键，
-        // 保持匹配池城市无关——同一池按城市内存切片，切城市无需重召回，翻页 total 稳定。
+        // 方案B：城市回归查询串(召回偏置)+缓存键，让匹配池优先装该城市岗位；城市准确性由 buildListPage 精确过滤兜底。
+        // 切城市 = 换池重召回（list 路径本就每次实时检索、无 Redis 缓存，故无缓存碎片成本）。
+        String cityFilter = resolveCityFilter(request.city());
+        SearchCriteria criteria = resolveSearchCriteria(userId, request, cityFilter);
         String cacheKey = CacheKeys.opportunityList(
-                "_",
+                cityFilter == null ? "_" : cityFilter,
                 criteria.role(),
                 criteria.years(),
                 criteria.keyword()
         );
-        String cityFilter = resolveCityFilter(request.city());
         return new ListQueryPlan(genericMode, criteria.query(), cacheKey, cityFilter);
     }
 
