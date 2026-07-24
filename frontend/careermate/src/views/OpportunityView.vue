@@ -37,12 +37,7 @@
       </div>
       <button type="button" class="fchip" :class="{ on: sortMode === 'match' }" @click="setSort('match')">匹配度</button>
       <button type="button" class="fchip" :class="{ on: sortMode === 'fresh' }" @click="setSort('fresh')">最新</button>
-      <label class="fchip city-chip" :class="{ on: activeCity !== '不限' }">
-        <span>{{ activeCity !== '不限' ? '城市·' + activeCity + ' ✕' : '城市' }}</span>
-        <select class="city-native" :value="activeCity" @change="onCityChange($event)">
-          <option v-for="c in cityOptions" :key="c" :value="c">{{ c }}</option>
-        </select>
-      </label>
+      <CityPicker :model-value="activeCity" :options="cityOptions" variant="chip" @update:model-value="onCityChange" />
     </header>
 
     <!-- 冷启动轻问答：纯新用户（无简历 + 无意向）先问一句 -->
@@ -65,9 +60,7 @@
         </div>
         <div class="cs-field">
           <span class="cs-lbl">城市</span>
-          <select v-model="csCity" class="cs-select">
-            <option v-for="c in cityOptions" :key="c" :value="c">{{ c }}</option>
-          </select>
+          <CityPicker :model-value="csCity" :options="cityOptions" variant="select" @update:model-value="(v) => (csCity = v)" />
         </div>
         <button type="button" class="cs-go" :disabled="csSubmitting" @click="submitColdStart">看看机会 →</button>
         <button type="button" class="cs-skip" @click="dismissColdStart">跳过，先看最新机会</button>
@@ -209,6 +202,7 @@ import { listSavedJobs, saveJob, unsaveJob } from '../api/savedJobs'
 import { getCareerProfile, updateCareerProfile } from '../api/profile'
 import { homeStore } from '../stores/homeStore'
 import PaginationBar from '../components/PaginationBar.vue'
+import CityPicker from '../components/CityPicker.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -448,14 +442,10 @@ const activeCity = computed(() => String(route.query.city || defaultCity.value |
 const activeYears = computed(() => String(route.query.years || '不限').trim())
 const activeRole = computed(() => activeKeyword.value || String(route.query.position || '全部').trim())
 
-function onCityChange(evt) {
-  const city = String(evt?.target?.value || '不限')
-  const query = { ...route.query, t: String(Date.now()) }
-  if (city === '不限') {
-    delete query.city
-  } else {
-    query.city = city
-  }
+function onCityChange(city) {
+  const next = String(city || '不限')
+  // 显式写入城市（含「不限」），避免选「不限」后被 defaultCity 兜底顶回、无法清除筛选。
+  const query = { ...route.query, city: next, t: String(Date.now()) }
   router.replace({ path: '/opportunity', query })
 }
 

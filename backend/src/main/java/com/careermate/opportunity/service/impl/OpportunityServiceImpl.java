@@ -156,6 +156,7 @@ public class OpportunityServiceImpl implements OpportunityService {
                 cached.items(),
                 resumeContext,
                 plan.genericMode(),
+                plan.cityFilter(),
                 safeRequest.page(),
                 safeRequest.size(),
                 metaFromCached(cached, CacheMeta.State.FRESH)
@@ -227,11 +228,19 @@ public class OpportunityServiceImpl implements OpportunityService {
             List<OpportunityListItemVO> items,
             ResumeContext resumeContext,
             boolean genericMode,
+            String cityFilter,
             int page,
             int size,
             CacheMeta meta
     ) {
-        List<OpportunityListItemVO> enriched = items.stream()
+        // 城市精确过滤：对整个匹配池过滤，再打分/排序/切页——total 取过滤后集合，翻页稳定不串城市。
+        // 城市已由 JdMarkdownParser 确定性解析进 item.city()；解析不到城市的 JD 在指定城市时排除（不猜）。
+        List<OpportunityListItemVO> pool = cityFilter == null
+                ? items
+                : items.stream()
+                        .filter(item -> cityMatches(item.city(), cityFilter))
+                        .toList();
+        List<OpportunityListItemVO> enriched = pool.stream()
                 .map(item -> applyMatch(item, resumeContext))
                 .map(item -> genericMode ? asUnmatchedItem(item) : item)
                 .toList();
@@ -493,9 +502,7 @@ public class OpportunityServiceImpl implements OpportunityService {
         if (role != null) {
             queryParts.add(role);
         }
-        if (city != null) {
-            queryParts.add(city);
-        }
+        // 城市不再拼进语义查询串：改为召回后精确过滤（buildListPage），避免污染向量召回并保持匹配池城市无关。
         if (years != null && !"_".equals(years)) {
             queryParts.add(years);
         }
@@ -525,13 +532,16 @@ public class OpportunityServiceImpl implements OpportunityService {
         // 无简历 = 通用推荐态（不展示个性化匹配）；有简历 = 精准匹配态。查询一律按意向（关键词/城市/岗位/画像）驱动。
         boolean genericMode = !resumeContext.hasResume();
         SearchCriteria criteria = resolveSearchCriteria(userId, request);
+        // 城市改为「召回后精确过滤」（见 buildListPage）：不进语义查询、不进缓存键，
+        // 保持匹配池城市无关——同一池按城市内存切片，切城市无需重召回，翻页 total 稳定。
         String cacheKey = CacheKeys.opportunityList(
-                criteria.city(),
+                "_",
                 criteria.role(),
                 criteria.years(),
                 criteria.keyword()
         );
-        return new ListQueryPlan(genericMode, criteria.query(), cacheKey);
+        String cityFilter = resolveCityFilter(request.city());
+        return new ListQueryPlan(genericMode, criteria.query(), cacheKey, cityFilter);
     }
 
     private ResumeContext resolveResumeContext(Long userId) {
@@ -811,10 +821,43 @@ public class OpportunityServiceImpl implements OpportunityService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    /**
+     * 解析城市硬过滤条件：取用户在下拉里的显式选择（request.city）。
+     * 「不限」/空 返回 null（不过滤）；不回退画像目标城市，避免用户选「不限」后仍被过滤。
+     */
+    private String resolveCityFilter(String requestedCity) {
+        String city = normalize(requestedCity);
+        if (city == null || OpportunityCityCatalog.ANY.equals(city)) {
+            return null;
+        }
+        return city;
+    }
+
+    /**
+     * 城市等值匹配（归一化）：去首尾空白、去「市」后缀、忽略大小写。
+     * 目录值（如「广州」）与解析值（正文/文件名前缀，如「广州」/「广州市」）据此对齐。
+     */
+    private static boolean cityMatches(String itemCity, String targetCity) {
+        String a = normalizeCityForMatch(itemCity);
+        String b = normalizeCityForMatch(targetCity);
+        return a != null && a.equals(b);
+    }
+
+    private static String normalizeCityForMatch(String city) {
+        if (city == null) {
+            return null;
+        }
+        String trimmed = city.trim();
+        if (trimmed.endsWith("市")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed.isEmpty() ? null : trimmed.toLowerCase(Locale.ROOT);
+    }
+
     private record SearchCriteria(String city, String role, String years, String keyword, String query) {
     }
 
-    private record ListQueryPlan(boolean genericMode, String query, String cacheKey) {
+    private record ListQueryPlan(boolean genericMode, String query, String cacheKey, String cityFilter) {
     }
 
     public record CachedOpportunityList(List<OpportunityListItemVO> items, Long cachedAt, CacheMeta.State state) {

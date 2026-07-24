@@ -113,16 +113,17 @@ class OpportunityServiceImplTest {
     }
 
     @Test
-    void listKeywordEmptyWithProfileUsesRoleAndCity() {
+    void listKeywordEmptyWithProfileUsesRoleQueryCityNotInQuery() {
         when(careerProfileService.getProfile(2L)).thenReturn(CareerProfileResponse.builder()
                 .targetRole("Java 后端")
                 .targetCity("北京")
                 .build());
-        when(ragForgeClient.searchJd("Java 后端 北京", POOL)).thenReturn(List.of());
+        // 城市不再拼进语义查询串（改为召回后精确过滤）；request.city 为空(=不限)时不按城市过滤。
+        when(ragForgeClient.searchJd("Java 后端", POOL)).thenReturn(List.of());
 
         service.list(2L, new OpportunityListRequest(null, null, null, null, 1, 10));
 
-        verify(ragForgeClient).searchJd("Java 后端 北京", POOL);
+        verify(ragForgeClient).searchJd("Java 后端", POOL);
     }
 
     @Test
@@ -230,13 +231,14 @@ class OpportunityServiceImplTest {
                 .targetRole("Python")
                 .targetCity("深圳")
                 .build());
-        when(ragForgeClient.searchJd("Python 深圳", POOL)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.8)));
+        // 城市改为召回后精确过滤，不进查询串；查询仍由画像意向(岗位)驱动，而非写死。
+        when(ragForgeClient.searchJd("Python", POOL)).thenReturn(List.of(chunk(1L, 1L, SAMPLE_JD, 0.8)));
 
         PageResult<OpportunityListItemVO> result =
                 service.list(3L, new OpportunityListRequest(null, null, null, null, 1, 10));
 
         // 无简历也按意向(画像)驱动查询，而非写死的「广州/Java」
-        verify(ragForgeClient).searchJd("Python 深圳", POOL);
+        verify(ragForgeClient).searchJd("Python", POOL);
         assertTrue(result.items().get(0).unmatched());
     }
 
