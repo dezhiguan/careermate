@@ -435,17 +435,18 @@ public class AgentStreamService {
     private boolean tryDeterministicResumeModify(Long userId, String sessionId, String message,
                                                  AtomicBoolean terminalHandled, long start) {
         try {
-            if (!com.careermate.resume.version.support.ResumeModifyIntent.isModifyOnExistingIntent(message)) {
-                return false;
-            }
-            AgentSessionEntity session = workspaceSessionRepository.requireSession(userId, sessionId);
-            if (!WorkspaceSessionRepository.WORKSPACE_JD_PREP.equals(session.getWorkspaceType())) {
-                return false;
-            }
-            if (resumeVersionService.listBySession(userId, sessionId).isEmpty()) {
+            boolean intent = com.careermate.resume.version.support.ResumeModifyIntent.isModifyOnExistingIntent(message);
+            AgentSessionEntity session = intent ? workspaceSessionRepository.requireSession(userId, sessionId) : null;
+            boolean jdPrep = session != null
+                    && WorkspaceSessionRepository.WORKSPACE_JD_PREP.equals(session.getWorkspaceType());
+            boolean hasVersion = jdPrep && !resumeVersionService.listBySession(userId, sessionId).isEmpty();
+            log.info("[deterministic-modify] gate sid={} intent={} wsType={} jdPrep={} hasVersion={}",
+                    sessionId, intent, session == null ? "n/a" : session.getWorkspaceType(), jdPrep, hasVersion);
+            if (!intent || !jdPrep || !hasVersion) {
                 return false;
             }
         } catch (Exception e) {
+            log.warn("[deterministic-modify] gate error sid={}: {}", sessionId, e.toString());
             return false;
         }
 
@@ -457,8 +458,11 @@ public class AgentStreamService {
                     .userMessage(message)
                     .build();
             result = agentToolExecutionService.execute(ctx, "modify_resume");
+            log.info("[deterministic-modify] tool executed sid={} success={} summary={}",
+                    sessionId, result == null ? "null" : result.isSuccess(),
+                    result == null ? "" : result.getSummary());
         } catch (Exception e) {
-            log.warn("[agent] deterministic modify_resume failed, fallback to LLM: {}", e.getMessage());
+            log.warn("[deterministic-modify] tool threw sid={}, fallback to LLM: {}", sessionId, e.toString());
             return false;
         }
         if (result == null || !result.isSuccess()) {
