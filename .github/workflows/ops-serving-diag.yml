@@ -1,0 +1,100 @@
+name: CareerMate Ops Serving Diag
+
+# 一次性只读诊断：确认 careerforge.cn 的 /api 流量到底走 k8s(d63c7e2) 还是 legacy docker，
+# 以及 k8s pod 实际镜像 tag。不修改任何配置、不重启任何服务。
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    name: diag
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.CAREERMATE_APP_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.CAREERMATE_APP_HOST }}
+          DEPLOY_USER: ${{ secrets.CAREERMATE_APP_USER }}
+          DEPLOY_PORT: ${{ secrets.CAREERMATE_APP_PORT }}
+          JUMP_HOST: ${{ secrets.CAREERMATE_INGRESS_HOST }}
+          JUMP_USER: ${{ secrets.CAREERMATE_INGRESS_USER }}
+          JUMP_PORT: ${{ secrets.CAREERMATE_INGRESS_PORT }}
+        run: |
+          if [[ -z "${SSH_KEY}" || -z "${DEPLOY_HOST}" || -z "${DEPLOY_USER}" ]]; then
+            echo "SSH secrets missing"; exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          PORT="${DEPLOY_PORT:-22}"
+          JUMP_HOST="${JUMP_HOST:-8.163.63.222}"
+          JUMP_USER="${JUMP_USER:-root}"
+          JUMP_PORT="${JUMP_PORT:-22}"
+          ssh-keyscan -p "${JUMP_PORT}" "${JUMP_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          {
+            printf '%s\n' 'Host careermate-jump'
+            printf '%s\n' "  HostName ${JUMP_HOST}"
+            printf '%s\n' "  User ${JUMP_USER}"
+            printf '%s\n' "  Port ${JUMP_PORT}"
+            printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
+            printf '%s\n' '  IdentitiesOnly yes'
+            printf '%s\n' '  StrictHostKeyChecking accept-new'
+            printf '%s\n' '  BatchMode yes'
+            printf '%s\n' '  ConnectTimeout 15'
+            printf '%s\n' ''
+            printf '%s\n' 'Host careermate-app'
+            printf '%s\n' "  HostName ${DEPLOY_HOST}"
+            printf '%s\n' "  User ${DEPLOY_USER}"
+            printf '%s\n' "  Port ${PORT}"
+            printf '%s\n' '  IdentityFile ~/.ssh/deploy_key'
+            printf '%s\n' '  IdentitiesOnly yes'
+            printf '%s\n' '  StrictHostKeyChecking accept-new'
+            printf '%s\n' '  BatchMode yes'
+            printf '%s\n' '  ConnectTimeout 15'
+            printf '%s\n' '  ProxyJump careermate-jump'
+          } > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Diagnose Server 3 (k3s + legacy docker)
+        run: |
+          set -uo pipefail
+          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15)
+          ssh "${SSH_OPTS[@]}" careermate-app 'bash -s' <<'REMOTE'
+          set -uo pipefail
+          if command -v k3s >/dev/null 2>&1; then KUBECTL="k3s kubectl"; else KUBECTL="kubectl"; fi
+          echo "========== [S3] k8s deploy image tag (期望 ...:backend-d63c7e246755) =========="
+          ${KUBECTL} -n careermate get deploy careermate-backend -o jsonpath='{.spec.template.spec.containers[0].image}'; echo
+          echo "========== [S3] k8s pods (年龄/状态) =========="
+          ${KUBECTL} -n careermate get pods -l app=careermate-backend -o wide
+          echo "========== [S3] 每个 pod 实际运行镜像 =========="
+          ${KUBECTL} -n careermate get pods -l app=careermate-backend -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.status.containerStatuses[0].image}{"\n"}{end}'
+          echo "========== [S3] legacy docker 后端容器(是否还在跑) =========="
+          docker ps -a --filter name=careermate-backend --format '{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null || echo "(无 docker 或无此容器)"
+          echo "========== [S3] 直连 k8s NodePort 31080 /api/health =========="
+          curl -s --max-time 6 http://localhost:31080/api/health || echo "FAIL(31080)"
+          echo
+          echo "========== [S3] 直连 legacy 18080 /api/health =========="
+          curl -s --max-time 6 http://localhost:18080/api/health || echo "FAIL(18080)"
+          echo
+          REMOTE
+
+      - name: Diagnose Server 2 (nginx routing)
+        run: |
+          set -uo pipefail
+          SSH_OPTS=(-T -o BatchMode=yes -o ConnectTimeout=15)
+          ssh "${SSH_OPTS[@]}" careermate-jump 'bash -s' <<'REMOTE'
+          set -uo pipefail
+          echo "========== [S2] careerforge.cn 有效 nginx 配置里 /api 路由 =========="
+          if command -v nginx >/dev/null 2>&1; then
+            sudo nginx -T 2>/dev/null | grep -nE "server_name .*careerforge|location |proxy_pass|31080|31000|1808[0-2]" | sed -n '1,250p'
+          else
+            echo "(nginx 二进制不在 PATH，尝试直接读配置文件)"
+          fi
+          echo "========== [S2] /opt/rag-forge/nginx.conf 里 careermate 相关 =========="
+          sudo grep -nE "careerforge|careermate|31080|31000|1808[0-2]|location .*/api|proxy_pass" /opt/rag-forge/nginx.conf 2>/dev/null | sed -n '1,200p' || echo "(读不到该文件)"
+          echo "========== [S2] 本机 docker 后端(legacy 是否在 S2) =========="
+          docker ps --filter name=careermate --format '{{.Names}}\t{{.Image}}\t{{.Ports}}' 2>/dev/null || echo "(无)"
+          REMOTE
