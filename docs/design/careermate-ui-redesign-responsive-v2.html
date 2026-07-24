@@ -679,7 +679,7 @@
   <h3 style="color:var(--ink)">记忆与隔离规则（实现约束）</h3>
   <table>
     <tr><th style="width:160px">层</th><th>机制</th><th style="width:200px">约束</th></tr>
-    <tr><td>当前 JD 会话</td><td><b>整条全量喂入</b>上下文（非 N 条截断）</td><td>禁止为对话连续自建向量库</td></tr>
+    <tr><td>当前 JD 会话</td><td><b>近似全量喂入</b>上下文（100 条消息窗口，超长再叠加滚动摘要——非早期 N 条硬截断）</td><td>禁止为对话连续自建向量库</td></tr>
     <tr><td>超长会话兜底</td><td>滚动摘要（老消息压缩 + 近期原文）</td><td>仅超长触发</td></tr>
     <tr><td>跨 JD 隔离</td><td>对话上下文 <code>WHERE session_id=当前JD线</code> 硬隔离</td><td>A 岗对话绝不进 B 岗上下文</td></tr>
     <tr><td>跨线共享</td><td>资产/进度/长期偏好按 <code>user_id</code> 共享；跨线复用=copy 资产内容，不 copy 对话</td><td>隔离对话、共享产出</td></tr>

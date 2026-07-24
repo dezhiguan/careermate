@@ -57,8 +57,7 @@
           <span>资产</span>
         </button>
 
-        <div class="sidebar-grow" />
-
+        <!-- v3.4：「我的」收进导航组，与前四项连排（原 sidebar-grow 会把它挤到侧栏底部，已移除） -->
         <button
           type="button"
           class="sidebar-item"
