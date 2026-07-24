@@ -81,7 +81,7 @@
           </div>
           <div class="header-actions">
             <button
-              v-if="isMobile && workspaceVersions.length && !resumeViewerOpen"
+              v-if="workspaceVersions.length && !resumeViewerOpen"
               type="button"
               class="canvas-chip-btn"
               @click="openCanvasChip"
@@ -312,7 +312,7 @@
           </div>
         </div>
       </div>
-    </div>
+      <!-- chat-layout 继续打开：下方 Canvas 在桌面作为 flex 第 3 列并排；JD 模态为 fixed 脱流不影响布局 -->
 
     <div v-if="jdViewerOpen" class="modal-overlay" @click.self="jdViewerOpen = false">
       <div class="modal-panel">
@@ -324,7 +324,7 @@
       </div>
     </div>
 
-    <div v-if="resumeViewerOpen" class="canvas-dock" data-testid="resume-canvas" @click.self="resumeViewerOpen = false">
+    <div v-if="resumeViewerOpen" class="canvas-dock" :class="{ 'canvas-dock--inline': !isMobile }" data-testid="resume-canvas" @click.self="isMobile && (resumeViewerOpen = false)">
       <div class="canvas-panel">
         <div class="canvas-head">
           <span class="canvas-title">📄 简历</span>
@@ -422,6 +422,7 @@
         </div>
       </div>
     </div>
+    </div><!-- /chat-layout（含桌面并排 Canvas） -->
 
     <div v-if="pendingExportFormat" class="modal-overlay" @click.self="pendingExportFormat = ''">
       <div class="modal-panel fact-confirm">
@@ -2118,6 +2119,22 @@ onBeforeUnmount(() => {
   flex-direction: column;
   box-shadow: -8px 0 30px rgba(15, 23, 42, 0.2);
   animation: canvasIn 0.18s ease;
+}
+/* P2-#5 桌面并排 Canvas：不再是全屏浮层，而是 chat-layout 内的第 3 列，与对话并排。
+   默认收起（resumeViewerOpen=false），点「📄简历」才展开。 */
+.canvas-dock--inline {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  background: transparent;
+  height: 100%;
+  flex: 0 0 clamp(360px, 34vw, 560px);
+  min-width: 0;
+  border-left: 1px solid #e6e8ee;
+}
+.canvas-dock--inline .canvas-panel {
+  width: 100%;
+  box-shadow: none;
 }
 @keyframes canvasIn {
   from { transform: translateX(24px); opacity: 0.6; }
