@@ -456,6 +456,9 @@ public class AgentStreamService {
                     .userId(userId)
                     .sessionId(sessionId)
                     .userMessage(message)
+                    // modify_resume 定义里 instruction 为必填；执行服务会做参数校验，
+                    // 这里必须显式塞入用户原话作为修改指令，否则被「参数校验失败」打回。
+                    .args(java.util.Map.of("instruction", message))
                     .build();
             result = agentToolExecutionService.execute(ctx, "modify_resume");
             log.info("[deterministic-modify] tool executed sid={} success={} summary={}",
