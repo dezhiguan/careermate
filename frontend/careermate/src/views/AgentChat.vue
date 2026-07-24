@@ -31,7 +31,7 @@
         <div class="cs-section">
           <div class="cs-title">我的准备</div>
           <button
-            v-for="ln in recentLines"
+            v-for="ln in displayRecentLines"
             :key="ln.sessionId"
             type="button"
             class="cs-item"
@@ -42,6 +42,7 @@
             <span class="cs-name">{{ ln.title }}</span>
           </button>
           <div v-if="!recentLines.length" class="cs-empty">还没有 JD 会话线</div>
+          <div v-else-if="recentVisibleCount < recentLines.length" class="cs-more">下滑加载更多…</div>
         </div>
         <div class="cs-section">
           <div class="cs-title">通用对话</div>
@@ -1815,7 +1816,7 @@ async function bootstrapChat() {
 
 async function loadRecentLines() {
   try {
-    recentLines.value = await listRecentLines(8)
+    recentLines.value = await listRecentLines(100)
   } catch (e) {
     recentLines.value = []
   }
@@ -1838,14 +1839,16 @@ async function loadSessionPanes() {
   }
 }
 
-// 通用对话滚动分页：先渲染一批，左栏触底再加载更多（web/移动统一滚动分页）
+// 左栏滚动分页：我的准备(JD线) + 通用对话 共用同一滚动容器，触底同时增长两列可见数
 const leftVisibleCount = ref(15)
+const recentVisibleCount = ref(15)
 const displayChatSessions = computed(() => leftChatSessions.value.slice(0, leftVisibleCount.value))
+const displayRecentLines = computed(() => recentLines.value.slice(0, recentVisibleCount.value))
 function onSessionsScroll(evt) {
   const el = evt.target
-  if (el.scrollHeight - (el.scrollTop + el.clientHeight) < 120
-    && leftVisibleCount.value < leftChatSessions.value.length) {
-    leftVisibleCount.value += 15
+  if (el.scrollHeight - (el.scrollTop + el.clientHeight) < 120) {
+    if (recentVisibleCount.value < recentLines.value.length) recentVisibleCount.value += 15
+    if (leftVisibleCount.value < leftChatSessions.value.length) leftVisibleCount.value += 15
   }
 }
 // 通用对话标题兜底：默认「新会话」/空 → 用相对时间，避免整列同名
@@ -1864,12 +1867,27 @@ function openSessionLine(sid) {
 // ＋新对话：回到空白根聊天
 function startNewChat() {
   if (workspaceId.value) {
+    // 当前在某条会话线（JD 或通用对话都走 /chat/:wsId）→ 跳 /chat，watch 里 resetToNewChat
     router.push('/chat')
   } else {
-    sessionId.value = ''
-    messages.value = []
-    streamState.value = 'idle'
+    // 已在根 /chat（可能恢复了上一段对话）→ 就地重置为全新空白
+    resetToNewChat()
   }
+}
+
+// 重置为全新空白对话：清掉当前会话/消息/JD线上下文/焦点，并刷新左栏 JD 线列表
+function resetToNewChat() {
+  sessionId.value = ''
+  messages.value = [defaultWelcomeMessage()]
+  streamState.value = 'idle'
+  currentPathMode.value = ''
+  workspaceInfo.value = null
+  workspaceVersions.value = []
+  resumeViewerOpen.value = false
+  activeFocuses.value = []
+  inputText.value = ''
+  recentVisibleCount.value = 15
+  loadRecentLines()
 }
 
 async function sendExamplePrompt(prompt) {
@@ -2052,6 +2070,10 @@ watch(() => route.params.wsId, async (rawWsId) => {
   const wsId = normalizeWsId(rawWsId)
   if (wsId) {
     await loadWorkspaceContext(wsId)
+  } else {
+    // 从某条 JD/通用对话线点「＋新对话」→ 路由跳 /chat（wsId 变空）。
+    // 同组件复用不会自动重挂，这里显式重置为全新空白对话（原缺 else → 点击无反应）。
+    resetToNewChat()
   }
 })
 
