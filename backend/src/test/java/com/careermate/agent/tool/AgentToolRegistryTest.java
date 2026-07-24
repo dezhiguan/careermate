@@ -36,7 +36,11 @@ class AgentToolRegistryTest {
             "get_salary_guidance",
             "get_pipeline_board",
             "advance_application_stage",
-            "propose_stage_confirmation"
+            "propose_stage_confirmation",
+            // 设计缺口 P1 对话化补齐工具
+            "update_career_profile",
+            "filter_opportunities",
+            "list_resume_versions"
     );
 
     @Autowired
@@ -45,7 +49,7 @@ class AgentToolRegistryTest {
     @Test
     void listDefinitionsContainsAllTools() {
         List<AgentToolDefinition> definitions = registry.listDefinitions();
-        assertEquals(18, definitions.size());
+        assertEquals(21, definitions.size());
         Set<String> names = definitions.stream()
                 .map(AgentToolDefinition::getName)
                 .collect(java.util.stream.Collectors.toSet());

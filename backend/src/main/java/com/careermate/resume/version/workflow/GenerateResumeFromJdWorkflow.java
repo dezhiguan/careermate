@@ -41,7 +41,9 @@ public class GenerateResumeFromJdWorkflow {
             JobMatchAnalyzer jobMatchAnalyzer,
             ResumeGenerationRunService generationRunService,
             com.careermate.resume.version.verify.ResumeFactVerifier factVerifier,
-            com.careermate.resume.coldstart.ColdStartResumeService coldStartResumeService
+            com.careermate.resume.coldstart.ColdStartResumeService coldStartResumeService,
+            com.careermate.agent.debate.ResumeCritic resumeCritic,
+            com.careermate.agent.debate.DebateProperties debateProperties
     ) {
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.agentSessionService = agentSessionService;
@@ -57,7 +59,9 @@ public class GenerateResumeFromJdWorkflow {
                 promptTemplateService,
                 jobMatchAnalyzer,
                 factVerifier,
-                coldStartResumeService
+                coldStartResumeService,
+                resumeCritic,
+                debateProperties
         );
     }
 

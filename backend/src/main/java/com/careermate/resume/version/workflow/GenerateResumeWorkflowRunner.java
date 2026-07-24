@@ -62,6 +62,10 @@ class GenerateResumeWorkflowRunner {
     private final JobMatchAnalyzer jobMatchAnalyzer;
     private final com.careermate.resume.version.verify.ResumeFactVerifier factVerifier;
     private final com.careermate.resume.coldstart.ColdStartResumeService coldStartResumeService;
+    // #P0-1：让 Writer-Critic 复核真正接线（原为死代码）。Critic 在质检步做一次评审，
+    // gated by AGENT_DEBATE_ENABLED、fail-open、可观测（日志），不改用户可见产物结构。
+    private final com.careermate.agent.debate.ResumeCritic resumeCritic;
+    private final com.careermate.agent.debate.DebateProperties debateProperties;
 
     GenerateResumeWorkflowRunner(
             WorkspaceSessionRepository workspaceSessionRepository,
@@ -73,7 +77,9 @@ class GenerateResumeWorkflowRunner {
             PromptTemplateService promptTemplateService,
             JobMatchAnalyzer jobMatchAnalyzer,
             com.careermate.resume.version.verify.ResumeFactVerifier factVerifier,
-            com.careermate.resume.coldstart.ColdStartResumeService coldStartResumeService
+            com.careermate.resume.coldstart.ColdStartResumeService coldStartResumeService,
+            com.careermate.agent.debate.ResumeCritic resumeCritic,
+            com.careermate.agent.debate.DebateProperties debateProperties
     ) {
         this.workspaceSessionRepository = workspaceSessionRepository;
         this.resumeContextProvider = resumeContextProvider;
@@ -85,6 +91,8 @@ class GenerateResumeWorkflowRunner {
         this.coldStartResumeService = coldStartResumeService;
         this.promptTemplateService = promptTemplateService;
         this.jobMatchAnalyzer = jobMatchAnalyzer;
+        this.resumeCritic = resumeCritic;
+        this.debateProperties = debateProperties;
     }
 
     GenerateResumeWorkflowResult execute(GenerateResumeWorkflowRun run, GenerateResumeWorkflowEventSink eventSink) {
@@ -244,6 +252,32 @@ class GenerateResumeWorkflowRunner {
         run.setOptimizationNotes(meta.changes());
         // P2 确定性事实校验 Gate：LLM 判断之外的字符串级兜底
         run.setFactCheck(runFactCheck(markdown, run.resumeContext()));
+        // #P0-1 Writer-Critic 复核接线：对生成稿做一次 LLM 自我批判（可观测，不阻断）
+        runCriticReview(run.jdContent(), markdown);
+    }
+
+    /**
+     * #P0-1：让 ResumeCritic（原死代码）真正对每份生成稿做一次评审。
+     * 受 AGENT_DEBATE_ENABLED 开关控制、异常一律 fail-open（绝不影响生成落库）；
+     * 结论落日志用于可观测。深度集成（把 critic 建议透出到 UI / 多轮改稿）为后续专项。
+     */
+    private void runCriticReview(String jd, String markdown) {
+        if (debateProperties == null || !debateProperties.isEnabled()
+                || jd == null || jd.isBlank() || markdown == null || markdown.isBlank()) {
+            return;
+        }
+        try {
+            com.careermate.agent.debate.CriticVerdict verdict = resumeCritic.review(jd, markdown);
+            if (verdict == null) {
+                return;
+            }
+            boolean belowConsensus = verdict.satisfaction() < debateProperties.getConsensusThreshold();
+            log.info("[resume-critic] review done satisfaction={} belowConsensus={} criticism={}",
+                    String.format("%.2f", verdict.satisfaction()), belowConsensus,
+                    verdict.criticism() == null ? "" : verdict.criticism());
+        } catch (Exception e) {
+            log.warn("[resume-critic] review failed, skip (fail-open): {}", e.getMessage());
+        }
     }
 
     private com.careermate.resume.version.verify.FactCheckResult runFactCheck(

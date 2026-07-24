@@ -94,7 +94,9 @@ class GenerateResumeFromJdWorkflowTest {
                 jobMatchAnalyzer,
                 generationRunService,
                 new com.careermate.resume.version.verify.ResumeFactVerifier(),
-                coldStartResumeService
+                coldStartResumeService,
+                org.mockito.Mockito.mock(com.careermate.agent.debate.ResumeCritic.class),
+                new com.careermate.agent.debate.DebateProperties()
         );
     }
 
