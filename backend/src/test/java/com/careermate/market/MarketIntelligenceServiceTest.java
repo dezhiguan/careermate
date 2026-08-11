@@ -388,6 +388,72 @@ class MarketIntelligenceServiceTest {
     }
 
     @Test
+    void resumeGapDropsHasSkillThatJdNeverRequires() {
+        // 简历有 Java 和 Redis，但 JD 只要求 Redis/K8s：把 Java 记进「已具备且岗位要求」是虚记功劳
+        when(resumeContextProvider.getResumeContext(1L)).thenReturn(
+                ResumeContext.builder().available(true).title("Java后端工程师")
+                        .content("熟悉 Java Redis 与 MySQL").build());
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleOpportunityResult());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"hasSkills":["Java","Redis"],"missingSkills":["K8s"],"matchScore":72,
+                 "topSuggestion":"补 K8s","aiSummary":"整体匹配良好"}
+                """).build());
+
+        ResumeGapVO result = service.getResumeGap(1L);
+
+        assertEquals(List.of("Redis"), result.getHasSkills());
+        assertEquals(List.of("K8s"), result.getMissingSkills());
+        // matchScore 是 LLM 对经历与深度的综合判断，不因技能词剔除而重算
+        assertEquals(72, result.getMatchScore());
+    }
+
+    @Test
+    void resumeGapDropsMissingSkillTheResumeActuallyHas() {
+        // 简历里明明写了 Redis，却被列为「缺失技能」——凭空造出的差距会误导改简历
+        when(resumeContextProvider.getResumeContext(1L)).thenReturn(
+                ResumeContext.builder().available(true).title("Java后端工程师")
+                        .content("熟悉 Redis 集群与缓存设计").build());
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleOpportunityResult());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"hasSkills":[],"missingSkills":["Redis","K8s"],"matchScore":60,
+                 "topSuggestion":"补 K8s","aiSummary":"—"}
+                """).build());
+
+        ResumeGapVO result = service.getResumeGap(1L);
+
+        assertEquals(List.of("K8s"), result.getMissingSkills());
+    }
+
+    @Test
+    void companyInsightDropsTechStackAbsentFromJd() {
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleCompanyResult());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"companyName":"腾讯","scale":"大厂","stage":"上市",
+                 "techStack":["Java","Kubernetes"],"currentJds":[],"aiSummary":"互联网大厂"}
+                """).build());
+
+        CompanyInsightVO result = service.getCompanyInsight("腾讯");
+
+        assertEquals(List.of("Java"), result.getTechStack());
+    }
+
+    @Test
+    void companyInsightKeepsNormalizedJobTitleButDropsFabricatedOne() {
+        // 原文写「资深java研发工程师」，LLM 规范化成「Java后端工程师」应保留（特征词 java 命中）；
+        // 「算法工程师」在原文里没有任何特征词支撑，判为编造
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(
+                companyResultWithContent("某公司 在招 资深java研发工程师 与 前端开发"));
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"companyName":"某公司","scale":"中型企业","stage":"未知","techStack":[],
+                 "currentJds":["Java后端工程师","算法工程师"],"aiSummary":"—"}
+                """).build());
+
+        CompanyInsightVO result = service.getCompanyInsight("某公司");
+
+        assertEquals(List.of("Java后端工程师"), result.getCurrentJds());
+    }
+
+    @Test
     void getCompanyInsightReturnsFallbackWhenCompanyBlank() {
         CompanyInsightVO result = service.getCompanyInsight("  ");
 
@@ -486,6 +552,23 @@ class MarketIntelligenceServiceTest {
                         .chunkType(RagRetrieverChunkType.JD)
                         .fileName("jd.md")
                         .score(0.8)
+                        .build()))
+                .latencyMs(5L)
+                .build();
+    }
+
+    private static RagRetrieveResult companyResultWithContent(String content) {
+        return RagRetrieveResult.builder()
+                .success(true)
+                .query("公司")
+                .scene(RagRetrieveScene.COMPANY)
+                .chunks(List.of(RagRetrievedChunk.builder()
+                        .content(content)
+                        .contentPreview(content)
+                        .citation("COMPANY@company.md")
+                        .chunkType(RagRetrieverChunkType.COMPANY)
+                        .fileName("company.md")
+                        .score(0.88)
                         .build()))
                 .latencyMs(5L)
                 .build();

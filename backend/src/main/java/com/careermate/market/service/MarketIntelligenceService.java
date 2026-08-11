@@ -18,6 +18,7 @@ import com.careermate.market.dto.SalaryInsightVO;
 import com.careermate.market.dto.SkillTrendsVO;
 import com.careermate.market.support.MarketDefaults;
 import com.careermate.market.support.MarketExperience;
+import com.careermate.market.support.TermMentions;
 import com.careermate.resume.ResumeContext;
 import com.careermate.resume.ResumeContextProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,6 +27,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -46,8 +49,11 @@ public class MarketIntelligenceService {
     private static final String FALLBACK_SUMMARY = "暂时无法获取市场数据，请稍后再试";
     private static final String NO_DATA = "暂无数据";
     private static final Pattern JSON_BLOCK = Pattern.compile("\\{[\\s\\S]*\\}");
-    /** 纯 ASCII 技能名（含空格与 . + # _ - 等常见符号），用于决定词频统计是否加词边界。 */
-    private static final Pattern ASCII_SKILL = Pattern.compile("[a-z0-9 .+#_/-]+");
+    /** 岗位名里的通用词，判定「在招岗位」是否有原文支撑时先剔除，只比对特征词。 */
+    private static final Pattern GENERIC_TITLE_WORDS = Pattern.compile(
+            "高级|资深|初级|中级|专家|首席|实习|应届|校招|社招|工程师|开发|研发|岗位|岗|senior|junior|engineer|developer");
+    /** 岗位名特征词：ASCII 段或中文段，分开取，避免「java后端」整体比对被误杀。 */
+    private static final Pattern TITLE_FEATURE = Pattern.compile("[a-z0-9.+#]+|[\\u4e00-\\u9fa5]+");
 
     private final KnowledgeRetrievalService knowledgeRetrievalService;
     private final LlmClient llmClient;
@@ -241,6 +247,7 @@ public class MarketIntelligenceService {
             if (parsed == null) {
                 return fallbackResumeGap();
             }
+            applyGapGrounding(parsed, resumeContext.getContent(), context);
             attachSources(parsed, ragResult);
             parsed.setMeta(CacheMeta.fresh());
             return parsed;
@@ -282,6 +289,7 @@ public class MarketIntelligenceService {
             if (parsed.getCompanyName() == null || parsed.getCompanyName().isBlank()) {
                 parsed.setCompanyName(safeCompany);
             }
+            applyCompanyGrounding(parsed, context);
             attachSources(parsed, ragResult);
             return parsed;
         } catch (Exception e) {
@@ -352,10 +360,10 @@ public class MarketIntelligenceService {
         if (skills == null || skills.isEmpty() || context == null || context.isBlank()) {
             return;
         }
-        String haystack = context.toLowerCase(Locale.ROOT);
+        String haystack = TermMentions.haystack(context);
         int max = 0;
         for (SkillTrendsVO.SkillItem item : skills) {
-            int mentions = countMentions(haystack, item.getName());
+            int mentions = TermMentions.count(haystack, item.getName());
             item.setMentions(mentions);
             max = Math.max(max, mentions);
         }
@@ -387,34 +395,105 @@ public class MarketIntelligenceService {
     }
 
     /**
-     * 统计技能词在文本中的出现次数。纯 ASCII 技能名（Java / Spring Boot / C++ / .NET）加词边界，
-     * 避免 "Java" 命中 "JavaScript"；中文技能名直接按子串计数。
+     * 简历差距的原文支撑校验。
+     *
+     * <p>hasSkills / missingSkills 的语义本身就是集合关系，可以确定性校验，不必信 LLM：
+     * <ul>
+     *   <li>hasSkills = 简历里有 ∩ JD 里要求 —— 必须同时出现在简历原文与 JD 检索原文中</li>
+     *   <li>missingSkills = JD 里要求 - 简历里有 —— 必须出现在 JD 原文中，且不在简历原文中</li>
+     * </ul>
+     * 不满足的项直接剔除：前者是给用户虚记的功劳，后者是凭空造出的差距，都会误导改简历的决策。
+     *
+     * <p>matchScore 不重算——它是 LLM 对经历、项目、深度的综合判断，不只由技能词集合决定。
      */
-    private static int countMentions(String lowerHaystack, String name) {
-        if (name == null || name.isBlank()) {
-            return 0;
+    static void applyGapGrounding(ResumeGapVO vo, String resumeText, String context) {
+        if (vo == null || resumeText == null || resumeText.isBlank() || context == null || context.isBlank()) {
+            return;
         }
-        String needle = name.trim().toLowerCase(Locale.ROOT);
-        if (ASCII_SKILL.matcher(needle).matches()) {
-            Matcher matcher = Pattern
-                    .compile("(?<![a-z0-9])" + Pattern.quote(needle) + "(?![a-z0-9])")
-                    .matcher(lowerHaystack);
-            int count = 0;
-            while (matcher.find()) {
-                count++;
+        String resume = TermMentions.haystack(resumeText);
+        String jd = TermMentions.haystack(context);
+
+        List<String> has = groundedTerms(vo.getHasSkills(), term ->
+                TermMentions.appearsIn(resume, term) && TermMentions.appearsIn(jd, term),
+                term -> log.warn("resume gap: drop unsupported hasSkill, name={}", term));
+        List<String> missing = groundedTerms(vo.getMissingSkills(), term ->
+                TermMentions.appearsIn(jd, term) && !TermMentions.appearsIn(resume, term),
+                term -> log.warn("resume gap: drop unsupported missingSkill, name={}", term));
+
+        vo.setHasSkills(has);
+        vo.setMissingSkills(missing);
+    }
+
+    /**
+     * 公司情报的原文支撑校验。
+     *
+     * <p>techStack 与技能同类，按字面校验；currentJds 是岗位名，LLM 常做规范化改写
+     * （原文「资深java研发工程师」→ 输出「Java后端工程师」），字面比对会误杀，
+     * 因此只要求去掉通用词后还剩的特征词至少有一个在原文出现。
+     */
+    static void applyCompanyGrounding(CompanyInsightVO vo, String context) {
+        if (vo == null || context == null || context.isBlank()) {
+            return;
+        }
+        String jd = TermMentions.haystack(context);
+
+        vo.setTechStack(groundedTerms(vo.getTechStack(),
+                term -> TermMentions.appearsIn(jd, term),
+                term -> log.warn("company insight: drop unsupported techStack, company={}, name={}",
+                        vo.getCompanyName(), term)));
+
+        vo.setCurrentJds(groundedTerms(vo.getCurrentJds(),
+                title -> jobTitleGrounded(jd, title),
+                title -> log.warn("company insight: drop unsupported currentJd, company={}, title={}",
+                        vo.getCompanyName(), title)));
+    }
+
+    /**
+     * 岗位名去掉通用词后，特征词至少一个在原文出现即算有支撑；无特征词可判时保留。
+     *
+     * <p>特征词按「ASCII 段」与「中文段」分别切分——「Java后端工程师」剔除通用词后是
+     * {@code java后端}，整体拿去比对会误杀（原文写的是「资深java研发工程师」），
+     * 切成 {@code java} + {@code 后端} 后 java 命中即判定有支撑。
+     */
+    private static boolean jobTitleGrounded(String jd, String title) {
+        if (title == null || title.isBlank()) {
+            return false;
+        }
+        String stripped = GENERIC_TITLE_WORDS.matcher(title.toLowerCase(Locale.ROOT)).replaceAll(" ");
+        List<String> features = new ArrayList<>();
+        Matcher matcher = TITLE_FEATURE.matcher(stripped);
+        while (matcher.find()) {
+            String token = matcher.group();
+            if (token.length() >= 2) {
+                features.add(token);
             }
-            return count;
         }
-        int count = 0;
-        int from = 0;
-        while (true) {
-            int idx = lowerHaystack.indexOf(needle, from);
-            if (idx < 0) {
-                return count;
+        if (features.isEmpty()) {
+            return true;
+        }
+        return features.stream().anyMatch(t -> TermMentions.appearsIn(jd, t));
+    }
+
+    private static List<String> groundedTerms(
+            List<String> terms,
+            Predicate<String> grounded,
+            Consumer<String> onDrop
+    ) {
+        if (terms == null || terms.isEmpty()) {
+            return terms == null ? List.of() : terms;
+        }
+        List<String> kept = new ArrayList<>();
+        for (String term : terms) {
+            if (term == null || term.isBlank()) {
+                continue;
             }
-            count++;
-            from = idx + needle.length();
+            if (grounded.test(term)) {
+                kept.add(term);
+            } else {
+                onDrop.accept(term);
+            }
         }
+        return kept;
     }
 
     private static String toContextText(RagRetrieveResult ragResult) {
