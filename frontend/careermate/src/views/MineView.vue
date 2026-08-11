@@ -303,18 +303,17 @@ import { listInterviewSessions } from '../api/interview'
 import { listLongTermMemory, forgetLongTermMemory } from '../api/ltm'
 import { authStore } from '../stores/authStore'
 import { homeStore } from '../stores/homeStore'
+import { marketDimensionsStore } from '../stores/marketDimensionsStore'
 import { computeProfileCompleteness } from '../utils/profileCompleteness'
 
 const router = useRouter()
 
-const ROLE_SUGGESTIONS = [
-  'Java后端', 'Go后端', 'Python后端', '前端开发', '全栈工程师',
-  '算法工程师', '大数据工程师', '测试工程师', '运维工程师',
-]
-const CITY_SUGGESTIONS = [
-  '广州', '深圳', '北京', '上海', '杭州', '成都', '南京', '武汉', '西安', '苏州',
-]
-const YEARS_OPTIONS = ['应届', '1-3年', '3-5年', '5-10年', '10年以上']
+// 岗位/城市/经验清单来自 /market/dimensions（与资产页、行情页同一份），不在此硬编码
+const ROLE_SUGGESTIONS = computed(() => marketDimensionsStore.flatRoles())
+const CITY_SUGGESTIONS = computed(() =>
+  marketDimensionsStore.state.cities.filter((c) => c !== marketDimensionsStore.ANY_CITY))
+// 画像里的资历是「我有几年经验」，不存在「不限」
+const YEARS_OPTIONS = computed(() => marketDimensionsStore.yearsWithoutAny())
 const SALARY_SUGGESTIONS = ['15-25K·12薪', '20-35K·13薪', '30-45K·15薪', '40-60K·16薪', '60K以上·面议']
 
 const resumes = ref([])
@@ -635,6 +634,7 @@ async function forgetFact(id) {
 }
 
 onMounted(async () => {
+  marketDimensionsStore.load()
   if (homeStore.state.user) {
     authStore.applyUserProfile(homeStore.state.user)
   }

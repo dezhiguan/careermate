@@ -59,13 +59,40 @@ class MarketIntelligenceControllerTest {
         vo.setP90("40K");
         vo.setTrend("稳定");
         vo.setAiSummary("薪资平稳");
-        when(marketIntelligenceService.getSalaryInsight("Java后端", "广州", "3-5年")).thenReturn(vo);
+        // 不带 years 时透传 null，由服务层归一为「不限」——不再被接口层补成 3-5年
+        when(marketIntelligenceService.getSalaryInsight("Java后端", "广州", null)).thenReturn(vo);
 
         mockMvc.perform(get("/api/market/salary-insight"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.p50").value("28K"))
                 .andExpect(jsonPath("$.data.aiSummary").value("薪资平稳"));
+    }
+
+    @Test
+    void salaryInsightPassesAnyYearsThrough() throws Exception {
+        SalaryInsightVO vo = new SalaryInsightVO();
+        vo.setP50("22K");
+        when(marketIntelligenceService.getSalaryInsight("Java后端", "广州", "不限")).thenReturn(vo);
+
+        mockMvc.perform(get("/api/market/salary-insight").param("years", "不限"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.p50").value("22K"));
+    }
+
+    @Test
+    void dimensionsEndpointExposesAiRolesAndDefaults() throws Exception {
+        mockMvc.perform(get("/api/market/dimensions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.defaultRole").value("Java后端"))
+                .andExpect(jsonPath("$.data.defaultCity").value("广州"))
+                .andExpect(jsonPath("$.data.defaultYears").value("不限"))
+                .andExpect(jsonPath("$.data.cities[0]").value("不限"))
+                .andExpect(jsonPath("$.data.years[0]").value("不限"))
+                .andExpect(jsonPath("$.data.roleGroups[?(@.group =~ /.*AI.*/)]").exists())
+                .andExpect(jsonPath("$.data.roleGroups[0].roles").value(
+                        org.hamcrest.Matchers.hasItem("AI应用工程师")));
     }
 
     @Test

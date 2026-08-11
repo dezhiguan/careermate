@@ -12,7 +12,7 @@ import com.careermate.opportunity.dto.OpportunityPrepareResponse;
 import com.careermate.model.entity.AgentMessageEntity;
 import com.careermate.model.entity.AgentSessionEntity;
 import com.careermate.opportunity.service.impl.OpportunityServiceImpl;
-import com.careermate.opportunity.support.OpportunityCityCatalog;
+import com.careermate.common.catalog.CityCatalog;
 import com.careermate.profile.service.CareerProfileService;
 import com.careermate.workspace.support.WorkspaceSessionRepository;
 import com.careermate.profile.dto.CareerProfileResponse;
@@ -81,7 +81,7 @@ class OpportunityServiceImplTest {
     private OpportunityServiceImpl service;
     private ObjectMapper objectMapper;
     private KnowledgeRetrievalService knowledgeRetrievalService;
-    private final OpportunityCityCatalog cityCatalog = new OpportunityCityCatalog();
+    private final CityCatalog cityCatalog = new CityCatalog();
 
     @BeforeEach
     void setUp() {

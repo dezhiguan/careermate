@@ -47,8 +47,8 @@ class SalaryGuidanceToolTest {
         vo.setDataAvailable(true);
         vo.setNegotiationAdvice("建议锚定 43K");
         vo.setQuartile("P50-P75");
-        // 默认参数 Java后端/广州/3-5年
-        when(service.getSalaryGuidance(any(), eq("Java后端"), eq("广州"), eq("3-5年"))).thenReturn(vo);
+        // 默认参数 Java后端/广州/不限——未指明经验时不臆造年限区间
+        when(service.getSalaryGuidance(any(), eq("Java后端"), eq("广州"), eq("不限"))).thenReturn(vo);
 
         AgentToolResult result = tool.execute(AgentToolContext.builder().userId(1L).build());
 
