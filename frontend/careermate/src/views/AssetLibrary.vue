@@ -107,14 +107,23 @@
       <div class="qbank-toolbar">
         <div class="qbank-skills">
           <button
-            v-for="s in SKILL_TAGS"
-            :key="s"
             type="button"
             class="qbank-chip"
-            :class="{ on: studySkill === (s === '全部' ? '' : s) }"
-            @click="selectSkill(s)"
+            :class="{ on: studySkill === '' }"
+            @click="selectSkill('')"
           >
-            {{ s }}
+            全部
+          </button>
+          <button
+            v-for="s in skillTags"
+            :key="s.tag"
+            type="button"
+            class="qbank-chip"
+            :class="{ on: studySkill === s.tag, custom: !s.preset }"
+            @click="selectSkill(s.tag)"
+          >
+            {{ s.tag }}
+            <span v-if="s.count" class="qbank-chip-n">{{ s.count }}</span>
           </button>
         </div>
         <div class="qbank-actions">
@@ -129,9 +138,15 @@
         </div>
       </div>
 
+      <p v-if="!loadingStudy && !studySkill && untaggedCount" class="qbank-hint">
+        还有 {{ untaggedCount }} 道题没打标签，只能在「全部」里看到；编辑时补个标签就能按方向筛。
+      </p>
+
       <p v-if="loadingStudy" class="asset-empty">加载中…</p>
       <p v-else-if="studyNotes.length === 0" class="asset-empty">
-        还没有收录的题。点「＋ 收录题目」把高频题和你的手写答案存进来，所有岗位都能复用。
+        {{ studySkill || studyKeyword.trim()
+          ? '当前筛选条件下没有题。换个标签或清掉关键词试试。'
+          : '还没有收录的题。点「＋ 收录题目」把高频题和你的手写答案存进来，所有岗位都能复用。' }}
       </p>
       <ul v-else class="qbank-list">
         <li v-for="n in studyNotes" :key="n.id" class="qbank-item">
@@ -226,7 +241,15 @@
           </ul>
 
           <label class="note-label">技能标签</label>
-          <input v-model="noteForm.skillTag" class="note-input" placeholder="如 Redis / Java并发 / 系统设计">
+          <input
+            v-model="noteForm.skillTag"
+            class="note-input"
+            list="qbank-skill-options"
+            placeholder="选一个已有标签，或直接敲新的（如 Kafka）"
+          >
+          <datalist id="qbank-skill-options">
+            <option v-for="opt in skillOptions" :key="opt" :value="opt"></option>
+          </datalist>
 
           <label class="note-label">手写答案</label>
           <textarea v-model="noteForm.answer" class="note-input" rows="6" placeholder="用自己的话写答案，跨岗位复用"></textarea>
@@ -257,7 +280,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listVersions, getVersion, downloadVersionPdf, downloadVersionDocx, deleteVersion } from '../api/resumeVersion'
 import { listInterviewSessions, getKbQuestions } from '../api/interview'
-import { listStudyNotes, saveStudyNote, deleteStudyNote } from '../api/study'
+import { listStudyNotes, listStudySkills, saveStudyNote, deleteStudyNote } from '../api/study'
 import { getSalaryInsight, getSkillTrends } from '../api/market'
 import { renderMarkdown } from '../utils/markdown'
 
@@ -288,7 +311,13 @@ const previewTitle = ref('')
 const previewHtml = ref('')
 
 // 八股题库
-const SKILL_TAGS = ['全部', 'Java并发', 'JVM', 'MySQL', 'Redis', '算法', '系统设计', '行为面']
+// 预置标签只作为接口不可用时的兜底；正常走 /study/notes/skills，
+// 返回「预置 ∪ 用户自建」，保证任何已存在的标签都有筛选入口（含平台题带过来的分类）。
+const FALLBACK_SKILL_TAGS = [
+  'AI大模型', 'RAG', 'Agent',
+  'Java并发', 'JVM', 'MySQL', 'Redis',
+  '算法', '系统设计', '行为面',
+]
 const STUDY_SIZE = 8
 const studyNotes = ref([])
 const studyTotal = ref(0)
@@ -298,6 +327,12 @@ const studyKeyword = ref('')
 const loadingStudy = ref(false)
 const studyLoaded = ref(false)
 const studyPages = computed(() => Math.max(1, Math.ceil(studyTotal.value / STUDY_SIZE)))
+
+// [{ tag, count, preset }]，服务端已按展示顺序排好（预置在前，自建按题数倒序在后）
+const skillTags = ref(FALLBACK_SKILL_TAGS.map((tag) => ({ tag, count: 0, preset: true })))
+const untaggedCount = ref(0)
+// 收录弹窗的标签候选：筛选面上的标签全都可选，也允许自己敲新的
+const skillOptions = computed(() => skillTags.value.map((s) => s.tag))
 
 // 薪资行情内联面板
 const SAL_ROLES = ['Java后端', '前端', 'Python', 'Go', '算法', '测试', '产品经理']
@@ -404,7 +439,10 @@ async function loadInterview() {
 function switchTab(key) {
   activeTab.value = key
   if (key === 'interview') loadInterview()
-  if (key === 'eightlegged' && !studyLoaded.value) loadStudy()
+  if (key === 'eightlegged' && !studyLoaded.value) {
+    loadStudy()
+    loadSkills()
+  }
 }
 
 async function loadStudy() {
@@ -427,13 +465,36 @@ async function loadStudy() {
   }
 }
 
+// 标签面与题目列表分开取：切标签/翻页只重拉列表，标签面只在题库内容变化后刷新
+async function loadSkills() {
+  try {
+    const data = await listStudySkills()
+    const tags = Array.isArray(data?.tags) ? data.tags : []
+    if (tags.length) {
+      skillTags.value = tags.map((t) => ({
+        tag: String(t?.tag || ''),
+        count: Number(t?.count || 0),
+        preset: t?.preset !== false,
+      })).filter((t) => t.tag)
+    }
+    untaggedCount.value = Number(data?.untagged || 0)
+    // 当前选中的自建标签被删空后其 chip 会消失，此时退回「全部」，避免停在一个点不到的筛选态
+    if (studySkill.value && !skillOptions.value.includes(studySkill.value)) {
+      studySkill.value = ''
+      await reloadStudy()
+    }
+  } catch {
+    // 标签面拿不到不该挡住题库本身，保留兜底预置项
+  }
+}
+
 function reloadStudy() {
   studyPage.value = 1
   loadStudy()
 }
 
-function selectSkill(s) {
-  studySkill.value = s === '全部' ? '' : s
+function selectSkill(tag) {
+  studySkill.value = tag || ''
   reloadStudy()
 }
 
@@ -475,9 +536,16 @@ async function browsePlatform() {
   }
 }
 
+// 平台题库的 category 只有 技术/行为/HR 三档：行为/HR 就是「行为面」这一格，
+// 「技术」太粗（几乎覆盖所有技术题），当不了筛选维度，留空让用户自己选具体方向。
+const COARSE_CATEGORY = '技术'
+
 function pickBrowse(q) {
   noteForm.value.question = q?.question || ''
-  if (q?.category && !noteForm.value.skillTag) noteForm.value.skillTag = q.category
+  const category = (q?.category || '').trim()
+  if (category && category !== COARSE_CATEGORY && !noteForm.value.skillTag) {
+    noteForm.value.skillTag = category
+  }
   if (q?.answer && !noteForm.value.answer) noteForm.value.answer = q.answer
   browseResults.value = []
 }
@@ -493,6 +561,7 @@ async function saveNote() {
     })
     noteEditorOpen.value = false
     await loadStudy()
+    await loadSkills()
   } catch (e) {
     error.value = e?.message || '保存失败'
   } finally {
@@ -507,6 +576,7 @@ async function removeNote(n) {
     // 删末页最后一条时回退一页
     if (studyNotes.value.length === 1 && studyPage.value > 1) studyPage.value -= 1
     await loadStudy()
+    await loadSkills()
   } catch (e) {
     error.value = e?.message || '删除失败'
   }
@@ -677,6 +747,11 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .qbank-skills { display: flex; flex-wrap: wrap; gap: 6px; }
 .qbank-chip { border: 1px solid #e2e8f0; background: #fff; color: #64748b; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: inherit; }
 .qbank-chip.on { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; font-weight: 600; }
+/* 用户自建标签（非预置）用虚线边框区分，避免和平台给的默认方向混为一谈 */
+.qbank-chip.custom { border-style: dashed; }
+.qbank-chip-n { margin-left: 4px; font-size: 11px; color: #94a3b8; }
+.qbank-hint { margin: 0 0 10px; font-size: 12px; color: #94a3b8; }
+.qbank-chip.on .qbank-chip-n { color: #6366f1; }
 .qbank-actions { display: flex; gap: 8px; align-items: center; }
 .qbank-search { border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; font-size: 12px; outline: none; font-family: inherit; }
 .qbank-add { background: linear-gradient(135deg, #4E5BEF, #8B5CF6); color: #fff; border: 0; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; }

@@ -5,6 +5,7 @@ import com.careermate.security.CurrentUserContext;
 import com.careermate.study.dto.SaveStudyNoteRequest;
 import com.careermate.study.dto.StudyNotePageVO;
 import com.careermate.study.dto.StudyNoteVO;
+import com.careermate.study.dto.StudySkillTagsVO;
 import com.careermate.study.service.StudyNoteService;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,6 +38,12 @@ public class StudyNoteController {
             @RequestParam(defaultValue = "10") int size
     ) {
         return ApiResponse.success(studyNoteService.list(CurrentUserContext.getUserId(), skill, keyword, page, size));
+    }
+
+    /** 筛选面标签：预置标签 ∪ 用户自建标签，各带题数。 */
+    @GetMapping("/skills")
+    public ApiResponse<StudySkillTagsVO> skills() {
+        return ApiResponse.success(studyNoteService.skills(CurrentUserContext.getUserId()));
     }
 
     /** 收录/更新一条题（按 question 去重 upsert）。 */

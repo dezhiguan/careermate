@@ -341,7 +341,8 @@ const submitting = ref(false)
 const showHints = ref(false)
 const workspaceLoading = ref(false)
 
-const kbQuickTags = ['Spring Boot', 'Redis', 'MySQL', 'JVM', '系统设计', '行为面试']
+// 平台题库的快捷检索词（不是筛选维度，纯搜索关键词）
+const kbQuickTags = ['AI大模型', 'RAG', 'Agent', 'Spring Boot', 'Redis', 'MySQL', 'JVM', '系统设计', '行为面试']
 
 const TYPE_LABEL = {
   PROJECT: '项目经历',

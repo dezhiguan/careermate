@@ -10,6 +10,11 @@ export function listStudyNotes({ skill, keyword, page = 1, size = 8 } = {}) {
   return request(`/study/notes?${q.toString()}`)
 }
 
+/** 筛选面标签：预置标签 ∪ 用户自建标签，各带题数。 */
+export function listStudySkills() {
+  return request('/study/notes/skills')
+}
+
 /** 收录/更新一条题（按 question 去重 upsert）。 */
 export function saveStudyNote(payload) {
   return request('/study/notes', {
