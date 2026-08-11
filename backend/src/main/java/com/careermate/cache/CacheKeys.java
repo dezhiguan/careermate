@@ -22,8 +22,9 @@ public final class CacheKeys {
         return "market:skill-trends:v3:" + part(city) + ":" + part(role);
     }
 
+    /** v2：hasSkills/missingSkills 增加原文支撑校验，v1 缓存里可能含无支撑项，弃用。 */
     public static String marketResumeGap(Long userId, String jdId) {
-        return "market:resume-gap:" + (userId == null ? "anonymous" : userId) + ":" + part(jdId);
+        return "market:resume-gap:v2:" + (userId == null ? "anonymous" : userId) + ":" + part(jdId);
     }
 
     public static String interviewKbQuestions(String tag) {

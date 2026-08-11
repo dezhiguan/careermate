@@ -43,9 +43,11 @@ public final class MarketPrompts {
             要求：
             1. hasSkills：用户简历中有、且 JD 里也要求的技能（最多 8 个）
             2. missingSkills：JD 里高频要求、但用户简历中没有的技能（最多 6 个）
-            3. matchScore：0-100 整数，反映匹配程度
-            4. topSuggestion：最重要的一条改进建议，不超过 40 字
-            5. aiSummary：不超过 80 字
+            3. 技能名必须在对应原文中原样出现：hasSkills 需同时见于简历与 JD，
+               missingSkills 需见于 JD 且不见于简历；不确定的宁可不写，不得凭常识补全
+            4. matchScore：0-100 整数，反映匹配程度
+            5. topSuggestion：最重要的一条改进建议，不超过 40 字
+            6. aiSummary：不超过 80 字
 
             用户简历：
             %s
@@ -62,9 +64,10 @@ public final class MarketPrompts {
             要求：
             1. scale：公司规模（如"大厂 / 上市公司"、"中型企业"）
             2. stage：融资阶段（如"上市"、"D轮"、"未知"）
-            3. techStack：从 JD 中提取该公司使用的技术栈（最多 8 个）
-            4. currentJds：从 JD 中提取该公司当前在招的岗位名称（最多 5 个）
-            5. aiSummary：不超过 80 字的公司简介
+            3. techStack：从 JD 中提取该公司使用的技术栈（最多 8 个），必须在 JD 原文中原样出现
+            4. currentJds：从 JD 中提取该公司当前在招的岗位名称（最多 5 个），以原文岗位名为准
+            5. 不得凭常识补全 JD 里没有的技术栈或岗位
+            6. aiSummary：不超过 80 字的公司简介
 
             JD 数据：
             %s
