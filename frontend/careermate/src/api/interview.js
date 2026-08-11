@@ -26,6 +26,13 @@ export function completeInterviewSession(sessionId) {
   return request(`/interview-sessions/${sessionId}/complete`, { method: 'POST' })
 }
 
+export function renameInterviewSession(sessionId, title) {
+  return request(`/interview-sessions/${sessionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title }),
+  })
+}
+
 export function deleteInterviewSession(sessionId) {
   return request(`/interview-sessions/${sessionId}`, { method: 'DELETE' })
 }

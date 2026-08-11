@@ -3,6 +3,7 @@ package com.careermate.agent.tool;
 import com.careermate.common.exception.BizException;
 import com.careermate.interview.service.InterviewPracticeService;
 import com.careermate.interview.dto.InterviewSessionCreateRequest;
+import com.careermate.interview.dto.InterviewQuestionResponse;
 import com.careermate.interview.dto.InterviewSessionDetailResponse;
 import org.springframework.stereotype.Component;
 
@@ -60,18 +61,43 @@ public class CreateInterviewSessionTool implements AgentTool {
         try {
             InterviewSessionDetailResponse session =
                     interviewPracticeService.createSessionForUser(context.getUserId(), request);
+
+            // 把第 1 题直接带回对话：此前只回一句「可到面试特训页查看 N 个问题」，
+            // 用户被要求自行跳转到另一个页面才能开始，线上 95% 的训练因此一题未答。
+            InterviewQuestionResponse first = firstPendingQuestion(session);
+
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("sessionId", session.getId());
             data.put("title", session.getTitle());
             data.put("totalQuestions", session.getTotalQuestions());
-            data.put("route", "/interview");
-            return AgentToolResult.success(
-                    name(),
-                    "已创建面试训练：" + session.getTitle() + "，共 " + session.getTotalQuestions() + " 题",
-                    data
-            );
+            data.put("answeredQuestions", session.getAnsweredQuestions());
+            data.put("route", "/interview?session=" + session.getId());
+            if (first != null) {
+                data.put("firstQuestionId", first.getId());
+                data.put("firstQuestionNo", first.getQuestionNo());
+                data.put("firstQuestionType", first.getQuestionType());
+                data.put("firstQuestionText", first.getQuestionText());
+            }
+
+            String message = first == null
+                    ? "已准备好面试训练：" + session.getTitle()
+                    : "已准备好面试训练：" + session.getTitle() + "。先来第 1 题（共 "
+                            + session.getTotalQuestions() + " 题）：\n\n" + first.getQuestionText()
+                            + "\n\n直接在这里作答即可，答完我再给下一题。";
+            return AgentToolResult.success(name(), message, data);
         } catch (BizException e) {
             return AgentToolResult.failure(name(), "创建面试训练失败", e.getMessage());
         }
+    }
+
+    /** 取第一道未作答的题；复用已有训练时可能已答过前几题，此时应从断点继续。 */
+    private InterviewQuestionResponse firstPendingQuestion(InterviewSessionDetailResponse session) {
+        if (session.getQuestions() == null || session.getQuestions().isEmpty()) {
+            return null;
+        }
+        return session.getQuestions().stream()
+                .filter(q -> !"ANSWERED".equalsIgnoreCase(q.getStatus()))
+                .findFirst()
+                .orElse(null);
     }
 }

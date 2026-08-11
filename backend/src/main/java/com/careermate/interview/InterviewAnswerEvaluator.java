@@ -36,7 +36,7 @@ public class InterviewAnswerEvaluator {
 
     private EvaluationResult toEvaluationResult(EvaluationStructuredResult r) {
         return new EvaluationResult(
-            r.score(),
+            r.score(),  // isValid 已保证非 null
             r.feedback(),
             r.strengths() == null ? java.util.List.of() : r.strengths(),
             r.improvements() == null ? java.util.List.of() : r.improvements()

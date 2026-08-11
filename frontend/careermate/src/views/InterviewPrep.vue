@@ -301,7 +301,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   completeInterviewSession,
   createInterviewSession,
@@ -315,6 +315,7 @@ import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 import { homeStore } from '../stores/homeStore'
 
 const router = useRouter()
+const route = useRoute()
 
 // 评审 P0-4：模拟练习硬依赖默认简历，入口即判断，避免点了才 400（迟到失败）
 const hasDefaultResume = computed(() => !!homeStore.state.defaultResume)
@@ -628,8 +629,16 @@ async function completeSession() {
   }
 }
 
-onMounted(() => {
-  loadSessions()
+onMounted(async () => {
+  await loadSessions()
+  // 支持从资产库「继续训练」深链直达某次训练：/interview?session=<id>
+  const target = route.query?.session
+  if (target) {
+    const id = Number(Array.isArray(target) ? target[0] : target)
+    if (Number.isFinite(id) && id > 0) {
+      await goToSession(id)
+    }
+  }
 })
 
 onBeforeUnmount(() => {

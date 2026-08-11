@@ -110,7 +110,7 @@ public class InterviewLlmEvaluator {
             EvaluationStructuredResult parsed =
                 objectMapper.readValue(json, EvaluationStructuredResult.class);
             if (!isValid(parsed)) {
-                log.warn("Interview LLM JSON 校验失败，已降级: score={}", parsed.score());
+                log.warn("Interview LLM JSON 校验失败，已降级: score={}, feedbackBlank={}", parsed.score(), parsed.feedback() == null || parsed.feedback().isBlank());
                 return Optional.empty();
             }
             return Optional.of(parsed);
@@ -159,6 +159,8 @@ public class InterviewLlmEvaluator {
 
     private boolean isValid(EvaluationStructuredResult r) {
         if (r == null) return false;
+        // score 缺失（null）必须降级到规则评分，不能当 0 分记给用户
+        if (r.score() == null) return false;
         if (r.score() < 0 || r.score() > 100) return false;
         if (r.feedback() == null || r.feedback().isBlank()) return false;
         return true;

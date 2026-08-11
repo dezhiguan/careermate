@@ -4,12 +4,14 @@ import com.careermate.common.api.ApiResponse;
 import com.careermate.interview.dto.InterviewAnswerRequest;
 import com.careermate.interview.dto.InterviewQuestionResponse;
 import com.careermate.interview.dto.InterviewSessionCreateRequest;
+import com.careermate.interview.dto.InterviewSessionRenameRequest;
 import com.careermate.interview.dto.InterviewSessionDetailResponse;
 import com.careermate.interview.dto.InterviewSessionListItemResponse;
 import com.careermate.interview.service.InterviewPracticeService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -59,6 +61,13 @@ public class InterviewPracticeController {
     @PostMapping("/{id}/complete")
     public ApiResponse<InterviewSessionDetailResponse> complete(@PathVariable Long id) {
         return ApiResponse.success(interviewPracticeService.completeSession(id));
+    }
+
+    @PatchMapping("/{id}")
+    public ApiResponse<InterviewSessionDetailResponse> rename(
+            @PathVariable Long id,
+            @Valid @RequestBody InterviewSessionRenameRequest request) {
+        return ApiResponse.success(interviewPracticeService.renameSession(id, request.getTitle()));
     }
 
     @DeleteMapping("/{id}")

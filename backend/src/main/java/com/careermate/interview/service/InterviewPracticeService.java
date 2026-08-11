@@ -24,8 +24,10 @@ import com.careermate.security.CurrentUserContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
@@ -40,6 +42,8 @@ public class InterviewPracticeService {
     public static final String QUESTION_ANSWERED = "ANSWERED";
 
     private static final int QUESTION_COUNT = 5;
+    private static final int MAX_TITLE_LENGTH = 60;
+    private static final DateTimeFormatter TITLE_TIME_FORMATTER = DateTimeFormatter.ofPattern("MM-dd HH:mm");
     private static final String NO_DEFAULT_RESUME_MSG =
             "面试训练会基于你的简历出专属题目，请先到「我的简历」上传并设为默认简历，然后回来开始练习。";
 
@@ -99,7 +103,19 @@ public class InterviewPracticeService {
         Optional<JobMatchEntity> jobMatch = jobMatchService.getLatestActiveMatch(userId);
         OffsetDateTime now = OffsetDateTime.now();
 
-        String title = resolveTitle(request);
+        String title = resolveTitle(request, jobMatch, now);
+
+        // 复用未开始的训练：Agent 在对话中命中「准备面试」等意图就会调用本方法，
+        // 若每次都新建，用户只要多聊几轮就会积累一堆零作答的空记录（线上曾一天生成 9 条）。
+        // 因此当已存在同名（或未指定标题）且一题未答的进行中训练时，直接返回它。
+        Optional<InterviewSessionEntity> reusable = findReusableEmptySession(userId, request, title);
+        if (reusable.isPresent()) {
+            InterviewSessionEntity existing = reusable.get();
+            log.info("Reuse empty interview session instead of creating a new one: userId={}, sessionId={}",
+                    userId, existing.getId());
+            return getSessionForUser(existing.getId(), userId);
+        }
+
         InterviewSessionEntity session = new InterviewSessionEntity();
         session.setUserId(userId);
         session.setResumeId(resume.getId());
@@ -256,15 +272,15 @@ public class InterviewPracticeService {
                         .eq(InterviewQuestionEntity::getStatus, QUESTION_ANSWERED)
         );
         int count = answered.size();
-        Integer avg = null;
-        if (count > 0) {
-            int sum = answered.stream()
-                    .map(InterviewQuestionEntity::getScore)
-                    .filter(s -> s != null)
-                    .mapToInt(Integer::intValue)
-                    .sum();
-            avg = sum / count;
-        }
+        // 分母必须是「有分数的题数」而非「已答题数」：若某题分数为 null，
+        // 用 answered.size() 作分母会把均分算低。
+        List<Integer> scores = answered.stream()
+                .map(InterviewQuestionEntity::getScore)
+                .filter(s -> s != null)
+                .toList();
+        Integer avg = scores.isEmpty()
+                ? null
+                : scores.stream().mapToInt(Integer::intValue).sum() / scores.size();
         sessionMapper.update(null, new LambdaUpdateWrapper<InterviewSessionEntity>()
                 .eq(InterviewSessionEntity::getId, sessionId)
                 .eq(InterviewSessionEntity::getUserId, userId)
@@ -291,11 +307,81 @@ public class InterviewPracticeService {
         );
     }
 
-    private String resolveTitle(InterviewSessionCreateRequest request) {
+    /**
+     * 标题优先级：显式指定 &gt; 目标岗位（岗位名/公司） &gt; 「面试训练 · MM-dd HH:mm」。
+     * 兜底带上时间是为了让列表可区分——此前所有无 JD 的训练都叫「面试训练」，
+     * 用户在列表里无法定位任何一次记录。
+     */
+    private String resolveTitle(
+            InterviewSessionCreateRequest request,
+            Optional<JobMatchEntity> jobMatch,
+            OffsetDateTime now
+    ) {
         if (request != null && request.getTitle() != null && !request.getTitle().isBlank()) {
             return request.getTitle().trim();
         }
-        return "面试训练";
+        String fromMatch = jobMatch.map(this::titleFromJobMatch).filter(StringUtils::hasText).orElse(null);
+        if (fromMatch != null) {
+            return fromMatch;
+        }
+        return "面试训练 · " + now.format(TITLE_TIME_FORMATTER);
+    }
+
+    private String titleFromJobMatch(JobMatchEntity match) {
+        String job = match.getJobTitle() == null ? "" : match.getJobTitle().trim();
+        String company = match.getCompanyName() == null ? "" : match.getCompanyName().trim();
+        if (StringUtils.hasText(job) && StringUtils.hasText(company)) {
+            return job + " · " + company;
+        }
+        return StringUtils.hasText(job) ? job : company;
+    }
+
+    /**
+     * 找出可复用的「一题未答且进行中」的训练。
+     * 指定了标题时只复用同名的，避免把针对某个岗位的训练和泛化训练混为一谈。
+     */
+    private Optional<InterviewSessionEntity> findReusableEmptySession(
+            Long userId,
+            InterviewSessionCreateRequest request,
+            String resolvedTitle
+    ) {
+        boolean explicitTitle = request != null
+                && request.getTitle() != null
+                && !request.getTitle().isBlank();
+
+        LambdaQueryWrapper<InterviewSessionEntity> wrapper =
+                new LambdaQueryWrapper<InterviewSessionEntity>()
+                        .eq(InterviewSessionEntity::getUserId, userId)
+                        .eq(InterviewSessionEntity::getStatus, STATUS_ACTIVE)
+                        .and(w -> w.isNull(InterviewSessionEntity::getAnsweredQuestions)
+                                .or()
+                                .eq(InterviewSessionEntity::getAnsweredQuestions, 0))
+                        .orderByDesc(InterviewSessionEntity::getCreatedAt)
+                        .last("limit 1");
+        if (explicitTitle) {
+            wrapper.eq(InterviewSessionEntity::getTitle, resolvedTitle);
+        }
+        return Optional.ofNullable(sessionMapper.selectOne(wrapper));
+    }
+
+    /** 重命名训练记录——列表里同名记录堆积时，用户需要自己整理的手段。 */
+    @Transactional
+    public InterviewSessionDetailResponse renameSession(Long sessionId, String title) {
+        Long userId = requireUserId();
+        requireOwnedSession(sessionId, userId);
+        if (!StringUtils.hasText(title)) {
+            throw new BizException(400, "标题不能为空");
+        }
+        String trimmed = title.trim();
+        if (trimmed.length() > MAX_TITLE_LENGTH) {
+            throw new BizException(400, "标题最多 " + MAX_TITLE_LENGTH + " 个字");
+        }
+        sessionMapper.update(null, new LambdaUpdateWrapper<InterviewSessionEntity>()
+                .eq(InterviewSessionEntity::getId, sessionId)
+                .eq(InterviewSessionEntity::getUserId, userId)
+                .set(InterviewSessionEntity::getTitle, trimmed)
+                .set(InterviewSessionEntity::getUpdatedAt, OffsetDateTime.now()));
+        return getSessionForUser(sessionId, userId);
     }
 
     private InterviewSessionEntity requireOwnedSession(Long sessionId, Long userId) {

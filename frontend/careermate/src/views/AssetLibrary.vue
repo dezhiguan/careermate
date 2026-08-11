@@ -2,7 +2,7 @@
   <div class="asset-page">
     <header class="asset-head">
       <h1 class="asset-title">资产</h1>
-      <span class="asset-badge">全部归你 · 与会话生死无关</span>
+      <span class="asset-badge">这里的内容长期保留，换对话也不会丢</span>
       <button type="button" class="ask-chip" @click="router.push('/chat')">问小职：我给字节那份简历</button>
     </header>
 
@@ -70,7 +70,7 @@
     <section v-else-if="activeTab === 'interview'" class="asset-body">
       <div class="itype-bar">
         <button
-          v-for="opt in INTERVIEW_TYPES"
+          v-for="opt in visibleInterviewTypes"
           :key="opt.value"
           type="button"
           class="itype-chip"
@@ -79,18 +79,25 @@
         >{{ opt.label }}</button>
       </div>
       <p v-if="loadingInterview" class="asset-loading">加载中…</p>
-      <p v-else-if="filteredInterview.length === 0" class="asset-empty">还没有面试记录。让小职来一轮模拟面试，记录会存到这里。</p>
+      <p v-else-if="filteredInterview.length === 0" class="asset-empty">{{ interviewEmptyText }}</p>
       <div v-else class="asset-list">
         <article v-for="s in pagedInterview" :key="s.id" class="asset-row">
           <div class="row-main">
-            <div class="row-name">🎤 {{ s.title || s.company || '模拟面试' }}</div>
+            <div class="row-name">🎤 {{ s.title || '面试训练' }}</div>
             <div class="row-meta">
-              <span class="row-tag" :class="s.sessionType === 'REAL' ? 'real' : 'mock'">{{ s.sessionType === 'REAL' ? '真实' : '模拟' }}</span>
-              <span v-if="s.weakness" class="row-tag weak">弱项·{{ s.weakness }}</span>
-              <span v-if="s.status" class="row-tag gray">{{ statusLabel(s.status) }}</span>
+              <span v-if="s.sessionType === 'REAL'" class="row-tag real">真实复盘</span>
+              <span class="row-tag" :class="interviewDone(s) ? 'exported' : 'gray'">{{ interviewProgressLabel(s) }}</span>
               <span v-if="interviewScore(s) != null" class="row-tag score">得分 {{ interviewScore(s) }}</span>
+              <span v-if="s.weakness" class="row-tag weak">弱项·{{ s.weakness }}</span>
               <span class="row-time">{{ formatDate(s.createdAt || s.updatedAt) }}</span>
             </div>
+          </div>
+          <div class="row-actions">
+            <button type="button" class="row-act primary" @click="continueInterview(s)">
+              {{ interviewDone(s) ? '查看复盘' : (interviewAnswered(s) > 0 ? '继续训练' : '开始训练') }}
+            </button>
+            <button type="button" class="row-act" @click="renameInterview(s)">重命名</button>
+            <button type="button" class="row-act danger" @click="removeInterview(s)">删除</button>
           </div>
         </article>
       </div>
@@ -279,7 +286,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listVersions, getVersion, downloadVersionPdf, downloadVersionDocx, deleteVersion } from '../api/resumeVersion'
-import { listInterviewSessions, getKbQuestions } from '../api/interview'
+import { listInterviewSessions, getKbQuestions, renameInterviewSession, deleteInterviewSession } from '../api/interview'
 import { listStudyNotes, listStudySkills, saveStudyNote, deleteStudyNote } from '../api/study'
 import { getSalaryInsight, getSkillTrends } from '../api/market'
 import { renderMarkdown } from '../utils/markdown'
@@ -402,6 +409,65 @@ const pagedInterview = computed(() => {
 function interviewScore(s) {
   const v = s?.score ?? s?.averageScore
   return v == null ? null : v
+}
+
+function interviewAnswered(s) {
+  return Number(s?.answeredQuestions ?? 0) || 0
+}
+function interviewTotal(s) {
+  return Number(s?.totalQuestions ?? 0) || 0
+}
+function interviewDone(s) {
+  return s?.status === 'COMPLETED'
+}
+/** 把状态说成「下一步该干什么」，而不是抛一个 ACTIVE 给用户 */
+function interviewProgressLabel(s) {
+  if (interviewDone(s)) return '已完成'
+  const answered = interviewAnswered(s)
+  const total = interviewTotal(s)
+  if (answered === 0) return total > 0 ? `未开始 · ${total} 题` : '未开始'
+  return total > 0 ? `已答 ${answered}/${total}` : `已答 ${answered}`
+}
+
+// 真实复盘目前没有任何创建入口，一条记录都没有时不展示这个死筛选项
+const hasRealInterview = computed(() =>
+  interviewSessions.value.some((s) => (s.sessionType || 'MOCK') === 'REAL'))
+const visibleInterviewTypes = computed(() =>
+  hasRealInterview.value ? INTERVIEW_TYPES : INTERVIEW_TYPES.filter((o) => o.value !== 'REAL'))
+const interviewEmptyText = computed(() => {
+  if (interviewType.value === 'REAL') return '还没有真实面试复盘记录。'
+  return '还没有面试记录。让小职来一轮模拟面试，记录会存到这里。'
+})
+
+function continueInterview(s) {
+  if (!s?.id) return
+  router.push({ path: '/interview', query: { session: s.id } })
+}
+
+async function renameInterview(s) {
+  if (!s?.id) return
+  const next = window.prompt('重命名这次训练', s.title || '')
+  if (next == null) return
+  const title = next.trim()
+  if (!title || title === s.title) return
+  try {
+    await renameInterviewSession(s.id, title)
+    s.title = title
+  } catch (e) {
+    error.value = e?.message || '重命名失败'
+  }
+}
+
+async function removeInterview(s) {
+  if (!s?.id) return
+  if (!window.confirm(`删除「${s.title || '面试训练'}」？删除后无法恢复。`)) return
+  try {
+    await deleteInterviewSession(s.id)
+    interviewSessions.value = interviewSessions.value.filter((x) => x.id !== s.id)
+    if (pagedInterview.value.length === 0 && interviewPage.value > 1) interviewPage.value--
+  } catch (e) {
+    error.value = e?.message || '删除失败'
+  }
 }
 
 function reuseVersion(v) {
@@ -649,12 +715,22 @@ function shortJd(label) {
   return s.length > 28 ? s.slice(0, 28) + '…' : s
 }
 function statusLabel(s) {
-  return { COMPLETED: '已完成', IN_PROGRESS: '进行中', CREATED: '待开始' }[s] || s
+  // ACTIVE 此前没有映射，会把后端枚举原样透给用户
+  return { ACTIVE: '未完成', COMPLETED: '已完成', IN_PROGRESS: '进行中', CREATED: '待开始' }[s] || s
 }
 function formatDate(raw) {
   if (!raw) return ''
   const d = new Date(raw)
   if (Number.isNaN(d.getTime())) return ''
+  const now = new Date()
+  const days = Math.floor((now - d) / 86400000)
+  if (days <= 0) return '今天'
+  if (days === 1) return '昨天'
+  if (days < 7) return `${days} 天前`
+  // 跨年必须带年份，否则 8/11 有歧义
+  if (d.getFullYear() !== now.getFullYear()) {
+    return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'numeric', day: 'numeric' })
+  }
   return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
 }
 
@@ -702,6 +778,12 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .asset-sort-sel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; font-size: 12px; color: #334155; background: #fff; font-family: inherit; cursor: pointer; }
 .row-btn.reuse { color: #4338ca; border-color: #c7d2fe; background: #eef2ff; }
 .row-time { font-size: 11px; color: #94a3b8; }
+.row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.row-act { font-size: 11.5px; color: #5C6472; background: #F1F3F7; border: 1px solid transparent; border-radius: 7px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+.row-act:hover { background: #E7EAF1; }
+.row-act.primary { color: #4E5BEF; background: #EEF0FE; border-color: #D8DCFB; font-weight: 600; }
+.row-act.primary:hover { background: #E2E6FD; }
+.row-act.danger:hover { color: #DC2626; background: #FEE2E2; }
 .row-actions { display: flex; gap: 6px; flex: 0 0 auto; }
 .row-btn { font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 5px 11px; background: #fff; color: #334155; cursor: pointer; }
 .row-btn.danger { color: #E5484D; }
