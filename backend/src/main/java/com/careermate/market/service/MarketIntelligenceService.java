@@ -182,9 +182,12 @@ public class MarketIntelligenceService {
     public SkillTrendsVO computeSkillTrends(String city, String role) {
         try {
             String query = role + " " + city + " 技能要求 技术栈 必备";
+            // 技能热度必须查岗位 JD 库（OPPORTUNITY），不能查薪资行情库（MARKET）——后者是
+            // 「城市×岗位薪资报告」，正文只有公司名与薪资表，没有技术栈，检出的高频词会是华为、
+            // 中软国际这类企业名。同类需求 computeResumeGap 走的也是 OPPORTUNITY。
             RagRetrieveResult ragResult = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
                     .query(query)
-                    .scene(RagRetrieveScene.MARKET)
+                    .scene(RagRetrieveScene.OPPORTUNITY)
                     .topK(40)
                     .build());
             if (ragResult == null || !ragResult.isSuccess()) {

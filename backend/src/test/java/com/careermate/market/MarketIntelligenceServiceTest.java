@@ -232,6 +232,22 @@ class MarketIntelligenceServiceTest {
     }
 
     @Test
+    void skillTrendsRetrievesFromJdKbNotSalaryReportKb() {
+        // 薪资行情库正文是「公司名 + 薪资表」，查它会把企业名当成技能；技术栈只在岗位 JD 库里
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(
+                marketResultWithContent("熟悉 Java 与 Spring Boot"));
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"skills":[{"rank":1,"name":"Java","level":"高频","growth":"稳定"}],"aiSummary":"—"}
+                """).build());
+
+        service.getSkillTrends("广州", "Java后端");
+
+        ArgumentCaptor<RagRetrieveRequest> captor = ArgumentCaptor.forClass(RagRetrieveRequest.class);
+        verify(knowledgeRetrievalService).retrieve(captor.capture());
+        assertEquals(RagRetrieveScene.OPPORTUNITY, captor.getValue().getScene());
+    }
+
+    @Test
     void skillHeatDropsSkillsThatNeverAppearInContext() {
         when(knowledgeRetrievalService.retrieve(any())).thenReturn(
                 marketResultWithContent("熟悉 Java 与 Spring Boot 微服务"));
