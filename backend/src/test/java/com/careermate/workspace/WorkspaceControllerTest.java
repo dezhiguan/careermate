@@ -29,6 +29,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -137,10 +138,15 @@ class WorkspaceControllerTest {
 
     @Test
     void generateResumeStreamWithoutPendingActionIdRejected() throws Exception {
-        mockMvc.perform(get("/api/workspace/WS-any/generate-resume/stream"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(403))
-                .andExpect(jsonPath("$.message").value("简历生成需要先确认"));
+        // SSE 端点必须在协商到的 text/event-stream 里回错：客户端带 Accept: text/event-stream 时，
+        // 抛异常走 JSON 异常处理器没有可用的消息转换器，生产上会退化成 500 空响应体，
+        // 用户看不到任何原因、线上也没有 traceId。改为 200 + 一条 error 事件承载原因。
+        String body = mockMvc.perform(get("/api/workspace/WS-any/generate-resume/stream")
+                        .accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(body).contains("event:error");
+        assertThat(body).contains("简历生成需要先确认");
 
         verify(pendingActionService, never()).validateAndConsumeConfirmed(
                 anyLong(), anyString(), anyString(), anyString()

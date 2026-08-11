@@ -13,6 +13,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class SseEmitterService {
 
+    /** 错误流只需活到把一条 error 事件写出去，给足网络抖动余量即可。 */
+    private static final long ERROR_STREAM_TIMEOUT_MS = 10_000L;
+
     private final AgentProperties agentProperties;
     private final SseConnectionRegistry connectionRegistry;
     private final AgentTaskRegistry taskRegistry;
@@ -54,6 +57,32 @@ public class SseEmitterService {
             cleanup(sessionId, emitter);
         });
 
+        return emitter;
+    }
+
+    /**
+     * 前置校验失败时的一次性错误流。
+     *
+     * <p>SSE 端点的返回类型是 {@link SseEmitter}，方法在返回 emitter 之前抛出的异常无法被
+     * {@code @RestControllerAdvice} 序列化成 JSON，只会退化成 HTTP 500 空响应体——前端拿不到
+     * 任何提示，线上也没有 traceId 可查。改为正常建流、立刻下发 error 事件再结束，前端走既有
+     * error 分支即可把原因展示给用户。
+     *
+     * <p>刻意不注册进 {@code connectionRegistry}：这条流不属于任何会话，注册会顶掉同会话的正常连接。
+     */
+    public SseEmitter errorStream(String message) {
+        SseEmitter emitter = new SseEmitter(ERROR_STREAM_TIMEOUT_MS);
+        try {
+            String name = SseEventType.ERROR.name().toLowerCase(Locale.ROOT);
+            emitter.send(SseEmitter.event().name(name).data(SseEvent.builder()
+                    .type(name)
+                    .data(java.util.Map.of("message", message))
+                    .timestamp(System.currentTimeMillis())
+                    .build()));
+            emitter.complete();
+        } catch (Exception e) {
+            emitter.completeWithError(e);
+        }
         return emitter;
     }
 

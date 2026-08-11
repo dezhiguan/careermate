@@ -12,6 +12,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.time.Duration;
 
 @Component
+@lombok.extern.slf4j.Slf4j
 public class AuthGatewayCookieSupport {
 
     private final SecurityProperties.AuthGateway properties;
@@ -33,6 +34,10 @@ public class AuthGatewayCookieSupport {
      */
     public void writeRefreshCookie(String refreshToken, boolean rememberMe) {
         if (!StringUtils.hasText(refreshToken)) {
+            // 网关没返回 refresh token 时这里原本静默 return，结果是该用户拿不到 refresh cookie、
+            // /auth/refresh 恒 401、access token 一过期就被踢回登录页，"记住我"形同虚设——
+            // 而全链路没有任何日志，问题只能靠抓包发现。必须留痕。
+            log.warn("网关未返回 refresh token，跳过写 cookie：该会话将无法续期，用户会在 access token 过期后被登出");
             return;
         }
         HttpServletResponse response = currentResponse();

@@ -94,7 +94,7 @@ public class WorkspaceController {
     ) {
         Long userId = CurrentUserContext.getUserId();
         return ApiResponse.success(workspaceService.handleAction(
-                userId, sessionId, request.getAction(), request.getPayload()
+                userId, sessionId, request.getAction(), request.payloadAsString()
         ));
     }
 
@@ -105,12 +105,21 @@ public class WorkspaceController {
             @RequestParam(required = false) String pendingActionId
     ) {
         Long userId = CurrentUserContext.getUserId();
-        if (pendingActionId == null || pendingActionId.isBlank()) {
-            throw new BizException(403, "简历生成需要先确认");
+        String targetJdId;
+        try {
+            if (pendingActionId == null || pendingActionId.isBlank()) {
+                throw new BizException(403, "简历生成需要先确认");
+            }
+            AgentSessionEntity session = workspaceService.requireOwnedSession(userId, sessionId);
+            targetJdId = resolveJdId(jdId, session);
+            pendingActionService.validateAndConsumeConfirmed(userId, sessionId, pendingActionId.trim(), targetJdId);
+        } catch (RuntimeException ex) {
+            // 直接抛出会因返回类型是 SseEmitter 而退化成 500 空响应体，用户看不到任何原因。
+            log.warn("generate resume stream 前置校验失败: sessionId={}, userId={}, reason={}",
+                    sessionId, userId, ex.getMessage());
+            return sseEmitterService.errorStream(
+                    ex instanceof BizException ? ex.getMessage() : "简历生成失败，请重试");
         }
-        AgentSessionEntity session = workspaceService.requireOwnedSession(userId, sessionId);
-        String targetJdId = resolveJdId(jdId, session);
-        pendingActionService.validateAndConsumeConfirmed(userId, sessionId, pendingActionId.trim(), targetJdId);
         log.info("generate resume stream: sessionId={}, userId={}, jdId={}, pendingActionId={}",
                 sessionId, userId, targetJdId, pendingActionId);
 

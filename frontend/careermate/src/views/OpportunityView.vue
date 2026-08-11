@@ -473,10 +473,14 @@ watch(
   }
 )
 
-async function fetchList({ autoRefresh = false, page = 1, append = false } = {}) {
+async function fetchList({ autoRefresh = false, page = 1, append = false, keepVisible = false } = {}) {
   if (append) {
     if (loading.value || loadingMore.value || !hasMore.value) return
     loadingMore.value = true
+  } else if (keepVisible) {
+    // 首屏已用 bootstrap 切片铺好卡片，这次只是后台把真实分页数据补齐：
+    // 不切骨架屏、不清空列表，避免用户眼前的卡片闪一下再回来。
+    currentPage.value = 1
   } else {
     loading.value = true
     currentPage.value = 1
@@ -517,8 +521,11 @@ async function fetchList({ autoRefresh = false, page = 1, append = false } = {})
       homeStore.updateTopOpportunities(items.value)
     }
   } catch (e) {
-    error.value = e.message || '加载失败'
-    if (!append) {
+    // keepVisible 时列表上已有 bootstrap 切片，后台补拉失败就保持现状，不要把已见的卡片清空
+    if (!keepVisible) {
+      error.value = e.message || '加载失败'
+    }
+    if (!append && !keepVisible) {
       items.value = []
       totalCount.value = 0
       hasMore.value = false
@@ -704,8 +711,13 @@ onMounted(() => {
   loadProfileIntent()
   window.addEventListener('resize', updateIsDesktop, { passive: true })
   window.addEventListener('scroll', handleScroll, { passive: true })
+  // bootstrap 里的 topOpportunities 只是首屏用的前 10 条切片，拿来先把卡片铺出来避免白屏；
+  // 但它不带真实总数，之前在这里 return 掉，分页器就把 10 当成了全部——机会池里其余的
+  // 岗位（线上 100+ 条）用户永远翻不到，城市/关键词筛选和匹配排序也全都无从触发。
+  // 正确做法是：先用切片抢首屏，再静默拉真实分页数据把总数和列表补齐。
   if (!activeKeyword.value && homeStore.state.initialized && homeStore.state.topOpportunities.length > 0) {
     hydrateFromBootstrap()
+    fetchList({ keepVisible: true })
     return
   }
   fetchList()

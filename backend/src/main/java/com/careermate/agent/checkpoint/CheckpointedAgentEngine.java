@@ -84,7 +84,9 @@ public class CheckpointedAgentEngine {
             AgentRunEntity e = new AgentRunEntity();
             e.setRunId(newRunId);
             e.setUserId(userId);
-            e.setStatus("RUNNING");
+            // fork 只复制快照、不启动执行，要等外部 resume 才会推进。此前置 RUNNING，
+            // 于是每个分叉都变成一条永不收敛的「运行中」记录堆在列表里（线上已积压数条）。
+            e.setStatus("PAUSED");
             e.setParentRunId(sourceRunId);
             e.setStartedAt(OffsetDateTime.now());
             agentRunMapper.insert(e);

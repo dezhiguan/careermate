@@ -27,6 +27,15 @@ public class AuthGatewayClient {
     private static final String TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
     private static final String ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
 
+    /**
+     * 「记住我」表单参数名，必须与网关 {@code AuthLoginController} 的
+     * {@code @RequestParam(name = "remember")} 一致。
+     *
+     * <p>此前两条登录路径都发的是 {@code remember_me}，网关按未传处理，refresh token 一律按默认
+     * TTL 签发——「30 天内免登录」勾了也没用，且因为不报错而长期无人察觉。
+     */
+    private static final String REMEMBER_PARAM = "remember";
+
     private final SecurityProperties.AuthGateway properties;
     private final ClientAssertionFactory clientAssertionFactory;
     private final RestTemplate restTemplate;
@@ -59,7 +68,7 @@ public class AuthGatewayClient {
         form.add("password", password);
         form.add("target_aud", properties.getAudience());
         if (rememberMe) {
-            form.add("remember_me", "true");
+            form.add(REMEMBER_PARAM, "true");
         }
         if (captcha != null && !captcha.isBlank()) {
             form.add("captcha", captcha);
@@ -159,7 +168,7 @@ public class AuthGatewayClient {
         form.add("code", code);
         form.add("target_aud", properties.getAudience());
         if (rememberMe) {
-            form.add("remember_me", "true");
+            form.add(REMEMBER_PARAM, "true");
         }
         return postForm("/auth/login/mobile", form, TokenResponse.class);
     }
