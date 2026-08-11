@@ -84,7 +84,7 @@ class StudyNoteServiceTest {
                 entity(1L, 1L, "题A", "答A"),
                 entity(2L, 1L, "题B", "答B")));
 
-        StudyNotePageVO pageVO = service.list(1L, "Java", "并发", 1, 2);
+        StudyNotePageVO pageVO = service.list(1L, "Java", false, "并发", 1, 2);
 
         assertEquals(3L, pageVO.total());
         assertEquals(2, pageVO.items().size());
@@ -95,7 +95,7 @@ class StudyNoteServiceTest {
     @Test
     void listEmptyWhenZeroTotal() {
         when(mapper.selectCount(any())).thenReturn(0L);
-        StudyNotePageVO pageVO = service.list(1L, null, null, 1, 10);
+        StudyNotePageVO pageVO = service.list(1L, null, false, null, 1, 10);
         assertEquals(0L, pageVO.total());
         assertEquals(0, pageVO.items().size());
         verify(mapper, never()).selectList(any());
@@ -124,7 +124,7 @@ class StudyNoteServiceTest {
 
     @Test
     void unauthenticatedRejected() {
-        assertThrows(BizException.class, () -> service.list(null, null, null, 1, 10));
+        assertThrows(BizException.class, () -> service.list(null, null, false, null, 1, 10));
         assertThrows(BizException.class, () -> service.save(null, new SaveStudyNoteRequest()));
     }
 

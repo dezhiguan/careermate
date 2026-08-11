@@ -116,7 +116,7 @@
           <button
             type="button"
             class="qbank-chip"
-            :class="{ on: studySkill === '' }"
+            :class="{ on: studySkill === '' && !studyUntagged }"
             @click="selectSkill('')"
           >
             全部
@@ -126,11 +126,22 @@
             :key="s.tag"
             type="button"
             class="qbank-chip"
-            :class="{ on: studySkill === s.tag, custom: !s.preset }"
+            :class="{ on: !studyUntagged && studySkill === s.tag, custom: !s.preset }"
             @click="selectSkill(s.tag)"
           >
             {{ s.tag }}
             <span v-if="s.count" class="qbank-chip-n">{{ s.count }}</span>
+          </button>
+          <!-- 没打标签的题也要有自己的入口，否则只能在「全部」里翻 -->
+          <button
+            v-if="untaggedCount"
+            type="button"
+            class="qbank-chip custom"
+            :class="{ on: studyUntagged }"
+            @click="selectUntagged()"
+          >
+            未分类
+            <span class="qbank-chip-n">{{ untaggedCount }}</span>
           </button>
         </div>
         <div class="qbank-actions">
@@ -145,13 +156,13 @@
         </div>
       </div>
 
-      <p v-if="!loadingStudy && !studySkill && untaggedCount" class="qbank-hint">
-        还有 {{ untaggedCount }} 道题没打标签，只能在「全部」里看到；编辑时补个标签就能按方向筛。
+      <p v-if="!loadingStudy && studyUntagged" class="qbank-hint">
+        这些题还没打标签。编辑时补一个，之后就能按方向筛出来。
       </p>
 
       <p v-if="loadingStudy" class="asset-empty">加载中…</p>
       <p v-else-if="studyNotes.length === 0" class="asset-empty">
-        {{ studySkill || studyKeyword.trim()
+        {{ studySkill || studyUntagged || studyKeyword.trim()
           ? '当前筛选条件下没有题。换个标签或清掉关键词试试。'
           : '还没有收录的题。点「＋ 收录题目」把高频题和你的手写答案存进来，所有岗位都能复用。' }}
       </p>
@@ -340,6 +351,8 @@ const studyNotes = ref([])
 const studyTotal = ref(0)
 const studyPage = ref(1)
 const studySkill = ref('')
+// 与 studySkill 互斥：true 表示只看未打标签的题
+const studyUntagged = ref(false)
 const studyKeyword = ref('')
 const loadingStudy = ref(false)
 const studyLoaded = ref(false)
@@ -531,6 +544,7 @@ async function loadStudy() {
   try {
     const data = await listStudyNotes({
       skill: studySkill.value || undefined,
+      untagged: studyUntagged.value || undefined,
       keyword: studyKeyword.value.trim() || undefined,
       page: isDesktop.value ? studyPage.value : 1,
       size: isDesktop.value ? STUDY_SIZE : 50,
@@ -558,9 +572,12 @@ async function loadSkills() {
       })).filter((t) => t.tag)
     }
     untaggedCount.value = Number(data?.untagged || 0)
-    // 当前选中的自建标签被删空后其 chip 会消失，此时退回「全部」，避免停在一个点不到的筛选态
-    if (studySkill.value && !skillOptions.value.includes(studySkill.value)) {
+    // chip 消失后不能把用户留在一个点不到的筛选态：自建标签被删空、或未分类清零时退回「全部」
+    const skillGone = studySkill.value && !skillOptions.value.includes(studySkill.value)
+    const untaggedGone = studyUntagged.value && !untaggedCount.value
+    if (skillGone || untaggedGone) {
       studySkill.value = ''
+      studyUntagged.value = false
       await reloadStudy()
     }
   } catch {
@@ -575,6 +592,13 @@ function reloadStudy() {
 
 function selectSkill(tag) {
   studySkill.value = tag || ''
+  studyUntagged.value = false
+  reloadStudy()
+}
+
+function selectUntagged() {
+  studySkill.value = ''
+  studyUntagged.value = true
   reloadStudy()
 }
 

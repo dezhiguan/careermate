@@ -43,21 +43,25 @@ public class StudyNoteService {
         this.studyNoteMapper = studyNoteMapper;
     }
 
-    /** 分页查询个人题库（可按技能标签 + 关键词过滤，最近更新倒序）。 */
-    public StudyNotePageVO list(Long userId, String skillTag, String keyword, int page, int size) {
+    /**
+     * 分页查询个人题库（可按技能标签 + 关键词过滤，最近更新倒序）。
+     *
+     * @param untagged true 时只看未打标签的题，此时忽略 skillTag（两者互斥，筛选面上也是互斥的两个 chip）
+     */
+    public StudyNotePageVO list(Long userId, String skillTag, boolean untagged, String keyword, int page, int size) {
         if (userId == null) {
             throw new BizException(401, "未认证");
         }
         int safePage = Math.max(1, page);
         int safeSize = Math.max(1, Math.min(size, 50));
 
-        LambdaQueryWrapper<StudyNoteEntity> filter = baseFilter(userId, skillTag, keyword);
+        LambdaQueryWrapper<StudyNoteEntity> filter = baseFilter(userId, skillTag, untagged, keyword);
         Long total = studyNoteMapper.selectCount(filter);
         long totalCount = total == null ? 0L : total;
 
         int offset = (safePage - 1) * safeSize;
         List<StudyNoteEntity> rows = totalCount == 0 ? List.of() : studyNoteMapper.selectList(
-                baseFilter(userId, skillTag, keyword)
+                baseFilter(userId, skillTag, untagged, keyword)
                         .orderByDesc(StudyNoteEntity::getUpdatedAt)
                         .last("LIMIT " + safeSize + " OFFSET " + offset));
 
@@ -172,14 +176,20 @@ public class StudyNoteService {
         studyNoteMapper.updateById(entity);
     }
 
-    private static LambdaQueryWrapper<StudyNoteEntity> baseFilter(Long userId, String skillTag, String keyword) {
+    private static LambdaQueryWrapper<StudyNoteEntity> baseFilter(
+            Long userId, String skillTag, boolean untagged, String keyword) {
         LambdaQueryWrapper<StudyNoteEntity> wrapper = new LambdaQueryWrapper<StudyNoteEntity>()
                 .eq(StudyNoteEntity::getUserId, userId)
                 .isNull(StudyNoteEntity::getDeletedAt);
-        // 读侧同样归一，保证「用 java并发 筛」能命中存成「Java并发」的题
-        String skill = SkillTagCatalog.canonicalize(skillTag);
-        if (skill != null) {
-            wrapper.eq(StudyNoteEntity::getSkillTag, skill);
+        if (untagged) {
+            // 空串理论上不会入库（写侧空白即置 null），仍一并兜住，免得有历史脏数据两边都筛不到
+            wrapper.and(w -> w.isNull(StudyNoteEntity::getSkillTag).or().eq(StudyNoteEntity::getSkillTag, ""));
+        } else {
+            // 读侧同样归一，保证「用 java并发 筛」能命中存成「Java并发」的题
+            String skill = SkillTagCatalog.canonicalize(skillTag);
+            if (skill != null) {
+                wrapper.eq(StudyNoteEntity::getSkillTag, skill);
+            }
         }
         String kw = trimOrNull(keyword);
         if (kw != null) {

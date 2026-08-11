@@ -29,15 +29,21 @@ public class StudyNoteController {
         this.studyNoteService = studyNoteService;
     }
 
-    /** 分页查询个人题库（可按技能 + 关键词过滤）。 */
+    /**
+     * 分页查询个人题库（可按技能 + 关键词过滤）。
+     *
+     * <p>{@code untagged=true} 只看未打标签的题，与 {@code skill} 互斥（此时 skill 被忽略）。
+     */
     @GetMapping
     public ApiResponse<StudyNotePageVO> list(
             @RequestParam(required = false) String skill,
+            @RequestParam(defaultValue = "false") boolean untagged,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        return ApiResponse.success(studyNoteService.list(CurrentUserContext.getUserId(), skill, keyword, page, size));
+        return ApiResponse.success(
+                studyNoteService.list(CurrentUserContext.getUserId(), skill, untagged, keyword, page, size));
     }
 
     /** 筛选面标签：预置标签 ∪ 用户自建标签，各带题数。 */

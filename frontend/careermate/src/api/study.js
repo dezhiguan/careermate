@@ -1,9 +1,11 @@
 import { request } from './http'
 
 /** 分页查询个人八股题库（可按技能 + 关键词过滤）。 */
-export function listStudyNotes({ skill, keyword, page = 1, size = 8 } = {}) {
+export function listStudyNotes({ skill, untagged, keyword, page = 1, size = 8 } = {}) {
   const q = new URLSearchParams()
-  if (skill) q.set('skill', skill)
+  // untagged 与 skill 互斥：只看未打标签的题时不带 skill
+  if (untagged) q.set('untagged', 'true')
+  else if (skill) q.set('skill', skill)
   if (keyword) q.set('keyword', keyword)
   q.set('page', String(page))
   q.set('size', String(size))
