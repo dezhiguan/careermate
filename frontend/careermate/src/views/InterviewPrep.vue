@@ -9,13 +9,28 @@
 
     <header class="page-header">
       <h1 class="page-title">面试准备中心</h1>
-      <p class="page-sub">考点速查 · 公司面经 · 模拟练习</p>
+      <p class="page-sub">一次专注一件事：先练一套，再按需查考点或目标公司</p>
+      <nav class="prep-tabs" role="tablist">
+        <button
+          v-for="t in PREP_TABS"
+          :key="t.key"
+          type="button"
+          role="tab"
+          class="prep-tab"
+          :class="{ on: tab === t.key }"
+          :aria-selected="tab === t.key"
+          @click="tab = t.key"
+        >
+          {{ t.label }}
+          <span v-if="t.key === 'practice' && unfinishedCount > 0" class="prep-tab-dot">{{ unfinishedCount }}</span>
+        </button>
+      </nav>
     </header>
 
     <div class="page-content">
 
       <!-- 区块一：考点速查 -->
-      <section class="card kb-section">
+      <section v-show="tab === 'kb'" class="card kb-section">
         <div class="section-header">
           <h2 class="section-title">考点速查</h2>
           <p class="section-desc">输入技术关键词，AI 从面试知识库提炼高频考题</p>
@@ -85,7 +100,7 @@
       </section>
 
       <!-- 区块二：公司面经 -->
-      <section class="card company-section">
+      <section v-show="tab === 'company'" class="card company-section">
         <div class="section-header">
           <h2 class="section-title">公司面经</h2>
           <p class="section-desc">输入目标公司名，AI 整理面试风格和高频考题</p>
@@ -127,10 +142,11 @@
           </div>
           <p v-if="companyData.aiSummary" class="ai-summary">{{ companyData.aiSummary }}</p>
         </div>
+        <div v-else class="empty-hint">输入公司名后，这里会给出面试风格、技术侧重和高频题。</div>
       </section>
 
       <!-- 区块三：模拟练习 -->
-      <section class="card practice-section">
+      <section v-show="tab === 'practice'" class="card practice-section">
         <div class="section-header">
           <h2 class="section-title">模拟练习</h2>
           <p class="section-desc">AI 根据你的简历 + 目标 JD 出 5 道专属题，答完即评分</p>
@@ -336,6 +352,22 @@ const pageError = ref('')
 const noDefaultResumeHint = ref(false)
 
 const activeSession = ref(null)
+
+/**
+ * 三个区块改为 tab 切换：它们是互斥的使用时机（实战 / 平时刷题 / 定向查公司），
+ * 并非需要对照阅读的信息。此前用 auto-fit 网格并排，考点速查展开后能有几屏高、
+ * 公司面经未查询时只有一个输入框，两栏高度严重失衡。
+ * 默认落在「模拟练习」——它是本页唯一有主动作的区块。
+ */
+const PREP_TABS = [
+  { key: 'practice', label: '模拟练习' },
+  { key: 'kb', label: '考点速查' },
+  { key: 'company', label: '公司面经' },
+]
+const tab = ref('practice')
+const unfinishedCount = computed(
+  () => sessions.value.filter((s) => s?.status !== 'COMPLETED').length,
+)
 const currentQuestionIndex = ref(0)
 const answerText = ref('')
 const submitting = ref(false)
@@ -631,6 +663,12 @@ async function completeSession() {
 
 onMounted(async () => {
   await loadSessions()
+  // 支持深链指定区块：/interview?tab=kb|company|practice
+  const wanted = route.query?.tab
+  const wantedKey = Array.isArray(wanted) ? wanted[0] : wanted
+  if (wantedKey && PREP_TABS.some((t) => t.key === wantedKey)) {
+    tab.value = wantedKey
+  }
   // 支持从资产库「继续训练」深链直达某次训练：/interview?session=<id>
   const target = route.query?.session
   if (target) {
@@ -697,6 +735,46 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+.prep-tabs {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.prep-tabs::-webkit-scrollbar { display: none; }
+.prep-tab {
+  position: relative;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #5C6472;
+  background: #F1F3F7;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.prep-tab:hover { background: #E7EAF1; }
+.prep-tab.on {
+  color: #4E5BEF;
+  background: #EEF0FE;
+  border-color: #D8DCFB;
+  font-weight: 600;
+}
+.prep-tab-dot {
+  display: inline-block;
+  min-width: 16px;
+  margin-left: 6px;
+  padding: 0 4px;
+  font-size: 10.5px;
+  line-height: 16px;
+  color: #fff;
+  background: #4E5BEF;
+  border-radius: 999px;
+  text-align: center;
+}
+
 @media (min-width: 768px) {
   .page-header {
     padding: 22px 32px 14px;
@@ -713,9 +791,9 @@ onBeforeUnmount(() => {
     margin: 0 auto;
     width: 100%;
     padding: 8px 32px 24px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-    align-items: start;
+    /* 每次只显示一个区块，用整幅宽度承载，不再并排 */
+    display: flex;
+    flex-direction: column;
     gap: 20px;
   }
 }
