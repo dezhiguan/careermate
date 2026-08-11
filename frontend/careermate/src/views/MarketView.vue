@@ -14,13 +14,15 @@
         <label class="filter-item">
           <span class="filter-label">岗位</span>
           <select v-model="role" class="filter-select" @change="applyFilters">
-            <option v-for="r in roleOptions" :key="r" :value="r">{{ r }}</option>
+            <optgroup v-for="g in roleGroupOptions" :key="g.group" :label="g.group">
+              <option v-for="r in g.roles" :key="r" :value="r">{{ r }}</option>
+            </optgroup>
           </select>
         </label>
         <label class="filter-item">
           <span class="filter-label">年限</span>
           <select v-model="years" class="filter-select" @change="applyFilters">
-            <option v-for="y in MARKET_YEARS" :key="y" :value="y">{{ y }}</option>
+            <option v-for="y in yearsOptions" :key="y" :value="y">{{ y }}</option>
           </select>
         </label>
       </div>
@@ -76,13 +78,14 @@
                     {{ isOwned(s.name) ? '✓ 你有' : '你没' }}
                   </span>
                 </div>
+                <span v-if="s.mentions != null" class="mention-tag">{{ s.mentions }} 次</span>
                 <span class="growth-tag" :class="growthClass(s.growth)">{{ s.growth }}</span>
               </div>
-              <div class="skill-bar">
+              <div v-if="barWidth(s) !== null" class="skill-bar">
                 <div
                   class="skill-bar-fill"
                   :class="isOwned(s.name) ? 'bar-purple' : 'bar-green'"
-                  :style="{ width: barWidth(s.rank) + '%' }"
+                  :style="{ width: barWidth(s) + '%' }"
                 />
               </div>
             </div>
@@ -156,8 +159,8 @@
                 </div>
                 <span class="growth-tag" :class="growthClass(s.growth)">{{ s.growth }}</span>
               </div>
-              <div class="skill-bar">
-                <div class="skill-bar-fill" :class="isOwned(s.name) ? 'bar-purple' : 'bar-green'" :style="{ width: barWidth(s.rank) + '%' }" />
+              <div v-if="barWidth(s) !== null" class="skill-bar">
+                <div class="skill-bar-fill" :class="isOwned(s.name) ? 'bar-purple' : 'bar-green'" :style="{ width: barWidth(s) + '%' }" />
               </div>
             </div>
           </div>
@@ -212,23 +215,14 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getSalaryInsight, getSkillTrends, getResumeGap } from '../api/market'
 import { getCareerProfile } from '../api/profile'
+import { marketDimensionsStore } from '../stores/marketDimensionsStore'
 import { createWorkspace, navigateToWorkspace } from '../api/workspace'
 import { stripMarkdown } from '../utils/markdown'
 
 const router = useRouter()
 const route = useRoute()
 
-const MARKET_CITIES = ['广州', '深圳', '北京', '上海', '杭州', '成都', '南京', '武汉', '西安', '苏州']
-const MARKET_ROLES = [
-  'Java后端',
-  'Java 后端开发',
-  '前端开发',
-  '算法工程师',
-  '测试工程师',
-  'Go后端',
-  'Python后端',
-]
-const MARKET_YEARS = ['1-3年', '3-5年', '5-10年', '10年以上']
+// 岗位/城市/经验清单来自 /market/dimensions（与资产页、我的页同一份），不在此硬编码
 const META_STATE = {
   FRESH: 'FRESH',
   LOADING: 'LOADING',
@@ -262,18 +256,23 @@ const filterTitle = computed(() => {
   return parts.length ? parts.join(' · ') : '请完善职业画像'
 })
 
+const yearsOptions = computed(() => marketDimensionsStore.state.years)
+
 const cityOptions = computed(() => {
-  if (city.value && !MARKET_CITIES.includes(city.value)) {
-    return [city.value, ...MARKET_CITIES]
+  const cities = marketDimensionsStore.state.cities
+  // 画像里的自定义城市不在目录内时置顶保留，避免下拉「吞掉」用户当前选中项
+  if (city.value && !cities.includes(city.value)) {
+    return [city.value, ...cities]
   }
-  return MARKET_CITIES
+  return cities
 })
 
-const roleOptions = computed(() => {
-  if (role.value && !MARKET_ROLES.includes(role.value)) {
-    return [role.value, ...MARKET_ROLES]
+const roleGroupOptions = computed(() => {
+  const groups = marketDimensionsStore.state.roleGroups
+  if (role.value && !marketDimensionsStore.flatRoles().includes(role.value)) {
+    return [{ group: '当前', roles: [role.value] }, ...groups]
   }
-  return MARKET_ROLES
+  return groups
 })
 
 const gapContext = computed(() => [city.value, role.value].filter(Boolean).join(' · '))
@@ -308,9 +307,9 @@ function syncFiltersFromRoute() {
   const qCity = route.query.city
   const qRole = route.query.role
   const qYears = route.query.years
-  if (qCity && MARKET_CITIES.includes(String(qCity))) city.value = String(qCity)
+  if (qCity && marketDimensionsStore.state.cities.includes(String(qCity))) city.value = String(qCity)
   if (qRole) role.value = String(qRole)
-  if (qYears && MARKET_YEARS.includes(String(qYears))) years.value = String(qYears)
+  if (qYears && marketDimensionsStore.state.years.includes(String(qYears))) years.value = String(qYears)
 }
 
 async function loadMarketData({ autoRefresh = false } = {}) {
@@ -427,17 +426,18 @@ function retryMarketData() {
 }
 
 onMounted(async () => {
+  await marketDimensionsStore.load()
   try {
     const profile = await getCareerProfile()
     if (profile?.targetCity?.trim()) city.value = profile.targetCity.trim()
     if (profile?.targetRole?.trim()) role.value = profile.targetRole.trim()
     if (profile?.seniority?.trim()) years.value = profile.seniority.trim()
   } catch {
-    // 画像加载失败时使用默认值
+    // 画像加载失败时使用默认口径
   }
-  if (!city.value) city.value = '广州'
-  if (!role.value) role.value = 'Java后端'
-  if (!years.value) years.value = '3-5年'
+  if (!city.value) city.value = marketDimensionsStore.state.defaultCity
+  if (!role.value) role.value = marketDimensionsStore.state.defaultRole
+  if (!years.value) years.value = marketDimensionsStore.state.defaultYears
   syncFiltersFromRoute()
   await loadMarketData()
 })
@@ -454,8 +454,13 @@ function isOwned(skillName) {
   return hasSkillSet.value.has(skillName.toLowerCase())
 }
 
-function barWidth(rank) {
-  return Math.max(20, 100 - (rank - 1) * 14)
+/**
+ * 热度条宽度 = 后端按 JD 原文提及次数算出的 heat（0-100）。
+ * 不再按名次线性递减——那样换任何岗位城市条形都一模一样，图形不承载数据。
+ * heat 缺失（后端无法统计）时返回 null，由调用处隐藏热度条而不是画一根假的。
+ */
+function barWidth(skill) {
+  return typeof skill?.heat === 'number' ? Math.max(2, Math.min(100, skill.heat)) : null
 }
 
 function growthClass(growth) {
@@ -678,6 +683,7 @@ async function enterMarketWorkspace(entryAction) {
 .own-chip { font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 600; }
 .chip-has { background: #d1fae5; color: #047857; }
 .chip-miss { background: #fef3c7; color: #92400e; }
+.mention-tag { font-size: 10px; color: #94a3b8; margin-left: auto; margin-right: 6px; font-variant-numeric: tabular-nums; }
 .growth-tag { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
 .tag-fast { background: #dcfce7; color: #0DA76A; }
 .tag-down { background: #fee2e2; color: #E5484D; }

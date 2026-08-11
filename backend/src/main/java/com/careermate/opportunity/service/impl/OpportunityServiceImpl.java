@@ -11,7 +11,7 @@ import com.careermate.opportunity.dto.OpportunityListItemVO;
 import com.careermate.opportunity.dto.OpportunityListRequest;
 import com.careermate.opportunity.dto.OpportunityPrepareResponse;
 import com.careermate.opportunity.service.OpportunityService;
-import com.careermate.opportunity.support.OpportunityCityCatalog;
+import com.careermate.common.catalog.CityCatalog;
 import com.careermate.profile.service.CareerProfileService;
 import com.careermate.profile.dto.CareerProfileResponse;
 import com.careermate.agent.tool.rag.RagRetrieveRequest;
@@ -69,7 +69,7 @@ public class OpportunityServiceImpl implements OpportunityService {
     private final ResumeService resumeService;
     private final CareerProfileService careerProfileService;
     private final WorkspaceSessionRepository workspaceSessionRepository;
-    private final OpportunityCityCatalog cityCatalog;
+    private final CityCatalog cityCatalog;
     private final ChunksToOpportunityConverter converter = new ChunksToOpportunityConverter();
     private final ObjectMapper objectMapper;
     private final Optional<StringRedisTemplate> redisTemplate;
@@ -81,7 +81,7 @@ public class OpportunityServiceImpl implements OpportunityService {
             ResumeService resumeService,
             CareerProfileService careerProfileService,
             WorkspaceSessionRepository workspaceSessionRepository,
-            OpportunityCityCatalog cityCatalog,
+            CityCatalog cityCatalog,
             ObjectMapper objectMapper,
             @Autowired(required = false) StringRedisTemplate redisTemplate
     ) {
@@ -107,7 +107,7 @@ public class OpportunityServiceImpl implements OpportunityService {
     @Override
     @Transactional(readOnly = true)
     public OpportunityCitiesVO cities(Long userId) {
-        String defaultCity = OpportunityCityCatalog.ANY;
+        String defaultCity = CityCatalog.ANY;
         try {
             CareerProfileResponse profile = careerProfileService.getProfile(userId);
             String targetCity = normalize(profile.getTargetCity());
@@ -827,7 +827,7 @@ public class OpportunityServiceImpl implements OpportunityService {
      */
     private String resolveCityFilter(String requestedCity) {
         String city = normalize(requestedCity);
-        if (city == null || OpportunityCityCatalog.ANY.equals(city)) {
+        if (city == null || CityCatalog.ANY.equals(city)) {
             return null;
         }
         return city;

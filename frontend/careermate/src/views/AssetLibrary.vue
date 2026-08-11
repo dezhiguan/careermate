@@ -182,18 +182,20 @@
     <section v-else class="asset-body">
       <div class="sal-query">
         <label class="sal-field">岗位
-          <select v-model="salRole" class="sal-sel">
-            <option v-for="r in SAL_ROLES" :key="r" :value="r">{{ r }}</option>
+          <select v-model="salRole" class="sal-sel sal-sel-role">
+            <optgroup v-for="g in salRoleGroups" :key="g.group" :label="g.group">
+              <option v-for="r in g.roles" :key="r" :value="r">{{ r }}</option>
+            </optgroup>
           </select>
         </label>
         <label class="sal-field">城市
           <select v-model="salCity" class="sal-sel">
-            <option v-for="c in SAL_CITIES" :key="c" :value="c">{{ c }}</option>
+            <option v-for="c in salCities" :key="c" :value="c">{{ c }}</option>
           </select>
         </label>
         <label class="sal-field">经验
           <select v-model="salYears" class="sal-sel">
-            <option v-for="y in SAL_YEARS" :key="y" :value="y">{{ y }}</option>
+            <option v-for="y in salYearsOptions" :key="y" :value="y">{{ y }}</option>
           </select>
         </label>
         <button class="qbank-add" :disabled="salLoading" @click="querySalary">查询</button>
@@ -208,17 +210,24 @@
           <span v-if="salData.trend" class="sal-trend">{{ salData.trend }}</span>
         </div>
         <div v-if="salSkills.length" class="sal-heat">
-          <div class="sal-heat-title">岗位技能热度 Top{{ salSkills.length }}</div>
+          <div class="sal-heat-title">
+            岗位技能热度 Top{{ salSkills.length }}
+            <span class="heat-note">{{ salHeatAvailable ? '按 JD 原文提及次数统计' : '本次未统计到提及次数' }}</span>
+          </div>
           <div v-for="s in salSkills" :key="s.rank" class="heat-row">
             <span class="heat-name">{{ s.name }}</span>
-            <span class="heat-bar-wrap"><span class="heat-bar" :style="{ width: skillHeatWidth(s.rank) }" /></span>
+            <span v-if="salHeatAvailable" class="heat-bar-wrap">
+              <span class="heat-bar" :style="{ width: `${s.heat}%` }" />
+            </span>
+            <span v-else class="heat-bar-wrap heat-bar-na" />
+            <span v-if="s.mentions != null" class="heat-count">{{ s.mentions }} 次</span>
             <span v-if="s.growth" class="heat-growth">{{ s.growth }}</span>
           </div>
         </div>
         <p v-if="salData.aiSummary" class="sal-tip">💡 {{ salData.aiSummary }}</p>
         <button class="ph-btn" @click="bringSalaryToChat">带入小职薪资焦点 →</button>
       </div>
-      <p v-else class="asset-empty">选岗位 + 城市，点「查询」看 P25/P50/P75 与谈薪参考。</p>
+      <p v-else class="asset-empty">{{ salQueried ? '这个岗位在知识库里暂无足够数据，换个岗位或城市试试。' : '选岗位 + 城市，点「查询」看 P25/P50/P75 与谈薪参考。' }}</p>
     </section>
 
     <!-- 收录/编辑题目 -->
@@ -289,6 +298,7 @@ import { listVersions, getVersion, downloadVersionPdf, downloadVersionDocx, dele
 import { listInterviewSessions, getKbQuestions, renameInterviewSession, deleteInterviewSession } from '../api/interview'
 import { listStudyNotes, listStudySkills, saveStudyNote, deleteStudyNote } from '../api/study'
 import { getSalaryInsight, getSkillTrends } from '../api/market'
+import { marketDimensionsStore } from '../stores/marketDimensionsStore'
 import { renderMarkdown } from '../utils/markdown'
 
 const router = useRouter()
@@ -341,16 +351,19 @@ const untaggedCount = ref(0)
 // 收录弹窗的标签候选：筛选面上的标签全都可选，也允许自己敲新的
 const skillOptions = computed(() => skillTags.value.map((s) => s.tag))
 
-// 薪资行情内联面板
-const SAL_ROLES = ['Java后端', '前端', 'Python', 'Go', '算法', '测试', '产品经理']
-const SAL_CITIES = ['广州', '北京', '上海', '深圳', '杭州', '成都']
-const SAL_YEARS = ['不限', '1-3年', '3-5年', '5-10年', '10年以上']
-const salRole = ref('Java后端')
-const salCity = ref('广州')
-const salYears = ref('不限')
+// 薪资行情内联面板——岗位/城市/经验清单来自 /market/dimensions，不在前端硬编码
+const salRole = ref(marketDimensionsStore.state.defaultRole)
+const salCity = ref(marketDimensionsStore.state.defaultCity)
+const salYears = ref(marketDimensionsStore.state.defaultYears)
 const salData = ref(null)
 const salSkills = ref([])
 const salLoading = ref(false)
+const salQueried = ref(false)
+const salRoleGroups = computed(() => marketDimensionsStore.state.roleGroups)
+const salCities = computed(() => marketDimensionsStore.state.cities)
+const salYearsOptions = computed(() => marketDimensionsStore.state.years)
+// 热度条只在后端给出真实词频热度时渲染，缺失时不画假条
+const salHeatAvailable = computed(() => salSkills.value.every((s) => typeof s.heat === 'number'))
 
 const noteEditorOpen = ref(false)
 const savingNote = ref(false)
@@ -509,6 +522,7 @@ function switchTab(key) {
     loadStudy()
     loadSkills()
   }
+  if (key === 'salary') initSalaryTab()
 }
 
 async function loadStudy() {
@@ -683,7 +697,8 @@ async function querySalary() {
   error.value = ''
   try {
     const [salary, trends] = await Promise.allSettled([
-      getSalaryInsight({ role: salRole.value, city: salCity.value, years: salYears.value === '不限' ? undefined : salYears.value }),
+      // 「不限」原样传给后端（后端按全经验段处理），不要在这里抹掉，否则会被补成具体年限区间
+      getSalaryInsight({ role: salRole.value, city: salCity.value, years: salYears.value }),
       getSkillTrends({ role: salRole.value, city: salCity.value }),
     ])
     salData.value = salary.status === 'fulfilled' ? salary.value : null
@@ -692,14 +707,17 @@ async function querySalary() {
     if (salary.status === 'rejected') error.value = salary.reason?.message || '薪资查询失败'
   } finally {
     salLoading.value = false
+    salQueried.value = true
   }
 }
 
-// 技能热度条宽度：按排名，Top1 最宽
-function skillHeatWidth(rank) {
-  const total = salSkills.value.length || 1
-  const r = Number(rank) || total
-  return `${Math.round(((total - r + 1) / total) * 100)}%`
+/** 进入薪资行情 tab：加载维度字典，并以默认口径（Java后端 · 广州 · 不限）自动查一次。 */
+async function initSalaryTab() {
+  await marketDimensionsStore.load()
+  if (!salRole.value) salRole.value = marketDimensionsStore.state.defaultRole
+  if (!salCity.value) salCity.value = marketDimensionsStore.state.defaultCity
+  if (!salYears.value) salYears.value = marketDimensionsStore.state.defaultYears
+  if (!salQueried.value && !salLoading.value) await querySalary()
 }
 
 function bringSalaryToChat() {
@@ -738,6 +756,7 @@ onMounted(() => {
   updateIsDesktop()
   window.addEventListener('resize', updateIsDesktop, { passive: true })
   loadResume()
+  if (activeTab.value === 'salary') initSalaryTab()
 })
 onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 </script>
@@ -812,7 +831,11 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 .heat-name { flex: 0 0 84px; font-size: 12px; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .heat-bar-wrap { flex: 1; height: 8px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
 .heat-bar { display: block; height: 100%; background: linear-gradient(90deg, #8B5CF6, #4E5BEF); border-radius: 999px; }
+.heat-bar-na { background: repeating-linear-gradient(90deg, #f1f5f9 0 6px, #e8edf5 6px 12px); }
+.heat-count { flex: 0 0 auto; font-size: 11px; color: #94a3b8; font-variant-numeric: tabular-nums; }
+.heat-note { font-weight: 400; color: #94a3b8; margin-left: 6px; }
 .heat-growth { flex: 0 0 auto; font-size: 11px; color: #0DA76A; }
+.sal-sel-role { max-width: 190px; }
 .ph-title { font-weight: 700; font-size: 15px; color: #1A1D26; }
 .ph-text { color: #64748b; font-size: 13px; line-height: 1.7; margin: 10px 0 14px; }
 .ph-btn { background: linear-gradient(135deg, #4E5BEF, #8B5CF6); color: #fff; border: 0; border-radius: 10px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }

@@ -1,18 +1,20 @@
-package com.careermate.opportunity.support;
+package com.careermate.common.catalog;
 
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 /**
- * 机会页可选城市目录。
+ * 全站可选城市目录（机会页筛选 / 薪资行情筛选 / 画像意向城市 共用同一份）。
  *
  * <p>当前实现（Phase 1）：后端维护的全国主要城市表，稳定可控、无运行时外部依赖。
  * 后续（Phase 2）可替换为对 JD 库的离线/定时聚合结果（「城市→岗位数」，只保留有岗位的城市），
  * 届时仅需替换 {@link #cities()} 的数据来源，调用方与接口契约不变。
+ *
+ * <p>放在 common 包而非某个业务包下，是为了避免各页面各自维护一份城市清单造成口径漂移。
  */
 @Component
-public class OpportunityCityCatalog {
+public class CityCatalog {
 
     /** 「不限」——不过滤城市。 */
     public static final String ANY = "不限";

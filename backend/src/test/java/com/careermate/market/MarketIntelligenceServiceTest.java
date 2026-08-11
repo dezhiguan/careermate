@@ -21,6 +21,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -28,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -145,6 +147,137 @@ class MarketIntelligenceServiceTest {
         assertEquals("Java", result.getSkills().get(0).getName());
         assertEquals("Java 仍是核心", result.getAiSummary());
         assertEquals(1, result.getCitations().size());
+    }
+
+    @Test
+    void getSalaryInsightWithAnyYearsDropsYearsFromQueryAndDeclaresItInPrompt() {
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleMarketResult());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"p25":"18K","p50":"22K","p75":"26K","p90":"30K","trend":"平稳","aiSummary":"不限经验整体平稳"}
+                """).build());
+
+        service.getSalaryInsight("Java后端", "广州", "不限");
+
+        ArgumentCaptor<RagRetrieveRequest> ragCaptor = ArgumentCaptor.forClass(RagRetrieveRequest.class);
+        verify(knowledgeRetrievalService).retrieve(ragCaptor.capture());
+        assertEquals("Java后端 广州 薪资 月薪", ragCaptor.getValue().getQuery());
+
+        ArgumentCaptor<ChatRequest> chatCaptor = ArgumentCaptor.forClass(ChatRequest.class);
+        verify(llmClient).chat(chatCaptor.capture());
+        String prompt = chatCaptor.getValue().getMessages().get(1).getContent();
+        // 口径插槽必须写成「全经验段」，而不是被补成某个具体年限区间
+        assertTrue(
+                prompt.contains("分析 Java后端 在 广州 地区、全经验段（不限工作年限）的薪资分布"),
+                prompt.lines().findFirst().orElse(""));
+    }
+
+    @Test
+    void getSalaryInsightWithoutYearsIsTreatedAsAny() {
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleMarketResult());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"p25":"18K","p50":"22K","p75":"26K","p90":"30K","trend":"平稳","aiSummary":"整体平稳"}
+                """).build());
+
+        service.getSalaryInsight("Java后端", "广州", null);
+
+        ArgumentCaptor<RagRetrieveRequest> ragCaptor = ArgumentCaptor.forClass(RagRetrieveRequest.class);
+        verify(knowledgeRetrievalService).retrieve(ragCaptor.capture());
+        assertEquals("Java后端 广州 薪资 月薪", ragCaptor.getValue().getQuery());
+    }
+
+    @Test
+    void getSalaryInsightWithConcreteYearsKeepsYearsInQuery() {
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleMarketResult());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"p25":"18K","p50":"22K","p75":"26K","p90":"30K","trend":"平稳","aiSummary":"平稳"}
+                """).build());
+
+        service.getSalaryInsight("Java后端", "广州", "3-5年");
+
+        ArgumentCaptor<RagRetrieveRequest> ragCaptor = ArgumentCaptor.forClass(RagRetrieveRequest.class);
+        verify(knowledgeRetrievalService).retrieve(ragCaptor.capture());
+        assertEquals("Java后端 广州 3-5年 薪资 月薪", ragCaptor.getValue().getQuery());
+    }
+
+    @Test
+    void skillHeatComesFromRealMentionCountsAndReordersRanks() {
+        // Redis 出现 3 次、Java 2 次、MySQL 1 次；LLM 给的名次故意与词频相反
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(marketResultWithContent(
+                "Java 工程师 熟悉 Redis 与 MySQL；Redis 集群经验优先；缓存用 Redis；Java 8 以上"));
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"skills":[{"rank":1,"name":"MySQL","level":"高频","growth":"稳定"},
+                           {"rank":2,"name":"Java","level":"高频","growth":"稳定"},
+                           {"rank":3,"name":"Redis","level":"中频","growth":"上涨"}],
+                 "aiSummary":"缓存需求强"}
+                """).build());
+
+        SkillTrendsVO result = service.getSkillTrends("Java后端");
+
+        assertEquals(3, result.getSkills().size());
+        SkillTrendsVO.SkillItem top = result.getSkills().get(0);
+        assertEquals("Redis", top.getName());
+        assertEquals(1, top.getRank());
+        assertEquals(3, top.getMentions());
+        assertEquals(100, top.getHeat());
+
+        SkillTrendsVO.SkillItem second = result.getSkills().get(1);
+        assertEquals("Java", second.getName());
+        assertEquals(2, second.getMentions());
+        assertEquals(67, second.getHeat());
+
+        SkillTrendsVO.SkillItem third = result.getSkills().get(2);
+        assertEquals("MySQL", third.getName());
+        assertEquals(1, third.getMentions());
+        assertEquals(33, third.getHeat());
+    }
+
+    @Test
+    void skillHeatDropsSkillsThatNeverAppearInContext() {
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(
+                marketResultWithContent("熟悉 Java 与 Spring Boot 微服务"));
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"skills":[{"rank":1,"name":"Java","level":"高频","growth":"稳定"},
+                           {"rank":2,"name":"Kubernetes","level":"高频","growth":"快涨"}],
+                 "aiSummary":"后端基本盘"}
+                """).build());
+
+        SkillTrendsVO result = service.getSkillTrends("Java后端");
+
+        assertEquals(1, result.getSkills().size());
+        assertEquals("Java", result.getSkills().get(0).getName());
+    }
+
+    @Test
+    void skillHeatDoesNotCountSubstringMatches() {
+        // "JavaScript" 不能被算成 "Java" 的一次提及
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(
+                marketResultWithContent("需要 JavaScript 与 TypeScript；了解 Java 者优先"));
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"skills":[{"rank":1,"name":"JavaScript","level":"高频","growth":"稳定"},
+                           {"rank":2,"name":"Java","level":"中频","growth":"稳定"}],
+                 "aiSummary":"前端为主"}
+                """).build());
+
+        SkillTrendsVO result = service.getSkillTrends("前端开发");
+
+        assertEquals(2, result.getSkills().size());
+        assertEquals(1, result.getSkills().stream()
+                .filter(s -> "Java".equals(s.getName())).findFirst().orElseThrow().getMentions());
+    }
+
+    @Test
+    void skillHeatIsNullWhenNoSkillMatchesContext() {
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(
+                marketResultWithContent("岗位职责描述，未列出具体技术栈"));
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"skills":[{"rank":1,"name":"Java","level":"高频","growth":"稳定"}],"aiSummary":"—"}
+                """).build());
+
+        SkillTrendsVO result = service.getSkillTrends("Java后端");
+
+        assertEquals(1, result.getSkills().size());
+        assertNull(result.getSkills().get(0).getHeat());
+        assertNull(result.getSkills().get(0).getMentions());
     }
 
     @Test
@@ -299,6 +432,23 @@ class MarketIntelligenceServiceTest {
                 .chunks(List.of(RagRetrievedChunk.builder()
                         .content("月薪 25K-35K 完整敏感段落不应出现在 citations")
                         .contentPreview("月薪 25K-35K")
+                        .citation("MARKET_REPORT@jd.md")
+                        .chunkType(RagRetrieverChunkType.MARKET_REPORT)
+                        .fileName("jd.md")
+                        .score(0.9)
+                        .build()))
+                .latencyMs(5L)
+                .build();
+    }
+
+    private static RagRetrieveResult marketResultWithContent(String content) {
+        return RagRetrieveResult.builder()
+                .success(true)
+                .query("技能")
+                .scene(RagRetrieveScene.MARKET)
+                .chunks(List.of(RagRetrievedChunk.builder()
+                        .content(content)
+                        .contentPreview(content)
                         .citation("MARKET_REPORT@jd.md")
                         .chunkType(RagRetrieverChunkType.MARKET_REPORT)
                         .fileName("jd.md")

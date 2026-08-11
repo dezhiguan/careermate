@@ -2,6 +2,7 @@ package com.careermate.agent.tool;
 
 import com.careermate.market.dto.SalaryGuidanceVO;
 import com.careermate.market.service.SalaryGuidanceService;
+import com.careermate.market.support.MarketDefaults;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -15,9 +16,10 @@ import java.util.Map;
 @Component
 public class SalaryGuidanceTool implements AgentTool {
 
-    private static final String DEFAULT_ROLE = "Java后端";
-    private static final String DEFAULT_CITY = "广州";
-    private static final String DEFAULT_YEARS = "3-5年";
+    private static final String DEFAULT_ROLE = MarketDefaults.ROLE;
+    private static final String DEFAULT_CITY = MarketDefaults.CITY;
+    // 未指明经验时按「不限」查，不臆造一个年限区间
+    private static final String DEFAULT_YEARS = MarketDefaults.YEARS;
 
     private final SalaryGuidanceService salaryGuidanceService;
 

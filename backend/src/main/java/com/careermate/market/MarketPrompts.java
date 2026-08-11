@@ -6,11 +6,13 @@ package com.careermate.market;
 public final class MarketPrompts {
 
     private static final String SALARY_PROMPT = """
-            你是薪资分析专家。根据以下 JD 数据，分析 %s 在 %s 地区 %s 经验的薪资分布。
+            你是薪资分析专家。根据以下 JD 数据，分析 %s 在 %s 地区、%s的薪资分布。
             要求：
             1. 从数据中提取薪资数字，估算 P25/P50/P75/P90 月薪（格式如"28K"）
             2. 判断当前市场薪资趋势
             3. aiSummary 不超过 80 字
+            4. aiSummary 必须与上述经验口径完全一致：若口径为「全经验段（不限工作年限）」，
+               则不得在结论中写成任何具体年限区间（如"3-5年经验"），只能表述为不限经验/全经验段
 
             JD 数据：
             %s
@@ -23,10 +25,11 @@ public final class MarketPrompts {
             你是技术市场分析专家。根据以下 JD 数据，分析 %s 岗位的技能需求热度。
             要求：
             1. 提取出现频率最高的 6 个技术技能
-            2. 按频率从高到低排 rank 1-6
-            3. level 只能是：高频/中频/低频
-            4. growth 只能是：快涨/上涨/稳定/下降
-            5. aiSummary 不超过 80 字
+            2. name 必须是 JD 数据中原样出现的技能词，不得改写、翻译或杜撰未出现的技能
+            3. 按频率从高到低排 rank 1-6
+            4. level 只能是：高频/中频/低频
+            5. growth 只能是：快涨/上涨/稳定/下降
+            6. aiSummary 不超过 80 字
 
             JD 数据：
             %s
@@ -73,8 +76,12 @@ public final class MarketPrompts {
     private MarketPrompts() {
     }
 
-    public static String salaryPrompt(String role, String city, String years, String jdContext) {
-        return String.format(SALARY_PROMPT, role, city, years, jdContext);
+    /**
+     * @param yearsClause 经验口径描述，由 {@code MarketExperience.describe} 生成
+     *                    （如「3-5年经验」「全经验段（不限工作年限）」）
+     */
+    public static String salaryPrompt(String role, String city, String yearsClause, String jdContext) {
+        return String.format(SALARY_PROMPT, role, city, yearsClause, jdContext);
     }
 
     public static String skillTrendsPrompt(String role, String jdContext) {

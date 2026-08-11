@@ -16,10 +16,14 @@ import com.careermate.market.dto.CompanyInsightVO;
 import com.careermate.market.dto.ResumeGapVO;
 import com.careermate.market.dto.SalaryInsightVO;
 import com.careermate.market.dto.SkillTrendsVO;
+import com.careermate.market.support.MarketDefaults;
+import com.careermate.market.support.MarketExperience;
 import com.careermate.resume.ResumeContext;
 import com.careermate.resume.ResumeContextProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
@@ -42,6 +46,8 @@ public class MarketIntelligenceService {
     private static final String FALLBACK_SUMMARY = "暂时无法获取市场数据，请稍后再试";
     private static final String NO_DATA = "暂无数据";
     private static final Pattern JSON_BLOCK = Pattern.compile("\\{[\\s\\S]*\\}");
+    /** 纯 ASCII 技能名（含空格与 . + # _ - 等常见符号），用于决定词频统计是否加词边界。 */
+    private static final Pattern ASCII_SKILL = Pattern.compile("[a-z0-9 .+#_/-]+");
 
     private final KnowledgeRetrievalService knowledgeRetrievalService;
     private final LlmClient llmClient;
@@ -78,9 +84,10 @@ public class MarketIntelligenceService {
     }
 
     public SalaryInsightVO getSalaryInsight(String role, String city, String years) {
-        String safeRole = defaultText(role, "Java后端");
-        String safeCity = defaultText(city, "广州");
-        String safeYears = defaultText(years, "3-5年");
+        String safeRole = defaultText(role, MarketDefaults.ROLE);
+        String safeCity = defaultText(city, MarketDefaults.CITY);
+        // 「不限」是一等口径，不再被静默补成 3-5年（缓存 key 也据此区分）
+        String safeYears = MarketExperience.normalize(years);
         if (!cacheFacadeEnabled()) {
             return computeSalaryInsight(safeCity, safeRole, safeYears);
         }
@@ -99,12 +106,12 @@ public class MarketIntelligenceService {
     }
 
     public SkillTrendsVO getSkillTrends(String role) {
-        return getSkillTrends("广州", role);
+        return getSkillTrends(MarketDefaults.CITY, role);
     }
 
     public SkillTrendsVO getSkillTrends(String city, String role) {
-        String safeCity = defaultText(city, "广州");
-        String safeRole = defaultText(role, "Java后端");
+        String safeCity = defaultText(city, MarketDefaults.CITY);
+        String safeRole = defaultText(role, MarketDefaults.ROLE);
         if (!cacheFacadeEnabled()) {
             return computeSkillTrends(safeCity, safeRole);
         }
@@ -141,7 +148,10 @@ public class MarketIntelligenceService {
 
     public SalaryInsightVO computeSalaryInsight(String city, String role, String years) {
         try {
-            String query = role + " " + city + " " + years + " 薪资 月薪";
+            // 「不限」不带经验维度进检索，避免把全经验段的查询窄化到某个年限区间
+            String query = MarketExperience.isAny(years)
+                    ? role + " " + city + " 薪资 月薪"
+                    : role + " " + city + " " + years + " 薪资 月薪";
             RagRetrieveResult ragResult = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
                     .query(query)
                     .scene(RagRetrieveScene.MARKET)
@@ -155,7 +165,7 @@ public class MarketIntelligenceService {
                 log.warn("getSalaryInsight: empty rag context, role={}, city={}", role, city);
                 return emptySalaryInsight();
             }
-            String prompt = MarketPrompts.salaryPrompt(role, city, years, context);
+            String prompt = MarketPrompts.salaryPrompt(role, city, MarketExperience.describe(years), context);
             SalaryInsightVO parsed = parseLlmJson(prompt, SalaryInsightVO.class);
             if (parsed == null) {
                 return fallbackSalaryInsight();
@@ -190,6 +200,7 @@ public class MarketIntelligenceService {
             if (parsed == null) {
                 return fallbackSkillTrends();
             }
+            applySkillHeat(parsed, context, role);
             attachSources(parsed, ragResult);
             parsed.setMeta(CacheMeta.fresh());
             return parsed;
@@ -320,6 +331,86 @@ public class MarketIntelligenceService {
     private static void ensureFreshMeta(ResumeGapVO vo) {
         if (vo.getMeta() == null) {
             vo.setMeta(CacheMeta.fresh());
+        }
+    }
+
+    /**
+     * 用真实词频给技能热度赋值。
+     *
+     * <p>此前前端的热度条宽度只按名次线性递减（Top1 恒 100%、Top6 恒 17%），换任何岗位城市都一模一样，
+     * 图形不承载任何数据。这里改为后端确定性统计每个技能在本次检索到的 JD 原文中的出现次数，
+     * 热度 = 该技能次数 / 最高次数 × 100，并据此重排 rank。
+     *
+     * <p>同时作为反编造守卫：LLM 给出的技能若在原文中一次都没出现，直接剔除（全部为 0 时判定统计不可信，
+     * 保留原始列表但热度置空，由前端隐藏热度条）。
+     */
+    static void applySkillHeat(SkillTrendsVO vo, String context, String role) {
+        List<SkillTrendsVO.SkillItem> skills = vo == null ? null : vo.getSkills();
+        if (skills == null || skills.isEmpty() || context == null || context.isBlank()) {
+            return;
+        }
+        String haystack = context.toLowerCase(Locale.ROOT);
+        int max = 0;
+        for (SkillTrendsVO.SkillItem item : skills) {
+            int mentions = countMentions(haystack, item.getName());
+            item.setMentions(mentions);
+            max = Math.max(max, mentions);
+        }
+        if (max <= 0) {
+            log.warn("skill heat: no skill matched retrieved context, role={}, skills={}", role, skills.size());
+            skills.forEach(item -> {
+                item.setMentions(null);
+                item.setHeat(null);
+            });
+            return;
+        }
+        List<SkillTrendsVO.SkillItem> kept = new ArrayList<>();
+        for (SkillTrendsVO.SkillItem item : skills) {
+            if (item.getMentions() != null && item.getMentions() > 0) {
+                kept.add(item);
+            } else {
+                log.warn("skill heat: drop fabricated skill not present in context, role={}, name={}",
+                        role, item.getName());
+            }
+        }
+        kept.sort(Comparator.comparingInt(SkillTrendsVO.SkillItem::getMentions).reversed());
+        int finalMax = max;
+        for (int i = 0; i < kept.size(); i++) {
+            SkillTrendsVO.SkillItem item = kept.get(i);
+            item.setRank(i + 1);
+            item.setHeat((int) Math.round(item.getMentions() * 100.0 / finalMax));
+        }
+        vo.setSkills(kept);
+    }
+
+    /**
+     * 统计技能词在文本中的出现次数。纯 ASCII 技能名（Java / Spring Boot / C++ / .NET）加词边界，
+     * 避免 "Java" 命中 "JavaScript"；中文技能名直接按子串计数。
+     */
+    private static int countMentions(String lowerHaystack, String name) {
+        if (name == null || name.isBlank()) {
+            return 0;
+        }
+        String needle = name.trim().toLowerCase(Locale.ROOT);
+        if (ASCII_SKILL.matcher(needle).matches()) {
+            Matcher matcher = Pattern
+                    .compile("(?<![a-z0-9])" + Pattern.quote(needle) + "(?![a-z0-9])")
+                    .matcher(lowerHaystack);
+            int count = 0;
+            while (matcher.find()) {
+                count++;
+            }
+            return count;
+        }
+        int count = 0;
+        int from = 0;
+        while (true) {
+            int idx = lowerHaystack.indexOf(needle, from);
+            if (idx < 0) {
+                return count;
+            }
+            count++;
+            from = idx + needle.length();
         }
     }
 

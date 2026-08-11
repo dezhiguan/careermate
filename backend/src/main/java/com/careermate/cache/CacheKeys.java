@@ -13,8 +13,12 @@ public final class CacheKeys {
         return "market:salary:" + part(city) + ":" + part(role) + ":" + part(years);
     }
 
+    /**
+     * v2：SkillItem 新增真实词频字段（mentions/heat）。旧 key 下的缓存没有这两个字段，
+     * 命中后前端会因为热度缺失而不画热度条，故换 key 让上线后立即产出新形状。
+     */
     public static String marketSkillTrends(String city, String role) {
-        return "market:skill-trends:" + part(city) + ":" + part(role);
+        return "market:skill-trends:v2:" + part(city) + ":" + part(role);
     }
 
     public static String marketResumeGap(Long userId, String jdId) {
