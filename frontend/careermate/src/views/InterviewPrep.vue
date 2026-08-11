@@ -130,6 +130,9 @@
           </button>
         </div>
         <div v-if="companyLoading" class="skeleton-group">
+          <div class="kb-loading-hint">
+            AI 正在整理{{ companyQuery.trim() ? `「${companyQuery.trim()}」` : '' }}的面试风格与高频题，约 10 秒；查过的公司下次会秒开
+          </div>
           <div class="skeleton" style="height:16px;width:40%;margin-bottom:8px" />
           <div class="skeleton" style="height:12px;width:90%;margin-bottom:6px" />
           <div class="skeleton" style="height:12px;width:70%" />

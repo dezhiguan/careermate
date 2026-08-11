@@ -41,6 +41,8 @@ public class CacheConfig {
         configs.put("market:skill-trends", defaults.entryTtl(Duration.ofHours(6)));
         configs.put("market:resume-gap", defaults.entryTtl(Duration.ofHours(1)));
         configs.put("interview:kb-questions", defaults.entryTtl(Duration.ofHours(12)));
+        // 大厂面试风格短期内不变，且这条链路要走 RAG + LLM（实测 7~10s），缓存 24h
+        configs.put("interview:company-prep", defaults.entryTtl(Duration.ofHours(24)));
 
         return RedisCacheManager.builder(redisConnectionFactory)
                 .cacheDefaults(defaults)

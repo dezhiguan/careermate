@@ -114,6 +114,31 @@ public class InterviewKbService {
     }
 
     public CompanyPrepVO getCompanyPrep(String company) {
+        String safeKey = company == null ? "" : company.trim();
+        if (!cacheFacadeEnabled() || safeKey.isEmpty()) {
+            return computeCompanyPrep(company);
+        }
+        String cacheKey = CacheKeys.interviewCompanyPrep(safeKey);
+        CompanyPrepVO cached = cacheValue("interview:company-prep", cacheKey, CompanyPrepVO.class);
+        if (cached != null) {
+            return cached;
+        }
+        CompanyPrepVO result = computeCompanyPrep(company);
+        // 只缓存真正拿到内容的结果：fallback 的 interviewStyle 为空、commonQuestions 为空，
+        // 若把它写进缓存，一次 LLM/RAG 抖动就会让该公司 24 小时内一直返回「暂无资料」。
+        if (isUsableCompanyPrep(result)) {
+            cachePutRaw("interview:company-prep", cacheKey, result);
+        }
+        return result;
+    }
+
+    private static boolean isUsableCompanyPrep(CompanyPrepVO vo) {
+        return vo != null
+                && vo.getInterviewStyle() != null && !vo.getInterviewStyle().isBlank()
+                && vo.getCommonQuestions() != null && !vo.getCommonQuestions().isEmpty();
+    }
+
+    public CompanyPrepVO computeCompanyPrep(String company) {
         try {
             if (company == null || company.isBlank()) {
                 log.warn("getCompanyPrep: company is blank");
@@ -212,6 +237,14 @@ public class InterviewKbService {
     private void cachePutQuietly(String cacheName, String cacheKey, KbQuestionsVO value) {
         if (value == null || value.getMeta() == null
                 || "DEGRADED".equals(value.getMeta().state().name())) {
+            return;
+        }
+        cachePutRaw(cacheName, cacheKey, value);
+    }
+
+    /** 通用写缓存；调用方自行判定值是否值得缓存。写失败只记日志，绝不影响请求。 */
+    private void cachePutRaw(String cacheName, String cacheKey, Object value) {
+        if (value == null) {
             return;
         }
         try {

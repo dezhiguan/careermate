@@ -30,6 +30,10 @@ public final class CacheKeys {
         return "interview:kb-questions:" + part(tag);
     }
 
+    public static String interviewCompanyPrep(String company) {
+        return "interview:company-prep:" + part(company);
+    }
+
     private static String part(String value) {
         if (value == null || value.isBlank()) {
             return "_";
