@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import com.careermate.config.PooledHttpClientFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
@@ -32,10 +32,8 @@ public class JwtTokenProvider {
     public JwtTokenProvider(SecurityProperties securityProperties, ObjectMapper objectMapper) {
         this.securityProperties = securityProperties;
         this.objectMapper = objectMapper;
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(securityProperties.getAuthGateway().getTimeoutMs());
-        factory.setReadTimeout(securityProperties.getAuthGateway().getTimeoutMs());
-        this.restTemplate = new RestTemplate(factory);
+        this.restTemplate = new RestTemplate(
+                PooledHttpClientFactory.create(securityProperties.getAuthGateway().getTimeoutMs()));
     }
 
     public Claims parseToken(String token) {

@@ -19,7 +19,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import com.careermate.config.PooledHttpClientFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestAttributes;
@@ -75,10 +75,8 @@ public class RagForgeClient {
         if (restTemplateOverride != null) {
             this.restTemplate = restTemplateOverride;
         } else {
-            SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-            factory.setConnectTimeout(properties.getTimeoutMs());
-            factory.setReadTimeout(properties.getTimeoutMs());
-            RestTemplate template = new RestTemplate(factory);
+            RestTemplate template = new RestTemplate(
+                    PooledHttpClientFactory.create(properties.getTimeoutMs()));
             if (traceHeaderPropagator != null) {
                 template.getInterceptors().add(traceHeaderPropagator.clientHttpRequestInterceptor());
             }

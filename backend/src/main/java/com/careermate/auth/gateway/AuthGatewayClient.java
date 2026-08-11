@@ -12,7 +12,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import com.careermate.config.PooledHttpClientFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -36,18 +36,8 @@ public class AuthGatewayClient {
         this.properties = securityProperties.getAuthGateway();
         this.clientAssertionFactory = clientAssertionFactory;
         this.objectMapper = objectMapper;
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(properties.getTimeoutMs());
-        factory.setReadTimeout(properties.getTimeoutMs());
-        this.restTemplate = new RestTemplate(factory);
-        // SimpleClientHttpRequestFactory 走 HttpURLConnection 的全局 keep-alive 缓存，且不校验连接存活。
-        // 空闲期间被对端/中间设备关闭的连接一旦被复用，首个请求必然 Connection reset，
-        // 被 translateMessage 兜底成「认证服务请求失败」。auth-gateway 为集群内调用且 QPS 低，
-        // 直接关闭长连接复用即可根除，代价仅为一次握手。
-        this.restTemplate.getInterceptors().add((request, body, execution) -> {
-            request.getHeaders().set(HttpHeaders.CONNECTION, "close");
-            return execution.execute(request, body);
-        });
+        this.restTemplate = new RestTemplate(
+                PooledHttpClientFactory.create(properties.getTimeoutMs()));
     }
 
     public TokenResponse loginPassword(String account, String password) {
