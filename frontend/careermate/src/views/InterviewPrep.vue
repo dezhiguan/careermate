@@ -117,6 +117,18 @@
             {{ companyLoading ? '查询中...' : '查询' }}
           </button>
         </div>
+        <div class="quick-tags">
+          <button
+            v-for="c in companyQuickTags"
+            :key="c"
+            type="button"
+            class="quick-tag"
+            :disabled="companyLoading"
+            @click="companyQuery = c; searchCompany()"
+          >
+            {{ c }}
+          </button>
+        </div>
         <div v-if="companyLoading" class="skeleton-group">
           <div class="skeleton" style="height:16px;width:40%;margin-bottom:8px" />
           <div class="skeleton" style="height:12px;width:90%;margin-bottom:6px" />
@@ -142,7 +154,7 @@
           </div>
           <p v-if="companyData.aiSummary" class="ai-summary">{{ companyData.aiSummary }}</p>
         </div>
-        <div v-else class="empty-hint">输入公司名后，这里会给出面试风格、技术侧重和高频题。</div>
+        <div v-else class="empty-hint">点选上方公司或直接输入，这里会给出面试风格、技术侧重和高频题。</div>
       </section>
 
       <!-- 区块三：模拟练习 -->
@@ -376,6 +388,11 @@ const workspaceLoading = ref(false)
 
 // 平台题库的快捷检索词（不是筛选维度，纯搜索关键词）
 const kbQuickTags = ['AI大模型', 'RAG', 'Agent', 'Spring Boot', 'Redis', 'MySQL', 'JVM', '系统设计', '行为面试']
+// 常见目标公司快选，省去手打；与考点速查的 quick-tags 同款交互
+const companyQuickTags = [
+  '字节跳动', '阿里巴巴', '腾讯', '美团', '京东',
+  '拼多多', '百度', '网易', '华为', '小米',
+]
 
 const TYPE_LABEL = {
   PROJECT: '项目经历',
