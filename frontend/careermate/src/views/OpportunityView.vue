@@ -703,24 +703,30 @@ function setSort(v) {
   sortMode.value = v
 }
 
-onMounted(() => {
+onMounted(async () => {
   updateIsDesktop()
   loadSaved()
   loadSearchHistory()
-  loadCities()
   loadProfileIntent()
   window.addEventListener('resize', updateIsDesktop, { passive: true })
   window.addEventListener('scroll', handleScroll, { passive: true })
+
   // bootstrap 里的 topOpportunities 只是首屏用的前 10 条切片，拿来先把卡片铺出来避免白屏；
   // 但它不带真实总数，之前在这里 return 掉，分页器就把 10 当成了全部——机会池里其余的
   // 岗位（线上 100+ 条）用户永远翻不到，城市/关键词筛选和匹配排序也全都无从触发。
-  // 正确做法是：先用切片抢首屏，再静默拉真实分页数据把总数和列表补齐。
-  if (!activeKeyword.value && homeStore.state.initialized && homeStore.state.topOpportunities.length > 0) {
+  // 正确做法是：先用切片抢首屏，再拉真实分页数据把总数和列表补齐。
+  const hydrated = !activeKeyword.value
+    && homeStore.state.initialized
+    && homeStore.state.topOpportunities.length > 0
+  if (hydrated) {
     hydrateFromBootstrap()
-    fetchList({ keepVisible: true })
-    return
   }
-  fetchList()
+
+  // 必须等 loadCities 回来再发首次查询：activeCity 由它填的 defaultCity 推导，
+  // 而 defaultCity 初值是「不限」。不等的话首屏查的是全国，筛选器上却显示着默认城市，
+  // 两者对不上；等用户一翻页，activeCity 已就位，结果集和总数会当场突变。
+  await loadCities()
+  fetchList(hydrated ? { keepVisible: true } : {})
 })
 
 onBeforeUnmount(() => {
