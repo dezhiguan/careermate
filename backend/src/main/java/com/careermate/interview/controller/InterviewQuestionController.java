@@ -1,6 +1,8 @@
 package com.careermate.interview.controller;
 
 import com.careermate.common.api.ApiResponse;
+import com.careermate.common.exception.BizException;
+import com.careermate.common.support.JdDocIds;
 import com.careermate.interview.dto.JdAwareQuestionsVO;
 import com.careermate.interview.service.InterviewQuestionService;
 import com.careermate.security.CurrentUserContext;
@@ -30,9 +32,18 @@ public class InterviewQuestionController {
      */
     @GetMapping("/jd-aware-questions")
     public ApiResponse<JdAwareQuestionsVO> jdAwareQuestions(
-            @RequestParam Long jdDocId,
+            @RequestParam String jdDocId,
             @RequestParam(required = false) String company) {
         return ApiResponse.success(interviewQuestionService.generateJdAwareQuestions(
-                jdDocId, CurrentUserContext.getUserId(), company));
+                requireJdDocId(jdDocId), CurrentUserContext.getUserId(), company));
+    }
+
+    /** 兼容 "doc-89840" 与 89840 两种写法；都解析不出才报参数错误。 */
+    private static Long requireJdDocId(String raw) {
+        Long docId = JdDocIds.parse(raw);
+        if (docId == null) {
+            throw new BizException(400, "参数格式不正确：jdDocId");
+        }
+        return docId;
     }
 }

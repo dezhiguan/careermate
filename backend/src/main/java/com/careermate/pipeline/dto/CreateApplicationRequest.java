@@ -7,6 +7,8 @@ import lombok.Data;
  */
 @Data
 public class CreateApplicationRequest {
+    @com.fasterxml.jackson.databind.annotation.JsonDeserialize(
+            using = com.careermate.common.support.JdDocIdDeserializer.class)
     private Long jdDocId;
     private String company;
     private String roleTitle;

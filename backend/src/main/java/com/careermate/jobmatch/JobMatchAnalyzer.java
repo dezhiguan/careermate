@@ -128,12 +128,43 @@ public class JobMatchAnalyzer {
      * 供「按 JD 生成简历」在保存时快速回填 ATS 参考分（aiScore），不引入额外成本与延迟。
      */
     public int scoreResumeAgainstJd(String resumeContent, String jdContent) {
+        return scoreResumeAgainstJd(resumeContent, jdContent, List.of());
+    }
+
+    /**
+     * 生成简历 vs JD 的 ATS 参考分，扣除无出处技能。
+     *
+     * <p>定制简历本就是照着 JD 写的，JD 里的技能几乎必然全命中，base 直接顶到 100——
+     * 实测 16 个版本里 7 个满分，分数没有任何区分度。更糟的是：生成器为贴合 JD 会凭空加技能
+     * （见 {@code ResumeFactVerifier}），这些编造出来的词反而在拉高分数。
+     * 所以事实校验判定「无出处」的技能一律不计入命中：简历上写了但你其实没有的东西，不该加分。
+     *
+     * @param unsourcedFacts 事实校验列出的无出处项，可为 null
+     */
+    public int scoreResumeAgainstJd(String resumeContent, String jdContent, List<String> unsourcedFacts) {
         String resume = normalize(resumeContent);
         String jd = normalize(jdContent);
         List<String> jdSkills = detectSkills(jd);
         List<String> resumeSkills = detectSkills(resume);
-        List<String> matched = jdSkills.stream().filter(resumeSkills::contains).toList();
+        Set<String> unsourced = normalizeUnsourced(unsourcedFacts);
+        List<String> matched = jdSkills.stream()
+                .filter(resumeSkills::contains)
+                .filter(skill -> !unsourced.contains(skill.toLowerCase(Locale.ROOT)))
+                .toList();
         return calculateScore(jd, resume, jdSkills, matched);
+    }
+
+    private static Set<String> normalizeUnsourced(List<String> unsourcedFacts) {
+        if (unsourcedFacts == null || unsourcedFacts.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> out = new LinkedHashSet<>();
+        for (String fact : unsourcedFacts) {
+            if (fact != null && !fact.isBlank()) {
+                out.add(fact.trim().toLowerCase(Locale.ROOT));
+            }
+        }
+        return out;
     }
 
     private List<String> detectSkills(String text) {

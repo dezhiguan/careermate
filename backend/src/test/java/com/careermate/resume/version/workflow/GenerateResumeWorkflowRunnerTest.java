@@ -161,7 +161,8 @@ class GenerateResumeWorkflowRunnerTest {
         session.setJdSnapshot("{\"company\":\"腾讯\",\"title\":\"算法工程师\"}");
         when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
         when(resumeContextProvider.getResumeContext(1L)).thenReturn(
-                ResumeContext.builder().available(true).resumeId(10L).content("原始简历").build()
+                ResumeContext.builder().available(true).resumeId(10L)
+                        .content("原始简历\n技术栈：Java / Spring").build()
         );
         when(ragForgeClient.fetchDocumentChunks(1L)).thenReturn(List.of());
         // 修复后：按 docId 精确直取（不再用 searchJd 泛词搜 + 过滤）

@@ -1490,11 +1490,18 @@ async function runExport(format) {
   }
 }
 
-async function copyResumeMarkdown(versionId) {
-  if (!versionId) return
+/**
+ * 复制简历 Markdown。
+ *
+ * 传 versionId 时按 id 拉取；事实校验未通过的草稿没有落库、拿不到 id，
+ * 卡片会直接把整份 Markdown 作为 payload 传进来，这时原样复制即可。
+ */
+async function copyResumeMarkdown(versionIdOrMarkdown) {
+  if (!versionIdOrMarkdown) return
+  const raw = String(versionIdOrMarkdown)
   try {
-    const detail = await getVersion(versionId)
-    const text = detail?.contentMarkdown || ''
+    const isMarkdown = raw.includes('\n') || raw.startsWith('#')
+    const text = isMarkdown ? raw : ((await getVersion(raw))?.contentMarkdown || '')
     await navigator.clipboard.writeText(text)
   } catch (e) {
     globalError.value = e?.message || '复制失败'

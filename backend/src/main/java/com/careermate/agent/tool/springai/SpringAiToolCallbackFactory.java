@@ -57,6 +57,10 @@ public class SpringAiToolCallbackFactory {
         }
         return registry.listDefinitions().stream()
                 .filter(AgentToolDefinition::isEnabled)
+                // 本轮意图路由已经执行过的工具不再挂给模型：否则同一个动作会被执行两次
+                // （路由一次 + function-calling 一次），写入类工具直接落两条重复数据。
+                // 路由那次的结果已经拼进 system prompt，模型据此作答即可，无需自己再调。
+                .filter(definition -> !baseContext.alreadyExecuted(definition.getName()))
                 .filter(definition -> isSupported(definition, baseContext))
                 .map(definition -> toCallback(definition, baseContext))
                 .toList();

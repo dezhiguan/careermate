@@ -22,6 +22,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.Map;
 
 @Component
+@lombok.extern.slf4j.Slf4j
 public class AuthGatewayClient {
 
     private static final String TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
@@ -122,6 +123,9 @@ public class AuthGatewayClient {
         } catch (HttpStatusCodeException ex) {
             throw toBizException(ex);
         } catch (Exception ex) {
+            // 原来这里把异常整个吞掉，只剩一句「认证服务不可用」，线上偶发 500 时既看不出是
+            // 连接超时、读超时还是 TLS 握手失败，也没有 path 可定位——留痕后才谈得上排查。
+            log.warn("auth-gateway 调用失败 path=/auth/captcha: {}", ex.toString());
             throw new BizException(ErrorCode.INTERNAL_ERROR.getCode(), "认证服务不可用");
         }
     }
@@ -154,6 +158,9 @@ public class AuthGatewayClient {
         } catch (HttpStatusCodeException ex) {
             throw toBizException(ex);
         } catch (Exception ex) {
+            // 原来这里把异常整个吞掉，只剩一句「认证服务不可用」，线上偶发 500 时既看不出是
+            // 连接超时、读超时还是 TLS 握手失败，也没有 path 可定位——留痕后才谈得上排查。
+            log.warn("auth-gateway 调用失败 path={}: {}", path, ex.toString());
             throw new BizException(ErrorCode.INTERNAL_ERROR.getCode(), "认证服务不可用");
         }
     }
@@ -248,6 +255,9 @@ public class AuthGatewayClient {
         } catch (HttpStatusCodeException ex) {
             throw toBizException(ex);
         } catch (Exception ex) {
+            // 原来这里把异常整个吞掉，只剩一句「认证服务不可用」，线上偶发 500 时既看不出是
+            // 连接超时、读超时还是 TLS 握手失败，也没有 path 可定位——留痕后才谈得上排查。
+            log.warn("auth-gateway 调用失败 path={}: {}", path, ex.toString());
             throw new BizException(ErrorCode.INTERNAL_ERROR.getCode(), "认证服务不可用");
         }
     }

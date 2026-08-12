@@ -8,6 +8,9 @@ import com.careermate.pipeline.dto.ApplicationVO;
 import com.careermate.pipeline.dto.CreateApplicationRequest;
 import com.careermate.pipeline.dto.SaveJobRequest;
 import com.careermate.pipeline.dto.SavedJobVO;
+import com.careermate.common.support.JdDocIds;
+import com.careermate.opportunity.dto.OpportunityDetailVO;
+import com.careermate.opportunity.service.OpportunityService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,10 +29,24 @@ public class SavedJobService {
 
     private final SavedJobMapper savedJobMapper;
     private final PipelineService pipelineService;
+    private final OpportunityService opportunityService;
 
-    public SavedJobService(SavedJobMapper savedJobMapper, PipelineService pipelineService) {
+    public SavedJobService(SavedJobMapper savedJobMapper,
+                           PipelineService pipelineService,
+                           OpportunityService opportunityService) {
         this.savedJobMapper = savedJobMapper;
         this.pipelineService = pipelineService;
+        this.opportunityService = opportunityService;
+    }
+
+    /** 回填用的 JD 查询：查不到就算了，绝不能让收藏这个动作本身失败。 */
+    private OpportunityDetailVO loadJdQuietly(Long userId, Long jdDocId) {
+        try {
+            return opportunityService.detail(userId, JdDocIds.format(jdDocId));
+        } catch (RuntimeException e) {
+            log.info("收藏回填 JD 信息失败 jdDocId={}: {}", jdDocId, e.getMessage());
+            return null;
+        }
     }
 
     /** 暂存区列表（最近收藏在前）。 */
@@ -56,11 +73,23 @@ public class SavedJobService {
         if (existing != null) {
             return toVO(existing);
         }
+        String company = trimTo(request.getCompany(), 128);
+        String roleTitle = trimTo(request.getRoleTitle(), 200);
+        // 只给 jdDocId 也要能存出一条可读记录：调用方（Agent 工具、MCP、第三方）未必带上公司和岗位名，
+        // 缺了就按 jdDocId 回查 JD 补齐。此前直接存 null，收藏页只剩一张空白卡片。
+        if (company == null || roleTitle == null) {
+            OpportunityDetailVO jd = loadJdQuietly(userId, jdDocId);
+            if (jd != null) {
+                company = company != null ? company : trimTo(jd.company(), 128);
+                roleTitle = roleTitle != null ? roleTitle : trimTo(jd.title(), 200);
+            }
+        }
+
         SavedJobEntity entity = new SavedJobEntity();
         entity.setUserId(userId);
         entity.setJdDocId(jdDocId);
-        entity.setCompany(trimTo(request.getCompany(), 128));
-        entity.setRoleTitle(trimTo(request.getRoleTitle(), 200));
+        entity.setCompany(company);
+        entity.setRoleTitle(roleTitle);
         entity.setSavedAt(LocalDateTime.now());
         savedJobMapper.insert(entity);
         return toVO(entity);

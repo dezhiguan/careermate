@@ -320,7 +320,10 @@ class GenerateResumeWorkflowRunner {
             if (run.markdown() == null || run.jdContent() == null || run.jdContent().isBlank()) {
                 return null;
             }
-            return jobMatchAnalyzer.scoreResumeAgainstJd(run.markdown(), run.jdContent());
+            return jobMatchAnalyzer.scoreResumeAgainstJd(
+                    run.markdown(),
+                    run.jdContent(),
+                    run.factCheck() == null ? java.util.List.of() : run.factCheck().unsourcedFacts());
         } catch (Exception e) {
             log.warn("computeAiScore failed, sessionId={}, err={}", run.sessionId(), e.getMessage());
             return null;
@@ -335,7 +338,7 @@ class GenerateResumeWorkflowRunner {
         // P2：事实校验未通过 → 出标红「需确认」卡片，不落库、不给下载入口
         if (run.factCheck() != null && run.factCheck().requiresConfirmation()) {
             Map<String, Object> suspectCard = buildFactCheckSuspectCard(
-                    run.versionName(), preview, run.factCheck().unsourcedFacts());
+                    run.versionName(), preview, run.factCheck().unsourcedFacts(), run.markdown());
             run.setCard(suspectCard);
             workspaceSessionRepository.appendMessage(
                     run.userId(),
@@ -602,7 +605,7 @@ class GenerateResumeWorkflowRunner {
 
     /** 事实校验未通过时的「需确认」卡片——标红列出疑似无出处项，不带下载入口（未落库）。 */
     static Map<String, Object> buildFactCheckSuspectCard(
-            String versionName, String preview, List<String> unsourcedFacts) {
+            String versionName, String preview, List<String> unsourcedFacts, String fullMarkdown) {
         Map<String, Object> card = new LinkedHashMap<>();
         card.put("type", "RESUME_FACT_CHECK");
         card.put("title", "简历已生成，有几处想和你确认一下");
@@ -610,10 +613,16 @@ class GenerateResumeWorkflowRunner {
         card.put("previewMarkdown", preview);
         card.put("severity", "warning");
         card.put("unsourcedFacts", unsourcedFacts == null ? List.of() : List.copyOf(unsourcedFacts));
-        card.put("actions", List.of(
-                Map.of("label", "去修改这几处", "action", "NAVIGATE", "payload", "/mine/resume"),
-                Map.of("label", "重新生成", "action", "REGENERATE_RESUME", "payload", versionName)
-        ));
+        // 草稿不落库，但不能让用户白等三十多秒后什么都拿不到：给一个「复制草稿」出口，
+        // 让他能把内容取走自己删改。此前只有「去修改」和「重新生成」，重新生成大概率还会编，
+        // 用户实际上被困在原地。
+        List<Map<String, Object>> actions = new java.util.ArrayList<>();
+        actions.add(Map.of("label", "去修改这几处", "action", "NAVIGATE", "payload", "/mine/resume"));
+        if (fullMarkdown != null && !fullMarkdown.isBlank()) {
+            actions.add(Map.of("label", "复制草稿", "action", "COPY_MARKDOWN", "payload", fullMarkdown));
+        }
+        actions.add(Map.of("label", "重新生成", "action", "REGENERATE_RESUME", "payload", versionName));
+        card.put("actions", List.copyOf(actions));
         return card;
     }
 

@@ -263,6 +263,8 @@ public class AgentStreamService {
 
             ChatRequest chatRequest;
             String systemPrompt;
+            // 本轮已由意图路由执行掉的工具，稍后从 function-calling 回调里摘掉，避免重复执行
+            java.util.Set<String> executedToolNames = new java.util.LinkedHashSet<>();
             if (agentKernelProperties.isEnabled()) {
                 phaseStart = System.currentTimeMillis();
                 AgentRunResult runResult = agentKernelService.prepareRun(
@@ -275,6 +277,12 @@ public class AgentStreamService {
                 );
                 chatRequest = runResult.getChatRequest();
                 systemPrompt = runResult.getSystemPrompt();
+                if (runResult.getToolResults() != null) {
+                    runResult.getToolResults().stream()
+                            .map(AgentToolResult::getToolName)
+                            .filter(java.util.Objects::nonNull)
+                            .forEach(executedToolNames::add);
+                }
                 logPhase(sessionId, "kernel_prepare_run", phaseStart);
             } else {
                 chatRequest = prepareLegacyRun(userId, sessionId, request.getMessage(), pathDecision.mode());
@@ -386,6 +394,7 @@ public class AgentStreamService {
                                     .userId(userId)
                                     .sessionId(sessionId)
                                     .userMessage(request.getMessage())
+                                    .executedToolNames(executedToolNames)
                                     .build();
                             chatClientStreamAdapter.stream(systemPrompt, request.getMessage(), streamToolCtx, streamCallback);
                         } else {

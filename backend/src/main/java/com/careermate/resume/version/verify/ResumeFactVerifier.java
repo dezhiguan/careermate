@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -44,6 +45,36 @@ public class ResumeFactVerifier {
             "\\d+(?:\\.\\d+)?%|\\d+(?:\\.\\d+)?(?:万|亿)(?:元)?|[￥$]\\d+(?:\\.\\d+)?|\\d+(?:\\.\\d+)?倍");
 
     /**
+     * 技术栈词典。
+     *
+     * <p>生成器为了贴合 JD，最爱做的事就是给候选人凭空加技能——实测一位 Java/Go 候选人被写成
+     * 「熟练 TypeScript + Python 双栈，用 TypeScript(Node.js) 构建管理端，Python 做向量预处理与
+     * RAG 文档切片，掌握 FastAPI」，而源简历里这些词一个都没有。这类编造比数字编造更致命：
+     * 面试第一个问题就穿帮。技术名是封闭集合，用词典做确定性比对即可，不需要 LLM。
+     */
+    private static final List<String> TECH_TERMS = List.of(
+            // 语言
+            "Java", "Kotlin", "Scala", "Golang", "Python", "TypeScript", "JavaScript",
+            "Node.js", "C++", "C#", "Rust", "PHP", "Ruby", "Swift", "Objective-C",
+            // 后端框架 / RPC
+            "Spring Boot", "Spring Cloud", "Spring Security", "Dubbo", "MyBatis", "Hibernate",
+            "Netty", "gRPC", "FastAPI", "Django", "Flask", "Express", "Gin",
+            // 前端
+            "React", "Vue", "Angular", "Next.js", "Svelte",
+            // 存储
+            "MySQL", "PostgreSQL", "Oracle", "MongoDB", "Redis", "Elasticsearch",
+            "ClickHouse", "HBase", "Cassandra", "Neo4j", "TiDB", "SQLite",
+            // 消息 / 大数据
+            "Kafka", "RocketMQ", "RabbitMQ", "Pulsar", "Flink", "Spark", "Hadoop", "Hive", "Airflow",
+            // 云原生 / 运维
+            "Docker", "Kubernetes", "K8s", "Istio", "Service Mesh", "Jenkins", "Terraform",
+            "Prometheus", "Grafana", "SkyWalking", "Nginx",
+            // AI / 大模型
+            "LangChain", "LlamaIndex", "RAG", "Milvus", "Qdrant", "Pinecone", "Faiss", "pgvector",
+            "TensorFlow", "PyTorch", "Transformers", "Prompt Engineering",
+            "向量检索", "向量数据库", "知识图谱", "模型微调");
+
+    /**
      * 校验生成版本的强事实是否都能在源文本中找到支撑。
      *
      * @param generatedMarkdown 待校验的生成简历 Markdown
@@ -57,13 +88,16 @@ public class ResumeFactVerifier {
         String haystack = normalize(buildHaystack(sourceText, extraSignals));
         Set<String> facts = extractStrongFacts(generatedMarkdown);
 
+        String haystackCi = haystack.toLowerCase(Locale.ROOT);
         List<String> unsourced = new ArrayList<>();
         for (String fact : facts) {
             String needle = normalize(fact);
             if (needle.isEmpty()) {
                 continue;
             }
-            if (!haystack.contains(needle)) {
+            // 技术名大小写写法不统一（TypeScript/typescript、K8s/k8s），比对一律忽略大小写：
+            // 宁可放过也不能误报——把源简历里真有的技能标成「无出处」会让用户不敢信这个功能。
+            if (!haystackCi.contains(needle.toLowerCase(Locale.ROOT))) {
                 unsourced.add(fact);
             }
         }
@@ -85,7 +119,21 @@ public class ResumeFactVerifier {
         collect(facts, CERT_SUFFIX, text);
         collect(facts, CERT_ACRONYM, text);
         collect(facts, SIGNIFICANT_NUMBER, text);
+        collectTechTerms(facts, text);
         return facts;
+    }
+
+    /** 词典式抽取：生成稿里出现过的技术名都算强事实，逐个回源简历找支撑。 */
+    private static void collectTechTerms(Set<String> sink, String text) {
+        if (text == null) {
+            return;
+        }
+        String hay = normalize(text).toLowerCase(Locale.ROOT);
+        for (String term : TECH_TERMS) {
+            if (hay.contains(normalize(term).toLowerCase(Locale.ROOT))) {
+                sink.add(term);
+            }
+        }
     }
 
     private static void collect(Set<String> sink, Pattern pattern, String text) {

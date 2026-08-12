@@ -535,7 +535,10 @@ public class MarketIntelligenceService {
                                 .build(),
                         ChatMessage.builder().role("user").content(userPrompt).build()
                 ))
-                .temperature(0.3)
+                // 这里干的是「把检索到的行情报告里的分位数抄出来」这件事，不是创作。
+                // 0.3 会让同一画像连续两次查到 p50=24K / 25K、p90=42K / 40K——用户刷新一下
+                // 谈薪锚点就变了，行情页面因此不可信。取 0 让同输入尽量同输出。
+                .temperature(0.0)
                 .build());
         if (response == null || response.getContent() == null || response.getContent().isBlank()) {
             log.warn("Market LLM response empty, type={}", type.getSimpleName());

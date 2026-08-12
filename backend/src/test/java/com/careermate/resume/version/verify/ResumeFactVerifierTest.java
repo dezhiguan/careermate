@@ -1,6 +1,8 @@
 package com.careermate.resume.version.verify;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 
@@ -117,5 +119,30 @@ class ResumeFactVerifierTest {
         String generated = "腾讯科技有限公司；北京大学；PMP；50%。";
         FactCheckResult r = verifier.verify(generated, source);
         assertThat(r.unsourcedFacts()).hasSizeGreaterThanOrEqualTo(3);
+    }
+
+    @Test
+    void 凭空加的技术栈要被判为无出处() {
+        // 线上实测：一位 Java/Go 候选人被写成「熟练 TypeScript + Python 双栈，用 TypeScript(Node.js)
+        // 构建管理端，Python 做向量预处理与 RAG 文档切片，掌握 FastAPI」，而事实校验只报了一个 "200%"。
+        String source = "技术栈：Java/Go + SpringBoot + RocketMQ + PostgreSQL + Docker + Python";
+        String generated = "熟练 TypeScript + Python 双栈，使用 TypeScript(Node.js) 构建管理端服务，"
+                + "Python 用于向量预处理、RAG 文档切片，掌握 FastAPI 框架。";
+
+        FactCheckResult result = new ResumeFactVerifier().verify(generated, source);
+
+        assertTrue(result.requiresConfirmation(), "编造技术栈必须拦下");
+        assertTrue(result.unsourcedFacts().contains("TypeScript"));
+        assertTrue(result.unsourcedFacts().contains("FastAPI"));
+        assertTrue(result.unsourcedFacts().contains("RAG"));
+        assertFalse(result.unsourcedFacts().contains("Python"), "源简历里有的技能不能误报");
+        assertFalse(result.unsourcedFacts().contains("Java"));
+    }
+
+    @Test
+    void 技术栈比对忽略大小写() {
+        FactCheckResult result = new ResumeFactVerifier()
+                .verify("精通 kubernetes 与 postgresql", "技术栈：Kubernetes、PostgreSQL");
+        assertFalse(result.requiresConfirmation(), "只是大小写写法不同，不该报无出处");
     }
 }

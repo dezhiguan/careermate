@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -30,10 +31,28 @@ class InterviewQuestionControllerTest {
         when(service.generateJdAwareQuestions(eq(599L), any(), any())).thenReturn(vo);
 
         InterviewQuestionController controller = new InterviewQuestionController(service);
-        ApiResponse<JdAwareQuestionsVO> response = controller.jdAwareQuestions(599L, null);
+        ApiResponse<JdAwareQuestionsVO> response = controller.jdAwareQuestions("599", null);
 
         assertNotNull(response.getData());
         assertEquals(599L, response.getData().getJdDocId());
         assertTrue(response.getData().isDataAvailable());
+    }
+
+    @Test
+    void jdAwareQuestionsAcceptsDocPrefixedId() {
+        // 机会接口对外返回的是 "doc-599"，把它原样传进来必须能用，不该 400
+        JdAwareQuestionsVO vo = new JdAwareQuestionsVO();
+        vo.setJdDocId(599L);
+        when(service.generateJdAwareQuestions(eq(599L), any(), any())).thenReturn(vo);
+
+        InterviewQuestionController controller = new InterviewQuestionController(service);
+        assertEquals(599L, controller.jdAwareQuestions("doc-599", null).getData().getJdDocId());
+    }
+
+    @Test
+    void jdAwareQuestionsRejectsGarbageId() {
+        InterviewQuestionController controller = new InterviewQuestionController(service);
+        assertThrows(com.careermate.common.exception.BizException.class,
+                () -> controller.jdAwareQuestions("not-an-id", null));
     }
 }

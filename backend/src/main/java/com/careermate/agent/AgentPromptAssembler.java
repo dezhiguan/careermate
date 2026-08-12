@@ -94,6 +94,9 @@ public final class AgentPromptAssembler {
         StringBuilder sb = new StringBuilder(systemPrompt == null ? "" : systemPrompt);
         sb.append("\n\n工具调用结果：\n");
         sb.append("工具：").append(toolResult.getToolName()).append('\n');
+        // 状态必须单独成行且醒目。此前失败只体现在「结果摘要：工具执行失败」这一句里，
+        // 模型会略过它继续输出「已创建成功」，用户据此以为动作已完成，实际什么都没发生。
+        sb.append("执行状态：").append(toolResult.isSuccess() ? "成功" : "失败").append('\n');
         sb.append("结果摘要：").append(toolResult.getSummary()).append('\n');
         if (toolResult.getData() != null && !toolResult.getData().isEmpty()) {
             sb.append("结构化数据：\n");
@@ -101,8 +104,13 @@ public final class AgentPromptAssembler {
                 sb.append("- ").append(entry.getKey()).append("：").append(entry.getValue()).append('\n');
             }
         }
-        if (!toolResult.isSuccess() && toolResult.getErrorMessage() != null) {
-            sb.append("错误：").append(toolResult.getErrorMessage()).append('\n');
+        if (!toolResult.isSuccess()) {
+            if (toolResult.getErrorMessage() != null) {
+                sb.append("错误：").append(toolResult.getErrorMessage()).append('\n');
+            }
+            sb.append("【本轮强制约束】上面这次工具执行失败了，动作并没有发生。你必须如实告诉用户没有成功、"
+                    + "为什么失败、以及需要用户补充什么才能重试。严禁输出「已创建」「已完成」「已启动」「成功」"
+                    + "之类表示动作已完成的措辞。\n");
         }
         return sb.toString();
     }

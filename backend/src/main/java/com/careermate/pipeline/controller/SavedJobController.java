@@ -1,6 +1,7 @@
 package com.careermate.pipeline.controller;
 
 import com.careermate.common.api.ApiResponse;
+import com.careermate.common.support.JdDocIds;
 import com.careermate.pipeline.dto.ApplicationVO;
 import com.careermate.pipeline.dto.SaveJobRequest;
 import com.careermate.pipeline.dto.SavedJobVO;
@@ -43,14 +44,14 @@ public class SavedJobController {
 
     /** 取消收藏（按 jdDocId）。 */
     @DeleteMapping("/{jdDocId}")
-    public ApiResponse<Void> remove(@PathVariable Long jdDocId) {
-        savedJobService.removeByJd(CurrentUserContext.getUserId(), jdDocId);
+    public ApiResponse<Void> remove(@PathVariable String jdDocId) {
+        savedJobService.removeByJd(CurrentUserContext.getUserId(), JdDocIds.parse(jdDocId));
         return ApiResponse.success();
     }
 
     /** 一键转为机会（进看板 + 移出暂存区）。 */
     @PostMapping("/{jdDocId}/promote")
-    public ApiResponse<ApplicationVO> promote(@PathVariable Long jdDocId) {
-        return ApiResponse.success(savedJobService.promote(CurrentUserContext.getUserId(), jdDocId));
+    public ApiResponse<ApplicationVO> promote(@PathVariable String jdDocId) {
+        return ApiResponse.success(savedJobService.promote(CurrentUserContext.getUserId(), JdDocIds.parse(jdDocId)));
     }
 }

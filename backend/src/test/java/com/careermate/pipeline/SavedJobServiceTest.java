@@ -34,12 +34,14 @@ class SavedJobServiceTest {
     private SavedJobMapper mapper;
     @Mock
     private PipelineService pipelineService;
+    @Mock
+    private com.careermate.opportunity.service.OpportunityService opportunityService;
 
     private SavedJobService service;
 
     @BeforeEach
     void setUp() {
-        service = new SavedJobService(mapper, pipelineService);
+        service = new SavedJobService(mapper, pipelineService, opportunityService);
     }
 
     @Test

@@ -187,10 +187,15 @@ class GenerateResumeFromJdWorkflowTest {
     @Test
     void buildFactCheckSuspectCardListsUnsourcedFacts() {
         var card = GenerateResumeWorkflowRunner.buildFactCheckSuspectCard(
-                "针对腾讯", "预览内容", List.of("阿里巴巴集团", "50%"));
+                "针对腾讯", "预览内容", List.of("阿里巴巴集团", "50%"), "# 完整草稿\n正文");
         assertEquals("RESUME_FACT_CHECK", card.get("type"));
         assertEquals("warning", card.get("severity"));
         assertEquals(List.of("阿里巴巴集团", "50%"), card.get("unsourcedFacts"));
+        // 草稿未落库，必须留一个「复制草稿」出口，别让用户白等一场什么都拿不到
+        @SuppressWarnings("unchecked")
+        var actions = (List<java.util.Map<String, Object>>) card.get("actions");
+        assertTrue(actions.stream().anyMatch(a -> "COPY_MARKDOWN".equals(a.get("action"))
+                && String.valueOf(a.get("payload")).contains("完整草稿")));
     }
 
     @Test
@@ -206,7 +211,8 @@ class GenerateResumeFromJdWorkflowTest {
         AgentSessionEntity session = jdSession();
         when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
         when(resumeContextProvider.getResumeContext(1L)).thenReturn(
-                ResumeContext.builder().available(true).resumeId(10L).content("原始简历").build()
+                ResumeContext.builder().available(true).resumeId(10L)
+                        .content("原始简历\n技术栈：Java / Spring / MySQL").build()
         );
         when(ragForgeClient.fetchDocumentChunks(1L)).thenReturn(List.of());
         when(ragForgeClient.searchJdByDocId(eq(1L), eq(50))).thenReturn(List.of());
@@ -710,7 +716,8 @@ class GenerateResumeFromJdWorkflowTest {
         AgentSessionEntity session = jdSession();
         when(workspaceSessionRepository.requireSession(1L, "WS-abc")).thenReturn(session);
         when(resumeContextProvider.getResumeContext(1L)).thenReturn(
-                ResumeContext.builder().available(true).resumeId(10L).content("原始简历").build()
+                ResumeContext.builder().available(true).resumeId(10L)
+                        .content("原始简历\n技术栈：Java / Spring / MySQL").build()
         );
         when(ragForgeClient.fetchDocumentChunks(1L)).thenReturn(List.of());
         when(ragForgeClient.searchJdByDocId(eq(1L), eq(50))).thenReturn(List.of(
