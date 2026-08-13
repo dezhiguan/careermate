@@ -3,6 +3,7 @@ package com.careermate.market.service;
 import com.careermate.agent.tool.rag.RagRetrieveRequest;
 import com.careermate.agent.tool.rag.RagRetrieveResult;
 import com.careermate.agent.tool.rag.RagRetrieveScene;
+import com.careermate.agent.tool.rag.RagRetrievedChunk;
 import com.careermate.cache.CacheKeys;
 import com.careermate.common.api.CacheMeta;
 import com.careermate.knowledge.KnowledgeRetrievalService;
@@ -15,14 +16,18 @@ import com.careermate.market.MarketPrompts;
 import com.careermate.market.dto.CompanyInsightVO;
 import com.careermate.market.dto.ResumeGapVO;
 import com.careermate.market.dto.SalaryInsightVO;
+import com.careermate.market.dto.SalaryNarrativeVO;
 import com.careermate.market.dto.SkillTrendsVO;
 import com.careermate.market.support.MarketDefaults;
 import com.careermate.market.support.MarketExperience;
+import com.careermate.market.support.SalaryParseSupport;
+import com.careermate.market.support.SalarySamples;
 import com.careermate.market.support.TermMentions;
 import com.careermate.resume.ResumeContext;
 import com.careermate.resume.ResumeContextProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -49,11 +54,19 @@ public class MarketIntelligenceService {
     private static final String FALLBACK_SUMMARY = "暂时无法获取市场数据，请稍后再试";
     private static final String NO_DATA = "暂无数据";
     private static final Pattern JSON_BLOCK = Pattern.compile("\\{[\\s\\S]*\\}");
+    /** 达到此样本量才由后端直接算分位；不足则退回 LLM 估算。 */
+    private static final int MIN_SALARY_SAMPLES = 8;
+    /** 达到此样本量才用观测区间钳制 LLM 估出的分位。 */
+    private static final int MIN_CLAMP_SAMPLES = 3;
     /** 岗位名里的通用词，判定「在招岗位」是否有原文支撑时先剔除，只比对特征词。 */
     private static final Pattern GENERIC_TITLE_WORDS = Pattern.compile(
             "高级|资深|初级|中级|专家|首席|实习|应届|校招|社招|工程师|开发|研发|岗位|岗|senior|junior|engineer|developer");
     /** 岗位名特征词：ASCII 段或中文段，分开取，避免「java后端」整体比对被误杀。 */
     private static final Pattern TITLE_FEATURE = Pattern.compile("[a-z0-9.+#]+|[\\u4e00-\\u9fa5]+");
+    /** 公司名里的通用后缀，比对前先剥掉，让全称能命中语料里的简称。 */
+    private static final Pattern COMPANY_GENERIC_WORDS = Pattern.compile(
+            "股份有限公司|有限责任公司|有限公司|集团|公司|科技|技术|网络|信息|数字|软件|服务|"
+                    + "（[^）]*）|\\([^)]*\\)");
 
     private final KnowledgeRetrievalService knowledgeRetrievalService;
     private final LlmClient llmClient;
@@ -171,8 +184,13 @@ public class MarketIntelligenceService {
                 log.warn("getSalaryInsight: empty rag context, role={}, city={}", role, city);
                 return emptySalaryInsight();
             }
-            String prompt = MarketPrompts.salaryPrompt(role, city, MarketExperience.describe(years), context);
-            SalaryInsightVO parsed = parseLlmJson(prompt, SalaryInsightVO.class);
+            String yearsClause = MarketExperience.describe(years);
+            int[] samples = SalarySamples.extractMonthlyYuan(context);
+
+            // 分位是纯算术，样本够就自己算，别让 LLM 估
+            SalaryInsightVO parsed = samples.length >= MIN_SALARY_SAMPLES
+                    ? computedSalaryInsight(role, city, yearsClause, samples, context)
+                    : estimatedSalaryInsight(role, city, yearsClause, samples, context);
             if (parsed == null) {
                 return fallbackSalaryInsight();
             }
@@ -276,9 +294,12 @@ public class MarketIntelligenceService {
                             .topK(10)
                             .build()
             ));
+            // 向量检索按语义相似度召回，同一批 chunk 里混着别家公司的 JD（实测查腾讯与查华为
+            // 会命中同一条岗位）。公司情报必须只看真正提到该公司的片段，否则等于张冠李戴。
+            ragResult = retainChunksMentioning(ragResult, safeCompany);
             String context = toContextText(ragResult);
             if (context.isBlank()) {
-                log.warn("getCompanyInsight: empty rag context, company={}", safeCompany);
+                log.warn("getCompanyInsight: no chunk mentions the company, company={}", safeCompany);
                 return fallbackCompanyInsight(safeCompany);
             }
             String prompt = MarketPrompts.companyPrompt(safeCompany, context);
@@ -395,6 +416,122 @@ public class MarketIntelligenceService {
     }
 
     /**
+     * 只保留正文或文件名里真正提到该公司的 chunk。
+     *
+     * <p>公司名先剥掉「有限公司/股份/科技/集团」等通用后缀再比对，让用户输入的全称
+     * （「腾讯科技（深圳）有限公司」）也能命中语料里的简称（「腾讯」）。
+     */
+    static RagRetrieveResult retainChunksMentioning(RagRetrieveResult ragResult, String company) {
+        if (ragResult == null || ragResult.getChunks() == null || ragResult.getChunks().isEmpty()) {
+            return ragResult;
+        }
+        String needle = companyCore(company);
+        if (needle.isBlank()) {
+            return ragResult;
+        }
+        List<RagRetrievedChunk> kept = ragResult.getChunks().stream()
+                .filter(chunk -> TermMentions.appearsIn(TermMentions.haystack(chunk.getContent()), needle)
+                        || TermMentions.appearsIn(TermMentions.haystack(chunk.getFileName()), needle))
+                .toList();
+        if (kept.size() == ragResult.getChunks().size()) {
+            return ragResult;
+        }
+        log.info("company insight: filtered chunks by company, company={}, kept={}/{}",
+                company, kept.size(), ragResult.getChunks().size());
+        return RagRetrieveResult.builder()
+                .success(ragResult.isSuccess())
+                .query(ragResult.getQuery())
+                .scene(ragResult.getScene())
+                .chunks(kept)
+                .fallbackUsed(ragResult.isFallbackUsed())
+                .errorCode(ragResult.getErrorCode())
+                .latencyMs(ragResult.getLatencyMs())
+                .build();
+    }
+
+    /** 剥掉公司名里的通用后缀，得到用于比对的核心词。剥完过短则退回原名。 */
+    private static String companyCore(String company) {
+        if (company == null || company.isBlank()) {
+            return "";
+        }
+        String core = COMPANY_GENERIC_WORDS.matcher(company.trim()).replaceAll("").trim();
+        return core.length() >= 2 ? core : company.trim();
+    }
+
+    /** 样本够多：P25/P50/P75/P90 由真实薪资样本算出，LLM 只补趋势与文案。 */
+    private SalaryInsightVO computedSalaryInsight(
+            String role, String city, String yearsClause, int[] samples, String context) {
+        String[] quantiles = {
+                SalaryParseSupport.formatYuanToK(SalarySamples.percentile(samples, 0.25)),
+                SalaryParseSupport.formatYuanToK(SalarySamples.percentile(samples, 0.50)),
+                SalaryParseSupport.formatYuanToK(SalarySamples.percentile(samples, 0.75)),
+                SalaryParseSupport.formatYuanToK(SalarySamples.percentile(samples, 0.90)),
+        };
+        SalaryInsightVO vo = new SalaryInsightVO();
+        vo.setP25(quantiles[0]);
+        vo.setP50(quantiles[1]);
+        vo.setP75(quantiles[2]);
+        vo.setP90(quantiles[3]);
+
+        SalaryNarrativeVO narrative = parseLlmJson(
+                MarketPrompts.salaryNarrativePrompt(
+                        role, city, yearsClause, samples.length, quantiles, context),
+                SalaryNarrativeVO.class);
+        if (narrative == null) {
+            // 文案拿不到不影响分位——数字本身是确定的
+            log.warn("salary narrative unavailable, keep computed quantiles, role={}, city={}", role, city);
+            vo.setTrend(NO_DATA);
+            vo.setAiSummary("");
+            return vo;
+        }
+        vo.setTrend(defaultText(narrative.trend(), NO_DATA));
+        vo.setAiSummary(narrative.aiSummary() == null ? "" : narrative.aiSummary());
+        return vo;
+    }
+
+    /**
+     * 样本不足：仍由 LLM 估算分位，但估出来的值必须落在原文出现过的薪资区间内。
+     *
+     * <p>样本 ≥ {@link #MIN_CLAMP_SAMPLES} 时超界即钳到边界——真实值不可能落在观测范围之外；
+     * 再少就只记日志不改数，样本太少时边界本身也不可信。
+     */
+    private SalaryInsightVO estimatedSalaryInsight(
+            String role, String city, String yearsClause, int[] samples, String context) {
+        SalaryInsightVO parsed = parseLlmJson(
+                MarketPrompts.salaryPrompt(role, city, yearsClause, context), SalaryInsightVO.class);
+        if (parsed == null) {
+            return null;
+        }
+        if (samples.length < MIN_CLAMP_SAMPLES) {
+            log.warn("salary quantiles unvalidated, too few samples in context: role={}, city={}, samples={}",
+                    role, city, samples.length);
+            return parsed;
+        }
+        int min = samples[0];
+        int max = samples[samples.length - 1];
+        parsed.setP25(clampToObserved(parsed.getP25(), min, max, "P25", role, city));
+        parsed.setP50(clampToObserved(parsed.getP50(), min, max, "P50", role, city));
+        parsed.setP75(clampToObserved(parsed.getP75(), min, max, "P75", role, city));
+        parsed.setP90(clampToObserved(parsed.getP90(), min, max, "P90", role, city));
+        return parsed;
+    }
+
+    private static String clampToObserved(
+            String value, int min, int max, String label, String role, String city) {
+        int yuan = SalaryParseSupport.parseToYuan(value);
+        if (yuan == SalaryParseSupport.UNPARSEABLE) {
+            return value;
+        }
+        int clamped = Math.min(Math.max(yuan, min), max);
+        if (clamped != yuan) {
+            log.warn("salary {} out of observed range, clamped: role={}, city={}, llm={}, observed=[{},{}]",
+                    label, role, city, value, min, max);
+            return SalaryParseSupport.formatYuanToK(clamped);
+        }
+        return value;
+    }
+
+    /**
      * 简历差距的原文支撑校验。
      *
      * <p>hasSkills / missingSkills 的语义本身就是集合关系，可以确定性校验，不必信 LLM：
@@ -435,6 +572,7 @@ public class MarketIntelligenceService {
         if (vo == null || context == null || context.isBlank()) {
             return;
         }
+        dedupeScaleAndStage(vo);
         String jd = TermMentions.haystack(context);
 
         vo.setTechStack(groundedTerms(vo.getTechStack(),
@@ -446,6 +584,30 @@ public class MarketIntelligenceService {
                 title -> jobTitleGrounded(jd, title),
                 title -> log.warn("company insight: drop unsupported currentJd, company={}, title={}",
                         vo.getCompanyName(), title)));
+    }
+
+    /**
+     * scale 只留体量档位，stage 只留融资/上市阶段。
+     *
+     * <p>模型常把两者拼在一起（scale=「大厂 / 上市公司」、stage=「上市」），展示出来是
+     * 「大厂 / 上市公司 / 上市」，同一件事说两遍。prompt 已约束，这里再兜一层。
+     */
+    private static void dedupeScaleAndStage(CompanyInsightVO vo) {
+        String scale = vo.getScale();
+        if (scale == null || scale.isBlank() || !scale.contains("/")) {
+            return;
+        }
+        String stage = vo.getStage() == null ? "" : vo.getStage().trim();
+        List<String> parts = Arrays.stream(scale.split("/"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .filter(s -> stage.isBlank() || (!s.contains(stage) && !stage.contains(s)))
+                .toList();
+        if (parts.isEmpty()) {
+            return;
+        }
+        // 只保留第一个体量描述，并列项本身就是冗余
+        vo.setScale(parts.get(0));
     }
 
     /**

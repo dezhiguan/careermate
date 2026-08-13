@@ -21,6 +21,26 @@ public final class MarketPrompts {
             {"p25":"","p50":"","p75":"","p90":"","trend":"","aiSummary":""}
             """;
 
+    /** 分位已由样本算出时，LLM 只负责趋势与结论文案，不再估算数字。 */
+    private static final String SALARY_NARRATIVE_PROMPT = """
+            你是薪资分析专家。以下 P25/P50/P75/P90 已由 %s 在 %s 地区、%s 的真实招聘薪资样本
+            （共 %d 条）统计得出，是确定的事实，不得修改、不得给出其它数字。
+
+            P25=%s  P50=%s  P75=%s  P90=%s
+
+            要求：
+            1. trend：判断当前市场薪资趋势，只能是：上涨/稳中有升/平稳/下降
+            2. aiSummary 不超过 80 字，只能引用上面给定的分位数字
+            3. aiSummary 必须与上述经验口径完全一致：若口径为「全经验段（不限工作年限）」，
+               则不得写成任何具体年限区间
+
+            JD 数据：
+            %s
+
+            只输出以下格式的 JSON，不要任何其他文字：
+            {"trend":"","aiSummary":""}
+            """;
+
     private static final String SKILL_TRENDS_PROMPT = """
             你是技术市场分析专家。根据以下 JD 数据，分析 %s 岗位的技能需求热度。
             要求：
@@ -62,8 +82,9 @@ public final class MarketPrompts {
     private static final String COMPANY_PROMPT = """
             你是公司研究专家。根据以下 JD 数据，分析 %s 公司的基本情况。
             要求：
-            1. scale：公司规模（如"大厂 / 上市公司"、"中型企业"）
-            2. stage：融资阶段（如"上市"、"D轮"、"未知"）
+            1. scale：只写体量档位，四选一：大厂 / 中型企业 / 小型企业 / 初创公司。
+               不要在这里写融资或上市状态，那是 stage 的内容
+            2. stage：只写融资或上市阶段，如"上市"、"D轮"、"未融资"；JD 数据里无依据就写"未知"
             3. techStack：从 JD 中提取该公司使用的技术栈（最多 8 个），必须在 JD 原文中原样出现
             4. currentJds：从 JD 中提取该公司当前在招的岗位名称（最多 5 个），以原文岗位名为准
             5. 不得凭常识补全 JD 里没有的技术栈或岗位
@@ -85,6 +106,19 @@ public final class MarketPrompts {
      */
     public static String salaryPrompt(String role, String city, String yearsClause, String jdContext) {
         return String.format(SALARY_PROMPT, role, city, yearsClause, jdContext);
+    }
+
+    /** @param quantiles 依次为 P25/P50/P75/P90 的展示值（如「25K」） */
+    public static String salaryNarrativePrompt(
+            String role,
+            String city,
+            String yearsClause,
+            int sampleCount,
+            String[] quantiles,
+            String jdContext
+    ) {
+        return String.format(SALARY_NARRATIVE_PROMPT, role, city, yearsClause, sampleCount,
+                quantiles[0], quantiles[1], quantiles[2], quantiles[3], jdContext);
     }
 
     public static String skillTrendsPrompt(String role, String jdContext) {

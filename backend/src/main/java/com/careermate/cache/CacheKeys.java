@@ -9,8 +9,9 @@ public final class CacheKeys {
         return "opportunity:list:" + part(city) + ":" + part(role) + ":" + part(years) + ":" + part(keyword);
     }
 
+    /** v2：分位改由真实薪资样本统计得出，v1 缓存里是 LLM 估的值，弃用。 */
     public static String marketSalary(String city, String role, String years) {
-        return "market:salary:" + part(city) + ":" + part(role) + ":" + part(years);
+        return "market:salary:v2:" + part(city) + ":" + part(role) + ":" + part(years);
     }
 
     /**

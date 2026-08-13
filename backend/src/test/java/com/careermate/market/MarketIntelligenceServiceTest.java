@@ -232,6 +232,117 @@ class MarketIntelligenceServiceTest {
     }
 
     @Test
+    void salaryQuantilesAreComputedFromSamplesNotEstimatedByLlm() {
+        // 语料里 10 条明确薪资，分位应由后端算出；LLM 只被要求给 trend/aiSummary
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(marketResultWithContent(
+                "A 10K B 12K C 14K D 16K E 18K F 20K G 22K H 24K I 26K J 28K"));
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"trend":"平稳","aiSummary":"广州 Java 后端全经验段中位 19K"}
+                """).build());
+
+        SalaryInsightVO result = service.getSalaryInsight("Java后端", "广州", "不限");
+
+        assertEquals("15K", result.getP25());   // 插值落在 14K 与 16K 之间 → 14.5K
+        assertEquals("19K", result.getP50());
+        assertEquals("24K", result.getP75());
+        assertEquals("26K", result.getP90());
+        assertEquals("平稳", result.getTrend());
+
+        ArgumentCaptor<ChatRequest> chatCaptor = ArgumentCaptor.forClass(ChatRequest.class);
+        verify(llmClient).chat(chatCaptor.capture());
+        String prompt = chatCaptor.getValue().getMessages().get(1).getContent();
+        assertTrue(prompt.contains("P50=19K"), "分位应作为既定事实喂给 LLM");
+        assertTrue(prompt.contains("不得修改"), prompt.lines().findFirst().orElse(""));
+    }
+
+    @Test
+    void computedQuantilesSurviveLlmNarrativeFailure() {
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(marketResultWithContent(
+                "A 10K B 12K C 14K D 16K E 18K F 20K G 22K H 24K I 26K J 28K"));
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("网络异常").build());
+
+        SalaryInsightVO result = service.getSalaryInsight("Java后端", "广州", "不限");
+
+        // 文案拿不到不影响分位——数字本身是确定的，不该整体降级成「暂无数据」
+        assertEquals("19K", result.getP50());
+        assertEquals(NO_DATA, result.getTrend());
+    }
+
+    @Test
+    void estimatedQuantileOutsideObservedRangeIsClampedBack() {
+        // 样本不足 8 条走 LLM 估算，但 80K 远超原文观测上限 30K，属编造
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(
+                marketResultWithContent("A 20K B 25K C 30K"));
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"p25":"22K","p50":"26K","p75":"80K","p90":"90K","trend":"上涨","aiSummary":"—"}
+                """).build());
+
+        SalaryInsightVO result = service.getSalaryInsight("Java后端", "广州", "不限");
+
+        assertEquals("22K", result.getP25());
+        assertEquals("26K", result.getP50());
+        assertEquals("30K", result.getP75());
+        assertEquals("30K", result.getP90());
+    }
+
+    @Test
+    void companyInsightOnlyReadsChunksMentioningThatCompany() {
+        // 向量检索把别家公司的 JD 也召回了，必须先按公司过滤再交给 LLM
+        RagRetrieveResult mixed = RagRetrieveResult.builder()
+                .success(true)
+                .query("华为")
+                .scene(RagRetrieveScene.COMPANY)
+                .chunks(List.of(
+                        RagRetrievedChunk.builder().content("华为 在招 通信软件 岗位 Java")
+                                .contentPreview("华为").citation("COMPANY@a.md")
+                                .chunkType(RagRetrieverChunkType.COMPANY).fileName("a.md").score(0.9).build(),
+                        RagRetrievedChunk.builder().content("腾讯 在招 全栈工程师 Vue")
+                                .contentPreview("腾讯").citation("COMPANY@b.md")
+                                .chunkType(RagRetrieverChunkType.COMPANY).fileName("b.md").score(0.88).build()))
+                .latencyMs(5L)
+                .build();
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(mixed);
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"companyName":"华为","scale":"大厂","stage":"未上市","techStack":["Java"],
+                 "currentJds":[],"aiSummary":"—"}
+                """).build());
+
+        service.getCompanyInsight("华为科技有限公司");
+
+        ArgumentCaptor<ChatRequest> chatCaptor = ArgumentCaptor.forClass(ChatRequest.class);
+        verify(llmClient).chat(chatCaptor.capture());
+        String prompt = chatCaptor.getValue().getMessages().get(1).getContent();
+        assertTrue(prompt.contains("华为"), prompt);
+        assertFalse(prompt.contains("腾讯"), "别家公司的 JD 不得进入本公司情报的上下文");
+    }
+
+    @Test
+    void companyInsightFallsBackWhenNoChunkMentionsTheCompany() {
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(
+                companyResultWithContent("腾讯 在招 全栈工程师"));
+
+        CompanyInsightVO result = service.getCompanyInsight("某不存在的公司");
+
+        assertEquals(NO_DATA, result.getScale());
+        assertTrue(result.getTechStack().isEmpty());
+        verify(llmClient, never()).chat(any());
+    }
+
+    @Test
+    void companyScaleDropsStageDuplicatedInIt() {
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(sampleCompanyResult());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"companyName":"腾讯","scale":"大厂 / 上市公司","stage":"上市",
+                 "techStack":["Java"],"currentJds":[],"aiSummary":"—"}
+                """).build());
+
+        CompanyInsightVO result = service.getCompanyInsight("腾讯");
+
+        assertEquals("大厂", result.getScale());
+        assertEquals("上市", result.getStage());
+    }
+
+    @Test
     void skillTrendsRetrievesFromJdKbNotSalaryReportKb() {
         // 薪资行情库正文是「公司名 + 薪资表」，查它会把企业名当成技能；技术栈只在岗位 JD 库里
         when(knowledgeRetrievalService.retrieve(any())).thenReturn(
