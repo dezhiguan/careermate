@@ -31,4 +31,27 @@ class IntentRouterKeywordFloorTest {
         Optional<AgentToolRouter.RoutedTool> routed = router.route("我这个方向在广州大概能拿多少薪资？");
         assertTrue(routed.isPresent(), "薪资类提问必须走工具，不能让模型自己编数字");
     }
+
+    @Test
+    void 问薪资走谈薪工具而不是泛化检索() {
+        // rag_retriever 返回的是薪资报告原文，模型自己从里面「读」分位数，读出 P50=32k；
+        // get_salary_guidance 返回的是算好的分位与锚点（接口实为 18K）。同一个问题给出两套
+        // 数字，而用户是要拿这个去谈薪的，所以薪资类提问必须优先命中谈薪工具。
+        for (String q : new String[]{
+                "我这个方向在广州大概能拿多少薪资？",
+                "这个岗位的薪资水平怎么样",
+                "我期望 38k 合理吗，怎么谈"}) {
+            Optional<AgentToolRouter.RoutedTool> routed = router.route(q);
+            assertTrue(routed.isPresent(), q);
+            assertEquals("get_salary_guidance", routed.get().toolName(), q);
+        }
+    }
+
+    @Test
+    void 泛问市场行情仍走检索() {
+        // 不是询价，别把要全景的问题也吃进谈薪工具
+        Optional<AgentToolRouter.RoutedTool> routed = router.route("现在的就业市场行情怎么样？");
+        assertTrue(routed.isPresent());
+        assertEquals("rag_retriever", routed.get().toolName());
+    }
 }

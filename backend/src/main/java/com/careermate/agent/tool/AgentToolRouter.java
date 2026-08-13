@@ -21,6 +21,10 @@ public class AgentToolRouter {
     private static final String TOOL_CREATE_CAREER_TASK = "create_career_task";
     private static final String TOOL_MARK_CAREER_TASK_DONE = "mark_career_task_done";
     private static final String TOOL_RAG_RETRIEVER = "rag_retriever";
+    private static final String TOOL_GET_SALARY_GUIDANCE = "get_salary_guidance";
+
+    /** 「38k」「20-30K」这类薪资数额写法。 */
+    private static final Pattern SALARY_AMOUNT = Pattern.compile("\\d+\\s*[kK千万](?![a-z])");
     private static final String TOOL_SEARCH_KNOWLEDGE_BASE = "search_knowledge_base";
     private static final String TOOL_GENERATE_RESUME_FROM_JD = "generate_resume_from_jd";
 
@@ -68,6 +72,14 @@ public class AgentToolRouter {
         if (containsAny(lower, "求职进展", "看板", "当前状态", "看一下求职")) {
             return Optional.of(new RoutedTool(TOOL_GET_DASHBOARD_OVERVIEW, Map.of()));
         }
+        // 薪资/谈薪必须排在 rag_retriever 之前。
+        // 「我这个方向在广州能拿多少薪资」会同时命中两条规则，此前被泛化检索截胡：
+        // rag_retriever 返回的是薪资报告原文，模型自己从里面「读」分位数，读出 P50=32k，
+        // 而 get_salary_guidance 返回的是按规则算好的 p25/p50/p75/p90 与谈判锚点（接口实为 18K）。
+        // 同一个问题给用户两套数字，而他是要拿这个数字去谈薪的。
+        if (shouldRouteSalaryGuidance(lower)) {
+            return Optional.of(new RoutedTool(TOOL_GET_SALARY_GUIDANCE, Map.of()));
+        }
         if (shouldRouteRagRetriever(lower, text)) {
             return Optional.of(new RoutedTool(TOOL_RAG_RETRIEVER, buildRagRetrieverArgs(text)));
         }
@@ -76,6 +88,22 @@ public class AgentToolRouter {
             return Optional.of(new RoutedTool(TOOL_SEARCH_KNOWLEDGE_BASE, Map.of()));
         }
         return Optional.empty();
+    }
+
+    /**
+     * 是否该走谈薪工具。
+     *
+     * <p>限定在「薪资/谈薪/待遇」这类明确询价的语境，避免把「市场行情怎么样」这种泛问也吃掉——
+     * 那类问题该走检索给全景，只有问到具体能拿多少、怎么谈时才需要确定性的分位与锚点。
+     */
+    private boolean shouldRouteSalaryGuidance(String lower) {
+        // 「我期望 38k 合理吗」这类不带「薪资」二字、直接说数额的问法也很常见
+        boolean aboutPay = containsAny(lower, "薪资", "薪水", "工资", "待遇", "谈薪", "package", "年包", "月薪", "offer 谈")
+                || SALARY_AMOUNT.matcher(lower).find();
+        if (!aboutPay) {
+            return false;
+        }
+        return containsAny(lower, "多少", "几k", "水平", "范围", "区间", "行情", "怎么谈", "谈判", "锚点", "合理", "高不高", "值多少");
     }
 
     private boolean shouldRouteRagRetriever(String lower, String text) {

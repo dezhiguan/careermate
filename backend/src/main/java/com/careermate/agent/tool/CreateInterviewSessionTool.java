@@ -7,11 +7,15 @@ import com.careermate.interview.dto.InterviewQuestionResponse;
 import com.careermate.interview.dto.InterviewSessionDetailResponse;
 import org.springframework.stereotype.Component;
 
+import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
 public class CreateInterviewSessionTool implements AgentTool {
+
+    /** 创建后几秒内视为「本次新建」，更早的说明是复用了已存在的未完成训练。 */
+    private static final long REUSE_THRESHOLD_SECONDS = 30;
 
     private final InterviewPracticeService interviewPracticeService;
 
@@ -66,7 +70,13 @@ public class CreateInterviewSessionTool implements AgentTool {
             // 用户被要求自行跳转到另一个页面才能开始，线上 95% 的训练因此一题未答。
             InterviewQuestionResponse first = firstPendingQuestion(session);
 
+            // 这个工具是幂等的：已有未完成的训练就直接返回它，不新建。此前结果里看不出这点，
+            // 模型一律说成「已成功创建」，用户点进去却是昨天那场没答完的——得让它知道是复用。
+            boolean reused = session.getCreatedAt() != null
+                    && session.getCreatedAt().isBefore(OffsetDateTime.now().minusSeconds(REUSE_THRESHOLD_SECONDS));
+
             Map<String, Object> data = new LinkedHashMap<>();
+            data.put("reused", reused);
             data.put("sessionId", session.getId());
             data.put("title", session.getTitle());
             data.put("totalQuestions", session.getTotalQuestions());
@@ -79,9 +89,12 @@ public class CreateInterviewSessionTool implements AgentTool {
                 data.put("firstQuestionText", first.getQuestionText());
             }
 
+            String head = reused
+                    ? "你已有一场未完成的面试训练（这次是继续，没有新建）："
+                    : "已新建面试训练：";
             String message = first == null
-                    ? "已准备好面试训练：" + session.getTitle()
-                    : "已准备好面试训练：" + session.getTitle() + "。先来第 1 题（共 "
+                    ? head + session.getTitle()
+                    : head + session.getTitle() + "。先来第 1 题（共 "
                             + session.getTotalQuestions() + " 题）：\n\n" + first.getQuestionText()
                             + "\n\n直接在这里作答即可，答完我再给下一题。";
             return AgentToolResult.success(name(), message, data);
