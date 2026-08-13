@@ -22,8 +22,9 @@ class PromptTemplateRegistryTest {
     }
 
     @Test
-    void manifestDefaultActiveVersionIsV1ForResumeGenerate() {
-        assertEquals("v1", registry.getManifestActiveVersion("resume-generate-from-jd"));
+    void manifestDefaultActiveVersionForResumeGenerate() {
+        // v4 起把反编造约束从「不许虚构经历」扩到技术栈与指标数字，见 ResumeGenerationPromptGuardTest
+        assertEquals("v4", registry.getManifestActiveVersion("resume-generate-from-jd"));
     }
 
     @Test
@@ -45,7 +46,7 @@ class PromptTemplateRegistryTest {
 
         PromptRenderResult result = service.render("resume-generate-from-jd");
 
-        assertEquals("v1", result.version());
+        assertEquals("v4", result.version());
         assertFalse(result.content().contains("模板 v2"));
     }
 
