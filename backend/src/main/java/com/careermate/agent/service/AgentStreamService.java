@@ -653,8 +653,12 @@ public class AgentStreamService {
                 systemPrompt = AgentPromptAssembler.appendSpecialistResult(systemPrompt, sr);
             }
         }
-        if (AgentPromptAssembler.shouldRunLegacyToolFallback(specialistBlocked, specialistResults)) {
-            AgentToolResult toolResult = executeRoutedToolIfAny(userId, sessionId, userMessage);
+        // 与 AgentKernelService 同一处理：专家产的是文本，不落库也不查接口，不能替代动作。
+        // 确定性关键词命中（用户用了明确措辞要求执行）就无视专家结果照常执行工具。
+        var deterministic = intentRecognizer.routeByKeyword(userMessage);
+        if (AgentPromptAssembler.shouldRunLegacyToolFallback(specialistBlocked, specialistResults)
+                || deterministic.isPresent()) {
+            AgentToolResult toolResult = executeRoutedToolIfAny(userId, sessionId, userMessage, deterministic);
             if (toolResult != null) {
                 systemPrompt = AgentPromptAssembler.appendToolResult(systemPrompt, toolResult);
             }
@@ -784,7 +788,9 @@ public class AgentStreamService {
         sseEmitterService.complete(sessionId);
     }
 
-    private AgentToolResult executeRoutedToolIfAny(Long userId, String sessionId, String userMessage) {
+    private AgentToolResult executeRoutedToolIfAny(
+            Long userId, String sessionId, String userMessage,
+            java.util.Optional<com.careermate.agent.tool.AgentToolRouter.RoutedTool> preRouted) {
         return agentTracing.call(
                 "agent.route_tool",
                 userId,
@@ -792,7 +798,8 @@ public class AgentStreamService {
                 null,
                 null,
                 null,
-                () -> intentRecognizer.route(userMessage)
+                // 关键词已明确命中时直接用它，不必再为同一句话多花一次 LLM 意图识别
+                () -> preRouted.or(() -> intentRecognizer.route(userMessage))
                 .map(routed -> {
                     String toolName = routed.toolName();
                     Map<String, Object> startData = Map.of(

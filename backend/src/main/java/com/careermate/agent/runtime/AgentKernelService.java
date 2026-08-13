@@ -215,8 +215,15 @@ public class AgentKernelService {
                 systemPrompt = AgentPromptAssembler.appendSpecialistResult(systemPrompt, specialistResult);
             }
         }
-        if (AgentPromptAssembler.shouldRunLegacyToolFallback(specialistBlocked, specialistResults)) {
-            AgentToolResult toolResult = executeRoutedToolIfAny(userId, sessionId, userMessage, sink);
+        // 专家 Agent 产出「可用结果」曾经会把工具执行整个抑制掉，于是用户说「帮我创建一次模拟
+        // 面试训练」，面试专家写了一段关于面试题的文字就算完事——训练一条没建，模型却回复
+        // 「已成功创建」；问薪资同理，市场专家写一段分析，真实行情接口从未被查，数字全靠编。
+        // 专家产的是文本，不落库也不查接口，不能替代动作。只要确定性关键词命中（用户用了明确
+        // 措辞要求执行），就无视专家结果照常执行工具。
+        var deterministic = intentRecognizer.routeByKeyword(userMessage);
+        if (AgentPromptAssembler.shouldRunLegacyToolFallback(specialistBlocked, specialistResults)
+                || deterministic.isPresent()) {
+            AgentToolResult toolResult = executeRoutedToolIfAny(userId, sessionId, userMessage, sink, deterministic);
             if (toolResult != null) {
                 toolResults.add(toolResult);
                 systemPrompt = AgentPromptAssembler.appendToolResult(systemPrompt, toolResult);
@@ -264,7 +271,8 @@ public class AgentKernelService {
             Long userId,
             String sessionId,
             String userMessage,
-            AgentEventSink sink
+            AgentEventSink sink,
+            java.util.Optional<com.careermate.agent.tool.AgentToolRouter.RoutedTool> preRouted
     ) {
         return agentTracing.call(
                 "agent.route_tool",
@@ -273,7 +281,8 @@ public class AgentKernelService {
                 null,
                 null,
                 null,
-                () -> intentRecognizer.route(userMessage)
+                // 关键词已经明确命中时直接用它，不必再为同一句话多花一次 LLM 意图识别
+                () -> preRouted.or(() -> intentRecognizer.route(userMessage))
                         .map(routed -> {
                             String toolName = routed.toolName();
                             emit(sink, AgentEvent.of(AgentKernelEventTypes.TOOL_START, Map.of(

@@ -74,6 +74,20 @@ public class AgentLlmIntentRecognizer {
         }
     }
 
+    /**
+     * 只走确定性关键词规则，不调用 LLM。
+     *
+     * <p>给调用方一个「这句话是不是明确要求执行某个动作」的廉价判据：命中说明用户用了
+     * 「创建面试训练」「查薪资行情」这类显式措辞，此时无论专家 Agent 产出了什么文本，
+     * 都必须真的把工具执行掉——专家写的是文字，不落库也不查真实接口。
+     */
+    public Optional<AgentToolRouter.RoutedTool> routeByKeyword(String userMessage) {
+        if (userMessage == null || userMessage.isBlank()) {
+            return Optional.empty();
+        }
+        return fallbackRouter.route(userMessage);
+    }
+
     private Optional<AgentToolRouter.RoutedTool> routeByLlm(String userMessage) throws Exception {
         String text = userMessage.length() > 1000
             ? userMessage.substring(0, 1000) + "..."
