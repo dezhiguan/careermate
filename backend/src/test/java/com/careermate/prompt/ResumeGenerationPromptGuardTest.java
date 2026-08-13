@@ -37,5 +37,8 @@ class ResumeGenerationPromptGuardTest {
         assertTrue(prompt.contains("数字") || prompt.contains("百分比"), "必须约束指标数字不得新造");
         assertTrue(prompt.contains("不是") && prompt.contains("对齐"),
                 "必须说清「对齐 JD」不等于把 JD 要求搬进简历");
+        // 不能给「熟悉 X 生态」这类留余地的写法开口子：校验器是按技术名出现与否判定的，
+        // 提示词一旦放行，模型就会照着写，然后整份稿子被拦下不落库——两边必须对齐。
+        assertTrue(prompt.contains("一个字都不要出现"), "缺失技术必须整份留白，不得留半开的口子");
     }
 }
