@@ -282,16 +282,20 @@ public class MarketIntelligenceService {
                 return fallbackCompanyInsight("");
             }
             String safeCompany = company.trim();
+            // 检索用剥掉通用后缀的核心词：带「科技（深圳）有限公司」这类噪声的全称会稀释向量，
+            // 实测「腾讯」召回充足而「腾讯科技（深圳）有限公司」几乎召不到本公司片段。
+            String core = companyCore(safeCompany);
+            // topK 放大一档：召回后要按公司过滤掉大部分片段，原来的 20/10 过滤完常常不够喂 LLM
             RagRetrieveResult ragResult = knowledgeRetrievalService.retrieveMerged(List.of(
                     RagRetrieveRequest.builder()
-                            .query(safeCompany + " 公司 技术栈 规模")
+                            .query(core + " 公司 技术栈 规模")
                             .scene(RagRetrieveScene.COMPANY)
-                            .topK(20)
+                            .topK(50)
                             .build(),
                     RagRetrieveRequest.builder()
-                            .query(safeCompany + " 岗位 招聘")
+                            .query(core + " 岗位 招聘")
                             .scene(RagRetrieveScene.COMPANY)
-                            .topK(10)
+                            .topK(30)
                             .build()
             ));
             // 向量检索按语义相似度召回，同一批 chunk 里混着别家公司的 JD（实测查腾讯与查华为

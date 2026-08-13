@@ -317,6 +317,25 @@ class MarketIntelligenceServiceTest {
     }
 
     @Test
+    void companyRetrievalUsesStrippedCoreNameNotNoisyFullName() {
+        when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(
+                companyResultWithContent("腾讯 在招 后台开发 Java"));
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content("""
+                {"companyName":"腾讯","scale":"大厂","stage":"上市","techStack":["Java"],
+                 "currentJds":[],"aiSummary":"—"}
+                """).build());
+
+        service.getCompanyInsight("腾讯科技（深圳）有限公司");
+
+        ArgumentCaptor<List<RagRetrieveRequest>> captor = ArgumentCaptor.forClass(List.class);
+        verify(knowledgeRetrievalService).retrieveMerged(captor.capture());
+        for (RagRetrieveRequest request : captor.getValue()) {
+            assertTrue(request.getQuery().startsWith("腾讯 "), request.getQuery());
+            assertFalse(request.getQuery().contains("有限公司"), request.getQuery());
+        }
+    }
+
+    @Test
     void companyInsightFallsBackWhenNoChunkMentionsTheCompany() {
         when(knowledgeRetrievalService.retrieveMerged(any())).thenReturn(
                 companyResultWithContent("腾讯 在招 全栈工程师"));
