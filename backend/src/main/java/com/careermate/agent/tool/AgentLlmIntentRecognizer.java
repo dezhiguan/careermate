@@ -105,7 +105,16 @@ public class AgentLlmIntentRecognizer {
             : node.path("toolName").asText(null);
 
         if (toolName == null || toolName.equals("null") || toolName.isBlank()) {
-            return Optional.empty();
+            // LLM 说「不需要工具」时仍要过一遍关键词路由，不能直接放弃：
+            // 关键词规则只认「创建面试 / 面试训练 / 生成面试」这类显式动词，判定保守但可靠，
+            // 而 LLM 会漏。实测「帮我创建一次模拟面试训练」被 LLM 判为无需工具，于是什么都没建，
+            // 模型却照样回复「已成功创建面试训练」——用户切到面试页才发现是空的。
+            // 确定性规则应当是底线，而不是只在 LLM 调用出错时才可达的兜底。
+            Optional<AgentToolRouter.RoutedTool> byKeyword = fallbackRouter.route(userMessage);
+            if (byKeyword.isPresent()) {
+                log.info("LLM 判定无需工具，但关键词命中 {}，按关键词执行", byKeyword.get().toolName());
+            }
+            return byKeyword;
         }
 
         if (!toolRegistry.knownToolNames().contains(toolName)) {
