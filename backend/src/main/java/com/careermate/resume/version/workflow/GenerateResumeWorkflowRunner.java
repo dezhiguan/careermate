@@ -37,6 +37,11 @@ import java.util.stream.Collectors;
 class GenerateResumeWorkflowRunner {
 
     static final String RESUME_PROMPT_ID = "resume-generate-from-jd";
+
+    /** 定向修复用的系统提示：只删不写，避免修复本身又引入新的编造。 */
+    private static final String REPAIR_SYSTEM_PROMPT =
+            "你是简历校对员。你的唯一任务是按要求删除指定内容，绝不新增、改写或润色任何其他部分。"
+                    + "只输出修改后的简历 Markdown 正文，不要输出任何说明文字、JSON 或代码块围栏。";
     private static final int JD_SEARCH_TOP_K = 50;
     private static final int PREVIEW_MAX = 300;
     static final String RESUME_GENERATED_CARD_TITLE = "简历已生成";
@@ -252,8 +257,78 @@ class GenerateResumeWorkflowRunner {
         run.setOptimizationNotes(meta.changes());
         // P2 确定性事实校验 Gate：LLM 判断之外的字符串级兜底
         run.setFactCheck(runFactCheck(markdown, run.resumeContext()));
+        // 校验没过就带着确切的违规词表回灌一次做定向删除，别让整份稿子白生成
+        repairUnsourcedOnce(run);
         // #P0-1 Writer-Critic 复核接线：对生成稿做一次 LLM 自我批判（可观测，不阻断）
-        runCriticReview(run.jdContent(), markdown);
+        runCriticReview(run.jdContent(), run.markdown());
+    }
+
+    /**
+     * 事实校验未过时的一次定向修复。
+     *
+     * <p>靠提示词约束模型「别编技术栈」是打地鼠：禁掉「具备快速补位 X 的基础」，它就换成
+     * 「具备 X 类框架落地基础」，每加一条禁令只能少编一两个词。而事实校验已经<b>确定性地</b>
+     * 算出了违规词表，把这份词表回灌回去做定向删除，目标是确切的词而不是模糊的规则，一轮即可收敛。
+     *
+     * <p>只做一轮，且只在校验未过时触发：命中时多一次 LLM 往返（该路径 ~40s → ~55s），
+     * 换整份稿子能落库。修完仍不干净就保留改善后的版本继续出确认卡片——总比原样退回强。
+     * 全程 fail-open：修复本身出任何问题都退回原稿，绝不让它把已经生成好的内容弄丢。
+     */
+    private void repairUnsourcedOnce(GenerateResumeWorkflowRun run) {
+        var current = run.factCheck();
+        if (current == null || !current.requiresConfirmation()) {
+            return;
+        }
+        List<String> unsourced = current.unsourcedFacts();
+        if (unsourced == null || unsourced.isEmpty()) {
+            // ERROR 态没有词表，无从定向删除
+            return;
+        }
+        try {
+            ChatResponse response = llmClient.chat(ChatRequest.builder()
+                    .messages(List.of(
+                            ChatMessage.builder().role("system").content(REPAIR_SYSTEM_PROMPT).build(),
+                            ChatMessage.builder().role("user")
+                                    .content(buildRepairPrompt(run.markdown(), unsourced)).build()))
+                    .temperature(0.0)
+                    .build());
+            String repaired = response == null ? null : response.getContent();
+            if (repaired == null || repaired.isBlank()) {
+                return;
+            }
+            repaired = GenerateResumeFromJdWorkflow.parseMetaBlock(repaired).markdown().trim();
+            validateMarkdownQuality(repaired);
+
+            var after = runFactCheck(repaired, run.resumeContext());
+            int before = unsourced.size();
+            int now = after.unsourcedFacts() == null ? 0 : after.unsourcedFacts().size();
+            if (now >= before) {
+                log.info("[resume-repair] 未减少无出处项（{} → {}），保留原稿", before, now);
+                return;
+            }
+            run.setMarkdown(repaired);
+            run.setFactCheck(after);
+            log.info("[resume-repair] 无出处项 {} → {}，{}", before, now,
+                    after.requiresConfirmation() ? "仍需确认" : "已通过，可落库");
+        } catch (Exception e) {
+            log.warn("[resume-repair] 修复失败，保留原稿（fail-open）: {}", e.getMessage());
+        }
+    }
+
+    private static String buildRepairPrompt(String markdown, List<String> unsourced) {
+        return """
+                下面这份简历里，以下内容在候选人的原简历中找不到出处，属于凭空添加：
+                %s
+
+                请逐条删除它们，并把依赖它们成立的从句一并删掉或改写成不含该内容的表述。
+                除此之外一个字都不要改：其余段落、措辞、顺序、格式全部原样保留。
+                删除后若某行只剩残句，就整行删掉，不要用别的技术名或数字去填补空缺。
+
+                简历：
+                %s
+                """.formatted(
+                unsourced.stream().map(f -> "- " + f).collect(Collectors.joining("\n")),
+                markdown);
     }
 
     /**
