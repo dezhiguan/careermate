@@ -181,7 +181,7 @@ careermate:
     ltm-kb-id: ${RAGFORGE_LTM_KB_ID:}          # 长期记忆库（用户级隔离靠 docId 过滤）；空则 KB 记忆链路禁用
   prompt:
     active-versions:
-      resume-generate-from-jd: ${RESUME_PROMPT_VERSION:v3}
+      resume-generate-from-jd: ${RESUME_PROMPT_VERSION:v5}
   mcp:
     enabled: ${CAREERMATE_MCP_ENABLED:false}
 

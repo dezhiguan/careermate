@@ -106,7 +106,7 @@ class GenerateResumeWorkflowRunnerTest {
                 eq(GenerateResumeWorkflowStep.GENERATE_RESUME.traceName()),
                 anyString(),
                 argThat(summary -> summary.contains("\"promptId\":\"resume-generate-from-jd\"")
-                        && summary.contains("\"promptVersion\":\"v4\"")),
+                        && summary.contains("\"promptVersion\":\"v5\"")),
                 eq("SUCCESS"), anyLong(), isNull()
         );
     }

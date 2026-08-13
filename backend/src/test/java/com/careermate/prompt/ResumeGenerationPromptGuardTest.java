@@ -1,44 +1,51 @@
 package com.careermate.prompt;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ClassPathResource;
-
-import java.nio.charset.StandardCharsets;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 生效的简历生成提示词必须带反编造硬约束。
+ * 实际生效的简历生成提示词必须带反编造硬约束。
  *
- * <p>此前生效的 v1 只有一句「不许虚构经历」，只覆盖经历、不覆盖技能，而规则①「关键词对齐 JD」
- * 反过来还在推着模型往简历里塞 JD 关键词。线上因此把一位 Java/Go 候选人写成
- * 「熟练 TypeScript + Python 双栈，用 TypeScript(Node.js) 构建管理端，Python 做向量预处理与
- * RAG 文档切片，掌握 FastAPI」——源简历里这些词一个都没有。
+ * <p>此处刻意走 {@link PromptTemplateService#render}，拿的是<b>配置覆盖后</b>真正会送给模型的那一版，
+ * 而不是 prompt-manifest.json 里的 activeVersion。两者可以不一致：
+ * {@code careermate.prompt.active-versions} 的默认值一直把生成提示词钉在某个版本上，
+ * 只改清单不会生效——排查时正是因为只看了清单，误以为线上跑的是另一版，白改了两轮。
  *
- * <p>事实校验能拦下这类编造，但拦下就意味着不落库：护栏挡住了脏水，水龙头没关，
- * 用户等三十多秒只拿到一张「需确认」卡片。所以生成端必须自己守住。
+ * <p>约束本身要防的是：生成器为贴合 JD 给候选人凭空加技能。线上把一位
+ * Java/Go 候选人写成「熟练 TypeScript + Python 双栈，Python 做向量预处理与 RAG 文档切片，
+ * 掌握 FastAPI」，源简历里这些词一个都没有。事实校验能拦下，但拦下就不落库，
+ * 用户等三十多秒只拿到一张「需确认」卡片——所以生成端必须自己守住。
  */
+@SpringBootTest
+@ActiveProfiles("test")
 class ResumeGenerationPromptGuardTest {
 
+    @Autowired
+    private PromptTemplateService promptTemplateService;
+
     @Test
-    void 生效版本必须约束技术栈与数字不得新增() throws Exception {
-        JsonNode manifest = new ObjectMapper().readTree(
-                new ClassPathResource("prompts/prompt-manifest.json").getInputStream());
-        String active = manifest.path("prompts").path("resume-generate-from-jd").path("activeVersion").asText();
+    void 生效版本必须约束技术栈与数字不得新增() {
+        PromptRenderResult rendered = promptTemplateService.render("resume-generate-from-jd");
+        String prompt = rendered.content();
 
-        String prompt = new String(
-                new ClassPathResource("prompts/resume-generate-from-jd/" + active + ".md")
-                        .getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-
-        assertTrue(prompt.contains("技术栈"), "必须点名约束技术栈，仅说「不许虚构经历」不够");
         assertTrue(prompt.contains("源简历"), "必须明确出处只能是源简历");
+        assertTrue(prompt.contains("技术栈"), "必须点名约束技术栈，仅说「不许虚构经历」不够");
+        assertTrue(prompt.contains("一个字都不要出现"),
+                "缺失技术必须整份留白：留「熟悉 X 生态」这类口子，模型就会照写，然后被事实校验整份拦下");
         assertTrue(prompt.contains("数字") || prompt.contains("百分比"), "必须约束指标数字不得新造");
         assertTrue(prompt.contains("不是") && prompt.contains("对齐"),
                 "必须说清「对齐 JD」不等于把 JD 要求搬进简历");
-        // 不能给「熟悉 X 生态」这类留余地的写法开口子：校验器是按技术名出现与否判定的，
-        // 提示词一旦放行，模型就会照着写，然后整份稿子被拦下不落库——两边必须对齐。
-        assertTrue(prompt.contains("一个字都不要出现"), "缺失技术必须整份留白，不得留半开的口子");
+    }
+
+    @Test
+    void 生效版本仍保留既有的meta契约() {
+        // 加护栏不能顺手把 meta 格式改了——anchor / suggestions 是下游解析依赖的
+        String prompt = promptTemplateService.render("resume-generate-from-jd").content();
+        assertTrue(prompt.contains("anchor"), "meta 契约里的 anchor 不能丢");
+        assertTrue(prompt.contains("suggestions"), "meta 契约里的 suggestions 不能丢");
     }
 }
