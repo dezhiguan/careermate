@@ -104,6 +104,14 @@ public final class AgentPromptAssembler {
                 sb.append("- ").append(entry.getKey()).append("：").append(entry.getValue()).append('\n');
             }
         }
+        // 幂等工具复用了已有记录时必须说清楚。约定：工具在 data 里放 reused=true 表示「这次没有新建」。
+        // 此前面试训练工具复用了昨天那场没答完的训练，模型照样回「已成功创建面试训练（5题，当前第1题）」，
+        // 用户点进去才发现是旧的。光把标记放进结构化数据模型不会当回事，得直接给它一句禁令。
+        if (toolResult.isSuccess() && isReused(toolResult)) {
+            sb.append("【本轮强制约束】这次是复用已经存在的记录，并没有新建。表述必须体现这一点"
+                    + "（例如「你已有一条未完成的，我们接着上次继续」），"
+                    + "严禁使用「已创建」「已新建」「已启动」「已为你生成」等表示新产生了一条记录的措辞。\n");
+        }
         if (!toolResult.isSuccess()) {
             if (toolResult.getErrorMessage() != null) {
                 sb.append("错误：").append(toolResult.getErrorMessage()).append('\n');
@@ -113,6 +121,21 @@ public final class AgentPromptAssembler {
                     + "之类表示动作已完成的措辞。\n");
         }
         return sb.toString();
+    }
+
+    /**
+     * 工具是否复用了已有记录。
+     *
+     * <p>约定：幂等工具在结果 {@code data} 里放 {@code reused=true}。放在这里统一识别，
+     * 新增幂等工具只要遵守这个约定就自动获得正确措辞，不必各自去改提示词。
+     */
+    static boolean isReused(AgentToolResult toolResult) {
+        Map<String, Object> data = toolResult.getData();
+        if (data == null) {
+            return false;
+        }
+        return Boolean.TRUE.equals(data.get("reused"))
+                || "true".equalsIgnoreCase(String.valueOf(data.get("reused")));
     }
 
     public static boolean shouldAppendSpecialistResult(
