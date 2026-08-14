@@ -53,6 +53,8 @@ public class CacheConfig {
         configs.put("interview:kb-questions", defaults.entryTtl(Duration.ofHours(12)));
         // 大厂面试风格短期内不变，且这条链路要走 RAG + LLM（实测 7~10s），缓存 24h
         configs.put("interview:company-prep", defaults.entryTtl(Duration.ofHours(24)));
+        // 按 JD 出题要走两次 RAG + 生成 5 道详题的 LLM（实测 32s）。JD 与用户简历短期内不变，缓存 12h
+        configs.put("interview:jd-aware-questions", defaults.entryTtl(Duration.ofHours(12)));
 
         return builder -> builder
                 .cacheDefaults(defaults)

@@ -40,6 +40,7 @@ public class AuthGatewayClient {
     private final SecurityProperties.AuthGateway properties;
     private final ClientAssertionFactory clientAssertionFactory;
     private final RestTemplate restTemplate;
+    private final RestTemplate smsRestTemplate;
     private final ObjectMapper objectMapper;
 
     public AuthGatewayClient(SecurityProperties securityProperties, ClientAssertionFactory clientAssertionFactory, ObjectMapper objectMapper) {
@@ -48,6 +49,9 @@ public class AuthGatewayClient {
         this.objectMapper = objectMapper;
         this.restTemplate = new RestTemplate(
                 PooledHttpClientFactory.create(properties.getTimeoutMs()));
+        // 短信链路多一跳服务商，单独给更长的超时；其余认证调用仍快速失败
+        this.smsRestTemplate = new RestTemplate(
+                PooledHttpClientFactory.create(properties.getSmsTimeoutMs()));
     }
 
     public TokenResponse loginPassword(String account, String password) {
@@ -189,7 +193,7 @@ public class AuthGatewayClient {
     }
 
     public void sendSms(String phone, String scene) {
-        postJson("/auth/sms/send", Map.of("phone", phone, "scene", scene), Map.class);
+        postJson("/auth/sms/send", Map.of("phone", phone, "scene", scene), Map.class, smsRestTemplate);
     }
 
     public ResetInitResponse resetInit(String account) {
@@ -243,14 +247,22 @@ public class AuthGatewayClient {
     }
 
     private <T> T postJson(String path, Object body, Class<T> responseType) {
+        return postJson(path, body, responseType, restTemplate);
+    }
+
+    private <T> T postJson(String path, Object body, Class<T> responseType, RestTemplate template) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        return exchange(path, new HttpEntity<>(body, headers), responseType);
+        return exchange(path, new HttpEntity<>(body, headers), responseType, template);
     }
 
     private <T> T exchange(String path, HttpEntity<?> entity, Class<T> responseType) {
+        return exchange(path, entity, responseType, restTemplate);
+    }
+
+    private <T> T exchange(String path, HttpEntity<?> entity, Class<T> responseType, RestTemplate template) {
         try {
-            ResponseEntity<T> response = restTemplate.postForEntity(properties.getBaseUrl() + path, entity, responseType);
+            ResponseEntity<T> response = template.postForEntity(properties.getBaseUrl() + path, entity, responseType);
             return response.getBody();
         } catch (HttpStatusCodeException ex) {
             throw toBizException(ex);

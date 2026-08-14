@@ -36,6 +36,7 @@ import java.util.regex.Pattern;
 public class InterviewQuestionService {
 
     private static final int MAX_CONTEXT_CHARS = 4000;
+    private static final String JD_AWARE_CACHE = "interview:jd-aware-questions";
     private static final int JD_TOP_K = 50;
     private static final int INTERVIEW_TOP_K = 30;
     private static final String NO_RESUME_HINT =
@@ -50,6 +51,7 @@ public class InterviewQuestionService {
     private final LlmClient llmClient;
     private final ObjectMapper objectMapper;
     private final com.careermate.agent.memory.AgentMemoryService agentMemoryService;
+    private final org.springframework.cache.CacheManager cacheManager;
 
     public InterviewQuestionService(
             KnowledgeRetrievalService knowledgeRetrievalService,
@@ -58,11 +60,59 @@ public class InterviewQuestionService {
             ObjectMapper objectMapper,
             com.careermate.agent.memory.AgentMemoryService agentMemoryService
     ) {
+        this(knowledgeRetrievalService, resumeContextProvider, llmClient, objectMapper, agentMemoryService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public InterviewQuestionService(
+            KnowledgeRetrievalService knowledgeRetrievalService,
+            ResumeContextProvider resumeContextProvider,
+            LlmClient llmClient,
+            ObjectMapper objectMapper,
+            com.careermate.agent.memory.AgentMemoryService agentMemoryService,
+            org.springframework.beans.factory.ObjectProvider<org.springframework.cache.CacheManager> cacheManagerProvider
+    ) {
         this.knowledgeRetrievalService = knowledgeRetrievalService;
         this.resumeContextProvider = resumeContextProvider;
         this.llmClient = llmClient;
         this.objectMapper = objectMapper;
         this.agentMemoryService = agentMemoryService;
+        this.cacheManager = cacheManagerProvider == null ? null : cacheManagerProvider.getIfAvailable();
+    }
+
+    /**
+     * 出题结果缓存读写。
+     *
+     * <p>这条链路要走两次 RAG + 一次生成 5 道详题的 LLM，线上实测 32s——用户点开「按 JD 出题」
+     * 要干等半分钟，同一条 JD 反复看更是每次都重算。JD 内容与用户简历短期内不变，缓存 12 小时。
+     * 读写都静默失败：缓存挂了只是慢，不能让出题这件事本身失败。
+     */
+    private JdAwareQuestionsVO cachedQuestions(String cacheKey) {
+        if (cacheManager == null) {
+            return null;
+        }
+        try {
+            org.springframework.cache.Cache cache = cacheManager.getCache(JD_AWARE_CACHE);
+            return cache == null ? null : cache.get(cacheKey, JdAwareQuestionsVO.class);
+        } catch (Exception e) {
+            log.warn("jd-aware questions cache read failed, key={}, err={}", cacheKey, e.getMessage());
+            return null;
+        }
+    }
+
+    private void cacheQuestions(String cacheKey, JdAwareQuestionsVO value) {
+        if (cacheManager == null || value == null || !value.isDataAvailable()) {
+            // 只缓存真正出到题的结果：把 fallback 写进去，一次抖动就让这条 JD 十二小时都没题
+            return;
+        }
+        try {
+            org.springframework.cache.Cache cache = cacheManager.getCache(JD_AWARE_CACHE);
+            if (cache != null) {
+                cache.put(cacheKey, value);
+            }
+        } catch (Exception e) {
+            log.warn("jd-aware questions cache put failed, key={}, err={}", cacheKey, e.getMessage());
+        }
     }
 
     /** Reflexion：取用户历史模拟面试暴露的弱项，用于针对性出题。无则空串。 */
@@ -115,6 +165,18 @@ public class InterviewQuestionService {
                 return fallback(null);
             }
 
+            String cacheKey = JD_AWARE_CACHE + ":" + jdDocId + ":" + userId + ":"
+                    + (companyName == null ? "" : companyName.trim());
+            JdAwareQuestionsVO cached = cachedQuestions(cacheKey);
+            if (cached != null) {
+                return cached;
+            }
+
+            // 简历、公司情报、历史弱项与 JD 检索互不依赖，先并发发出去，别一条条等
+            var resumeFuture = java.util.concurrent.CompletableFuture.supplyAsync(() -> resolveResumeText(userId));
+            var companyFuture = java.util.concurrent.CompletableFuture.supplyAsync(() -> resolveCompanyContext(companyName));
+            var weaknessFuture = java.util.concurrent.CompletableFuture.supplyAsync(() -> resolveWeaknessContext(userId));
+
             RagRetrieveResult jdResult = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
                     .query("岗位职责 技能要求")
                     .scene(RagRetrieveScene.OPPORTUNITY)
@@ -128,7 +190,7 @@ public class InterviewQuestionService {
             }
             String jdTitle = firstChunkTitle(jdResult);
 
-            String resumeText = resolveResumeText(userId);
+            String resumeText = resumeFuture.join();
 
             RagRetrieveResult interviewResult = knowledgeRetrievalService.retrieve(RagRetrieveRequest.builder()
                     .query(jdTitle + " 面试 高频题 考点")
@@ -137,8 +199,8 @@ public class InterviewQuestionService {
                     .build());
             String interviewContext = toContextText(interviewResult);
 
-            String companyContext = resolveCompanyContext(companyName);
-            String weaknessContext = resolveWeaknessContext(userId);
+            String companyContext = companyFuture.join();
+            String weaknessContext = weaknessFuture.join();
 
             String prompt = InterviewQuestionPrompts.jdAwarePrompt(
                     jdTitle, jdContext, resumeText, interviewContext, companyContext, weaknessContext);
@@ -147,6 +209,7 @@ public class InterviewQuestionService {
                 return fallback(jdDocId);
             }
             parsed.setJdDocId(jdDocId);
+            cacheQuestions(cacheKey, parsed);
             if (parsed.getJdTitle() == null || parsed.getJdTitle().isBlank()) {
                 parsed.setJdTitle(jdTitle);
             }

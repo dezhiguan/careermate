@@ -168,8 +168,15 @@ public class AgentToolRouter {
     private Map<String, Object> buildCreateCareerTaskArgs(String text) {
         Map<String, Object> args = new LinkedHashMap<>();
         String title = extractCreateTaskTitle(text);
-        if (title != null && !title.isBlank()) {
-            args.put("title", title.trim());
+        if (title == null || title.isBlank()) {
+            return args;
+        }
+        // 「明天前整理面试复盘」此前整句都进了标题、dueDate 一直是空的。
+        // 句首的日期短语摘出来单独当参数，标题只留真正的事情。
+        var split = com.careermate.common.support.RelativeDates.splitLeading(title.trim());
+        args.put("title", split.remainder());
+        if (split.phrase() != null) {
+            args.put("dueDate", split.phrase());
         }
         return args;
     }

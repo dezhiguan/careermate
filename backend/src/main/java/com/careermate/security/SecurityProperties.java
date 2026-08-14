@@ -39,5 +39,13 @@ public class SecurityProperties {
         private String refreshCookiePath = "/api/auth";
         private boolean refreshCookieSecure = true;
         private int timeoutMs = 3000;
+        /**
+         * 短信相关调用的超时。
+         *
+         * <p>发验证码是 careermate → 网关 → 短信服务商的三跳，服务商本身常要 1~3 秒，
+         * 用通用的 3 秒封顶必然间歇性超时——线上表现为偶发 500「认证服务不可用」、重试就好。
+         * 其余认证调用（校验 token、登录）仍走短超时，快速失败不受影响。
+         */
+        private int smsTimeoutMs = 12000;
     }
 }

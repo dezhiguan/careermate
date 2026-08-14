@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -53,5 +54,23 @@ class IntentRouterKeywordFloorTest {
         Optional<AgentToolRouter.RoutedTool> routed = router.route("现在的就业市场行情怎么样？");
         assertTrue(routed.isPresent());
         assertEquals("rag_retriever", routed.get().toolName());
+    }
+
+    @Test
+    void 建任务时把句首日期摘成dueDate参数() {
+        // 「明天前整理面试复盘」此前整句都进了标题，dueDate 一直为空
+        Optional<AgentToolRouter.RoutedTool> routed = router.route("帮我创建一个任务：明天前整理面试复盘");
+        assertTrue(routed.isPresent());
+        assertEquals("create_career_task", routed.get().toolName());
+        assertEquals("整理面试复盘", routed.get().args().get("title"));
+        assertEquals("明天", routed.get().args().get("dueDate"));
+    }
+
+    @Test
+    void 没有日期时标题保持原样() {
+        Optional<AgentToolRouter.RoutedTool> routed = router.route("帮我创建一个任务：整理面试复盘");
+        assertTrue(routed.isPresent());
+        assertEquals("整理面试复盘", routed.get().args().get("title"));
+        assertFalse(routed.get().args().containsKey("dueDate"));
     }
 }

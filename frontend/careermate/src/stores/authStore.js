@@ -200,11 +200,17 @@ async function updateProfile(payload) {
 
 function applyUserProfile(user) {
   if (!user) return
-  persistUser({
+  const merged = {
     ...state.currentUser,
     ...user,
     authenticated: state.currentUser?.authenticated ?? true,
-  })
+  }
+  // /home/bootstrap 不再返回头像（内嵌 base64 约 300KB，与 /auth/me 重复下发一遍）。
+  // 它比 /auth/me 后到，直接展开会把已经拿到的头像覆盖成空，所以缺省时保留原值。
+  if (user.avatarUrl == null && state.currentUser?.avatarUrl) {
+    merged.avatarUrl = state.currentUser.avatarUrl
+  }
+  persistUser(merged)
 }
 
 const isAuthenticated = computed(() => !!state.token && !!state.currentUser?.authenticated)

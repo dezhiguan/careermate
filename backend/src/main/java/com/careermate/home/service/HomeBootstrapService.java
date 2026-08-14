@@ -40,7 +40,10 @@ public class HomeBootstrapService {
     @Transactional(readOnly = true)
     public HomeBootstrapResponse bootstrap() {
         Long userId = CurrentUserContext.getUserId();
-        CurrentUserResponse user = authService.currentUser();
+        // 头像是存成 data URL 的内嵌 base64（上限 600KB，实测带完整 EXIF 的 JPEG 约 300KB）。
+        // 首屏 /auth/me 和 /home/bootstrap 都会被调到，各带一份，同一张图下载两遍，
+        // 而 bootstrap 本就是首屏最慢的接口。这里去掉它，头像由 /auth/me 那份提供。
+        CurrentUserResponse user = withoutAvatar(authService.currentUser());
         CareerProfileResponse careerProfile = careerProfileService.getProfile(userId);
         ResumeListItemResponse defaultResume = resumeService.getDefaultActiveResumeItem(userId).orElse(null);
         String mode = defaultResume == null ? "demo" : null;
@@ -55,5 +58,16 @@ public class HomeBootstrapService {
                 .defaultResume(defaultResume)
                 .topOpportunities(opportunities == null ? List.of() : opportunities.items())
                 .build();
+    }
+
+    /** 复制一份不带头像的用户信息，避免污染 authService 返回的对象。 */
+    private static CurrentUserResponse withoutAvatar(CurrentUserResponse user) {
+        if (user == null || user.getAvatarUrl() == null) {
+            return user;
+        }
+        CurrentUserResponse copy = new CurrentUserResponse();
+        org.springframework.beans.BeanUtils.copyProperties(user, copy);
+        copy.setAvatarUrl(null);
+        return copy;
     }
 }
