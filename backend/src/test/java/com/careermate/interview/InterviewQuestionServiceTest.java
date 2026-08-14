@@ -223,4 +223,34 @@ class InterviewQuestionServiceTest {
                 .latencyMs(5L)
                 .build();
     }
+
+    @Test
+    void 出题成功后才写缓存() {
+        // 缓存写入必须排在 setDataAvailable(true) 之后。此前写在它前面，
+        // 「只缓存真出到题的结果」这条判定看到的是还没置位的 false，于是每次都跳过，
+        // 线上表现为同一条 JD 第二次调用照样 35s。
+        org.springframework.cache.Cache cache = org.mockito.Mockito.mock(org.springframework.cache.Cache.class);
+        org.springframework.cache.CacheManager cacheManager =
+                org.mockito.Mockito.mock(org.springframework.cache.CacheManager.class);
+        when(cacheManager.getCache(any())).thenReturn(cache);
+        @SuppressWarnings("unchecked")
+        org.springframework.beans.factory.ObjectProvider<org.springframework.cache.CacheManager> provider =
+                org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(cacheManager);
+
+        InterviewQuestionService cached = new InterviewQuestionService(
+                knowledgeRetrievalService, resumeContextProvider, llmClient, new ObjectMapper(),
+                org.mockito.Mockito.mock(com.careermate.agent.memory.AgentMemoryService.class), provider);
+
+        when(knowledgeRetrievalService.retrieve(any())).thenReturn(sampleJd("字节-后端-JD"));
+        when(resumeContextProvider.getResumeContext(any()))
+                .thenReturn(ResumeContext.builder().available(true).contextText("我的简历：Java 3年").build());
+        when(llmClient.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder().content(
+                "{\"questions\":[{\"questionNo\":1,\"questionText\":\"讲讲你的分布式事务方案\"}]}").build());
+
+        JdAwareQuestionsVO result = cached.generateJdAwareQuestions(599L, 1L, null);
+
+        assertTrue(result.isDataAvailable());
+        org.mockito.Mockito.verify(cache).put(any(), any());
+    }
 }

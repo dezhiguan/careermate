@@ -209,12 +209,15 @@ public class InterviewQuestionService {
                 return fallback(jdDocId);
             }
             parsed.setJdDocId(jdDocId);
-            cacheQuestions(cacheKey, parsed);
             if (parsed.getJdTitle() == null || parsed.getJdTitle().isBlank()) {
                 parsed.setJdTitle(jdTitle);
             }
             parsed.setDataAvailable(true);
             normalizeQuestions(parsed);
+            // 必须放在最后：dataAvailable / jdTitle / 题目归一都补齐之后再写，
+            // 否则 cacheQuestions 的「只缓存真出到题的结果」判定会看到还没置位的 dataAvailable，
+            // 每次都跳过写缓存——线上表现为第二次调用照样 35s。
+            cacheQuestions(cacheKey, parsed);
             return parsed;
         } catch (Exception e) {
             log.warn("generateJdAwareQuestions failed: jdDocId={}, err={}", jdDocId, e.getMessage());
