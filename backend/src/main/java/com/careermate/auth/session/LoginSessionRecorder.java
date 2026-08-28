@@ -68,8 +68,8 @@ public class LoginSessionRecorder {
             session.setLastActive(now);
             session.setCreatedAt(now);
             sessionMapper.insert(session);
-        } catch (RuntimeException ex) {
-            log.warn("record login session failed (non-fatal): {}", ex.getMessage());
+        } catch (Exception ex) {
+            log.warn("record login session failed (non-fatal): {}", ex.toString());
         }
     }
 

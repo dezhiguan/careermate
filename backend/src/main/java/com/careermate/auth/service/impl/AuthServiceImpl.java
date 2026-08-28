@@ -24,6 +24,7 @@ import com.careermate.security.SecurityProperties;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
+@Slf4j
 @Service
 public class AuthServiceImpl implements AuthService {
 
@@ -141,6 +143,9 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /** 与 resolveUserByAccount 共用：判断 account 是否手机号形态。 */
+    private static final String MAINLAND_PHONE_PATTERN = "^1[3-9]\\d{9}$";
+
     // 图形验证码 + 锁定由 auth-gateway 统一负责（阈值 5，与 RAGForge 一致）。
     // CareerMate 本地仅保留失败计数用于"还可以尝试 N 次"的友好提示，不再本地硬锁定，
     // 以免抢在网关图形验证码之前把用户锁死。
@@ -168,7 +173,7 @@ public class AuthServiceImpl implements AuthService {
                     .last("LIMIT 1"));
             if (byEmail != null) return byEmail;
         }
-        if (account.matches("^1[3-9]\\d{9}$")) {
+        if (account.matches(MAINLAND_PHONE_PATTERN)) {
             UserEntity byPhone = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
                     .eq(UserEntity::getPhone, account)
                     .last("LIMIT 1"));
@@ -391,18 +396,18 @@ public class AuthServiceImpl implements AuthService {
         }
         cookieSupport.writeRefreshCookie(tokenResponse.getRefreshToken(), rememberMe);
         long authUserId = jwtTokenProvider.getUserId(tokenResponse.getAccessToken());
-        UserEntity user = localUser != null ? localUser : userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
-                .eq(UserEntity::getAuthUserId, authUserId)
-                .last("LIMIT 1"));
-        if (user != null && !Long.valueOf(authUserId).equals(user.getAuthUserId())) {
-            user.setAuthUserId(authUserId);
-            userMapper.updateById(user);
-        }
+        // 走到这里认证已经成功、refresh cookie 已下发。以下只是本地 users 镜像的解析与同步，
+        // 任何失败都不得让一次已成功的登录返回 5xx——否则用户看到「系统异常」，实际却已处于半登录状态。
+        // 本地按账号名没查到 = 镜像与网关漂移，只有这种情况才需要自愈用户名
+        boolean mirrorMissed = localUser == null;
+        UserEntity user = mirrorMissed ? findLocalUserByAuthUserId(authUserId, account) : localUser;
         if (user != null) {
-            loginSessionRecorder.record(user.getId(), tokenResponse.getAccessToken(), rememberMe, currentHttpRequest());
+            syncLocalMirror(user, authUserId, account, tokenResponse.getAccessToken(), rememberMe, mirrorMissed);
         }
         String username = user != null && StringUtils.hasText(user.getUsername()) ? user.getUsername() : account;
-        String role = user != null && StringUtils.hasText(user.getRole()) ? user.getRole() : jwtTokenProvider.getPlatformRole(tokenResponse.getAccessToken());
+        String role = user != null && StringUtils.hasText(user.getRole())
+                ? user.getRole()
+                : resolvePlatformRole(tokenResponse.getAccessToken(), authUserId);
         boolean onboardingDone = user == null || user.getOnboardingCompletedAt() != null;
         return AuthTokenResponse.builder()
                 .token(tokenResponse.getAccessToken())
@@ -411,11 +416,91 @@ public class AuthServiceImpl implements AuthService {
                 .isNewUser(isNewUser)
                 .onboardingCompleted(onboardingDone)
                 .user(AuthTokenResponse.UserInfo.builder()
-                        .userId(user != null ? user.getId() : authUserId)
+                        .userId(user != null ? user.getId() : Long.valueOf(authUserId))
                         .username(username)
                         .role(role)
                         .build())
                 .build();
+    }
+
+    /** 本地拿不到角色时回落到网关 token 的 platform_role；解析失败按最小权限 USER 放行，不阻断登录。 */
+    private String resolvePlatformRole(String accessToken, long authUserId) {
+        try {
+            return jwtTokenProvider.getPlatformRole(accessToken);
+        } catch (Exception ex) {
+            log.error("解析网关 platform_role 失败，按最小权限 USER 放行 authUserId={}", authUserId, ex);
+            return "USER";
+        }
+    }
+
+    /**
+     * 本地 users 镜像按 auth_user_id 兜底解析。仅在「按账号名查不到本地行」时才会走到——
+     * 中文用户名登录 500 正是这条路径炸的（网关认 auth_users 里的用户名，本地镜像已漂移）。
+     * 失败必须留全栈（这是拿到根因的唯一现场），但不得阻断一次已认证成功的登录。
+     */
+    private UserEntity findLocalUserByAuthUserId(long authUserId, String account) {
+        try {
+            return userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
+                    .eq(UserEntity::getAuthUserId, authUserId)
+                    .last("LIMIT 1"));
+        } catch (Exception ex) {
+            log.error("按 auth_user_id 兜底解析本地用户失败，已按网关身份放行 authUserId={} account={}",
+                    authUserId, account, ex);
+            return null;
+        }
+    }
+
+    /** 登录成功后的本地镜像同步（回填 auth_user_id、记录会话、自愈用户名），整体 best-effort。 */
+    private void syncLocalMirror(UserEntity user, long authUserId, String account, String accessToken,
+                                 boolean rememberMe, boolean mirrorMissed) {
+        try {
+            if (!Long.valueOf(authUserId).equals(user.getAuthUserId())) {
+                user.setAuthUserId(authUserId);
+                userMapper.updateById(user);
+            }
+            loginSessionRecorder.record(user.getId(), accessToken, rememberMe, currentHttpRequest());
+            if (mirrorMissed) {
+                healLocalUsername(user, account);
+            }
+        } catch (Exception ex) {
+            log.error("登录后同步本地用户镜像失败，已按已解析身份放行 authUserId={} account={}",
+                    authUserId, account, ex);
+        }
+    }
+
+    /**
+     * 账号名的权威在 auth-gateway。网关刚用 account 认证通过，若它既非邮箱也非手机号，
+     * 那它就是网关侧的用户名；本地按账号名查不到该行即为漂移，就地自愈，避免下次登录再走兜底路径。
+     * 仅在镜像未命中时调用，正常登录不产生任何额外写入。
+     *
+     * <p>刻意不做两件事：(1) 不用本地用户名正则再校验一遍——本地各写一套校验正是漂移成因；
+     * (2) 不更新 username_updated_at——这是系统同步，不是用户改名，不应占用「30 天改一次」的配额。
+     * 用只带 id + username 的 patch 实体更新，避免整行回写误伤其他列。</p>
+     */
+    private void healLocalUsername(UserEntity user, String account) {
+        try {
+            if (!StringUtils.hasText(account) || account.contains("@") || account.matches(MAINLAND_PHONE_PATTERN)) {
+                return;
+            }
+            if (account.equals(user.getUsername())) {
+                return;
+            }
+            long taken = userMapper.selectCount(new LambdaQueryWrapper<UserEntity>()
+                    .eq(UserEntity::getUsername, account)
+                    .ne(UserEntity::getId, user.getId()));
+            if (taken > 0) {
+                log.warn("本地用户名镜像自愈跳过：账号名已被其他行占用 userId={}", user.getId());
+                return;
+            }
+            UserEntity patch = new UserEntity();
+            patch.setId(user.getId());
+            patch.setUsername(account);
+            userMapper.updateById(patch);
+            user.setUsername(account);
+            log.info("本地用户名镜像自愈完成 userId={}", user.getId());
+        } catch (Exception ex) {
+            log.warn("本地用户名镜像自愈失败（不影响登录） userId={}: {}", user.getId(), ex.toString());
+        }
     }
 
     private boolean existsByUsername(String username) {
