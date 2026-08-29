@@ -435,11 +435,20 @@ public class AuthServiceImpl implements AuthService {
         long authUserId = jwtTokenProvider.getUserId(tokenResponse.getAccessToken());
         // 走到这里认证已经成功、refresh cookie 已下发。以下只是本地 users 镜像的解析与同步，
         // 任何失败都不得让一次已成功的登录返回 5xx——否则用户看到「系统异常」，实际却已处于半登录状态。
-        // 本地按账号名没查到 = 镜像与网关漂移，只有这种情况才需要自愈用户名
-        boolean mirrorMissed = localUser == null;
-        UserEntity user = mirrorMissed ? findLocalUserByAuthUserId(authUserId, account) : localUser;
+        // 身份的唯一权威是网关的 auth_user_id：JwtAuthenticationFilter 每次请求都按它解析本地行，
+        // 登录响应必须用同一把尺子，否则会出现「刚登录显示 A，一刷新变成 B」的分裂观感。
+        UserEntity byAuthUserId = findLocalUserByAuthUserId(authUserId, account);
+        UserEntity user = byAuthUserId != null ? byAuthUserId : localUser;
+        if (byAuthUserId != null && localUser != null && !byAuthUserId.getId().equals(localUser.getId())) {
+            log.error("本地 users 存在重复账号行：account={} 命中 userId={}，但网关身份 auth_user_id={} 属于 userId={}；"
+                            + "已按网关身份放行（与鉴权过滤器一致），重复行需人工合并",
+                    account, localUser.getId(), authUserId, byAuthUserId.getId());
+        }
+        // 按账号名没落到权威行 = 本地镜像漂移，这时才需要自愈用户名
+        boolean mirrorDrifted = localUser == null
+                || (user != null && !user.getId().equals(localUser.getId()));
         if (user != null) {
-            syncLocalMirror(user, authUserId, account, tokenResponse.getAccessToken(), rememberMe, mirrorMissed);
+            syncLocalMirror(user, authUserId, account, tokenResponse.getAccessToken(), rememberMe, mirrorDrifted);
         }
         String username = user != null && StringUtils.hasText(user.getUsername()) ? user.getUsername() : account;
         String role = user != null && StringUtils.hasText(user.getRole())
