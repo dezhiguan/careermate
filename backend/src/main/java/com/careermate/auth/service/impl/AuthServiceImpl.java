@@ -1,6 +1,7 @@
 package com.careermate.auth.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.careermate.audit.AuditActionType;
 import com.careermate.audit.service.AuditService;
 import com.careermate.auth.gateway.AuthGatewayClient;
@@ -25,6 +26,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -206,14 +208,49 @@ public class AuthServiceImpl implements AuthService {
         int count = user.getLoginFailedCount() == null ? 0 : user.getLoginFailedCount();
         count++;
         user.setLoginFailedCount(count);
-        userMapper.updateById(user);
+        // 列级更新：整行回写会把 auth_user_id 等共享身份列一起带上，撞唯一索引就把登录打成 500
+        updateColumns(user, new LambdaUpdateWrapper<UserEntity>()
+                .eq(UserEntity::getId, user.getId())
+                .set(UserEntity::getLoginFailedCount, count));
     }
 
     private void clearLoginFailure(UserEntity user) {
         if (user.getLoginFailedCount() != null && user.getLoginFailedCount() > 0) {
             user.setLoginFailedCount(0);
             user.setLoginLockedUntil(null);
-            userMapper.updateById(user);
+            updateColumns(user, new LambdaUpdateWrapper<UserEntity>()
+                    .eq(UserEntity::getId, user.getId())
+                    .set(UserEntity::getLoginFailedCount, 0)
+                    .set(UserEntity::getLoginLockedUntil, null));
+        }
+    }
+
+    /** 登录失败计数一类的附带写入：只碰指定列，且写不进去也不阻断登录。 */
+    private void updateColumns(UserEntity user, LambdaUpdateWrapper<UserEntity> wrapper) {
+        try {
+            userMapper.update(null, wrapper);
+        } catch (Exception ex) {
+            log.warn("更新用户登录计数失败（不影响登录） userId={}: {}", user.getId(), ex.toString());
+        }
+    }
+
+    /**
+     * 把网关身份回填到本地行。用只带 id + auth_user_id 的列级更新，且**写库成功后才同步内存对象**——
+     * 先改内存再写库，一旦写失败，脏值会被后续 clearLoginFailure 的整行回写再次带去撞唯一索引。
+     *
+     * @return false 表示该 auth_user_id 已被本地另一行占用（重复账号行），调用方应放弃后续同步
+     */
+    private boolean backfillAuthUserId(UserEntity user, long authUserId) {
+        try {
+            userMapper.update(null, new LambdaUpdateWrapper<UserEntity>()
+                    .eq(UserEntity::getId, user.getId())
+                    .set(UserEntity::getAuthUserId, authUserId));
+            user.setAuthUserId(authUserId);
+            return true;
+        } catch (DuplicateKeyException ex) {
+            log.error("本地 users 存在重复账号行：auth_user_id={} 已被另一行占用，当前行 userId={} 无法认领网关身份，"
+                    + "登录已放行但两行数据是分裂的，需人工合并", authUserId, user.getId());
+            return false;
         }
     }
 
@@ -454,9 +491,9 @@ public class AuthServiceImpl implements AuthService {
     private void syncLocalMirror(UserEntity user, long authUserId, String account, String accessToken,
                                  boolean rememberMe, boolean mirrorMissed) {
         try {
-            if (!Long.valueOf(authUserId).equals(user.getAuthUserId())) {
-                user.setAuthUserId(authUserId);
-                userMapper.updateById(user);
+            if (!Long.valueOf(authUserId).equals(user.getAuthUserId()) && !backfillAuthUserId(user, authUserId)) {
+                // 本地存在重复账号行，这一行认领不了网关身份，后续同步一律跳过，避免把脏值带进别的写操作
+                return;
             }
             loginSessionRecorder.record(user.getId(), accessToken, rememberMe, currentHttpRequest());
             if (mirrorMissed) {
