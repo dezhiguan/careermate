@@ -44,11 +44,21 @@ if [[ -f "${SOURCE_REGISTRY}" ]]; then
   fi
 fi
 
-# Import pause sandbox image via Docker when containerd cannot reach docker.io.
-if command -v k3s >/dev/null 2>&1 && command -v docker >/dev/null 2>&1; then
+# Import pause sandbox image when containerd cannot reach docker.io.
+# docker 已于 2026-08 从本机下线（k3s 自带 containerd，本来就零依赖），但二进制还在，
+# 光靠 `command -v docker` 会误判成可用，随后 docker pull 必然失败 + set -e 直接把整次部署打挂。
+# 这里改为：只有守护进程真的连得上才借 docker，否则直接用 containerd 拉；且整段 best-effort——
+# pause 镜像多半早已在本地，拉不到也不该阻断部署。
+if command -v k3s >/dev/null 2>&1; then
   if ! k3s ctr -n k8s.io images ls | grep -q 'rancher/mirrored-pause:3.6'; then
-    docker pull rancher/mirrored-pause:3.6
-    docker save rancher/mirrored-pause:3.6 | k3s ctr -n k8s.io images import -
+    if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+      docker pull rancher/mirrored-pause:3.6 \
+        && docker save rancher/mirrored-pause:3.6 | k3s ctr -n k8s.io images import - \
+        || echo "  WARN: pause image import via docker failed; continuing"
+    else
+      k3s ctr -n k8s.io images pull docker.io/rancher/mirrored-pause:3.6 \
+        || echo "  WARN: pause image pull via containerd failed; continuing"
+    fi
   fi
 fi
 
