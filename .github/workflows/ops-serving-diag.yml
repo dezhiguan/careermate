@@ -119,7 +119,11 @@ jobs:
             echo "(Server3 上没有 auth-gateway pod，网关不在这台机)"
           fi
           echo "========== [S3] auth-gateway-env secret 的 key 名（不取值）=========="
-          ${KUBECTL} -n auth-gateway get secret auth-gateway-env -o go-template='{{range $k,$v := .data}}{{$k}}{{"\n"}}{{end}}' 2>&1 | grep -iE "redis" || echo "(secret 里没有任何 redis 相关 key)"
+          ${KUBECTL} -n auth-gateway get secret auth-gateway-env -o go-template='{{range $k,$v := .data}}{{$k}}={{len $v}}{{"\n"}}{{end}}' 2>&1 | grep -iE "redis" || echo "(secret 里没有任何 redis 相关 key)"
+          echo "  (上面是 key=base64长度；长度 0 即该项为空值)"
+          echo "========== [S3] 网关 pod 内该环境变量是否为空（只打长度）=========="
+          GWP=$(${KUBECTL} -n auth-gateway get pods --no-headers 2>/dev/null | head -1 | awk '{print $1}')
+          ${KUBECTL} -n auth-gateway exec "${GWP}" -- sh -c 'echo "SPRING_DATA_REDIS_PASSWORD len=${#SPRING_DATA_REDIS_PASSWORD}; REDIS_PASSWORD len=${#REDIS_PASSWORD}; HOST=${SPRING_DATA_REDIS_HOST}; PORT=${SPRING_DATA_REDIS_PORT}"' 2>&1 | tail -3
           echo "========== [S3] Redis 相关 key 是否存在 =========="
           echo "========== [S3] auth-gateway 出站调用失败（原始异常）=========="
           ${KUBECTL} -n careermate logs -l app=careermate-backend --since=24h --tail=200000 --all-containers=true 2>/dev/null \
