@@ -125,7 +125,7 @@ public class AuthGatewayClient {
                             org.springframework.http.HttpMethod.GET, new HttpEntity<>(headers), Map.class);
             return response.getBody();
         } catch (HttpStatusCodeException ex) {
-            throw toBizException(ex);
+            throw toBizException(ex, "/auth/captcha");
         } catch (Exception ex) {
             // 原来这里把异常整个吞掉，只剩一句「认证服务不可用」，线上偶发 500 时既看不出是
             // 连接超时、读超时还是 TLS 握手失败，也没有 path 可定位——留痕后才谈得上排查。
@@ -160,7 +160,7 @@ public class AuthGatewayClient {
             return restTemplate.exchange(properties.getBaseUrl() + path, method,
                     new HttpEntity<>(headers), Map.class).getBody();
         } catch (HttpStatusCodeException ex) {
-            throw toBizException(ex);
+            throw toBizException(ex, path);
         } catch (Exception ex) {
             // 原来这里把异常整个吞掉，只剩一句「认证服务不可用」，线上偶发 500 时既看不出是
             // 连接超时、读超时还是 TLS 握手失败，也没有 path 可定位——留痕后才谈得上排查。
@@ -265,7 +265,7 @@ public class AuthGatewayClient {
             ResponseEntity<T> response = template.postForEntity(properties.getBaseUrl() + path, entity, responseType);
             return response.getBody();
         } catch (HttpStatusCodeException ex) {
-            throw toBizException(ex);
+            throw toBizException(ex, path);
         } catch (Exception ex) {
             // 原来这里把异常整个吞掉，只剩一句「认证服务不可用」，线上偶发 500 时既看不出是
             // 连接超时、读超时还是 TLS 握手失败，也没有 path 可定位——留痕后才谈得上排查。
@@ -274,7 +274,23 @@ public class AuthGatewayClient {
         }
     }
 
-    private BizException toBizException(HttpStatusCodeException ex) {
+    /** 网关响应体截断后入日志，避免异常页把日志刷爆。 */
+    private static String abbreviate(String body) {
+        if (body == null) {
+            return "";
+        }
+        String flat = body.replaceAll("\\s+", " ").trim();
+        return flat.length() <= 500 ? flat : flat.substring(0, 500) + "...(truncated)";
+    }
+
+    private BizException toBizException(HttpStatusCodeException ex, String path) {
+        // 网关自身 5xx：friendlyGatewayMessage 会把原始信息抹成一句「认证服务请求失败」，
+        // 而这里原本一行日志都不打——线上只剩一个没有上下文的 500，等于不可诊断。
+        // 4xx 是正常业务结果（密码错、验证码），不记；只记 5xx，且只记响应体不记请求体，避免落密码。
+        if (ex.getStatusCode().is5xxServerError()) {
+            log.error("auth-gateway 返回 {} path={} body={}", ex.getStatusCode().value(), path,
+                    abbreviate(ex.getResponseBodyAsString()));
+        }
         String gatewayCode = null;
         String gatewayMessage = null;
         String captchaImage = null;
