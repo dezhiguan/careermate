@@ -106,6 +106,18 @@ jobs:
           ssh "${SSH_OPTS[@]}" careermate-app 'bash -s' <<'REMOTE'
           set -uo pipefail
           if command -v k3s >/dev/null 2>&1; then KUBECTL="k3s kubectl"; else KUBECTL="kubectl"; fi
+          echo "========== [S3] 全命名空间 pod（找 auth-gateway 在哪）=========="
+          ${KUBECTL} get pods -A -o wide 2>/dev/null | head -40
+          echo "========== [S3] auth-gateway 近 24h ERROR =========="
+          GWNS=$(${KUBECTL} get pods -A --no-headers 2>/dev/null | grep -iE "auth|gateway" | head -1 | awk '{print $1}')
+          GWPOD=$(${KUBECTL} get pods -A --no-headers 2>/dev/null | grep -iE "auth|gateway" | head -1 | awk '{print $2}')
+          if [ -n "${GWNS}" ] && [ -n "${GWPOD}" ]; then
+            echo "found: ns=${GWNS} pod=${GWPOD}"
+            ${KUBECTL} -n "${GWNS}" logs "${GWPOD}" --since=24h --tail=200000 2>/dev/null \
+              | grep -E "ERROR|Exception|Caused by" | tail -60 || echo "(无 ERROR)"
+          else
+            echo "(Server3 上没有 auth-gateway pod，网关不在这台机)"
+          fi
           echo "========== [S3] auth-gateway 出站调用失败（原始异常）=========="
           ${KUBECTL} -n careermate logs -l app=careermate-backend --since=24h --tail=200000 --all-containers=true 2>/dev/null \
             | grep -E "auth-gateway 调用失败|ResourceAccessException|SocketTimeoutException|ConnectTimeoutException|NoHttpResponseException|Connection reset|Read timed out|connect timed out" \
