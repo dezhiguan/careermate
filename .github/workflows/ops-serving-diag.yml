@@ -106,8 +106,11 @@ jobs:
           ssh "${SSH_OPTS[@]}" careermate-app 'bash -s' <<'REMOTE'
           set -uo pipefail
           if command -v k3s >/dev/null 2>&1; then KUBECTL="k3s kubectl"; else KUBECTL="kubectl"; fi
-          echo "========== [S3] 近 30 分钟异常栈 / ERROR =========="
-          ${KUBECTL} -n careermate logs -l app=careermate-backend --since=30m --tail=30000 --all-containers=true 2>/dev/null \
-            | grep -E "ERROR|Exception|Caused by|\sat (com\.careermate|org\.springframework\.jdbc|com\.baomidou)" \
-            | tail -250 || echo "(无)"
+          echo "========== [S3] auth-gateway 出站调用失败（原始异常）=========="
+          ${KUBECTL} -n careermate logs -l app=careermate-backend --since=24h --tail=200000 --all-containers=true 2>/dev/null \
+            | grep -E "auth-gateway 调用失败|ResourceAccessException|SocketTimeoutException|ConnectTimeoutException|NoHttpResponseException|Connection reset|Read timed out|connect timed out" \
+            | tail -60 || echo "(无)"
+          echo "========== [S3] 认证服务请求失败 频次(按小时) =========="
+          ${KUBECTL} -n careermate logs -l app=careermate-backend --since=24h --tail=200000 --all-containers=true 2>/dev/null \
+            | grep -F "认证服务请求失败" | awk '{print $1" "substr($2,1,2)}' | sort | uniq -c | tail -30 || echo "(无)"
           REMOTE
