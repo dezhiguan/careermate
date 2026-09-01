@@ -119,9 +119,8 @@ jobs:
             echo "(Server3 上没有 auth-gateway pod，网关不在这台机)"
           fi
           echo "========== [S3] auth-gateway-env secret 的 key 名（不取值）=========="
-          ${KUBECTL} -n auth-gateway get secret auth-gateway-env -o jsonpath='{range $k,$v := .data}{$k}{"\n"}{end}' 2>/dev/null | sort | grep -iE "redis|host|port" || echo "(读不到)"
+          ${KUBECTL} -n auth-gateway get secret auth-gateway-env -o go-template='{{range $k,$v := .data}}{{$k}}{{"\n"}}{{end}}' 2>&1 | grep -iE "redis" || echo "(secret 里没有任何 redis 相关 key)"
           echo "========== [S3] Redis 相关 key 是否存在 =========="
-          ${KUBECTL} -n auth-gateway get secret auth-gateway-env -o jsonpath='{range $k,$v := .data}{$k}{"\n"}{end}' 2>/dev/null | grep -ci redis | xargs -I{} echo "含 redis 的 key 数量: {}"
           echo "========== [S3] auth-gateway 出站调用失败（原始异常）=========="
           ${KUBECTL} -n careermate logs -l app=careermate-backend --since=24h --tail=200000 --all-containers=true 2>/dev/null \
             | grep -E "auth-gateway 调用失败|ResourceAccessException|SocketTimeoutException|ConnectTimeoutException|NoHttpResponseException|Connection reset|Read timed out|connect timed out" \
