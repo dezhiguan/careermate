@@ -136,12 +136,14 @@ class MobileAuthIntegrationTest {
         when(jwtTokenProvider.getUserId(anyString())).thenAnswer(invocation -> userIdFromToken(invocation.getArgument(0, String.class)));
     }
 
+    /**
+     * 网关身份 auth_user_id 与本地 users.id 毫无关系——本地行只是网关身份的镜像，
+     * 且短信自动注册时本地行尚不存在。夹具按手机号推导一个稳定的网关 id，
+     * 不再把「auth_user_id == 本地 id」这个错误假设写进测试。
+     */
     private Long userIdFromToken(String token) {
         String phone = token.substring(token.indexOf(':') + 1);
-        UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
-                .eq(UserEntity::getPhone, phone)
-                .last("LIMIT 1"));
-        return user.getId();
+        return Long.parseLong(phone);
     }
 
     @Test

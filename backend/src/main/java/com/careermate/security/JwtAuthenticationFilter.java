@@ -4,9 +4,8 @@ import com.careermate.common.api.ApiResponse;
 import com.careermate.common.api.ErrorCode;
 import com.careermate.auth.events.AuthEventService;
 import com.careermate.auth.events.AuthJwtToken;
-import com.careermate.mapper.UserMapper;
+import com.careermate.auth.identity.LocalUserMirror;
 import com.careermate.model.entity.UserEntity;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -30,18 +29,18 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
-    private final UserMapper userMapper;
+    private final LocalUserMirror localUserMirror;
     private final ObjectMapper objectMapper;
     private final AuthEventService authEventService;
 
     public JwtAuthenticationFilter(
             JwtTokenProvider jwtTokenProvider,
-            UserMapper userMapper,
+            LocalUserMirror localUserMirror,
             ObjectMapper objectMapper,
             AuthEventService authEventService
     ) {
         this.jwtTokenProvider = jwtTokenProvider;
-        this.userMapper = userMapper;
+        this.localUserMirror = localUserMirror;
         this.objectMapper = objectMapper;
         this.authEventService = authEventService;
     }
@@ -94,9 +93,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private boolean authenticateUserFromClaims(Claims claims, HttpServletResponse response) throws IOException {
         Long userId = getUserId(claims);
-        UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
-                .eq(UserEntity::getAuthUserId, userId)
-                .last("LIMIT 1"));
+        UserEntity user = localUserMirror.findByAuthUserId(userId);
         if (user == null) {
             writeUnauthorized(response, "用户不存在");
             return false;

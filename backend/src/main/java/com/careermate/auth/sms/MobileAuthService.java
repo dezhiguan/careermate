@@ -9,6 +9,7 @@ import com.careermate.auth.dto.SmsSendRequest;
 import com.careermate.auth.dto.SmsSendResponse;
 import com.careermate.auth.gateway.AuthGatewayClient;
 import com.careermate.auth.gateway.AuthGatewayCookieSupport;
+import com.careermate.auth.identity.LocalUserMirror;
 import com.careermate.common.api.ErrorCode;
 import com.careermate.common.exception.BizException;
 import com.careermate.common.web.ClientIpResolver;
@@ -55,6 +56,7 @@ public class MobileAuthService {
     private final AuthGatewayCookieSupport cookieSupport;
     private final TokenReplayGuard tokenReplayGuard;
     private final com.careermate.auth.session.LoginSessionRecorder loginSessionRecorder;
+    private final LocalUserMirror localUserMirror;
 
     public MobileAuthService(
             SmsAuthRateLimiter smsAuthRateLimiter,
@@ -68,7 +70,8 @@ public class MobileAuthService {
             AuthGatewayClient authGatewayClient,
             AuthGatewayCookieSupport cookieSupport,
             TokenReplayGuard tokenReplayGuard,
-            com.careermate.auth.session.LoginSessionRecorder loginSessionRecorder
+            com.careermate.auth.session.LoginSessionRecorder loginSessionRecorder,
+            LocalUserMirror localUserMirror
     ) {
         this.smsAuthRateLimiter = smsAuthRateLimiter;
         this.smsProperties = smsProperties;
@@ -82,6 +85,7 @@ public class MobileAuthService {
         this.cookieSupport = cookieSupport;
         this.tokenReplayGuard = tokenReplayGuard;
         this.loginSessionRecorder = loginSessionRecorder;
+        this.localUserMirror = localUserMirror;
     }
 
     public SmsSendResponse sendCode(SmsSendRequest request) {
@@ -148,42 +152,29 @@ public class MobileAuthService {
         smsAuthRateLimiter.clearLoginFailure(scene, phoneHash);
         tokenReplayGuard.markChallengeUsed(scene, challengeHash);
 
-        UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
+        // 身份的唯一权威是网关的 auth_user_id（见 LocalUserMirror）：先按它定位本地行，
+        // 手机号只作兜底。否则短信登录用的尺子与鉴权过滤器不同，同一个人会解析到不同的本地行。
+        Long authUserId = jwtTokenProvider.getUserId(tokenResponse.getAccessToken());
+        UserEntity authoritative = localUserMirror.findByAuthUserIdQuietly(authUserId, maskedPhone);
+        UserEntity byPhone = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
                 .eq(UserEntity::getPhone, phone)
                 .last("LIMIT 1"));
 
-        boolean isNewUser;
-        if (user == null) {
+        boolean isNewUser = false;
+        if (authoritative == null && byPhone == null) {
             MobileUserLookup lookup = findOrCreateMobileUser(phone);
-            user = lookup.user();
+            byPhone = lookup.user();
             isNewUser = lookup.newlyCreated();
-        } else {
-            isNewUser = false;
-            if (isMobileLoginBlocked(user)) {
-                auditService.recordFailure(user.getId(), AuditActionType.MOBILE_LOGIN, "USER",
-                        String.valueOf(user.getId()), "user inactive");
-                throw new BizException(ErrorCode.MOBILE_AUTH_INVALID);
-            }
-            if (!Boolean.TRUE.equals(user.getPhoneVerified())) {
-                user.setPhoneVerified(true);
-                user.setPhoneVerifiedAt(OffsetDateTime.now(ZoneOffset.UTC));
-                userMapper.updateById(user);
-            }
         }
+        UserEntity user = localUserMirror.arbitrate(authUserId, maskedPhone, authoritative, byPhone).user();
 
         if (isMobileLoginBlocked(user)) {
             auditService.recordFailure(user.getId(), AuditActionType.MOBILE_LOGIN, "USER",
                     String.valueOf(user.getId()), "user inactive");
             throw new BizException(ErrorCode.MOBILE_AUTH_INVALID);
         }
-        if (isNewUser && !Boolean.TRUE.equals(user.getPhoneVerified())) {
-            user.setPhoneVerified(true);
-            user.setPhoneVerifiedAt(OffsetDateTime.now(ZoneOffset.UTC));
-            userMapper.updateById(user);
-        }
-
-        Long authUserId = jwtTokenProvider.getUserId(tokenResponse.getAccessToken());
-        syncAuthUserId(user, authUserId);
+        markPhoneVerified(user);
+        localUserMirror.claimAuthUserId(user, authUserId);
 
         auditService.recordSuccess(user.getId(), AuditActionType.MOBILE_LOGIN, "USER",
                 String.valueOf(user.getId()),
@@ -270,12 +261,20 @@ public class MobileAuthService {
                 .build();
     }
 
-    private void syncAuthUserId(UserEntity user, Long authUserId) {
-        if (authUserId == null || authUserId.equals(user.getAuthUserId())) {
+    /**
+     * 标记手机号已验证。用列级更新而非整行 {@code updateById}——整行回写会把共享身份列
+     * {@code auth_user_id} 一并带上，撞唯一索引就把一次已认证成功的登录打成 500。
+     */
+    private void markPhoneVerified(UserEntity user) {
+        if (Boolean.TRUE.equals(user.getPhoneVerified())) {
             return;
         }
-        user.setAuthUserId(authUserId);
-        userMapper.updateById(user);
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        user.setPhoneVerified(true);
+        user.setPhoneVerifiedAt(now);
+        localUserMirror.updateColumnsQuietly(user, w -> w
+                .set(UserEntity::getPhoneVerified, true)
+                .set(UserEntity::getPhoneVerifiedAt, now));
     }
 
     private SmsScene resolveScene(String sceneValue) {

@@ -1,11 +1,11 @@
 package com.careermate.auth.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.careermate.audit.AuditActionType;
 import com.careermate.audit.service.AuditService;
 import com.careermate.auth.gateway.AuthGatewayClient;
 import com.careermate.auth.gateway.AuthGatewayCookieSupport;
+import com.careermate.auth.identity.LocalUserMirror;
 import com.careermate.auth.service.AuthService;
 import com.careermate.auth.dto.AuthTokenResponse;
 import com.careermate.auth.dto.CurrentUserResponse;
@@ -50,6 +50,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuditService auditService;
     private final com.careermate.auth.session.LoginSessionRecorder loginSessionRecorder;
     private final com.careermate.auth.events.AuthEventService authEventService;
+    private final LocalUserMirror localUserMirror;
 
     public AuthServiceImpl(
             UserMapper userMapper,
@@ -60,7 +61,8 @@ public class AuthServiceImpl implements AuthService {
             AuthGatewayCookieSupport cookieSupport,
             AuditService auditService,
             com.careermate.auth.session.LoginSessionRecorder loginSessionRecorder,
-            com.careermate.auth.events.AuthEventService authEventService
+            com.careermate.auth.events.AuthEventService authEventService,
+            LocalUserMirror localUserMirror
     ) {
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
@@ -71,6 +73,7 @@ public class AuthServiceImpl implements AuthService {
         this.auditService = auditService;
         this.loginSessionRecorder = loginSessionRecorder;
         this.authEventService = authEventService;
+        this.localUserMirror = localUserMirror;
     }
 
     @Override
@@ -205,52 +208,20 @@ public class AuthServiceImpl implements AuthService {
 
     private void recordLoginFailure(UserEntity user) {
         // 仅累计失败次数用于"还可以尝试 N 次"提示；不再本地设置锁定时间（锁定/验证码归 auth-gateway）
-        int count = user.getLoginFailedCount() == null ? 0 : user.getLoginFailedCount();
-        count++;
+        int previous = user.getLoginFailedCount() == null ? 0 : user.getLoginFailedCount();
+        int count = previous + 1;
         user.setLoginFailedCount(count);
         // 列级更新：整行回写会把 auth_user_id 等共享身份列一起带上，撞唯一索引就把登录打成 500
-        updateColumns(user, new LambdaUpdateWrapper<UserEntity>()
-                .eq(UserEntity::getId, user.getId())
-                .set(UserEntity::getLoginFailedCount, count));
+        localUserMirror.updateColumnsQuietly(user, w -> w.set(UserEntity::getLoginFailedCount, count));
     }
 
     private void clearLoginFailure(UserEntity user) {
         if (user.getLoginFailedCount() != null && user.getLoginFailedCount() > 0) {
             user.setLoginFailedCount(0);
             user.setLoginLockedUntil(null);
-            updateColumns(user, new LambdaUpdateWrapper<UserEntity>()
-                    .eq(UserEntity::getId, user.getId())
+            localUserMirror.updateColumnsQuietly(user, w -> w
                     .set(UserEntity::getLoginFailedCount, 0)
                     .set(UserEntity::getLoginLockedUntil, null));
-        }
-    }
-
-    /** 登录失败计数一类的附带写入：只碰指定列，且写不进去也不阻断登录。 */
-    private void updateColumns(UserEntity user, LambdaUpdateWrapper<UserEntity> wrapper) {
-        try {
-            userMapper.update(null, wrapper);
-        } catch (Exception ex) {
-            log.warn("更新用户登录计数失败（不影响登录） userId={}: {}", user.getId(), ex.toString());
-        }
-    }
-
-    /**
-     * 把网关身份回填到本地行。用只带 id + auth_user_id 的列级更新，且**写库成功后才同步内存对象**——
-     * 先改内存再写库，一旦写失败，脏值会被后续 clearLoginFailure 的整行回写再次带去撞唯一索引。
-     *
-     * @return false 表示该 auth_user_id 已被本地另一行占用（重复账号行），调用方应放弃后续同步
-     */
-    private boolean backfillAuthUserId(UserEntity user, long authUserId) {
-        try {
-            userMapper.update(null, new LambdaUpdateWrapper<UserEntity>()
-                    .eq(UserEntity::getId, user.getId())
-                    .set(UserEntity::getAuthUserId, authUserId));
-            user.setAuthUserId(authUserId);
-            return true;
-        } catch (DuplicateKeyException ex) {
-            log.error("本地 users 存在重复账号行：auth_user_id={} 已被另一行占用，当前行 userId={} 无法认领网关身份，"
-                    + "登录已放行但两行数据是分裂的，需人工合并", authUserId, user.getId());
-            return false;
         }
     }
 
@@ -437,18 +408,12 @@ public class AuthServiceImpl implements AuthService {
         // 任何失败都不得让一次已成功的登录返回 5xx——否则用户看到「系统异常」，实际却已处于半登录状态。
         // 身份的唯一权威是网关的 auth_user_id：JwtAuthenticationFilter 每次请求都按它解析本地行，
         // 登录响应必须用同一把尺子，否则会出现「刚登录显示 A，一刷新变成 B」的分裂观感。
-        UserEntity byAuthUserId = findLocalUserByAuthUserId(authUserId, account);
-        UserEntity user = byAuthUserId != null ? byAuthUserId : localUser;
-        if (byAuthUserId != null && localUser != null && !byAuthUserId.getId().equals(localUser.getId())) {
-            log.error("本地 users 存在重复账号行：account={} 命中 userId={}，但网关身份 auth_user_id={} 属于 userId={}；"
-                            + "已按网关身份放行（与鉴权过滤器一致），重复行需人工合并",
-                    account, localUser.getId(), authUserId, byAuthUserId.getId());
-        }
-        // 按账号名没落到权威行 = 本地镜像漂移，这时才需要自愈用户名
-        boolean mirrorDrifted = localUser == null
-                || (user != null && !user.getId().equals(localUser.getId()));
+        LocalUserMirror.Resolution resolution = localUserMirror.resolve(authUserId, account, localUser);
+        UserEntity user = resolution.user();
         if (user != null) {
-            syncLocalMirror(user, authUserId, account, tokenResponse.getAccessToken(), rememberMe, mirrorDrifted);
+            // mirrorDrifted：按账号名没落到权威行 = 本地镜像漂移，这时才需要自愈用户名
+            syncLocalMirror(user, authUserId, account, tokenResponse.getAccessToken(), rememberMe,
+                    resolution.mirrorDrifted());
         }
         String username = user != null && StringUtils.hasText(user.getUsername()) ? user.getUsername() : account;
         String role = user != null && StringUtils.hasText(user.getRole())
@@ -479,28 +444,11 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    /**
-     * 本地 users 镜像按 auth_user_id 兜底解析。仅在「按账号名查不到本地行」时才会走到——
-     * 中文用户名登录 500 正是这条路径炸的（网关认 auth_users 里的用户名，本地镜像已漂移）。
-     * 失败必须留全栈（这是拿到根因的唯一现场），但不得阻断一次已认证成功的登录。
-     */
-    private UserEntity findLocalUserByAuthUserId(long authUserId, String account) {
-        try {
-            return userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
-                    .eq(UserEntity::getAuthUserId, authUserId)
-                    .last("LIMIT 1"));
-        } catch (Exception ex) {
-            log.error("按 auth_user_id 兜底解析本地用户失败，已按网关身份放行 authUserId={} account={}",
-                    authUserId, account, ex);
-            return null;
-        }
-    }
-
     /** 登录成功后的本地镜像同步（回填 auth_user_id、记录会话、自愈用户名），整体 best-effort。 */
     private void syncLocalMirror(UserEntity user, long authUserId, String account, String accessToken,
                                  boolean rememberMe, boolean mirrorMissed) {
         try {
-            if (!Long.valueOf(authUserId).equals(user.getAuthUserId()) && !backfillAuthUserId(user, authUserId)) {
+            if (!localUserMirror.claimAuthUserId(user, authUserId)) {
                 // 本地存在重复账号行，这一行认领不了网关身份，后续同步一律跳过，避免把脏值带进别的写操作
                 return;
             }

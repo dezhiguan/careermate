@@ -1,9 +1,8 @@
 package com.careermate.security;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.careermate.auth.events.AuthEventService;
 import com.careermate.model.entity.UserEntity;
-import com.careermate.mapper.UserMapper;
+import com.careermate.auth.identity.LocalUserMirror;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -17,6 +16,7 @@ import java.util.Date;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
 class JwtAuthenticationFilterEventRevocationTest {
 
     private JwtTokenProvider jwtTokenProvider;
-    private UserMapper userMapper;
+    private LocalUserMirror localUserMirror;
     private AuthEventService authEventService;
     private JwtAuthenticationFilter filter;
 
@@ -34,9 +34,9 @@ class JwtAuthenticationFilterEventRevocationTest {
         CurrentUserContext.clear();
         SecurityContextHolder.clearContext();
         jwtTokenProvider = mock(JwtTokenProvider.class);
-        userMapper = mock(UserMapper.class);
+        localUserMirror = mock(LocalUserMirror.class);
         authEventService = mock(AuthEventService.class);
-        filter = new JwtAuthenticationFilter(jwtTokenProvider, userMapper, new ObjectMapper(), authEventService);
+        filter = new JwtAuthenticationFilter(jwtTokenProvider, localUserMirror, new ObjectMapper(), authEventService);
     }
 
     @Test
@@ -55,7 +55,7 @@ class JwtAuthenticationFilterEventRevocationTest {
 
         assertThat(response.getStatus()).isEqualTo(401);
         assertThat(CurrentUserContext.get()).isNull();
-        verify(userMapper, never()).selectOne(any(LambdaQueryWrapper.class));
+        verify(localUserMirror, never()).findByAuthUserId(anyLong());
         verify(chain, never()).doFilter(request, response);
     }
 
@@ -100,7 +100,7 @@ class JwtAuthenticationFilterEventRevocationTest {
         user.setUsername("amy");
         user.setRole("USER");
         user.setStatus("ACTIVE");
-        when(userMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
+        when(localUserMirror.findByAuthUserId(anyLong())).thenReturn(user);
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/auth/me");
         request.addHeader("Authorization", "Bearer " + token);
