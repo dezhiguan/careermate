@@ -41,6 +41,8 @@ spec:
             - secretRef:
                 name: careermate-event-hmac
           env:
+            - name: KEEL_CAREERMATE_TOKEN
+              value: keel-bridge
             - name: SPRING_PROFILES_ACTIVE
               # [SkyWalking-OFF 2026-06-19] 原值: prod,skywalking-log
               value: prod
