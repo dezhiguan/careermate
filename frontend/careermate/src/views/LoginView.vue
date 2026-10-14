@@ -250,6 +250,9 @@
         </div>
       </div>
     </div>
+    <footer class="icp-footer">
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">闽ICP备2026020389号-2</a>
+    </footer>
   </div>
 </template>
 
@@ -520,10 +523,11 @@ onUnmounted(() => {
 
 <style scoped>
 .login-page {
+  position: relative;
   min-height: 100vh;
   min-height: 100dvh;
   background: linear-gradient(135deg, #4E5BEF 0%, #8B5CF6 100%);
-  padding: 24px;
+  padding: 24px 24px 52px;
   display: grid;
   place-items: center;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -632,9 +636,21 @@ input:focus { outline: none; border-color: #4E5BEF; box-shadow: 0 0 0 2px rgba(7
 .legal-body p { margin: 0 0 8px; }
 .legal-updated { color: #94a3b8; font-size: 12px; margin-bottom: 12px !important; }
 .legal-footer { padding: 12px 20px 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; }
+.icp-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  z-index: 2;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.icp-footer a { color: rgba(255, 255, 255, 0.92); text-decoration: none; }
+.icp-footer a:hover { text-decoration: underline; }
 
 @media (max-width: 768px) {
-  .login-page { padding: 16px; align-content: start; padding-top: 32px; }
+  .login-page { padding: 32px 16px 52px; align-content: start; }
   .login-layout { grid-template-columns: 1fr; width: min(380px, 100%); }
   .login-hero { padding: 24px 20px; }
   .hero-title { font-size: 22px; }
