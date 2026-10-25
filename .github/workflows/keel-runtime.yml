@@ -1,0 +1,38 @@
+name: CareerMate Keel runtime
+on:
+  pull_request:
+    paths: ['agent/**', 'deploy/k8s/keel-agent/**', '.github/workflows/keel-runtime.yml']
+  push:
+    branches: [main]
+    paths: ['agent/**', 'deploy/k8s/keel-agent/**', '.github/workflows/keel-runtime.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - name: Verify pinned SDK artifact and install test dependencies
+        run: |
+          (cd agent/vendor && sha256sum -c SHA256SUMS)
+          python -m pip install agent/vendor/keel_sdk-*.whl -r agent/requirements.lock pytest
+      - name: Verify protocol, identity, tool, prompt, streaming and evaluation boundaries
+        working-directory: agent
+        run: python -m pytest tests -q
+      - name: Build deployable runtime image
+        run: docker build -t careermate-agent:${GITHUB_SHA::12} agent
+      - name: Save immutable image artifact
+        run: |
+          docker save careermate-agent:${GITHUB_SHA::12} | gzip > careermate-agent-image.tar.gz
+          sha256sum careermate-agent-image.tar.gz > careermate-agent-image.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: careermate-keel-runtime
+          path: |
+            careermate-agent-image.tar.gz
+            careermate-agent-image.sha256

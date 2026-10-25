@@ -90,6 +90,8 @@ careermate:
     client-ip:
       # 生产环境置于 Nginx/Ingress 后时设为 true；网关须覆盖 X-Real-IP 并清洗 X-Forwarded-For，勿信任客户端直传
       trust-proxy-headers: ${TRUST_PROXY_HEADERS:false}
+  keel:
+    enabled: ${CAREERMATE_KEEL_ENABLED:false}
   llm:
     provider: ${LLM_PROVIDER:mock} # mock | deepseek | qwen | openai-compatible
     model: ${LLM_MODEL:mock-chat}

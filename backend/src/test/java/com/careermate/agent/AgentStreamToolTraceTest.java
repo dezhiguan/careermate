@@ -31,6 +31,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest
 @ActiveProfiles("test")
 class AgentStreamToolTraceTest {
+    @Autowired private com.careermate.mapper.UserMapper users;
+    @Autowired private com.careermate.mapper.UserProfileMapper profiles;
+    @Autowired private org.springframework.security.crypto.password.PasswordEncoder passwords;
+
+    @org.junit.jupiter.api.BeforeEach
+    void prepareOwnedUsers() {
+        com.careermate.testsupport.TestUserSupport.ensureTestUsers(users, profiles, passwords);
+    }
 
     @Autowired
     private AgentToolRouter agentToolRouter;
@@ -49,7 +57,7 @@ class AgentStreamToolTraceTest {
 
     @Test
     void kernelEnabledRunProducesToolTraceEvents() {
-        long userId = 900_003L;
+        long userId = com.careermate.testsupport.TestUsers.USER_A;
         String sessionId = agentSessionService.createSession(userId).getSessionId();
         AgentRunResult result = agentKernelService.prepareRun(AgentRunRequest.builder()
                 .userId(userId)

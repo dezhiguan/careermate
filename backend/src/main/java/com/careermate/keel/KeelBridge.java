@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 /** One console turn: open a CareerMate session and wait for the agent reply. */
 @Service
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "careermate.keel.enabled", havingValue = "false", matchIfMissing = true)
 public class KeelBridge {
     private final UserMapper users;
     private final AgentSessionService sessions;
@@ -56,10 +57,6 @@ public class KeelBridge {
         if (configuredUserId > 0) {
             return configuredUserId;
         }
-        var found = users.selectList(new LambdaQueryWrapper<UserEntity>().orderByAsc(UserEntity::getId).last("limit 1"));
-        if (found.isEmpty()) {
-            throw new IllegalStateException("CareerMate 还没有用户，底座无法代发对话");
-        }
-        return found.getFirst().getId();
+        throw new IllegalStateException("必须显式配置桥接用户；禁止自动选择首个用户");
     }
 }

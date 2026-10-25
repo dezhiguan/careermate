@@ -1,0 +1,128 @@
+[
+  {
+    "name": "advance_application_stage",
+    "access": "write",
+    "risk": "low",
+    "approval": "none"
+  },
+  {
+    "name": "get_company_atmosphere",
+    "access": "read",
+    "risk": "low",
+    "approval": "none"
+  },
+  {
+    "name": "create_career_task",
+    "access": "write",
+    "risk": "mid",
+    "approval": "none"
+  },
+  {
+    "name": "create_interview_session",
+    "access": "write",
+    "risk": "mid",
+    "approval": "none"
+  },
+  {
+    "name": "create_job_match",
+    "access": "write",
+    "risk": "mid",
+    "approval": "none"
+  },
+  {
+    "name": "filter_opportunities",
+    "access": "read",
+    "risk": "low",
+    "approval": "none"
+  },
+  {
+    "name": "generate_jd_aware_questions",
+    "access": "read",
+    "risk": "low",
+    "approval": "none"
+  },
+  {
+    "name": "generate_resume_from_jd",
+    "access": "read",
+    "risk": "high",
+    "approval": "required"
+  },
+  {
+    "name": "get_career_tasks",
+    "access": "read",
+    "risk": "low",
+    "approval": "none"
+  },
+  {
+    "name": "get_dashboard_overview",
+    "access": "read",
+    "risk": "low",
+    "approval": "none"
+  },
+  {
+    "name": "get_default_resume",
+    "access": "read",
+    "risk": "low",
+    "approval": "none"
+  },
+  {
+    "name": "get_latest_job_match",
+    "access": "read",
+    "risk": "low",
+    "approval": "none"
+  },
+  {
+    "name": "get_pipeline_board",
+    "access": "read",
+    "risk": "low",
+    "approval": "none"
+  },
+  {
+    "name": "list_resume_versions",
+    "access": "read",
+    "risk": "low",
+    "approval": "none"
+  },
+  {
+    "name": "mark_career_task_done",
+    "access": "write",
+    "risk": "mid",
+    "approval": "none"
+  },
+  {
+    "name": "modify_resume",
+    "access": "read",
+    "risk": "mid",
+    "approval": "none"
+  },
+  {
+    "name": "propose_stage_confirmation",
+    "access": "read",
+    "risk": "low",
+    "approval": "none"
+  },
+  {
+    "name": "get_salary_guidance",
+    "access": "read",
+    "risk": "low",
+    "approval": "none"
+  },
+  {
+    "name": "search_knowledge_base",
+    "access": "read",
+    "risk": "mid",
+    "approval": "none"
+  },
+  {
+    "name": "update_career_profile",
+    "access": "write",
+    "risk": "mid",
+    "approval": "none"
+  },
+  {
+    "name": "rag_retriever",
+    "access": "read",
+    "risk": "mid",
+    "approval": "none"
+  }
+]

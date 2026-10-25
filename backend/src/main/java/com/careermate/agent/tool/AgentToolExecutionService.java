@@ -7,6 +7,12 @@ public class AgentToolExecutionService {
 
     private final AgentToolRegistry registry;
     private final AgentToolArgumentValidator argumentValidator;
+    private com.careermate.keel.KeelRuntimeClient runtime;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setRuntime(com.careermate.keel.KeelRuntimeClient runtime) {
+        this.runtime = runtime;
+    }
 
     public AgentToolExecutionService(
             AgentToolRegistry registry,
@@ -32,6 +38,10 @@ public class AgentToolExecutionService {
                         );
                     }
                     try {
+                        if (runtime != null) {
+                            // Audit acknowledgement precedes all native business side effects.
+                            runtime.post("audit", java.util.Map.of("toolName", toolName));
+                        }
                         return tool.execute(context);
                     } catch (Exception e) {
                         return AgentToolResult.failure(

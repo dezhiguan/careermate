@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** Keel console entry. Existing /api routes stay on the user session. */
 @RestController
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "careermate.keel.enabled", havingValue = "false", matchIfMissing = true)
 public class KeelInvokeController {
     private final KeelBridge bridge;
     private final ObjectMapper json;

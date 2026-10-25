@@ -59,3 +59,10 @@ frontend/careermate/playwright-report/
 
 # E2E 测试报告中的真实简历产物（含个人信息）
 docs/test-reports/assets/**/generated-resume.*
+
+# Keel runtime state; the small SDK wheel is versioned with its source evidence.
+agent/.keel/
+agent/.venv/
+__pycache__/
+.pytest_cache/
+*.pyc

@@ -33,6 +33,8 @@ public class LlmConfig {
                 llmProperties.getEndpoint(),
                 apiKeyPresent);
         LlmClient delegate = switch (provider) {
+            case "keel" -> new com.careermate.keel.KeelLlmClient(
+                    new com.careermate.keel.KeelRuntimeClient(objectMapper, llmProperties.getEndpoint(), llmProperties.getApiKey()), objectMapper);
             case "mock" -> new MockLlmClient(llmProperties);
             // A1-5：LLM 统一走 Spring AI，自研 HTTP provider 已删除。
             // 旧 provider 名保留为别名映射到 Spring AI，兼容既有配置（qwen/deepseek 皆 DashScope 系）。

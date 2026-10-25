@@ -40,9 +40,17 @@ spec:
             # secret 值不入 git，需用强随机密钥创建：见 deploy 文档。
             - secretRef:
                 name: careermate-event-hmac
+            # Added only after the governed runtime is ready and its gate has passed.
+            - secretRef:
+                name: careermate-keel-runtime
+                optional: true
           env:
             - name: KEEL_CAREERMATE_TOKEN
-              value: keel-bridge
+              valueFrom:
+                secretKeyRef:
+                  name: careermate-service
+                  key: KEEL_BRIDGE_TOKEN
+                  optional: true
             - name: SPRING_PROFILES_ACTIVE
               # [SkyWalking-OFF 2026-06-19] 原值: prod,skywalking-log
               value: prod

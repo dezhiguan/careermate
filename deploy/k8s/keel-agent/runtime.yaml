@@ -1,0 +1,100 @@
+# Apply independently to staging/prod with distinct names, PVCs, Secrets and endpoints.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: careermate-staging-data
+  namespace: agents
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: careermate-staging
+  namespace: agents
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: careermate-staging
+  template:
+    metadata:
+      labels:
+        app: careermate-staging
+        keel.io/agent: careermate
+        keel.io/env: staging
+    spec:
+      hostAliases:
+        - ip: "172.25.90.183"
+          hostnames: [jp.cloud.langfuse.com]
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: agent
+          image: careermate-agent:VERSION
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: keel-careermate
+            - secretRef:
+                name: careermate-service
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: KEEL_AUDIT_SPOOL_PATH
+              value: /app/.keel/audit/$(POD_NAME).jsonl
+            - name: KEEL_TRACE_BUFFER_PATH
+              value: /app/.keel/traces/$(POD_NAME)
+            - name: KEEL_ENV
+              value: staging
+            # Compatibility for older SDK eval workers; the token is CareerMate's own.
+            - name: KEEL_META_AGENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: careermate-service
+                  key: KEEL_BRIDGE_TOKEN
+            - name: KEEL_EVAL_CONCURRENCY
+              value: "2"
+            - name: CAREERMATE_BACKEND_URL
+              value: http://careermate-backend.careermate.svc.cluster.local:18080
+            - name: CAREERMATE_AGENT_ENDPOINT
+              value: http://careermate-staging.agents.svc.cluster.local:8000
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet: {path: /v1/health, port: 8000}
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: {path: /v1/health, port: 8000}
+            initialDelaySeconds: 15
+          resources:
+            requests: {cpu: 100m, memory: 192Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: data
+              mountPath: /app/.keel
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: careermate-staging-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: careermate-staging
+  namespace: agents
+spec:
+  selector:
+    app: careermate-staging
+  ports:
+    - port: 8000
+      targetPort: 8000

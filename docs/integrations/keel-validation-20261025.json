@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-25",
+  "status": "waiting_for_valid_console_session",
+  "sourceBranches": {
+    "careermate": "feat/keel-lifecycle-20261025",
+    "keel": "feat/careermate-lifecycle-20261025"
+  },
+  "platformCommit": "df73e90867a0f72c597b7f0abdb202b90ef0621d",
+  "tests": {
+    "native": {
+      "suites": 200,
+      "passed": 1050,
+      "failed": 0
+    },
+    "sdk_runtime": {
+      "passed": 22,
+      "failed": 0
+    },
+    "platform": {
+      "passed": 13,
+      "failed": 0
+    },
+    "evaluation_credential": {
+      "passed": 2,
+      "failed": 0
+    },
+    "postgresql_registry_queries": {
+      "passed": 3,
+      "failed": 0
+    }
+  },
+  "artifacts": {
+    "nativeJar": "backend/target/careermate-backend-0.1.0.jar",
+    "runtimeImage": "careermate-agent:lifecycle-20261025-final",
+    "runtimeImageId": "sha256:f6fe461a9f858e10c4c4268fda88e704a7de669b22629b132f645ad883472f6e",
+    "runtimeImageSmoke": "passed",
+    "nativeJarSha256": "aa67f5ef589abf47deb399fc614c2a0496fff3eb8eacb3216cae92be7ae53cd9"
+  },
+  "live": {
+    "productionChangesApplied": false,
+    "lastConsoleStatus": 401,
+    "lastConsoleCode": "AUTH_TOKEN_EXPIRED",
+    "unverified": [
+      "standard registration and provisioning",
+      "staging/prod credential separation and cutover",
+      "prompt synchronization and controlled production labels",
+      "real-model evaluation and release gate",
+      "console debug and multi-turn business operations",
+      "Langfuse observations, gateway spend and live audit correlation"
+    ]
+  }
+}
