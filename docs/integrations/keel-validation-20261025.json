@@ -110,7 +110,9 @@
       "historicalMemoryRecordsFullyRecoverable": false,
       "nativeSemanticParentVerified": true,
       "correlatedTraceId": "7fda38767b0c3a62a3d3e73f2cc16226",
-      "correlatedEvents": 2
+      "correlatedEvents": 2,
+      "recoveredOriginalSpoolEvents": 8,
+      "nativeSpanVisible": true
     },
     "boundaries": {
       "nativeHealth": 200,

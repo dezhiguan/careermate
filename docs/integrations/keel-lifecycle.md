@@ -87,4 +87,4 @@ python agent/lifecycle.py publish --run-id ev_RETURNED_ID --env prod
 
 Keel 控制台须同时读取控制面和运行时审计。`KEEL_RUNTIME_AUDIT_URL` 配置到 keel-audit，聚合分页保留两类记录。keel-audit 使用独立 `keel_audit` 数据库，`keel-audit-database` Secret 注入 JDBC URL、受限应用用户及密码，以及 `KEEL_AUDIT_MIGRATE=false`、`KEEL_AUDIT_REQUIRE_DURABLE=true`。管理员执行迁移；应用只对事件表/分区 SELECT、INSERT，链头允许 UPDATE。当前 2026-10 至 2026-12 分区已预建，运维须提前创建后续月分区；应用不自行扩大 DDL 权限。
 
-运行时字段策略保存在既有 `keel-routing-audit-policy` Secret：careermate-keel/staging 只保留 toolName、outcome，凭据摘要绑定标准开通的审计 token。策略更新不得覆盖其他智能体。旧线上审计服务曾使用内存，首次更新前未完成存储核对，旧运行时审计无法完整恢复；原有控制面持久化记录仍保留。详见验收记录，不将新持久化追认为历史证据。
+运行时字段策略保存在既有 `keel-routing-audit-policy` Secret：careermate-keel/staging 只保留 toolName、outcome，凭据摘要绑定标准开通的审计 token。策略更新不得覆盖其他智能体。旧线上审计服务曾使用内存，首次更新前未完成存储核对，旧运行时审计无法完整恢复；原有控制面持久化记录仍保留，并从 CareerMate SDK 缓冲恢复了 8 条有原始凭据的历史事件。详见验收记录，不将新持久化追认为历史证据。
