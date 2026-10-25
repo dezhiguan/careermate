@@ -1,11 +1,11 @@
 {
   "date": "2026-10-25",
-  "status": "waiting_for_valid_console_session",
+  "status": "staging_v2_live_verified",
   "sourceBranches": {
     "careermate": "feat/keel-lifecycle-20261025",
     "keel": "feat/careermate-lifecycle-20261025"
   },
-  "platformCommit": "df73e90867a0f72c597b7f0abdb202b90ef0621d",
+  "platformCommit": "1c21c607eb669bdb76f2b3df31e3a7cd3a80eef1",
   "tests": {
     "native": {
       "suites": 200,
@@ -27,6 +27,21 @@
     "postgresql_registry_queries": {
       "passed": 3,
       "failed": 0
+    },
+    "sdk_resume_and_history": {
+      "passed": 10,
+      "failed": 0
+    },
+    "native_final_targeted": {
+      "passed": 11,
+      "failed": 0
+    },
+    "audit": {
+      "passed": 24,
+      "failed": 0,
+      "skipped": 0,
+      "postgresqlPassed": 3,
+      "chainBranchCoverageGate": "passed"
     }
   },
   "artifacts": {
@@ -37,16 +52,99 @@
     "nativeJarSha256": "aa67f5ef589abf47deb399fc614c2a0496fff3eb8eacb3216cae92be7ae53cd9"
   },
   "live": {
-    "productionChangesApplied": false,
-    "lastConsoleStatus": 401,
-    "lastConsoleCode": "AUTH_TOKEN_EXPIRED",
-    "unverified": [
-      "standard registration and provisioning",
-      "staging/prod credential separation and cutover",
-      "prompt synchronization and controlled production labels",
-      "real-model evaluation and release gate",
-      "console debug and multi-turn business operations",
-      "Langfuse observations, gateway spend and live audit correlation"
-    ]
-  }
+    "environment": "staging",
+    "name": "careermate-keel",
+    "version": "v2",
+    "debugUrl": "https://keel.ragforge.net/agents/careermate-keel/debug",
+    "nativeProductionCutover": false,
+    "promptVersions": {
+      "assistant": 2,
+      "agent-base": 1,
+      "resume-generate-from-jd": 1,
+      "job-match-analyze": 1,
+      "interview-question-generate": 1
+    },
+    "evaluation": {
+      "runId": "ev_72ed7e9c19b441a59048d2590a59302e",
+      "complete": true,
+      "cases": 10,
+      "score": 1.0,
+      "passed": true
+    },
+    "selfCheck": {
+      "health": true,
+      "protocol": true,
+      "trace": true,
+      "approvalBinding": true
+    },
+    "browser": {
+      "streaming": true,
+      "createReadCompleteTask": true,
+      "multiTurn": true,
+      "pageErrors": 0,
+      "traceIds": [
+        "5d617005c71e24dbf7f824a74fd54e47",
+        "deb67511a121f3c298ca954d4d9bf4d2"
+      ]
+    },
+    "gateway": {
+      "settledCostCny": 0.004309,
+      "pendingBills": 0,
+      "sourceTraceId": "deb67511a121f3c298ca954d4d9bf4d2"
+    },
+    "audit": {
+      "durable": true,
+      "eventsRetainedAfterRestart": 6,
+      "hashesVerified": true,
+      "chainIntact": true,
+      "consoleVisible": true,
+      "allowedPayloadFields": [
+        "toolName",
+        "outcome"
+      ],
+      "applicationPrivileges": [
+        "SELECT",
+        "INSERT"
+      ],
+      "updateDeleteAllowed": false,
+      "historicalMemoryRecordsFullyRecoverable": false,
+      "nativeSemanticParentVerified": true,
+      "correlatedTraceId": "7fda38767b0c3a62a3d3e73f2cc16226",
+      "correlatedEvents": 2
+    },
+    "boundaries": {
+      "nativeHealth": 200,
+      "authenticatedToolCount": 21,
+      "unknownUser": 403,
+      "invalidBridge": 401
+    },
+    "images": {
+      "agent": {
+        "newImage": "docker.io/library/careermate-agent:keel-d3177418143f",
+        "digest": "sha256:fbd0fabacd50759a292f03f02d22ce381eb0e6f6aa38724d2cad8a7d9aefb930",
+        "revision": "d3177418143f4f99d32ed4f037bdeed746b0d50f"
+      },
+      "backend": {
+        "newImage": "docker.io/library/careermate-backend:keel-trace-89b5fd75d09f",
+        "digest": "sha256:f233cb4486ccfa29ee62e91b3297fdc8a0469075de28787ed5d57797c3499f91",
+        "revision": "89b5fd75d09f0217f5cc65dc859e995536dd3f2f"
+      },
+      "server": {
+        "newImage": "docker.io/library/keel-server:careermate-audit-922625e3b58f",
+        "digest": "sha256:c65357a8e131641096ebead4c2674aee7f850218eeea25ace4ecbb64b1ff2d59",
+        "revision": "922625e3b58f57fdcbaac1cb3f413122867d1dde"
+      },
+      "audit": {
+        "newImage": "docker.io/library/keel-audit:careermate-durable-1c21c607eb66",
+        "digest": "sha256:3c82b7aae44d28de257e20314ea9dad39d8bee666273d8e60957d2376ef3971a",
+        "revision": "1c21c607eb669bdb76f2b3df31e3a7cd3a80eef1"
+      }
+    }
+  },
+  "limitations": [
+    "Original production frontend/backend traffic has not been switched to the staging runtime.",
+    "Workspace-specific resume operations retain native CareerMate JD workspace requirements.",
+    "Historical runtime audit was memory-only and was not fully preserved during the first rollout; control-plane persistent audit remains.",
+    "Audit partitions through 2026-12 are precreated; administrators must provision subsequent months."
+  ]
 }

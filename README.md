@@ -18,7 +18,7 @@ careermate/
 
 `agent/` 提供使用底座 SDK 的职业助手运行时，接入模型网关、版本化提示词、工具循环、记忆、追踪、审计和评测。Java 后端保留业务能力，并提供受认证的内部工具及模型/提示词适配。
 
-构建、配置与标准注册/评测/发布命令见 [Keel 接入说明](docs/integrations/keel-lifecycle.md)。线上接入尚未验收完成：管理员测试会话已失效，需要有效登录后继续注册、发布与调试窗口实测。
+构建、配置与标准注册/评测/发布命令见 [Keel 接入说明](docs/integrations/keel-lifecycle.md)。线上 `careermate-keel` 已在 Keel staging 发布 v2，调试窗口、提示词、全量测评、追踪、网关计费和持久化审计均已验收。原生生产主站流量尚未切换。详见 [验收记录](docs/integrations/keel-validation-20261025.md)。
 
 ## 当前状态
 
