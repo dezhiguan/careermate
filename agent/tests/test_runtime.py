@@ -46,16 +46,16 @@ def test_malformed_credential_bytes_are_rejected_as_unauthenticated():
 def test_deployment_identity_and_environment_override_untrusted_headers():
     async def inspect(request):
         return JSONResponse({"agent": request.headers["x-keel-agent"], "env": request.headers["x-keel-env"]})
-    client = TestClient(ServiceBoundary(Starlette(routes=[Route("/v1/invoke", inspect, methods=["POST"])])))
+    client = TestClient(ServiceBoundary(Starlette(routes=[Route("/v1/invoke", inspect, methods=["POST"])]), app.agent.name))
     response = client.post("/v1/invoke", headers={"X-Keel-Bridge": "unit-bridge", "X-Keel-Agent": "victim", "X-Keel-Env": "prod"})
-    assert response.json() == {"agent": "careermate", "env": "staging"}
+    assert response.json() == {"agent": "careermate-keel", "env": "staging"}
 
 
 def test_health_and_manifest_are_discoverable_without_credentials():
     with TestClient(app.app) as client:
         assert client.get("/v1/health").status_code == 200
         manifest = client.get("/v1/manifest").json()
-        assert manifest["manifest"]["metadata"]["name"] == "careermate"
+        assert manifest["manifest"]["metadata"]["name"] == "careermate-keel"
 
 
 def test_evaluation_never_discovers_or_executes_personal_tools(monkeypatch):

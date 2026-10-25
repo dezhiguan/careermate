@@ -9,6 +9,7 @@ import httpx
 import yaml
 
 ROOT = Path(__file__).resolve().parent
+NAME = yaml.safe_load((ROOT / "agent.yaml").read_text())["metadata"]["name"]
 
 
 def prompt_payload(git_sha):
@@ -47,7 +48,7 @@ def main():
         cookies = json.loads(Path(os.environ["KEEL_CONSOLE_COOKIE_FILE"]).read_text())
     else:
         raise RuntimeError("An authenticated console token or cookie file is required")
-    prefix = "/api/v1/agents/careermate"
+    prefix = "/api/v1/agents/" + NAME
     with httpx.Client(base_url=base, headers=headers, cookies=cookies, timeout=360) as client:
         def call(method, path, body=None):
             response = client.request(method, path, json=body)
@@ -76,12 +77,12 @@ def main():
         elif args.command == "self-check":
             result = call("POST", prefix + "/self-check")
         elif args.command == "evaluate":
-            result = call("POST", "/api/v1/eval/careermate/runs")
+            result = call("POST", "/api/v1/eval/" + NAME + "/runs")
         elif args.command == "inspect":
             result = call("GET", "/api/v1/eval/runs/" + args.run_id)
         else:
             # The platform verifies complete coverage, prompt versions and the evaluated image.
-            result = call("POST", "/api/v1/eval/careermate/runs/" + args.run_id + "/publish", {"env": args.env})
+            result = call("POST", "/api/v1/eval/" + NAME + "/runs/" + args.run_id + "/publish", {"env": args.env})
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

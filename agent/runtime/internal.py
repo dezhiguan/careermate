@@ -39,11 +39,11 @@ def install_internal(app, agent):
     async def context(request):
         parent = TraceContextTextMapPropagator().extract(dict(request.headers))
         with tracer.start_as_current_span("careermate.native", context=parent, attributes={
-                "langfuse.observation.type": "agent", "keel.agent": "careermate",
+                "langfuse.observation.type": "agent", "keel.agent": agent.name,
                 "keel.env": os.environ["KEEL_ENV"], "keel.status": "ok"}) as span:
             tid = f"{span.get_span_context().trace_id:032x}" if span.get_span_context().is_valid else uuid.uuid4().hex
             with use_transport(getattr(request.app.state, "keel_transport", None)):
-                ctx = Context("careermate", uuid.uuid4().hex, tid, asyncio.Queue(), tracer,
+                ctx = Context(agent.name, uuid.uuid4().hex, tid, asyncio.Queue(), tracer,
                               manifest=agent.manifest, env=os.environ["KEEL_ENV"])
                 try:
                     yield ctx

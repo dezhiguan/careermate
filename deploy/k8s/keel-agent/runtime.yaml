@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: careermate-staging-data
+  name: careermate-keel-data
   namespace: agents
 spec:
   accessModes: [ReadWriteOnce]
@@ -13,18 +13,18 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: careermate-staging
+  name: careermate-keel
   namespace: agents
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: careermate-staging
+      app: careermate-keel
   template:
     metadata:
       labels:
-        app: careermate-staging
-        keel.io/agent: careermate
+        app: careermate-keel
+        keel.io/agent: careermate-keel
         keel.io/env: staging
     spec:
       hostAliases:
@@ -38,32 +38,7 @@ spec:
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
-                name: keel-careermate
-            - secretRef:
-                name: careermate-service
-          env:
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: KEEL_AUDIT_SPOOL_PATH
-              value: /app/.keel/audit/$(POD_NAME).jsonl
-            - name: KEEL_TRACE_BUFFER_PATH
-              value: /app/.keel/traces/$(POD_NAME)
-            - name: KEEL_ENV
-              value: staging
-            # Compatibility for older SDK eval workers; the token is CareerMate's own.
-            - name: KEEL_META_AGENT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: careermate-service
-                  key: KEEL_BRIDGE_TOKEN
-            - name: KEEL_EVAL_CONCURRENCY
-              value: "2"
-            - name: CAREERMATE_BACKEND_URL
-              value: http://careermate-backend.careermate.svc.cluster.local:18080
-            - name: CAREERMATE_AGENT_ENDPOINT
-              value: http://careermate-staging.agents.svc.cluster.local:8000
+                name: keel-careermate-keel
           ports:
             - containerPort: 8000
           readinessProbe:
@@ -81,20 +56,20 @@ spec:
             allowPrivilegeEscalation: false
           volumeMounts:
             - name: data
-              mountPath: /app/.keel
+              mountPath: /opt/careermate-agent/.keel
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: careermate-staging-data
+            claimName: careermate-keel-data
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: careermate-staging
+  name: careermate-keel
   namespace: agents
 spec:
   selector:
-    app: careermate-staging
+    app: careermate-keel
   ports:
     - port: 8000
       targetPort: 8000

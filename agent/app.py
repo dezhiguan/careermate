@@ -1,12 +1,17 @@
 """CareerMate orchestration runs on Keel; Java retains the business domain."""
 import asyncio
 import os
+import socket
 from pathlib import Path
 
 from keel import Agent
 
 from runtime.security import ServiceBoundary
 from tools.backend import definitions, invocation, register_tools
+
+for path_key in ("KEEL_AUDIT_SPOOL_PATH", "KEEL_TRACE_BUFFER_PATH"):
+    if path_key in os.environ:
+        os.environ[path_key] = os.environ[path_key].replace("{pod}", socket.gethostname())
 
 agent = Agent.from_manifest(Path(__file__).with_name("agent.yaml"))
 agent.manifest.spec.runtime.endpoint = os.environ["CAREERMATE_AGENT_ENDPOINT"]
@@ -34,4 +39,4 @@ async def career(request, ctx):
 protocol = agent.asgi()
 from runtime.internal import install_internal
 install_internal(protocol, agent)
-app = ServiceBoundary(protocol)
+app = ServiceBoundary(protocol, agent.name)

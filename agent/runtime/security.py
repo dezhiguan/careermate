@@ -7,8 +7,9 @@ from keel.protocol.errors import ErrorCode
 
 
 class ServiceBoundary:
-    def __init__(self, app):
+    def __init__(self, app, agent_name):
         self.app = app
+        self.agent = agent_name
         self.bridge = os.environ["KEEL_BRIDGE_TOKEN"]
         self.service = os.environ["CAREERMATE_SERVICE_TOKEN"]
         self.env = os.environ["KEEL_ENV"]
@@ -34,5 +35,5 @@ class ServiceBoundary:
         # Agent and environment belong to the deployment, never to caller headers.
         scope = dict(scope)
         scope["headers"] = [(k, v) for k, v in scope["headers"] if k.lower() not in (b"x-keel-agent", b"x-keel-env")]
-        scope["headers"] += [(b"x-keel-agent", b"careermate"), (b"x-keel-env", self.env.encode())]
+        scope["headers"] += [(b"x-keel-agent", self.agent.encode()), (b"x-keel-env", self.env.encode())]
         await self.app(scope, receive, send)

@@ -1,7 +1,7 @@
 apiVersion: keel/v1
 kind: Agent
 metadata:
-  name: careermate
+  name: careermate-keel
   displayName: CareerMate 职业助手
   owner: 人力数字化组 / guandezhi
   category: biz
@@ -16,10 +16,10 @@ spec:
   runtime:
     type: code
     language: python
-    endpoint: http://careermate-agent.agents.svc.cluster.local:8000
+    endpoint: http://careermate-keel.agents.svc.cluster.local:8000
     liveness: k8s
   auth:
-    audience: careermate
+    audience: careermate-keel
   models:
     default: chat-default
     budget:
