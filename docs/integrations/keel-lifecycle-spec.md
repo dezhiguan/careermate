@@ -34,3 +34,5 @@ agent.yaml 声明模型、提示词、工具风险与权限、记忆、审计、
 ## 回归补充
 
 数据库全量回归发现旧 AgentStreamToolTraceTest 使用未创建的用户 900003；仅修复该测试夹具，使用 TestUserSupport 显式创建拥有者，不放宽业务数据隔离。
+
+线上链路核对补充：经认证的内部工具请求将 W3C traceparent 存入独立 keelTraceParent MDC 字段；Java 调回 SDK 时优先转发该语义上下文，不覆盖 SkyWalking 的 traceId/spanId。必须严格验证非零 W3C 标识并在请求结束恢复 MDC；现有异步执行器按原规则复制全部 MDC。

@@ -69,6 +69,22 @@ public class KeelBusinessController {
     public record ToolRequest(Long authUserId, String sessionId, String userMessage, Map<String, Object> arguments) {}
 
     @PostMapping("/{name}")
+    public AgentToolResult executeHttp(@RequestHeader(value = "Authorization", required = false) String auth,
+                                      @PathVariable String name, @RequestBody ToolRequest body,
+                                      jakarta.servlet.http.HttpServletRequest request) {
+        authenticate(auth);
+        var previous = org.slf4j.MDC.get("keelTraceParent");
+        var incoming = request.getHeader("traceparent");
+        try {
+            if (KeelRuntimeClient.validTraceParent(incoming)) org.slf4j.MDC.put("keelTraceParent", incoming);
+            else org.slf4j.MDC.remove("keelTraceParent");
+            return execute(auth, name, body);
+        } finally {
+            if (previous == null) org.slf4j.MDC.remove("keelTraceParent");
+            else org.slf4j.MDC.put("keelTraceParent", previous);
+        }
+    }
+
     public AgentToolResult execute(@RequestHeader(value = "Authorization", required = false) String auth,
                                    @PathVariable String name, @RequestBody ToolRequest body) {
         authenticate(auth);

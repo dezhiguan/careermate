@@ -55,6 +55,24 @@ class KeelBusinessControllerTest {
         verifyNoInteractions(execution);
     }
 
+    @Test void authenticatedHttpTraceIsScopedToTheBusinessInvocation() {
+        var user = new UserEntity(); user.setId(200L); user.setStatus("ACTIVE");
+        when(users.findByAuthUserId(42L)).thenReturn(user);
+        when(registry.definitionOf("get_default_resume")).thenReturn(Optional.of(
+                AgentToolDefinition.builder().name("get_default_resume").enabled(true).build()));
+        String parent="00-"+"1".repeat(32)+"-"+"2".repeat(16)+"-01";
+        var request=new org.springframework.mock.web.MockHttpServletRequest();request.addHeader("traceparent",parent);
+        org.slf4j.MDC.put("keelTraceParent","previous-context");
+        try {
+            when(execution.execute(any(),eq("get_default_resume"))).thenAnswer(call->{
+                assertThat(org.slf4j.MDC.get("keelTraceParent")).isEqualTo(parent);
+                return AgentToolResult.success("get_default_resume","ok",Map.of());
+            });
+            controller.executeHttp("Bearer service-secret","get_default_resume",request(Map.of()),request);
+            assertThat(org.slf4j.MDC.get("keelTraceParent")).isEqualTo("previous-context");
+        } finally { org.slf4j.MDC.clear(); }
+    }
+
     private KeelBusinessController.ToolRequest request(Map<String, Object> args) {
         return new KeelBusinessController.ToolRequest(42L, "session", "query", args);
     }

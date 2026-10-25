@@ -47,12 +47,21 @@ public class KeelRuntimeClient {
         this.token = token;
     }
 
+    static boolean validTraceParent(String value) {
+        return value != null && value.matches("00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}")
+                && !value.substring(3,35).equals("0".repeat(32))
+                && !value.substring(36,52).equals("0".repeat(16));
+    }
+
     private HttpRequest request(String operation, Object body) throws Exception {
         var builder = HttpRequest.newBuilder(URI.create(endpoint + "/internal/" + operation))
                 .timeout(Duration.ofSeconds(120)).header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + token);
+        var semanticParent = MDC.get("keelTraceParent");
         var trace = MDC.get("traceId");
-        if (trace != null && trace.matches("[0-9a-f]{32}")) {
+        if (validTraceParent(semanticParent)) {
+            builder.header("traceparent", semanticParent);
+        } else if (trace != null && trace.matches("[0-9a-f]{32}")) {
             var span = MDC.get("spanId");
             if (span == null || !span.matches("[0-9a-f]{16}")) {
                 span = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
