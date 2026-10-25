@@ -40,7 +40,7 @@ def main():
     publish.add_argument("--env", choices=["staging", "prod"], required=True)
     args = parser.parse_args()
     base = os.environ["KEEL_CONSOLE_URL"].rstrip("/")
-    headers = {}
+    headers = {"X-Keel-Console": "1"}
     cookies = {}
     if os.environ.get("KEEL_CONSOLE_TOKEN"):
         headers["Authorization"] = "Bearer " + os.environ["KEEL_CONSOLE_TOKEN"]

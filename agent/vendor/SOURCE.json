@@ -2,7 +2,7 @@
   "repository": "https://github.com/dezhiguan/keel",
   "baseCommit": "05219b34f0093788be36a9792a000bb25a24ef71",
   "integrationBranch": "feat/careermate-lifecycle-20261025",
-  "wheelSha256": "ad904314063f740efbb8e01cdaf037a6c4b841c744f6687d05aa1aaefde09b37",
-  "sourceCommit": "4d8be521e5513c6d6d9b3eaa7750f00c0bc54bfc",
-  "platformIntegrationCommit": "4d8be521e5513c6d6d9b3eaa7750f00c0bc54bfc"
+  "wheelSha256": "48ca5632dbbed2e5d6570ca1474cff104855ca870d12f34d26e8d4a0421f3472",
+  "sourceCommit": "958d7f6af8df0c823358651fa78a26abfd6d1d84",
+  "platformIntegrationCommit": "958d7f6af8df0c823358651fa78a26abfd6d1d84"
 }
